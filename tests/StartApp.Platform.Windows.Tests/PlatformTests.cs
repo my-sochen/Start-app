@@ -130,4 +130,28 @@ public class PlatformTests
         var pf = new FileSystemPreflight(new FakeProbe(p => p.Contains("ed.exe") ? new(ProbeKind.File, null, true) : new(ProbeKind.File)));
         Assert.Equal(PreflightState.NeedsDecision, pf.Check(It(ItemType.File, "C:\\a.txt"), new LaunchConfig(OpenWith: "C:\\Apps\\ed.exe")).State);
     }
+
+    [Fact] public void NormalComposition_ChecksBeforeLaunching_AndBlockedClassNeverReachesTheStarter()
+    {
+        if (!OperatingSystem.IsWindows()) return; // the real probe/preflight use Windows path rules; this runs on a Windows runner only (temp files, recording starter, no real launch)
+        var dir = Path.Combine(Path.GetTempPath(), "sa-comp-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+        try
+        {
+            var ok = Path.Combine(dir, "ok.txt"); File.WriteAllText(ok, "x"); var ps = Path.Combine(dir, "run.ps1"); File.WriteAllText(ps, "x");
+            var rec = new Rec(); var (launcher, pre) = WindowsComposition.Create(rec);
+            Assert.Equal(PreflightState.Ready, pre.Check(new Item("a", ItemType.File, "ok", ok), null).State);
+            Assert.Equal(PreflightState.NeedsDecision, pre.Check(new Item("b", ItemType.File, "ps", ps), null).State);
+            Assert.Equal(PreflightState.Missing, pre.Check(new Item("c", ItemType.File, "no", Path.Combine(dir, "none.txt")), null).State);
+            Assert.Empty(rec.Calls);                                // checking starts nothing
+            launcher.Launch(new Item("a", ItemType.File, "ok", ok), null);
+            Assert.Single(rec.Calls); Assert.Equal(ok, rec.Calls[0].FileName); Assert.True(rec.Calls[0].UseShell);   // recorded only: the real shell was not used in this test
+            var blocked = launcher.Launch(new Item("b", ItemType.File, "ps", ps), null);
+            Assert.NotEqual(LaunchStatus.Started, blocked.Status); Assert.Single(rec.Calls);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+    [Fact] public void NormalComposition_DefaultStarter_IsCreatedWithoutStartingAnything()
+    {
+        var (l, p) = WindowsComposition.Create(); Assert.IsType<WindowsLauncher>(l); Assert.IsType<FileSystemPreflight>(p);
+    }
 }
