@@ -29,7 +29,7 @@ public class MainViewModelTests
         var p = Tmp(); using var repo = new JsonStore(p);
         repo.Mutate(c => { var w = c.CreateWorkspace("w"); var i = c.GetOrAddItem(ItemType.File, "f", "C:\\a.txt"); c.AddToWorkspace(w.Id, i.Id); });
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.OpenWorkspaceCommand.Execute(null); Assert.True(vm.OpenDecisionPending); vm.ConfirmOpenAnywayCommand.Execute(null);
+        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); Assert.True(vm.OpenDecisionPending); vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
         Assert.Contains("0 of 1", vm.Status);
     }
 
