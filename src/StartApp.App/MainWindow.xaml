@@ -4,12 +4,12 @@
         Title="Start-app" Height="480" Width="860" MinWidth="720" MinHeight="360">
     <DockPanel Margin="8">
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-        <StackPanel DockPanel.Dock="Left" Width="220" Margin="0,0,8,0">
-            <ListBox ItemsSource="{Binding Workspaces}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name" Height="300"/>
-            <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0"/>
-            <Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" Margin="0,4,0,0"/>
-            <Button Content="Delete workspace" Command="{Binding DeleteWorkspaceCommand}" Margin="0,4,0,0"/>
-        </StackPanel>
+        <DockPanel DockPanel.Dock="Left" Width="220" Margin="0,0,8,0">
+            <Button DockPanel.Dock="Bottom" Content="Delete workspace" Command="{Binding DeleteWorkspaceCommand}" Margin="0,4,0,0"/>
+            <Button DockPanel.Dock="Bottom" Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" Margin="0,4,0,0"/>
+            <TextBox DockPanel.Dock="Bottom" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0"/>
+            <ListBox ItemsSource="{Binding Workspaces}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name"/>
+        </DockPanel>
         <DockPanel>
             <DockPanel DockPanel.Dock="Top">
                 <Button DockPanel.Dock="Left" Content="Open workspace" Command="{Binding OpenWorkspaceCommand}" Padding="8,2"/>
