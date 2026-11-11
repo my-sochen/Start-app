@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\StartApp.Presentation\StartApp.Presentation.csproj" />
+    <ProjectReference Include="..\StartApp.Platform.Windows\StartApp.Platform.Windows.csproj" />
     <ProjectReference Include="..\StartApp.Storage.Json\StartApp.Storage.Json.csproj" />
   </ItemGroup>
 </Project>

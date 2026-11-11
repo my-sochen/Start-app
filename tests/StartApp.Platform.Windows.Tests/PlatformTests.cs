@@ -2,7 +2,7 @@ using StartApp.Core;
 using StartApp.Platform.Windows;
 using Xunit;
 
-public class PlatformTests
+public class PlatformTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private sealed class Rec : IProcessStarter { public List<StartRequest> Calls = new(); public Exception? Throw; public void Start(StartRequest r) { if (Throw != null) throw Throw; Calls.Add(r); } }
     private sealed class FakeProbe(Func<string, ProbeResult> f) : IFileSystemProbe { public ProbeResult Probe(string p) => f(p); }
@@ -129,5 +129,30 @@ public class PlatformTests
         Assert.Equal(PreflightState.NeedsDecision, Run(new(ProbeKind.File, null, true), ItemType.Program).State);
         var pf = new FileSystemPreflight(new FakeProbe(p => p.Contains("ed.exe") ? new(ProbeKind.File, null, true) : new(ProbeKind.File)));
         Assert.Equal(PreflightState.NeedsDecision, pf.Check(It(ItemType.File, "C:\\a.txt"), new LaunchConfig(OpenWith: "C:\\Apps\\ed.exe")).State);
+    }
+
+    [Fact] public void NormalComposition_ChecksBeforeLaunching_AndBlockedClassNeverReachesTheStarter()
+    {
+        if (!OperatingSystem.IsWindows()) return; // the real probe/preflight use Windows path rules; this runs on a Windows runner only (temp files, recording starter, no real launch)
+        var dir = Path.Combine(Path.GetTempPath(), "sa-comp-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+        try
+        {
+            var ok = Path.Combine(dir, "ok.txt"); File.WriteAllText(ok, "x"); var ps = Path.Combine(dir, "run.ps1"); File.WriteAllText(ps, "x");
+            var rec = new Rec(); var (launcher, pre) = WindowsComposition.Create(rec);
+            Assert.Equal(PreflightState.Ready, pre.Check(new Item("a", ItemType.File, "ok", ok), null).State);
+            Assert.Equal(PreflightState.NeedsDecision, (PreflightRules.CheckForm(new Item("b", ItemType.File, "ps", ps), null) ?? pre.Check(new Item("b", ItemType.File, "ps", ps), null)).State); // same order as the view model: the form/extension rule first, then the file system preflight
+            Assert.Equal(PreflightState.Missing, pre.Check(new Item("c", ItemType.File, "no", Path.Combine(dir, "none.txt")), null).State);
+            Assert.Empty(rec.Calls);                                // checking starts nothing
+            launcher.Launch(new Item("a", ItemType.File, "ok", ok), null);
+            Assert.Single(rec.Calls); Assert.Equal(ok, rec.Calls[0].FileName); Assert.True(rec.Calls[0].UseShell);   // recorded only: the real shell was not used in this test
+            var blocked = launcher.Launch(new Item("b", ItemType.File, "ps", ps), null);
+            Assert.NotEqual(LaunchStatus.Started, blocked.Status); Assert.Single(rec.Calls);
+            output.WriteLine($"COMPOSITION-TEST-EXECUTED os={Environment.OSVersion.Platform} recorded-requests={rec.Calls.Count} blocked-status={blocked.Status}"); // proof in the test log that the body ran (an early return on non-Windows prints nothing)
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+    [Fact] public void NormalComposition_DefaultStarter_IsCreatedWithoutStartingAnything()
+    {
+        var (l, p) = WindowsComposition.Create(); Assert.IsType<WindowsLauncher>(l); Assert.IsType<FileSystemPreflight>(p);
     }
 }

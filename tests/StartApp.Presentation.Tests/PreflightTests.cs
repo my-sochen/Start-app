@@ -175,8 +175,28 @@ public class PreflightTests
     {
         using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.Link, "https://user@evil.example/")); var l = new FakeLauncher(); var vm = Vm(repo, l);
         vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.All(vm.OpenProblems, p => Assert.Contains("needs an explicit decision", p));
+        Assert.All(vm.OpenProblems, p => Assert.Contains("will be skipped, not opened", p));
         vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
         Assert.Empty(l.Launched); Assert.All(vm.OpenReport, r => Assert.Contains("skipped, not opened", r));
+    }
+    [Fact] public void Panel_AllSkipped_SaysSkipped_AndConfirmIsShowReport()
+    {
+        using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.Link, "https://user@evil.example/")); var l = new FakeLauncher(); var vm = Vm(repo, l);
+        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
+        Assert.Equal("2 items will be skipped. Nothing has been opened yet.", vm.Status); Assert.Equal("Show report", vm.ConfirmLabel); Assert.Empty(l.Launched);
+    }
+    [Fact] public void Panel_Mixed_CountsSkippedAndConfirmable_AndKeepsOpenAnyway()
+    {
+        using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.File, "C:\\ok.txt"), (ItemType.File, "C:\\gone.txt")); var l = new FakeLauncher();
+        var vm = Vm(repo, l, i => i.Target.EndsWith("gone.txt") ? new(PreflightState.Missing, "saved target") : new(PreflightState.Ready), OpenState.Unknown);
+        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
+        Assert.Equal("1 item will be skipped. 2 items can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.", vm.Status);
+        Assert.Equal("Open anyway", vm.ConfirmLabel); Assert.Empty(l.Launched);
+    }
+    [Fact] public void Panel_OnlyUnknownAlreadyOpen_IsNotCalledSkipped()
+    {
+        using var repo = Repo((ItemType.File, "C:\\ok.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, null, OpenState.Unknown);
+        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
+        Assert.Equal("1 item can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.", vm.Status); Assert.Equal("Open anyway", vm.ConfirmLabel);
     }
 }

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using StartApp.Platform.Windows;
 using StartApp.Presentation;
 using StartApp.Storage.Json;
 
@@ -13,7 +14,8 @@ public partial class App : Application
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp");
         _store = new JsonStore(Path.Combine(dir, "store.json"));
-        var vm = new MainViewModel(_store, new NotImplementedLauncher());
+        var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
+        var vm = new MainViewModel(_store, launcher, preflight);
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
         new MainWindow { DataContext = vm }.Show();

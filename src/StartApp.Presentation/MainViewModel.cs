@@ -22,7 +22,7 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<ItemRow> Items { get; } = new();
     private readonly List<RelayCommand> _commands = new();
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
-    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); }
+    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); }
     public ICommand CreateWorkspaceCommand { get; }
     public ICommand DeleteWorkspaceCommand { get; }
     public ICommand RemoveItemCommand { get; }
@@ -35,6 +35,8 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Per-item outcome of the last open (one line per item).</summary>
     public ObservableCollection<string> OpenReport { get; } = new();
     public bool OpenDecisionPending => _pendingOpen != null;
+    /// <summary>Label of the confirm button. When every item is skipped by policy, confirming only shows the report, so it says so.</summary>
+    public string ConfirmLabel => _pendingOpen != null && _pendingOpen.All(p => NeverLaunched(p.Finding.State)) ? "Show report" : "Open anyway";
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
     public bool ShowOpenPanel => _pendingOpen != null || _isChecking || _isLaunching;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
@@ -194,7 +196,13 @@ public sealed class MainViewModel : ObservableBase
         if (bad.Count == 0) { await LaunchAsync(plan); return; }
         _pendingOpen = plan;
         foreach (var b in bad) OpenProblems.Add($"{b.Item.Name}: {Describe(b.Finding, b.Dup)}");
-        Status = $"{bad.Count} of {plan.Count} {(plan.Count == 1 ? "item needs" : "items need")} your decision. Nothing was opened yet.";
+        var skipped = bad.Count(b => NeverLaunched(b.Finding.State)); var confirmable = bad.Count - skipped;
+        var onlyUnknown = bad.Count(b => !NeverLaunched(b.Finding.State) && b.Finding.State == PreflightState.Ready && b.Dup == OpenState.Unknown);
+        var msg = new List<string>();
+        if (skipped > 0) msg.Add($"{skipped} {(skipped == 1 ? "item" : "items")} will be skipped.");
+        if (confirmable > 0) msg.Add($"{confirmable} {(confirmable == 1 ? "item" : "items")} can be opened after your confirmation" + (onlyUnknown > 0 ? $" (for {onlyUnknown} we only cannot tell whether {(onlyUnknown == 1 ? "it is" : "they are")} already open)." : "."));
+        msg.Add("Nothing has been opened yet.");
+        Status = string.Join(" ", msg);
         Raise(nameof(OpenDecisionPending)); RaiseCommands();
     }
 
@@ -203,7 +211,7 @@ public sealed class MainViewModel : ObservableBase
         var parts = new List<string>();
         if (f.State == PreflightState.Missing) parts.Add("not found" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
         else if (f.State == PreflightState.Unsupported) return "will not be opened (" + f.Detail + ")";
-        else if (f.State == PreflightState.NeedsDecision) return "will not be opened, it needs an explicit decision for this item (" + f.Detail + ")";
+        else if (f.State == PreflightState.NeedsDecision) return "will be skipped, not opened (" + f.Detail + ")";
         else if (f.State == PreflightState.Unavailable) parts.Add("could not be checked" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
         if (dup == OpenState.Open) parts.Add("already open (confirmed), opening again will create a duplicate");
         else if (dup == OpenState.Unknown) parts.Add("cannot tell whether it is already open, opening may create a duplicate");
@@ -262,8 +270,12 @@ public sealed class MainViewModel : ObservableBase
         foreach (var l in lines) OpenReport.Add(l.Line);
         IsLaunching = false;
         if (fault != null) ExceptionDispatchInfo.Capture(fault).Throw();
-        var notOpened = plan.Count - ok;
-        Status = notOpened == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
-            : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")}{(notTried > 0 ? $", {notTried} not attempted because you cancelled; requests already sent cannot be undone" : "")})";
+        var failed = plan.Count - ok - refused - notTried;
+        var parts = new List<string>();
+        if (refused > 0) parts.Add($"{refused} skipped by policy");
+        if (failed > 0) parts.Add($"{failed} could not be started");
+        if (notTried > 0) parts.Add($"{notTried} not attempted because you cancelled; requests already sent cannot be undone");
+        Status = parts.Count == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
+            : $"Open requests sent for {ok} of {plan.Count} items ({string.Join(", ", parts)})";
     }
 }
