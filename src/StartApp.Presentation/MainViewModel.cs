@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using StartApp.Core;
@@ -21,7 +22,7 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<ItemRow> Items { get; } = new();
     private readonly List<RelayCommand> _commands = new();
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
-    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); }
+    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); }
     public ICommand CreateWorkspaceCommand { get; }
     public ICommand DeleteWorkspaceCommand { get; }
     public ICommand RemoveItemCommand { get; }
@@ -34,6 +35,8 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Per-item outcome of the last open (one line per item).</summary>
     public ObservableCollection<string> OpenReport { get; } = new();
     public bool OpenDecisionPending => _pendingOpen != null;
+    /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
+    public bool ShowOpenPanel => _pendingOpen != null || _isChecking || _isLaunching;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
 
     public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null)
@@ -135,7 +138,7 @@ public sealed class MainViewModel : ObservableBase
         var snapshot = Selected!.Items.Select(m => (m, Item: _current.Items.TryGetValue(m.ItemId, out var it) ? it : null)).ToList();
         _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
         IsChecking = true; Status = "Checking items before opening...";
-        OpenTask = Guard(CheckThenOpenAsync(snapshot, gen, _checkCts.Token));
+        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, _checkCts.Token));
     }
 
     private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it)
@@ -152,27 +155,40 @@ public sealed class MainViewModel : ObservableBase
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // the deadline stops workers from taking NEW items; a call already running finishes by itself
         var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
-        var next = -1;
+        var next = -1; Exception? fault = null; var gate = new object(); var published = false; // results[] is written by workers and read once at the deadline: both under gate
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
             while (!stop.Token.IsCancellationRequested)
             {
                 var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
-                try { results[i] = Evaluate(snapshot[i].M, snapshot[i].Item); }
+                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
-                { results[i] = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); }
+                { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
+                catch (Exception e) { Interlocked.CompareExchange(ref fault, e, null); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
             }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var all = Task.WhenAll(Enumerable.Range(0, Math.Min(CheckWorkers, snapshot.Count)).Select(_ => Worker()));
         await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
+        // Workers still running at the deadline are not awaited, but a fault they hit is still observed exactly once: either thrown here or reported through ReportLate.
+        var reported = 0;
+        _ = all.ContinueWith(t => { var late = Volatile.Read(ref fault) ?? t.Exception?.GetBaseException(); if (late != null && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(late); }, TaskScheduler.Default);
+        (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
+        lock (gate) { published = true; done = ((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[])results.Clone(); }
+        var f0 = Volatile.Read(ref fault);
+        if (f0 != null)
+        {
+            if (Interlocked.Exchange(ref reported, 1) == 0) ExceptionDispatchInfo.Capture(f0).Throw();
+            if (gen == _generation) { IsChecking = false; Status = "Open stopped by an unexpected error: " + f0.GetType().Name; } // already reported through ReportLate
+            return;
+        }
         if (gen != _generation || token.IsCancellationRequested) return;
         stop.Cancel();
         IsChecking = false;
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
         for (int i = 0; i < snapshot.Count; i++)
         {
-            var r = results[i];
-            if (r is { } done) plan.Add(done);
+            var r = done[i];
+            if (r is { } ok) plan.Add(ok);
             else if (snapshot[i].Item is { } it) plan.Add((it, snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
         }
         var bad = plan.Where(p => p.Finding.State != PreflightState.Ready || p.Dup != OpenState.NotOpen).ToList();
@@ -195,13 +211,28 @@ public sealed class MainViewModel : ObservableBase
         return string.Join("; ", parts);
     }
 
-    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); OpenTask = Guard(LaunchAsync(plan)); }
+    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); var gen = ++_generation; OpenTask = Guard(gen, LaunchAsync(plan)); }
 
-    /// <summary>Unexpected exceptions must stay loud, but a fire-and-forget command would swallow them: show a status, clear the busy flags, then rethrow into the task.</summary>
-    private async Task Guard(Task t)
+    /// <summary>The last unexpected error that arrived after its operation was already over (late worker fault) and had no <see cref="UnexpectedError"/> subscriber.</summary>
+    public Exception? LateError { get; private set; }
+    private void ReportLate(Exception e) { var h = UnexpectedError; if (h is null) LateError = e; else h(e); }
+
+    /// <summary>Raised for an unexpected (programming) error in an open operation, after the view model has reset its busy state and published what it knows.
+    /// The host decides how to surface it (the App rethrows it on the UI dispatcher so it is not silent). With no subscriber the error is rethrown into <see cref="OpenTask"/>.</summary>
+    public event Action<Exception>? UnexpectedError;
+
+    /// <summary>A fire-and-forget command must not leave a silently faulted task. Resets busy flags (only if this operation is still the current one),
+    /// shows a status, then hands the error to the host; it is never swallowed.</summary>
+    private async Task Guard(int gen, Task t)
     {
         try { await t; }
-        catch (Exception e) { IsChecking = false; IsLaunching = false; Status = "Open stopped by an unexpected error: " + e.GetType().Name; throw; }
+        catch (Exception e)
+        {
+            if (gen == _generation) { IsChecking = false; IsLaunching = false; Status = "Open stopped by an unexpected error: " + e.GetType().Name + ". See the report for what was already sent."; }
+            var h = UnexpectedError;
+            if (h is null) throw;
+            h(e);
+        }
     }
 
     private static bool NeverLaunched(PreflightState s) => s is PreflightState.Unsupported or PreflightState.NeedsDecision;
@@ -211,10 +242,11 @@ public sealed class MainViewModel : ObservableBase
     private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan)
     {
         OpenReport.Clear(); _launchCts = new CancellationTokenSource(); var cts = _launchCts; IsLaunching = true; Status = "Opening items...";
-        var lines = await Task.Run(() =>
+        var res = new List<(string Line, int Ok, int Refused, int NotTried)>(); // filled by the worker; read only after it finished
+        Exception? fault = null;
+        await Task.Run(() =>
         {
-            var res = new List<(string Line, int Ok, int Refused, int NotTried)>();
-            foreach (var p in plan)
+            try { foreach (var p in plan)
             {
                 if (cts.IsCancellationRequested) { res.Add(($"{p.Item.Name}: not attempted (cancelled before this item)", 0, 0, 1)); continue; }
                 if (NeverLaunched(p.Finding.State)) { res.Add(($"{p.Item.Name}: skipped, not opened ({p.Finding.Detail})", 0, 1, 0)); continue; }
@@ -222,12 +254,15 @@ public sealed class MainViewModel : ObservableBase
                 if (r.Status == LaunchStatus.Started)
                     res.Add(($"{p.Item.Name}: open request sent (not proof it loaded)" + (p.Dup == OpenState.Open ? "; was already open (confirmed), so this may be a duplicate" : p.Dup == OpenState.Unknown ? "; could not tell if it was already open, so it may be a duplicate" : ""), 1, 0, 0));
                 else res.Add(($"{p.Item.Name}: failed ({r.Detail ?? r.Status.ToString()})", 0, 0, 0));
-            }
-            return res;
+            } }
+            catch (Exception e) { fault = e; } // keep the partial results, then surface the bug below
         }).ConfigureAwait(true);
+        if (fault != null) foreach (var p in plan.Skip(res.Count)) res.Add(($"{p.Item.Name}: not attempted (stopped by an unexpected error)", 0, 0, 1));
+        var lines = res;
         int ok = lines.Sum(l => l.Ok), refused = lines.Sum(l => l.Refused), notTried = lines.Sum(l => l.NotTried);
         foreach (var l in lines) OpenReport.Add(l.Line);
         IsLaunching = false;
+        if (fault != null) ExceptionDispatchInfo.Capture(fault).Throw();
         var notOpened = plan.Count - ok;
         Status = notOpened == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
             : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")}{(notTried > 0 ? $", {notTried} not attempted because you cancelled; requests already sent cannot be undone" : "")})";
