@@ -1,0 +1,73 @@
+# One-off smoke probe: tests, Release build and a launch attempt of the WPF app on a GitHub-hosted Windows runner.
+# Evidence only (artifact). Runs on pushes to this branch only, read-only token, no secrets, no deploy.
+name: windows-smoke
+on:
+  push:
+    branches: [ci/windows-smoke]
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Record environment
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          dotnet --info | Tee-Object out/dotnet-info.txt
+          "commit $env:GITHUB_SHA" | Tee-Object out/commit.txt
+      - name: Test (all test projects, Release)
+        shell: pwsh
+        run: dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object out/test-log.txt
+      - name: Build WPF app (Release)
+        shell: pwsh
+        run: dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object out/build-log.txt
+      - name: Launch app and capture screen
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+          if (-not $exe) { 'StartApp.App.exe not found' | Tee-Object out/launch-error.txt; exit 1 }
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          # Wait up to 60 s for a main window; record how long it took.
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          while ($sw.Elapsed.TotalSeconds -lt 60) {
+            $p.Refresh()
+            if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }
+            Start-Sleep -Milliseconds 500
+          }
+          Start-Sleep -Seconds 3
+          $p.Refresh()
+          $info = [ordered]@{
+            exe              = $exe.FullName
+            userInteractive  = [Environment]::UserInteractive
+            sessionId        = (Get-Process -Id $PID).SessionId
+            waitedSeconds    = [math]::Round($sw.Elapsed.TotalSeconds, 1)
+            appExited        = $p.HasExited
+            exitCode         = if ($p.HasExited) { $p.ExitCode } else { $null }
+            appSessionId     = if ($p.HasExited) { $null } else { $p.SessionId }
+            mainWindowHandle = if ($p.HasExited) { 0 } else { [int64]$p.MainWindowHandle }
+            mainWindowTitle  = if ($p.HasExited) { '' } else { $p.MainWindowTitle }
+            responding       = if ($p.HasExited) { $null } else { $p.Responding }
+          }
+          $info | ConvertTo-Json | Tee-Object out/info.json
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          try { $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size); $bmp.Save("$PWD/out/screen.png") }
+          catch { "capture failed: $_" | Tee-Object out/capture-error.txt }
+          if (-not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: smoke-evidence
+          path: out/
+          if-no-files-found: warn
