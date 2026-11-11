@@ -262,8 +262,12 @@ public sealed class MainViewModel : ObservableBase
         foreach (var l in lines) OpenReport.Add(l.Line);
         IsLaunching = false;
         if (fault != null) ExceptionDispatchInfo.Capture(fault).Throw();
-        var notOpened = plan.Count - ok;
-        Status = notOpened == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
-            : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")}{(notTried > 0 ? $", {notTried} not attempted because you cancelled; requests already sent cannot be undone" : "")})";
+        var failed = plan.Count - ok - refused - notTried;
+        var parts = new List<string>();
+        if (refused > 0) parts.Add($"{refused} skipped by policy");
+        if (failed > 0) parts.Add($"{failed} could not be started");
+        if (notTried > 0) parts.Add($"{notTried} not attempted because you cancelled; requests already sent cannot be undone");
+        Status = parts.Count == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
+            : $"Open requests sent for {ok} of {plan.Count} items ({string.Join(", ", parts)})";
     }
 }
