@@ -1,8 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/StartApp.Core/StartApp.Core.csproj" />
+    <Project Path="src/StartApp.Storage.Json/StartApp.Storage.Json.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/StartApp.Core.Tests/StartApp.Core.Tests.csproj" />
+    <Project Path="tests/StartApp.LockProbe/StartApp.LockProbe.csproj" />
+    <Project Path="tests/StartApp.Storage.Json.Tests/StartApp.Storage.Json.Tests.csproj" />
   </Folder>
 </Solution>
