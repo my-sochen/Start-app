@@ -24,6 +24,9 @@ public sealed class Catalog
         return null;
     }
 
+    /// <summary>Explicit absolute Windows path (drive or UNC share). Pure string rule; no filesystem access.</summary>
+    public static bool IsAbsoluteWindowsPath(string v) => AbsWin.IsMatch(v);
+
     private static readonly System.Text.RegularExpressions.Regex AbsWin = new(@"^([A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\).+", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>Executable identity = one explicit absolute Windows path chosen by the user. No aliases, no arguments, no command-line parsing
     /// (characters like &amp; are legal in paths and are not special here). Existence/authorization is a future platform-adapter concern.
