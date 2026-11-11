@@ -112,6 +112,8 @@ jobs:
             Info 'top-level windows after the run' (TopWindows)
             # Second workspace: every item is skipped by policy -> the confirm button must read "Show report"
             SetText $nameBox 'All skipped'; Assert 'create second workspace' ((ClickBtn 'Create workspace') -eq 'ok') ''
+            $sel = 'not found'; foreach ($li in @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))) { $tx = $li.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'All skipped'))); if ($tx) { $li.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $sel = 'selected'; break } }
+            Assert 'second workspace selected' ($sel -eq 'selected') $sel; Start-Sleep -Milliseconds 600
             foreach ($r in @(@{ t = 'File'; v = "$root\run.ps1" }, @{ t = 'Link'; v = 'ms-settings:display' })) { [void](SetType $r.t); SetText $targetBox $r.v; [void](ClickBtn 'Add' 500) }
             [void](ClickBtn 'Open workspace' 300)
             Assert 'all-skipped panel appears' (WaitText 'Nothing has been opened yet' 30) ((Texts) -join ' | ')
