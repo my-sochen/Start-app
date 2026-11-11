@@ -20,7 +20,9 @@ public sealed class JsonStore : IStoreRepository
     };
     private readonly string _path;
     private readonly object _gate = new();
-    public const int SupportedSchema = 1;
+    /// <summary>Newest schema this build reads and writes. Schema 2 = schema 1 plus the optional item description. Older builds (schema 1 only) refuse a schema 2 file as "too new" and leave it untouched; this build still reads schema 1 and upgrades it on the next save, after keeping a one-time copy.</summary>
+    public const int SupportedSchema = 2;
+    private const int OldestReadableSchema = 1;
     /// <summary>Explicit user-approved reset: moves the invalid file aside, then the next load starts empty.</summary>
     public string? DiscardInvalidFile()
     {
@@ -59,7 +61,7 @@ public sealed class JsonStore : IStoreRepository
                     if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("schemaVersion", out var v) || !v.TryGetInt32(out var ver))
                         throw new JsonException("missing or invalid schemaVersion");
                     if (ver > SupportedSchema) throw new StoreTooNewException(ver, SupportedSchema);
-                    if (ver != SupportedSchema) throw new JsonException($"unsupported schemaVersion {ver}");
+                    if (ver < OldestReadableSchema) throw new JsonException($"unsupported schemaVersion {ver}");
                 }
                 RejectDuplicateKeys(text);
                 var s = JsonSerializer.Deserialize<Store>(text, Opts) ?? throw new JsonException("null");
@@ -92,11 +94,47 @@ public sealed class JsonStore : IStoreRepository
             var errs = new Catalog(s).Validate();
             if (errs.Count > 0) throw new InvalidOperationException("Refusing to save inconsistent store: " + string.Join("; ", errs));
             EnsureWriter();
+            s.SchemaVersion = SupportedSchema;
+            KeepSchema1Copy();
             var tmp = _path + ".tmp"; // same directory as target
             using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var w = new StreamWriter(fs)) { w.Write(JsonSerializer.Serialize(s, Opts)); w.Flush(); fs.Flush(true); }
             File.Move(tmp, _path, overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// Before a schema 1 file is replaced by a schema 2 file, make sure a byte-exact copy of it exists next to it.
+    /// The copy is written to a temp name, flushed, then published with a no-overwrite move, so a final backup name only ever holds a complete copy
+    /// (an interrupted copy leaves just a *.tmp that the next attempt rewrites). An existing backup is trusted only if its bytes equal the current file;
+    /// otherwise it is left alone and the copy goes to store.json.schema1.&lt;hash&gt;.bak. Nothing is overwritten or deleted. Any failure throws, so the upgrade does not happen.
+    /// Not claimed: power-loss durability beyond the flush of the temp file.
+    /// </summary>
+    private void KeepSchema1Copy()
+    {
+        if (!File.Exists(_path)) return;
+        var bytes = File.ReadAllBytes(_path);
+        var body = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes.AsMemory(3) : bytes.AsMemory(); // JsonDocument rejects a BOM; the backup still copies the original bytes
+        using (var doc = JsonDocument.Parse(body))
+            if (!(doc.RootElement.TryGetProperty("schemaVersion", out var v) && v.TryGetInt32(out var ver) && ver == 1)) return;
+        var bak = _path + ".schema1.bak";
+        if (File.Exists(bak))
+        {
+            if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;
+            bak = _path + ".schema1." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16] + ".bak";
+            if (File.Exists(bak))
+            {
+                if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;
+                throw new IOException("A different file already uses the backup name " + bak + "; not upgrading.");
+            }
+        }
+        var tmp = bak + ".tmp";
+        try
+        {
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None)) { fs.Write(bytes, 0, bytes.Length); fs.Flush(true); }
+            File.Move(tmp, bak); // no overwrite: throws if the name appeared meanwhile
+        }
+        catch { try { File.Delete(tmp); } catch { } throw; }
     }
 
     /// <summary>Isolated mutation: change a deep copy, validate, persist; only a successful save is reported. Nothing partial leaks to the caller.</summary>

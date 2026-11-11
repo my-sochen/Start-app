@@ -47,13 +47,31 @@ public sealed class Catalog
         throw new InvalidOperationException("could not generate a unique id");
     }
 
-    public Item GetOrAddItem(ItemType type, string name, string target)
+    public const int MaxDescriptionLength = 500;
+
+    /// <summary>Description is optional. Null, empty or whitespace-only means none. A real description is stored exactly as typed (not trimmed). Limit: 500 UTF-16 code units (the same unit the text box counts; an emoji counts as 2). Control characters other than line breaks and tabs are rejected.</summary>
+    public static string? ValidateDescription(string? d)
+    {
+        if (string.IsNullOrWhiteSpace(d)) return null;
+        if (d.Length > MaxDescriptionLength) return $"description is longer than {MaxDescriptionLength} characters";
+        if (d.Any(ch => char.IsControl(ch) && ch is not '\n' and not '\r' and not '\t')) return "description has control characters";
+        return null;
+    }
+
+    /// <summary>Reuses the catalog item with the same type and target. A given description never overwrites an existing non-empty one; it only fills an empty one.</summary>
+    public Item GetOrAddItem(ItemType type, string name, string target, string? description = null)
     {
         var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
+        var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
+        if (string.IsNullOrWhiteSpace(description)) description = null;
         var key = Key(type, target);
         var existing = _s.Items.Values.FirstOrDefault(i => Key(i.Type, i.Target) == key);
-        if (existing != null) return existing;
-        var item = new Item(NewId("it_", id => _s.Items.ContainsKey(id)), type, name, target);
+        if (existing != null)
+        {
+            if (description != null && string.IsNullOrEmpty(existing.Description)) { existing = existing with { Description = description }; _s.Items[existing.Id] = existing; }
+            return existing;
+        }
+        var item = new Item(NewId("it_", id => _s.Items.ContainsKey(id)), type, name, target, description);
         if (!_s.Items.TryAdd(item.Id, item)) throw new InvalidOperationException("item id collision");
         return item;
     }
@@ -90,14 +108,14 @@ public sealed class Catalog
         RemoveOrphans();
     }
 
-    /// <summary>Local edit: only this workspace's reference changes. Reuses a matching catalog item or creates one; old item removed if orphaned. Launch config kept.</summary>
+    /// <summary>Not used by the UI yet. If the new target is already a catalog item, that item keeps its own description and the description of the replaced item is dropped with it (when it becomes an orphan). Local edit: only this workspace's reference changes. Reuses a matching catalog item or creates one; old item removed if orphaned. Launch config kept.</summary>
     public Item ReplaceTargetLocal(string workspaceId, string itemId, string newTarget, string? newName = null)
     {
         var w = Ws(workspaceId);
         var idx = w.Items.FindIndex(m => m.ItemId == itemId);
         if (idx < 0) throw new KeyNotFoundException(itemId);
         var old = _s.Items[itemId];
-        var item = GetOrAddItem(old.Type, newName ?? old.Name, newTarget);
+        var item = GetOrAddItem(old.Type, newName ?? old.Name, newTarget, old.Description);
         if (item.Id == itemId) return item;
         var launch = w.Items[idx].Launch;
         if (w.Items.Any(m => m.ItemId == item.Id)) w.Items.RemoveAt(idx); // target already present in this workspace: keep one membership
@@ -120,7 +138,7 @@ public sealed class Catalog
     public IReadOnlyList<string> Validate()
     {
         var errs = new List<string>();
-        foreach (var it in _s.Items.Values) { var te = ValidateTarget(it.Type, it.Target); if (te != null) errs.Add($"{it.Id}: {te}"); }
+        foreach (var it in _s.Items.Values) { var te = ValidateTarget(it.Type, it.Target); if (te != null) errs.Add($"{it.Id}: {te}"); var de = ValidateDescription(it.Description); if (de != null) errs.Add($"{it.Id}: {de}"); }
         foreach (var w in _s.Workspaces)
         {
             if (w.Items.GroupBy(m => m.ItemId).Any(g => g.Count() > 1)) errs.Add($"{w.Id}: duplicate membership");

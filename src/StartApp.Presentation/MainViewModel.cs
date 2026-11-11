@@ -5,7 +5,7 @@ using StartApp.Core;
 
 namespace StartApp.Presentation;
 
-public sealed record ItemRow(string ItemId, string Name, string Target, string Type);
+public sealed record ItemRow(string ItemId, string Name, string Target, string Type, string? Description = null);
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
 /// read-only state with a message; nothing is written until the user decides (no silent reset).</summary>
@@ -62,6 +62,9 @@ public sealed class MainViewModel : ObservableBase
     public ItemType NewItemType { get => _newType; set => Set(ref _newType, value); }
     public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value); RaiseCommands(); } }
     private ItemType _newType = ItemType.File; private string _newTarget = "";
+    /// <summary>Optional description typed in the add form. Empty means none.</summary>
+    public string NewDescription { get => _newDescription; set => Set(ref _newDescription, value ?? ""); }
+    private string _newDescription = "";
     public string NewName { get => _newName; set { Set(ref _newName, value); RaiseCommands(); } }
 
     public void Reload()
@@ -86,16 +89,21 @@ public sealed class MainViewModel : ObservableBase
     {
         Items.Clear(); if (Selected is null) return;
         foreach (var m in Selected.Items)
-            if (_current.Items.TryGetValue(m.ItemId, out var it)) Items.Add(new ItemRow(it.Id, it.Name, it.Target, it.Type.ToString()));
+            if (_current.Items.TryGetValue(m.ItemId, out var it)) Items.Add(new ItemRow(it.Id, it.Name, it.Target, it.Type.ToString(), it.Description));
     }
 
     /// <summary>Manual add. The target is used exactly as typed (never trimmed); invalid input is reported, not corrected.</summary>
     private void AddItem()
     {
-        var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id;
-        var err = Catalog.ValidateTarget(type, target);
+        var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id; var desc = NewDescription;
+        var err = Catalog.ValidateTarget(type, target) ?? Catalog.ValidateDescription(desc);
         if (err != null) { Status = "Not added: " + err; return; }
-        if (Apply(c => { var it = c.GetOrAddItem(type, DisplayName(type, target), target); c.AddToWorkspace(wsId, it.Id); })) NewTarget = "";
+        var keptOld = false;
+        if (Apply(c => { var it = c.GetOrAddItem(type, DisplayName(type, target), target, desc); keptOld = desc.Length > 0 && it.Description != desc; c.AddToWorkspace(wsId, it.Id); }))
+        {
+            NewTarget = ""; NewDescription = "";
+            if (keptOld) Status = "Added. This item already had a description, so the existing one was kept (the one you typed was not saved).";
+        }
     }
 
     private static string DisplayName(ItemType type, string target)
