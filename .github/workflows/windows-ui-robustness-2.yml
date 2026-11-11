@@ -152,8 +152,32 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: ui-images-run-${{ github.run_id }}-${{ github.run_attempt }}
-          path: out-images/
+          path: out-images/run${{ github.run_id }}-robust2-01-start-default-size.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-robust2-02-minimum-size-empty.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-robust2-03-minimum-size-long-workspace.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-robust2-04-minimum-size-long-item.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-robust2-05-cleaned-up.png
+          archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
