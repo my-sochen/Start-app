@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\StartApp.Presentation\StartApp.Presentation.csproj" />
+    <ProjectReference Include="..\StartApp.Storage.Json\StartApp.Storage.Json.csproj" />
+  </ItemGroup>
+</Project>
