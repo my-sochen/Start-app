@@ -52,4 +52,38 @@ public class DescriptionStorageTests
         Assert.Equal(old, File.ReadAllText(p)); Assert.False(File.Exists(p + ".tmp"));
         Assert.Equal(0, new JsonStore(p).Load().Workspaces.Count);
     }
+    private static byte[] Schema1Bytes() => new byte[] { 0xEF, 0xBB, 0xBF }.Concat(System.Text.Encoding.UTF8.GetBytes("{\"schemaVersion\":1,\"items\":{\"i1\":{\"id\":\"i1\",\"type\":\"File\",\"name\":\"\u05e7\u05d5\u05d1\u05e5 \u00e9\u00fc\u2603.txt\",\"target\":\"C:\\\\a\\\\b.txt\"}},\"workspaces\":[]}")).ToArray();
+
+    [Fact] public void Backup_is_byte_exact_for_BOM_and_non_ascii_input()
+    {
+        var p = Tmp(); Directory.CreateDirectory(Path.GetDirectoryName(p)!); var b = Schema1Bytes(); File.WriteAllBytes(p, b);
+        using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
+        Assert.Equal(b, File.ReadAllBytes(p + ".schema1.bak")); Assert.Contains("\"schemaVersion\": 2", File.ReadAllText(p));
+    }
+
+    [Fact] public void Partial_backup_is_not_trusted_and_not_overwritten_exact_copy_goes_elsewhere()
+    {
+        var p = Tmp(); Directory.CreateDirectory(Path.GetDirectoryName(p)!); var b = Schema1Bytes(); File.WriteAllBytes(p, b);
+        var partial = b.Take(20).ToArray(); File.WriteAllBytes(p + ".schema1.bak", partial);
+        using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
+        Assert.Equal(partial, File.ReadAllBytes(p + ".schema1.bak"));
+        var other = Directory.GetFiles(Path.GetDirectoryName(p)!, "store.json.schema1.*.bak");
+        Assert.Single(other); Assert.Equal(b, File.ReadAllBytes(other[0]));
+    }
+
+    [Fact] public void Interrupted_copy_leaves_only_a_tmp_and_the_retry_makes_an_exact_backup()
+    {
+        var p = Tmp(); Directory.CreateDirectory(Path.GetDirectoryName(p)!); var b = Schema1Bytes(); File.WriteAllBytes(p, b);
+        File.WriteAllBytes(p + ".schema1.bak.tmp", b.Take(7).ToArray());   // what an interrupted copy would leave
+        Assert.False(File.Exists(p + ".schema1.bak"));
+        using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
+        Assert.Equal(b, File.ReadAllBytes(p + ".schema1.bak")); Assert.False(File.Exists(p + ".schema1.bak.tmp"));
+    }
+
+    [Fact] public void Identical_existing_backup_is_reused_and_no_extra_copy_is_made()
+    {
+        var p = Tmp(); Directory.CreateDirectory(Path.GetDirectoryName(p)!); var b = Schema1Bytes(); File.WriteAllBytes(p, b); File.WriteAllBytes(p + ".schema1.bak", b);
+        using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(p)!, "store.json.schema1.*.bak"));
+    }
 }
