@@ -1,0 +1,147 @@
+# CI-only evidence run for PR #16 (wired launcher): the NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
+# Synthetic temp files only. The only program that may really start is the marker-only ci-helper (writes a marker file and exits). A missing file goes to the real shell and must fail.
+# No browser, no network, no user files. The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM; the app ignores the LOCALAPPDATA env var).
+name: windows-wired-app
+on:
+  push:
+    branches: [ci/smoke-wired-app]
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  evidence:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build normal App and helper
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag, out-images | Out-Null
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+          dotnet build ci-helper/Helper.csproj --configuration Release 2>&1 | Tee-Object diag/build-helper.txt | Select-Object -Last 3
+      - name: Wired normal app UI run
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); }'
+          $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
+          $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
+          function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
+          function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
+          function Shot($state) {
+            $script:shot++; $f = "out-images/run$runId-wiredapp-{0:00}-$state.png" -f $script:shot
+            $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
+            if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+            $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+          }
+          function Texts() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+          function ListLines() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+          function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+          function ClickBtn($name, $settle = 800) {
+            $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
+            if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
+            $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
+          }
+          function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
+          function Edits() { $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Sort-Object { $_.Current.BoundingRectangle.X } }
+          function SetText($edit, $text) { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Start-Sleep -Milliseconds 400 }
+          function SetType($typeName) {
+            $combo = $win.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)))
+            if (-not $combo) { return 'combo not found' }
+            $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
+            $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
+            if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
+            if (-not $it) { return "type item '$typeName' not found" }
+            $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
+          }
+          function TopWindows() { @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ControlTypeProperty, $CT::Window))) | ForEach-Object { "$($_.Current.Name)[pid=$($_.Current.ProcessId)]" }) -join ' | ' }
+          try {
+            $root = Join-Path $env:RUNNER_TEMP 'wa-tree'; New-Item -ItemType Directory -Force $root | Out-Null
+            Set-Content "$root\ok.txt" 'synthetic'
+            Set-Content "$root\run.ps1" 'Set-Content -Path (Join-Path $PSScriptRoot "EXECUTED-ps1.txt") -Value ran'
+            New-Item -ItemType SymbolicLink -Path "$root\link-file.txt" -Target "$root\ok.txt" | Out-Null
+            $helper = (Resolve-Path ci-helper/bin/Release/net10.0/Helper.exe).Path; $marker = Join-Path $root 'helper-marker.txt'
+            $env:STARTAPP_HELPER_MARKER = $marker
+            $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; Info 'store dir (runner profile, throwaway VM)' $storeDir
+            $winsBefore = TopWindows; Info 'top-level windows before start' $winsBefore
+            $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+            $p = Start-Process -FilePath $exe.FullName -PassThru
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Seconds 2
+            Assert 'normal app window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) "waited $([math]::Round($sw.Elapsed.TotalSeconds,1))s"
+            $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
+            $edits = @(Edits); $nameBox = $edits[0]; $targetBox = $edits[1]
+            SetText $nameBox 'Wired app check'; Assert 'create workspace' ((ClickBtn 'Create workspace') -eq 'ok') ''
+            $rows = @(
+              @{ t = 'Program'; v = $helper; n = 'helper.exe (Program, marker-only helper)' },
+              @{ t = 'File'; v = "$root\missing.txt"; n = 'missing.txt (File, does not exist)' },
+              @{ t = 'File'; v = "$root\run.ps1"; n = 'run.ps1 (File, script)' },
+              @{ t = 'File'; v = "$root\link-file.txt"; n = 'link-file.txt (File, symlink)' },
+              @{ t = 'Link'; v = 'ms-settings:display'; n = 'ms-settings:display (Link, non-http scheme)' }
+            )
+            foreach ($r in $rows) {
+              $s = SetType $r.t; Assert "select type $($r.t) for $($r.n)" ($s -eq 'ok') $s
+              SetText $targetBox $r.v; $c = ClickBtn 'Add' 500; Assert "add $($r.n)" ($c -eq 'ok') $c
+            }
+            Shot 'items-added'; Info 'item rows after adding (UIA)' ((ListLines) -join ' || ')
+            [void](ClickBtn 'Open workspace' 300)
+            Assert 'decision panel appears' (WaitText 'need your decision' 30) ((Texts) -join ' | ')
+            Start-Sleep -Milliseconds 600; Shot 'decision-panel'
+            Info 'decision status (UIA)' ((Texts) -join ' | '); Info 'decision list lines (UIA, full text)' ((ListLines) -join ' || ')
+            Assert 'nothing started before the decision' (-not (Test-Path $marker) -and -not (Test-Path "$root\EXECUTED-*")) ''
+            [void](ClickBtn 'Open anyway' 300)
+            $done = WaitText 'Open requests sent for' 40
+            Assert 'report appears' $done ((Texts) -join ' | ')
+            Start-Sleep -Seconds 2; Shot 'report'
+            Info 'report status (UIA)' ((Texts) -join ' | '); Info 'report lines (UIA, full text)' ((ListLines) -join ' || ')
+            Info 'top-level windows after the run' (TopWindows)
+            $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" | ForEach-Object { "$($_.Name)[pid=$($_.ProcessId)]" }); Info 'child processes of the app (still alive)' ($kids -join ',')
+            Assert 'helper really started through the wired app and wrote its marker' (Test-Path $marker) $(if (Test-Path $marker) { Get-Content $marker } else { 'marker absent' })
+            Assert 'run.ps1 never executed' (-not (Test-Path "$root\EXECUTED-ps1.txt")) ''
+            Assert 'no EXECUTED marker at all' (-not (Test-Path "$root\EXECUTED-*")) ''
+            $store = Join-Path $storeDir 'store.json'; Info 'store file exists' (Test-Path $store)
+            if (Test-Path $store) { Info 'store content (synthetic data only)' ((Get-Content $store -Raw) -replace '\s+', ' ') }
+          }
+          catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
+          finally {
+            $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json
+            if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
+          }
+          if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt }
+        continue-on-error: true
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-wiredapp-01-items-added.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-wiredapp-02-decision-panel.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-wiredapp-03-report.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: diagnostics-wired-app-${{ github.run_id }}-${{ github.run_attempt }}
+          path: diag/
+          if-no-files-found: warn
+      - name: Fail the job if anything failed
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
