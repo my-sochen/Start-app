@@ -110,6 +110,9 @@ jobs:
             $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() }
             $json = Get-Content $store -Raw -Encoding UTF8; Info 'store.json after run 1 (synthetic)' ($json -replace '\s+', ' ')
             Assert 'store.json now has the descriptions' ($json -match 'Meeting notes' -and $json -match 'Filled for the old item') ''
+            Assert 'store.json now written as schema 2' ($json -match '"schemaVersion":\s*2') ''
+            $bak = $store + '.schema1.bak'; $bk = if (Test-Path $bak) { Get-Content $bak -Raw -Encoding UTF8 } else { '' }
+            Assert 'one-time schema-1 backup exists with the old content' ($bk -match '"schemaVersion":1' -and $bk -match 'legacy.txt' -and $bk -notmatch 'description') ($bk -replace '\s+', ' ')
             Assert 'old item and its id kept' ($json -match 'it_old1' -and $json -match 'legacy.txt') ''
             # restart: persistence
             StartApp1
@@ -155,3 +158,4 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
+
