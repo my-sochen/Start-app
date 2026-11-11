@@ -41,4 +41,10 @@ public class DescriptionViewModelTests
         var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.Selected = vm.Workspaces.Single();
         Assert.Null(vm.Items.Single().Description);
     }
+    [Fact] public void Whitespace_only_description_is_saved_as_none()
+    {
+        using var repo = new JsonStore(Tmp()); var vm = Vm(repo);
+        vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = "   "; vm.AddItemCommand.Execute(null);
+        Assert.Null(vm.Items.Single().Description); Assert.Null(repo.Load().Items.Values.Single().Description);
+    }
 }
