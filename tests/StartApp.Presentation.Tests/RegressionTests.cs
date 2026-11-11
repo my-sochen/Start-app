@@ -27,7 +27,7 @@ public class CommandNotificationTests
     {
         using var repo = new JsonStore(Tmp());
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.NewName = "e"; vm.CreateWorkspaceCommand.Execute(null); vm.OpenWorkspaceCommand.Execute(null);
+        vm.NewName = "e"; vm.CreateWorkspaceCommand.Execute(null); vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
         Assert.Contains("empty", vm.Status);
     }
 }
