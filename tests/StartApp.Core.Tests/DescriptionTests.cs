@@ -43,4 +43,18 @@ public class DescriptionTests
         var s = new Store(); s.Items["it_1"] = new Item("it_1", ItemType.File, "a", "C:\\a.txt", new string('x', 501));
         Assert.Contains(new Catalog(s).Validate(), e => e.Contains("description is longer"));
     }
+    [Fact] public void Whitespace_only_description_means_none_but_a_real_one_is_stored_untrimmed()
+    {
+        var c = new Catalog(new Store());
+        Assert.Null(c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "   \t ").Description);
+        Assert.Equal(" x ", c.GetOrAddItem(ItemType.File, "b", "C:\\b.txt", " x ").Description);
+    }
+    [Fact] public void ReplaceTargetLocal_to_an_existing_item_keeps_that_items_own_description_and_drops_the_old_one()
+    {
+        var c = new Catalog(new Store()); var w = c.CreateWorkspace("w");
+        var a = c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "about a"); c.AddToWorkspace(w.Id, a.Id);
+        var b = c.GetOrAddItem(ItemType.File, "b", "C:\\b.txt", "about b"); var w2 = c.CreateWorkspace("w2"); c.AddToWorkspace(w2.Id, b.Id);
+        var n = c.ReplaceTargetLocal(w.Id, a.Id, "C:\\b.txt");
+        Assert.Equal(b.Id, n.Id); Assert.Equal("about b", n.Description); Assert.DoesNotContain(c.Store.Items.Values, i => i.Description == "about a");
+    }
 }
