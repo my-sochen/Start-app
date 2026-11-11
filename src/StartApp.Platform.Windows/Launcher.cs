@@ -17,7 +17,10 @@ public sealed class ProcessStarter : IProcessStarter
     }
 }
 
-/// <summary>Opens one item. Never builds a command line, never uses cmd.exe, never searches PATH. Ownership is always Unknown, so nothing started here can ever be closed by the app.</summary>
+/// <summary>Opens one item. We never build a command line, call cmd.exe or search PATH ourselves. That is NOT a guarantee about what the Windows shell does when
+/// UseShell is true: the shell resolves the file association and may run a handler. For that reason File/Folder paths with executable or script-capable extensions,
+/// alternate-stream syntax or a non-absolute form are refused before reaching the shell (PreflightRules.ShellOpenBlockReason); other types still depend on the user's
+/// associations, and the check cannot see through reparse points or changes after the check. Ownership is always Unknown, so nothing started here can ever be closed by the app.</summary>
 public sealed class WindowsLauncher(IProcessStarter starter) : IItemLauncher
 {
     public LaunchResult Launch(Item item, LaunchConfig? launch)
