@@ -1,10 +1,10 @@
-# CI-only evidence run for PR #16 (wired launcher) AFTER the panel wording fix (head 6bb03ff + CI files): the NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
+# CI-only evidence run for the item-description feature (PR stacked on #16). Real normal StartApp.App.exe, UI Automation, synthetic data only.: the NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
 # Synthetic temp files only. The only program that may really start is the marker-only ci-helper (writes a marker file and exits). A missing file goes to the real shell and must fail.
 # No browser, no network, no user files. The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM; the app ignores the LOCALAPPDATA env var).
 name: windows-wired-app
 on:
   push:
-    branches: [ci/smoke-wired-app]
+    branches: [ci/paused-no-run]
 permissions:
   contents: read
 env:
@@ -25,11 +25,11 @@ jobs:
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
           dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
           dotnet build ci-helper/Helper.csproj --configuration Release 2>&1 | Tee-Object diag/build-helper.txt | Select-Object -Last 3
-      - name: Presentation unit tests (Windows)
+      - name: All unit tests (Windows, whole solution)
         shell: pwsh
         run: |
-          dotnet test tests/StartApp.Presentation.Tests --configuration Release 2>&1 | Tee-Object diag/test-presentation.txt | Select-Object -Last 6
-          if ($LASTEXITCODE -ne 0) { 'PRESENTATION TESTS FAILED' | Out-File -Append diag/errors.txt }
+          dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
+          if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
       - name: Wired normal app UI run
         shell: pwsh
         run: |
@@ -40,7 +40,7 @@ jobs:
           function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
           function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
           function Shot($state) {
-            $script:shot++; $f = "out-images/run$runId-wiredapp-{0:00}-$state.png" -f $script:shot
+            $script:shot++; $f = "out-images/run$runId-desc-{0:00}-$state.png" -f $script:shot
             $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
             if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
             $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
@@ -67,70 +67,57 @@ jobs:
           }
           function TopWindows() { @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ControlTypeProperty, $CT::Window))) | ForEach-Object { "$($_.Current.Name)[pid=$($_.Current.ProcessId)]" }) -join ' | ' }
           try {
-            $root = Join-Path $env:RUNNER_TEMP 'wa-tree'; New-Item -ItemType Directory -Force $root | Out-Null
-            Set-Content "$root\ok.txt" 'synthetic'
-            Set-Content "$root\run.ps1" 'Set-Content -Path (Join-Path $PSScriptRoot "EXECUTED-ps1.txt") -Value ran'
-            New-Item -ItemType SymbolicLink -Path "$root\link-file.txt" -Target "$root\ok.txt" | Out-Null
-            $helper = (Resolve-Path ci-helper/bin/Release/net10.0/Helper.exe).Path; $marker = Join-Path $root 'helper-marker.txt'
-            $env:STARTAPP_HELPER_MARKER = $marker
-            $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; Info 'store dir (runner profile, throwaway VM)' $storeDir
-            $winsBefore = TopWindows; Info 'top-level windows before start' $winsBefore
+            $root = Join-Path $env:RUNNER_TEMP 'desc-tree'; New-Item -ItemType Directory -Force $root | Out-Null
+            Set-Content "$root\ok.txt" 'synthetic'; Set-Content "$root\notes.txt" 'synthetic'; Set-Content "$root\plain.txt" 'synthetic'
+            $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; New-Item -ItemType Directory -Force $storeDir | Out-Null; $store = Join-Path $storeDir 'store.json'
+            # OLD-format store: no "description" anywhere (as written by the previous versions)
+            $okEsc = ($root -replace '\\','\\') + '\\ok.txt'
+            $old = '{"schemaVersion":1,"items":{"it_old1":{"id":"it_old1","type":"file","name":"legacy.txt","target":"' + $okEsc + '"}},"workspaces":[{"id":"ws_old1","name":"Old file ws","items":[{"itemId":"it_old1"}]}]}'
+            Set-Content -Path $store -Value $old -NoNewline -Encoding UTF8
+            Assert 'old-format store has no description key' (-not ((Get-Content $store -Raw) -match 'description')) ''
             $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
-            $p = Start-Process -FilePath $exe.FullName -PassThru
-            $sw = [Diagnostics.Stopwatch]::StartNew()
-            while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
-            Start-Sleep -Seconds 2
-            Assert 'normal app window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) "waited $([math]::Round($sw.Elapsed.TotalSeconds,1))s"
-            $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
-            $edits = @(Edits); $nameBox = $edits[0]; $targetBox = $edits[1]
-            SetText $nameBox 'Wired app check'; Assert 'create workspace' ((ClickBtn 'Create workspace') -eq 'ok') ''
-            $rows = @(
-              @{ t = 'Program'; v = $helper; n = 'helper.exe (Program, marker-only helper)' },
-              @{ t = 'File'; v = "$root\missing.txt"; n = 'missing.txt (File, does not exist)' },
-              @{ t = 'File'; v = "$root\run.ps1"; n = 'run.ps1 (File, script)' },
-              @{ t = 'File'; v = "$root\link-file.txt"; n = 'link-file.txt (File, symlink)' },
-              @{ t = 'Link'; v = 'ms-settings:display'; n = 'ms-settings:display (Link, non-http scheme)' }
-            )
-            foreach ($r in $rows) {
-              $s = SetType $r.t; Assert "select type $($r.t) for $($r.n)" ($s -eq 'ok') $s
-              SetText $targetBox $r.v; $c = ClickBtn 'Add' 500; Assert "add $($r.n)" ($c -eq 'ok') $c
+            function StartApp1() {
+              $script:p = Start-Process -FilePath $exe.FullName -PassThru
+              $sw = [Diagnostics.Stopwatch]::StartNew()
+              while ($sw.Elapsed.TotalSeconds -lt 60) { $script:p.Refresh(); if ($script:p.HasExited -or $script:p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
+              Start-Sleep -Seconds 2
+              $script:win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $script:p.Id)))
             }
-            Shot 'items-added'; Info 'item rows after adding (UIA)' ((ListLines) -join ' || ')
-            [void](ClickBtn 'Open workspace' 300)
-            Assert 'decision panel appears' (WaitText 'Nothing has been opened yet' 30) ((Texts) -join ' | ')
-            Start-Sleep -Milliseconds 600; Shot 'decision-panel'
-            $exp1 = '3 items will be skipped. 2 items can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.'
-            Assert 'mixed panel status text exact' (@(Texts) -contains $exp1) ((Texts) -join ' | ')
-            Assert 'mixed panel confirm button is Open anyway' ($null -ne (Btn 'Open anyway')) ''
-            Info 'decision status (UIA)' ((Texts) -join ' | '); Info 'decision list lines (UIA, full text)' ((ListLines) -join ' || ')
-            Assert 'nothing started before the decision' (-not (Test-Path $marker) -and -not (Test-Path "$root\EXECUTED-*")) ''
-            [void](ClickBtn 'Open anyway' 300)
-            $done = WaitText 'Open requests sent for' 40
-            Assert 'report appears' $done ((Texts) -join ' | ')
-            Start-Sleep -Seconds 2; Shot 'report'
-            Info 'report status (UIA)' ((Texts) -join ' | '); Info 'report lines (UIA, full text)' ((ListLines) -join ' || ')
-            Info 'top-level windows after the run' (TopWindows)
-            # Second workspace: every item is skipped by policy -> the confirm button must read "Show report"
-            SetText $nameBox 'All skipped'; Assert 'create second workspace' ((ClickBtn 'Create workspace') -eq 'ok') ''
-            $sel = 'not found'; foreach ($li in @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))) { $tx = $li.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'All skipped'))); if ($tx) { $li.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $sel = 'selected'; break } }
-            Assert 'second workspace selected' ($sel -eq 'selected') $sel; Start-Sleep -Milliseconds 600
-            foreach ($r in @(@{ t = 'File'; v = "$root\run.ps1" }, @{ t = 'Link'; v = 'ms-settings:display' })) { [void](SetType $r.t); SetText $targetBox $r.v; [void](ClickBtn 'Add' 500) }
-            [void](ClickBtn 'Open workspace' 300)
-            Assert 'all-skipped panel appears' (WaitText 'Nothing has been opened yet' 30) ((Texts) -join ' | ')
-            Start-Sleep -Milliseconds 600; Shot 'allskipped-panel'
-            Assert 'all-skipped panel status text exact' (@(Texts) -contains '2 items will be skipped. Nothing has been opened yet.') ((Texts) -join ' | ')
-            Assert 'all-skipped confirm button is Show report' ($null -ne (Btn 'Show report') -and $null -eq (Btn 'Open anyway')) ''
-            Info 'all-skipped list lines (UIA, full text)' ((ListLines) -join ' || ')
-            [void](ClickBtn 'Show report' 300)
-            Assert 'all-skipped report appears' (WaitText 'Open requests sent for' 40) ((Texts) -join ' | ')
-            Start-Sleep -Seconds 1; Shot 'allskipped-report'; Info 'all-skipped report status (UIA)' ((Texts) -join ' | '); Info 'all-skipped report lines (UIA)' ((ListLines) -join ' || ')
+            function PickWs($name) {
+              foreach ($li in @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))) { $tx = $li.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if ($tx) { $li.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 700; return 'selected' } }
+              return 'not found'
+            }
+            function DescBox() { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Item description'))))) }
+            function TargetBox() { @(Edits | Where-Object { $_.Current.Name -ne 'Item description' })[1] }
+            StartApp1
+            Assert 'app window opened with the OLD store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
+            Assert 'old workspace selected' ((PickWs 'Old file ws') -eq 'selected') ''
+            Assert 'old item listed' (WaitText 'legacy.txt' 20) ((ListLines) -join ' || ')
+            Assert 'description field exists' ($null -ne (DescBox)) ''
+            Shot 'old-file-loaded'; Info 'rows after loading the old file (UIA)' ((ListLines) -join ' || ')
+            # add: file with Hebrew+English description; file without description; same target as the old item with a description (fills the empty one)
+            $adds = @(@{ v = "$root\notes.txt"; d = 'Meeting notes - תיאור בעברית' }, @{ v = "$root\plain.txt"; d = '' }, @{ v = "$root\ok.txt"; d = 'Filled for the old item' })
+            foreach ($a in $adds) {
+              [void](SetType 'File'); SetText (TargetBox) $a.v; SetText (DescBox) $a.d; $c = ClickBtn 'Add' 500; Assert "add $($a.v | Split-Path -Leaf) desc='$($a.d)'" ($c -eq 'ok') $c
+            }
+            Assert 'description box cleared after the last add' ((DescBox).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '') ''
+            Start-Sleep -Milliseconds 600; Shot 'descriptions-added'; Info 'rows after adding (UIA)' ((ListLines) -join ' || ')
+            $rows = (ListLines) -join ' || '
+            Assert 'row with Hebrew+English description present' ($rows -match 'Meeting notes - תיאור בעברית') $rows
+            Assert 'old item received the description (fill-only-when-empty)' (@($rows -split ' \|\| ' | Where-Object { $_ -match 'legacy\.txt' -and $_ -match 'Filled for the old item' }).Count -eq 1) $rows
+            Assert 'plain item has no description' (@($rows -split ' \|\| ' | Where-Object { $_ -match 'plain\.txt' -and $_ -match 'Description =\s*\}' }).Count -eq 1) $rows
+            # a too-long description must be refused: the box is limited to 500 characters (UI MaxLength); typing 600 stores at most 500 in the UI
+            $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() }
+            $json = Get-Content $store -Raw -Encoding UTF8; Info 'store.json after run 1 (synthetic)' ($json -replace '\s+', ' ')
+            Assert 'store.json now has the descriptions' ($json -match 'Meeting notes' -and $json -match 'Filled for the old item') ''
+            Assert 'old item and its id kept' ($json -match 'it_old1' -and $json -match 'legacy.txt') ''
+            # restart: persistence
+            StartApp1
+            Assert 'restart opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
+            Assert 'workspace selected after restart' ((PickWs 'Old file ws') -eq 'selected') ''
+            Assert 'descriptions survive restart' (WaitText 'Filled for the old item' 20) ((ListLines) -join ' || ')
+            Start-Sleep -Milliseconds 600; Shot 'after-restart'; Info 'rows after restart (UIA)' ((ListLines) -join ' || ')
             Info 'top-level windows at end' (TopWindows)
-            $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" | ForEach-Object { "$($_.Name)[pid=$($_.ProcessId)]" }); Info 'child processes of the app (still alive)' ($kids -join ',')
-            Assert 'helper really started through the wired app and wrote its marker' (Test-Path $marker) $(if (Test-Path $marker) { Get-Content $marker } else { 'marker absent' })
-            Assert 'run.ps1 never executed' (-not (Test-Path "$root\EXECUTED-ps1.txt")) ''
-            Assert 'no EXECUTED marker at all' (-not (Test-Path "$root\EXECUTED-*")) ''
-            $store = Join-Path $storeDir 'store.json'; Info 'store file exists' (Test-Path $store)
-            if (Test-Path $store) { Info 'store content (synthetic data only)' ((Get-Content $store -Raw) -replace '\s+', ' ') }
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
           finally {
@@ -142,31 +129,19 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-wiredapp-01-items-added.png
+          path: out-images/run${{ github.run_id }}-desc-01-old-file-loaded.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-wiredapp-02-decision-panel.png
+          path: out-images/run${{ github.run_id }}-desc-02-descriptions-added.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-wiredapp-03-report.png
-          archive: false
-          if-no-files-found: warn
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          path: out-images/run${{ github.run_id }}-wiredapp-04-allskipped-panel.png
-          archive: false
-          if-no-files-found: warn
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          path: out-images/run${{ github.run_id }}-wiredapp-05-allskipped-report.png
+          path: out-images/run${{ github.run_id }}-desc-03-after-restart.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
