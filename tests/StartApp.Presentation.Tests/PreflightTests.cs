@@ -153,8 +153,8 @@ public class PreflightTests
 
     private sealed class GateLauncher(ManualResetEventSlim gate) : IItemLauncher
     {
-        public List<string> Started = new();
-        public LaunchResult Launch(Item item, LaunchConfig? l) { gate.Wait(); lock (Started) Started.Add(item.Target); return new(LaunchStatus.Started); }
+        public List<string> Started = new(); public readonly ManualResetEventSlim Entered = new();
+        public LaunchResult Launch(Item item, LaunchConfig? l) { Entered.Set(); gate.Wait(); lock (Started) Started.Add(item.Target); return new(LaunchStatus.Started); }
     }
     [Fact] public void BlockingLaunch_DoesNotBlockCaller_AndCancelStopsFurtherItems_ReportingWhatWasSent()
     {
@@ -164,6 +164,7 @@ public class PreflightTests
         vm.OpenWorkspaceCommand.Execute(null);
         while (!vm.IsLaunching && sw.ElapsedMilliseconds < 3000) Thread.Sleep(5);
         Assert.True(vm.IsLaunching); Assert.True(sw.ElapsedMilliseconds < 3000);
+        Assert.True(l.Entered.Wait(3000)); // IsLaunching is set before the worker reaches the first item: cancelling earlier would (correctly) send nothing. Wait until a call is really in flight.
         vm.CancelOpenCommand.Execute(null); gate.Set(); vm.OpenTask.Wait();
         Assert.Single(l.Started);                       // the call already in flight completed; it cannot be undone
         Assert.Contains("a.txt: open request sent", vm.OpenReport[0]);
