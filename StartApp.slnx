@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/StartApp.App/StartApp.App.csproj" />
     <Project Path="src/StartApp.Core/StartApp.Core.csproj" />
     <Project Path="src/StartApp.Presentation/StartApp.Presentation.csproj" />
     <Project Path="src/StartApp.Storage.Json/StartApp.Storage.Json.csproj" />
