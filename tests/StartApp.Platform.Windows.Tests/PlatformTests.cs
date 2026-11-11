@@ -140,7 +140,7 @@ public class PlatformTests(Xunit.Abstractions.ITestOutputHelper output)
             var ok = Path.Combine(dir, "ok.txt"); File.WriteAllText(ok, "x"); var ps = Path.Combine(dir, "run.ps1"); File.WriteAllText(ps, "x");
             var rec = new Rec(); var (launcher, pre) = WindowsComposition.Create(rec);
             Assert.Equal(PreflightState.Ready, pre.Check(new Item("a", ItemType.File, "ok", ok), null).State);
-            Assert.Equal(PreflightState.NeedsDecision, pre.Check(new Item("b", ItemType.File, "ps", ps), null).State);
+            Assert.Equal(PreflightState.NeedsDecision, (PreflightRules.CheckForm(new Item("b", ItemType.File, "ps", ps), null) ?? pre.Check(new Item("b", ItemType.File, "ps", ps), null)).State); // same order as the view model: the form/extension rule first, then the file system preflight
             Assert.Equal(PreflightState.Missing, pre.Check(new Item("c", ItemType.File, "no", Path.Combine(dir, "none.txt")), null).State);
             Assert.Empty(rec.Calls);                                // checking starts nothing
             launcher.Launch(new Item("a", ItemType.File, "ok", ok), null);
