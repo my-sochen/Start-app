@@ -17,23 +17,36 @@
                 <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding ItemTypes}" SelectedItem="{Binding NewItemType}" Width="90" Margin="16,0,0,0"/>
                 <TextBox Text="{Binding NewTarget, UpdateSourceTrigger=PropertyChanged}" MinWidth="120" Margin="4,0,0,0"/>
             </DockPanel>
-            <ListView ItemsSource="{Binding Items}" Margin="0,8,0,0">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="160"/>
-                        <GridViewColumn Header="Type" DisplayMemberBinding="{Binding Type}" Width="70"/>
-                        <GridViewColumn Header="Target" DisplayMemberBinding="{Binding Target}" Width="240"/>
-                        <GridViewColumn Header="">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Button Content="Remove"
-                                            Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}"/>
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                    </GridView>
-                </ListView.View>
+            <Grid DockPanel.Dock="Top" Margin="8,8,8,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Name" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1" Text="Type" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="2" Text="Target" FontWeight="SemiBold"/>
+            </Grid>
+            <ListView ItemsSource="{Binding Items}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <Button Grid.Column="3" Content="Remove"
+                                    Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
             </ListView>
         </DockPanel>
     </DockPanel>
