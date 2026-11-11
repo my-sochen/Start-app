@@ -12,6 +12,8 @@ public sealed class MainViewModel : ObservableBase
 {
     private readonly IStoreRepository _repo;
     private readonly IItemLauncher _launcher;
+    private readonly IItemPreflight? _preflight;
+    private List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding)>? _pendingOpen;
     private Workspace? _selected; private string _status = ""; private bool _readOnly; private string _newName = "";
 
     public ObservableCollection<Workspace> Workspaces { get; } = new();
@@ -24,20 +26,31 @@ public sealed class MainViewModel : ObservableBase
     public ICommand RemoveItemCommand { get; }
     public ICommand OpenWorkspaceCommand { get; }
     public ICommand AddItemCommand { get; }
+    public ICommand ConfirmOpenAnywayCommand { get; }
+    public ICommand CancelOpenCommand { get; }
+    /// <summary>Per-item problems found before opening; the user decides. Empty when nothing is pending.</summary>
+    public ObservableCollection<string> OpenProblems { get; } = new();
+    /// <summary>Per-item outcome of the last open (one line per item).</summary>
+    public ObservableCollection<string> OpenReport { get; } = new();
+    public bool OpenDecisionPending => _pendingOpen != null;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
 
-    public MainViewModel(IStoreRepository repo, IItemLauncher launcher)
+    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null)
     {
-        _repo = repo; _launcher = launcher;
+        _repo = repo; _launcher = launcher; _preflight = preflight;
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         DeleteWorkspaceCommand = Cmd(_ => Apply(c => c.DeleteWorkspace(Selected!.Id)), _ => !ReadOnly && Selected != null);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveFromWorkspace(Selected!.Id, ((ItemRow)p!).ItemId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null);
+        ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
+        CancelOpenCommand = Cmd(_ => { ClearPending(); Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null);
         Reload();
     }
 
-    public Workspace? Selected { get => _selected; set { Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
+    private void ClearPending() { _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
+
+    public Workspace? Selected { get => _selected; set { ClearPending(); Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set => Set(ref _newType, value); }
@@ -98,14 +111,46 @@ public sealed class MainViewModel : ObservableBase
         return false;
     }
 
-    /// <summary>Additive opening is not implemented yet: reports what the adapter says, per item, never as overall success unless every item started.</summary>
+    /// <summary>Every item is checked first. With no problems everything is launched. With problems nothing starts; the user sees each item's reason and
+    /// chooses to open anyway or cancel. After "anyway", Unsupported items (alias, non-http(s) link, bad config) are never launched; Missing and
+    /// Unavailable items are attempted exactly as saved, with no substitute app, and each outcome is reported per item. Additive: nothing is closed.
+    /// Already-open (duplicate) detection is not implemented.</summary>
     private void Open()
     {
-        var results = new List<LaunchResult>();
+        ClearPending(); OpenReport.Clear();
         if (Selected!.Items.Count == 0) { Status = "Workspace is empty, nothing to open"; return; }
+        var plan = new List<(Item, LaunchConfig?, PreflightFinding)>();
         foreach (var m in Selected!.Items)
-            if (_current.Items.TryGetValue(m.ItemId, out var it)) results.Add(_launcher.Launch(it, m.Launch));
-        var ok = results.Count(r => r.Status == LaunchStatus.Started);
-        Status = ok == results.Count ? $"Opened {ok} items" : $"Opened {ok} of {results.Count} items (partial: {results.Count - ok} not opened)";
+            if (_current.Items.TryGetValue(m.ItemId, out var it))
+                plan.Add((it, m.Launch, PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready)));
+        var bad = plan.Where(p => p.Item3.State != PreflightState.Ready).ToList();
+        if (bad.Count == 0) { Launch(plan); return; }
+        _pendingOpen = plan;
+        foreach (var b in bad) OpenProblems.Add($"{b.Item1.Name}: {Describe(b.Item3)}");
+        Status = $"{bad.Count} of {plan.Count} items have problems. Nothing was opened yet.";
+        Raise(nameof(OpenDecisionPending)); RaiseCommands();
+    }
+
+    private static string Describe(PreflightFinding f) => f.State switch
+    {
+        PreflightState.Missing => "not found" + (f.Detail is null ? "" : " (" + f.Detail + ")"),
+        PreflightState.Unsupported => "will not be opened (" + f.Detail + ")",
+        _ => "could not be checked" + (f.Detail is null ? "" : " (" + f.Detail + ")"),
+    };
+
+    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); Launch(plan); }
+
+    private void Launch(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding)> plan)
+    {
+        OpenReport.Clear(); int ok = 0, refused = 0;
+        foreach (var p in plan)
+        {
+            if (p.Finding.State == PreflightState.Unsupported) { refused++; OpenReport.Add($"{p.Item.Name}: not opened ({p.Finding.Detail})"); continue; }
+            var r = _launcher.Launch(p.Item, p.Launch);
+            if (r.Status == LaunchStatus.Started) { ok++; OpenReport.Add($"{p.Item.Name}: started"); }
+            else OpenReport.Add($"{p.Item.Name}: not opened ({r.Detail ?? r.Status.ToString()})");
+        }
+        var notOpened = plan.Count - ok;
+        Status = notOpened == 0 ? $"Opened {ok} items" : $"Opened {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} never opened by policy" : "")})";
     }
 }
