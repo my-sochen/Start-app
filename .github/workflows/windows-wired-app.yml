@@ -5,6 +5,7 @@ name: windows-wired-app
 on:
   push:
     branches: [ci/smoke-wired-app]
+    paths: [ci-trigger.txt]   # only this marker file starts a run, so file-by-file commits cost nothing
 permissions:
   contents: read
 env:
