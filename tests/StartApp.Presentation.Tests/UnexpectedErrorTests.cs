@@ -68,11 +68,14 @@ public class UnexpectedErrorTests
 
     [Fact] public void LateWorkerFault_AfterTheDeadline_IsStillObserved_NotLost()
     {
-        using var repo = Repo("C:\\a.txt", "C:\\b.txt"); var seen = new ManualResetEventSlim(); Exception? got = null;
-        var vm = new MainViewModel(repo, new BugLauncher(), new Pf(i => { if (i.Target.Contains("b.txt")) { Thread.Sleep(500); throw new NullReferenceException("late"); } Thread.Sleep(5000); return new(PreflightState.Ready); }), new Det()) { OpenCheckTimeout = TimeSpan.FromMilliseconds(100) };
+        using var repo = Repo("C:\\a.txt", "C:\\b.txt"); var seen = new ManualResetEventSlim(); var release = new ManualResetEventSlim(); var hold = new ManualResetEventSlim(); Exception? got = null;
+        // Deterministic: b only throws after the test has seen the deadline result; a stays blocked until the end (no timing assumptions).
+        var vm = new MainViewModel(repo, new BugLauncher(), new Pf(i => { if (i.Target.Contains("b.txt")) { release.Wait(10000); throw new NullReferenceException("late"); } hold.Wait(10000); return new(PreflightState.Ready); }), new Det()) { OpenCheckTimeout = TimeSpan.FromMilliseconds(100) };
         vm.UnexpectedError += e => { got = e; seen.Set(); };
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
+        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(10000);
         Assert.True(vm.OpenDecisionPending); // deadline published first: both items "did not finish"
+        release.Set();
         Assert.True(seen.Wait(5000)); Assert.IsType<NullReferenceException>(got);
+        hold.Set();
     }
 }
