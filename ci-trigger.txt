@@ -1,1 +1,1 @@
-run for PR17 head: see commit message
+run for fix/discard-writer-lock: JsonStore.cs + StorageTests.cs
