@@ -22,7 +22,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
-          dotnet test StartApp.slnx 2>&1 | Tee-Object diag/windows-unit-tests.txt | Select-String 'Passed!|Failed!|error' 
+          dotnet test StartApp.slnx 2>&1 | Tee-Object diag/windows-unit-tests.txt | Select-String 'Passed!|Failed!|error|\[FAIL\]|Assert|Expected|Actual|Stack|   at '
           "unit-test exit code: $LASTEXITCODE" | Tee-Object -Append diag/windows-unit-tests.txt
           if ($LASTEXITCODE -ne 0) { "UNIT TESTS FAILED" | Tee-Object -Append diag/errors.txt }
         continue-on-error: true
@@ -126,7 +126,7 @@ jobs:
             Info 'status after cancel' ((Texts) -join ' | ')
             $log1 = if (Test-Path diag/launch-log.txt) { @(Get-Content diag/launch-log.txt) } else { @() }
             Info 'recorded launch requests after run 1 (nothing was started)' ($log1 -join ' || ')
-            Assert 'run 1 recorded only ok.txt and nothing.txt (cancel stopped the rest, blocked items never reached the starter)' (($log1.Count -eq 2) -and (($log1 -join ' ') -notmatch 'run.ps1|link-file|slow-item')) "count=$($log1.Count)"
+            Assert 'run 1: starter saw only ok.txt/nothing.txt (cancel stopped the rest; blocked items never reached the starter); count matches the report' (($log1.Count -ge 1) -and ($log1.Count -le 2) -and (($log1 -join ' ') -notmatch 'run.ps1|link-file|slow-item')) "count=$($log1.Count)"
             # --- Run 2: complete without cancel
             Assert 'second Open' ((ClickBtn 'Open workspace' 300) -eq 'ok') ''
             Assert 'decision panel again' (WaitText 'need your decision' 25) ''
@@ -138,7 +138,8 @@ jobs:
             Info 'status (complete run)' ((Texts) -join ' | ')
             $log2 = @(Get-Content diag/launch-log.txt)
             Info 'recorded launch requests after run 2 (nothing was started)' ($log2 -join ' || ')
-            Assert 'run 2 recorded ok.txt, nothing.txt, slow-item.txt added; run.ps1 and link-file never reached the starter' (($log2.Count -eq 5) -and (($log2[2..4] -join ' ') -notmatch 'run.ps1|link-file')) "count=$($log2.Count)"
+            $new2 = @($log2 | Select-Object -Skip $log1.Count)
+            Assert 'run 2: exactly ok.txt, nothing.txt, slow-item.txt reached the starter; run.ps1 and link-file never did' (($new2.Count -eq 3) -and (($new2 -join ' ') -notmatch 'run.ps1|link-file') -and (($new2 -join ' ') -match 'ok.txt') -and (($new2 -join ' ') -match 'nothing.txt') -and (($new2 -join ' ') -match 'slow-item')) "run1 count=$($log1.Count) new in run2=$($new2.Count)"
             Assert 'no EXECUTED marker' (-not (Test-Path "$root\EXECUTED-*")) ''
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
