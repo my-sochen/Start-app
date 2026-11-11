@@ -21,13 +21,14 @@ public class PreflightTests
         repo.Mutate(c => { var w = c.CreateWorkspace("w"); foreach (var (t, tg) in items) c.AddToWorkspace(w.Id, c.GetOrAddItem(t, tg, tg).Id); });
         return repo;
     }
-    private static MainViewModel Vm(JsonStore r, FakeLauncher l, Func<Item, PreflightFinding>? f = null) => new(r, l, new FakePreflight(f ?? Ready));
+    private sealed class FixedDetector(OpenState s) : IOpenStateDetector { public OpenState Detect(Item i, LaunchConfig? l) => s; }
+    private static MainViewModel Vm(JsonStore r, FakeLauncher l, Func<Item, PreflightFinding>? f = null, OpenState dup = OpenState.NotOpen) => new(r, l, new FakePreflight(f ?? Ready), new FixedDetector(dup));
 
     [Fact] public void AllReady_LaunchesWithoutAsking()
     {
         using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l);
         vm.OpenWorkspaceCommand.Execute(null);
-        Assert.False(vm.OpenDecisionPending); Assert.Single(l.Launched); Assert.Equal("Opened 1 items", vm.Status); Assert.Equal("C:\\a.txt: started", vm.OpenReport[0]);
+        Assert.False(vm.OpenDecisionPending); Assert.Single(l.Launched); Assert.Equal("Open requests sent for 1 items", vm.Status); Assert.Equal("C:\\a.txt: open request sent (not proof it loaded)", vm.OpenReport[0]);
     }
     [Fact] public void Missing_WarnsFirst_NothingLaunchedUntilUserDecides()
     {
@@ -43,7 +44,7 @@ public class PreflightTests
         var vm = Vm(repo, l, i => i.Type == ItemType.Program ? new(PreflightState.Missing) : new(PreflightState.Ready));
         vm.OpenWorkspaceCommand.Execute(null); vm.ConfirmOpenAnywayCommand.Execute(null);
         Assert.Equal(new[] { "C:\\a.txt", "C:\\Apps\\gone-fail.exe" }, l.Launched);
-        Assert.Contains("1 of 2", vm.Status); Assert.Contains("C:\\Apps\\gone-fail.exe: not opened (boom)", vm.OpenReport);
+        Assert.Contains("1 of 2", vm.Status); Assert.Contains("C:\\Apps\\gone-fail.exe: failed (boom)", vm.OpenReport);
     }
     [Fact] public void Cancel_OpensNothing()
     {
@@ -59,11 +60,11 @@ public class PreflightTests
     [InlineData(ItemType.File, "relative\\a.txt", "full paths")]
     public void Unsupported_NeverLaunched_EvenAfterAnyway_AdapterNotConsulted(ItemType t, string target, string reason)
     {
-        using var repo = Repo((t, target)); var l = new FakeLauncher(); var pf = new FakePreflight(Ready); var vm = new MainViewModel(repo, l, pf);
+        using var repo = Repo((t, target)); var l = new FakeLauncher(); var pf = new FakePreflight(Ready); var vm = new MainViewModel(repo, l, pf, new FixedDetector(OpenState.NotOpen));
         vm.OpenWorkspaceCommand.Execute(null);
         Assert.True(vm.OpenDecisionPending); Assert.Equal(0, pf.Calls); Assert.Contains(reason, vm.OpenProblems[0]);
         vm.ConfirmOpenAnywayCommand.Execute(null);
-        Assert.Empty(l.Launched); Assert.Contains("never opened by policy", vm.Status); Assert.Contains("not opened", vm.OpenReport[0]);
+        Assert.Empty(l.Launched); Assert.Contains("skipped by policy", vm.Status); Assert.Contains("skipped, not opened", vm.OpenReport[0]);
     }
     [Theory] [InlineData("http://example.com")] [InlineData("https://example.com/a?b=c")]
     public void HttpAndHttps_AreOpenable(string url)
@@ -82,5 +83,28 @@ public class PreflightTests
         using var repo = Repo((ItemType.File, "C:\\gone.txt")); var vm = Vm(repo, new FakeLauncher(), _ => new(PreflightState.Missing));
         vm.OpenWorkspaceCommand.Execute(null); vm.Selected = null;
         Assert.False(vm.OpenDecisionPending); Assert.Empty(vm.OpenProblems);
+    }
+
+    [Fact] public void NoDetector_EveryItemIsUnknown_WarnedAsPossibleDuplicate_NeverClaimedDuplicate()
+    {
+        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = new MainViewModel(repo, l, new FakePreflight(Ready));
+        vm.OpenWorkspaceCommand.Execute(null);
+        Assert.True(vm.OpenDecisionPending); Assert.Empty(l.Launched);
+        Assert.Contains("cannot tell whether it is already open", vm.OpenProblems[0]); Assert.DoesNotContain("confirmed", vm.OpenProblems[0]);
+        vm.ConfirmOpenAnywayCommand.Execute(null);
+        Assert.Single(l.Launched); Assert.Contains("could not tell if it was already open", vm.OpenReport[0]);
+    }
+    [Fact] public void ConfirmedOpen_IsReportedAsConfirmed_AndStillUserChoice_NoSilentSkip()
+    {
+        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, dup: OpenState.Open);
+        vm.OpenWorkspaceCommand.Execute(null);
+        Assert.Contains("already open (confirmed)", vm.OpenProblems[0]); Assert.Empty(l.Launched);
+        vm.ConfirmOpenAnywayCommand.Execute(null); Assert.Single(l.Launched); Assert.Contains("was already open (confirmed)", vm.OpenReport[0]);
+    }
+    [Fact] public void MissingAndUnknown_AreBothShownForTheSameItem()
+    {
+        using var repo = Repo((ItemType.File, "C:\\a.txt")); var vm = Vm(repo, new FakeLauncher(), _ => new(PreflightState.Missing), OpenState.Unknown);
+        vm.OpenWorkspaceCommand.Execute(null);
+        Assert.Contains("not found", vm.OpenProblems[0]); Assert.Contains("may create a duplicate", vm.OpenProblems[0]);
     }
 }
