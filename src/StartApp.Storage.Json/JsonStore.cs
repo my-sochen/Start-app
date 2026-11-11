@@ -23,11 +23,13 @@ public sealed class JsonStore : IStoreRepository
     /// <summary>Newest schema this build reads and writes. Schema 2 = schema 1 plus the optional item description. Older builds (schema 1 only) refuse a schema 2 file as "too new" and leave it untouched; this build still reads schema 1 and upgrades it on the next save, after keeping a one-time copy.</summary>
     public const int SupportedSchema = 2;
     private const int OldestReadableSchema = 1;
-    /// <summary>Explicit user-approved reset: moves the invalid file aside, then the next load starts empty.</summary>
+    /// <summary>Moves the invalid file aside, then the next load starts empty. Code only: nothing in the app calls it, and a real reset needs the user's own explicit approval. Needs the writer lock like any other write.</summary>
     public string? DiscardInvalidFile()
     {
         lock (_gate)
         {
+            if (!File.Exists(_path)) return null;
+            EnsureWriter(); // take the single-writer lock first: another running instance holding it gets StoreLockedException and the file is not moved
             if (!File.Exists(_path)) return null;
             var q = _path + ".invalid-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff") + "-" + Guid.NewGuid().ToString("N")[..6];
             File.Move(_path, q);
