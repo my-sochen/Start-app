@@ -97,8 +97,8 @@ jobs:
             Shot 'old-file-loaded'; Info 'rows after loading the old file (UIA)' ((ListLines) -join ' || ')
             # add: file with Hebrew+English description; file without description; same target as the old item with a description (fills the empty one)
             $adds = @(@{ v = "$root\notes.txt"; d = 'Meeting notes - תיאור בעברית' }, @{ v = "$root\plain.txt"; d = '' }, @{ v = "$root\ok.txt"; d = 'Filled for the old item' })
-            foreach ($a in $adds) {
-              [void](SetType 'File'); SetText (TargetBox) $a.v; SetText (DescBox) $a.d; $c = ClickBtn 'Add' 500; Assert "add $($a.v | Split-Path -Leaf) desc='$($a.d)'" ($c -eq 'ok') $c
+            foreach ($ad in $adds) {
+              [void](SetType 'File'); SetText (TargetBox) $ad.v; SetText (DescBox) $ad.d; $c = ClickBtn 'Add' 500; Assert "add $($ad.v | Split-Path -Leaf) desc='$($ad.d)'" ($c -eq 'ok') $c
             }
             Assert 'description box cleared after the last add' ((DescBox).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '') ''
             Start-Sleep -Milliseconds 600; Shot 'descriptions-added'; Info 'rows after adding (UIA)' ((ListLines) -join ' || ')
