@@ -2,7 +2,7 @@ using StartApp.Core;
 namespace StartApp.Platform.Windows;
 
 public enum ProbeKind { NotFound, File, Directory, Error }
-public sealed record ProbeResult(ProbeKind Kind, string? Reason = null);
+public sealed record ProbeResult(ProbeKind Kind, string? Reason = null, bool Reparse = false);
 
 /// <summary>Reads what is at a path without trusting File.Exists/Directory.Exists, which return false for absent, denied, IO error and bad path alike.</summary>
 public interface IFileSystemProbe { ProbeResult Probe(string path); }
@@ -26,7 +26,7 @@ public sealed class FileSystemProbe(TimeSpan? timeout = null) : IFileSystemProbe
     }
     internal static ProbeResult ProbeNow(string path)
     {
-        try { return File.GetAttributes(path).HasFlag(FileAttributes.Directory) ? new(ProbeKind.Directory) : new(ProbeKind.File); }
+        try { var a = File.GetAttributes(path); var rp = a.HasFlag(FileAttributes.ReparsePoint); return a.HasFlag(FileAttributes.Directory) ? new(ProbeKind.Directory, null, rp) : new(ProbeKind.File, null, rp); }
         catch (Exception e) { return ProbeMapping.FromException(e); }
     }
 }
@@ -49,8 +49,9 @@ public sealed class FileSystemPreflight(IFileSystemProbe probe) : IItemPreflight
         var r = probe.Probe(item.Target);
         var finding = Map(item.Type, r, "saved target");
         if (finding.State != PreflightState.Ready) return finding;
+        if (r.Reparse) return new(PreflightState.NeedsDecision, "saved target is a link (reparse point); its real target was not verified");
         foreach (var exe in new[] { launch?.OpenWith, launch?.Browser })
-            if (exe is not null) { var f = Map(ItemType.Program, probe.Probe(exe), "launch program"); if (f.State != PreflightState.Ready) return f; }
+            if (exe is not null) { var pr = probe.Probe(exe); var f = Map(ItemType.Program, pr, "launch program"); if (f.State != PreflightState.Ready) return f; if (pr.Reparse) return new(PreflightState.NeedsDecision, "launch program is a link (reparse point); its real target was not verified"); }
         return finding;
     }
     private static PreflightFinding Map(ItemType type, ProbeResult r, string what) => r.Kind switch
