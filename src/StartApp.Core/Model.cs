@@ -21,7 +21,7 @@ public sealed class Workspace
 
 public sealed class Store
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public Dictionary<string, Item> Items { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
 }
