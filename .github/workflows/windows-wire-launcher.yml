@@ -1,0 +1,46 @@
+# CI-only evidence run for PR #16 (wired launcher). Unit tests and a build only: no app launch, no real starter, no user programs, no browser, no network.
+# Purpose: show that the Windows composition test really executed its body on Windows (marker in the test log), and that the wired App project builds.
+name: windows-wire-launcher
+on:
+  push:
+    branches: [ci/smoke-wire-launcher]
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  evidence:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Unit tests on Windows (detailed log)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag | Out-Null
+          dotnet test StartApp.slnx --logger "console;verbosity=detailed" 2>&1 | Tee-Object diag/windows-unit-tests.txt | Select-String 'Passed!|Failed!|error|\[FAIL\]|COMPOSITION-TEST-EXECUTED|NormalComposition|   at '
+          "unit-test exit code: $LASTEXITCODE" | Tee-Object -Append diag/windows-unit-tests.txt
+          if ($LASTEXITCODE -ne 0) { "UNIT TESTS FAILED" | Tee-Object -Append diag/errors.txt }
+          if (-not (Select-String -Path diag/windows-unit-tests.txt -Pattern 'COMPOSITION-TEST-EXECUTED os=Win32NT' -Quiet)) { "COMPOSITION TEST BODY DID NOT RUN ON WINDOWS" | Tee-Object -Append diag/errors.txt }
+        continue-on-error: true
+      - name: Build the wired App project (not started)
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 4
+          if ($LASTEXITCODE -ne 0) { "APP BUILD FAILED" | Tee-Object -Append diag/errors.txt }
+        continue-on-error: true
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: diagnostics-wire-launcher-${{ github.run_id }}-${{ github.run_attempt }}
+          path: diag/
+          if-no-files-found: warn
+      - name: Fail the job if anything failed
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
