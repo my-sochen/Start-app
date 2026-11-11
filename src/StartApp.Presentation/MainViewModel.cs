@@ -43,13 +43,13 @@ public sealed class MainViewModel : ObservableBase
         DeleteWorkspaceCommand = Cmd(_ => Apply(c => c.DeleteWorkspace(Selected!.Id)), _ => !ReadOnly && Selected != null);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveFromWorkspace(Selected!.Id, ((ItemRow)p!).ItemId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
-        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null);
+        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
-        CancelOpenCommand = Cmd(_ => { ClearPending(); Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null);
+        CancelOpenCommand = Cmd(_ => { var launching = IsLaunching; ClearPending(); if (!launching) Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null || IsChecking || IsLaunching);
         Reload();
     }
 
-    private void ClearPending() { _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
+    private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
     public Workspace? Selected { get => _selected; set { ClearPending(); Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
@@ -117,23 +117,69 @@ public sealed class MainViewModel : ObservableBase
     /// this is already open, opening may create a duplicate", never as a duplicate and never as safe. After "anyway", Unsupported items (alias, non-http(s) link,
     /// bad config) are never launched; the rest are attempted exactly as saved, with no substitute app. Nothing is closed. "Started" only means the open request was
     /// sent successfully, not that the document loaded.</summary>
+    /// <summary>Overall time allowed for the pre-open checks. Items still unchecked after this are reported as "could not be checked", never as fine.</summary>
+    public TimeSpan OpenCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    private const int CheckWorkers = 4;
+    private int _generation; private CancellationTokenSource? _checkCts; private bool _isChecking;
+    private CancellationTokenSource? _launchCts; private bool _isLaunching;
+    public bool IsLaunching { get => _isLaunching; private set { Set(ref _isLaunching, value); RaiseCommands(); } }
+    public bool IsChecking { get => _isChecking; private set { Set(ref _isChecking, value); RaiseCommands(); } }
+    /// <summary>The running (or last) check-and-open operation. UI code never waits on it; tests await it.</summary>
+    public Task OpenTask { get; private set; } = Task.CompletedTask;
+
     private void Open()
     {
         ClearPending(); OpenReport.Clear();
         if (Selected!.Items.Count == 0) { Status = "Workspace is empty, nothing to open"; return; }
-        var plan = new List<(Item, LaunchConfig?, PreflightFinding, OpenState)>();
-        foreach (var m in Selected!.Items)
-            if (_current.Items.TryGetValue(m.ItemId, out var it))
+        // Snapshot semantics: what is checked and opened is the saved state at the moment Open was pressed; the store file is not watched.
+        var snapshot = Selected!.Items.Select(m => (m, Item: _current.Items.TryGetValue(m.ItemId, out var it) ? it : null)).ToList();
+        _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
+        IsChecking = true; Status = "Checking items before opening...";
+        OpenTask = Guard(CheckThenOpenAsync(snapshot, gen, _checkCts.Token));
+    }
+
+    private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it)
+    {
+        if (it is null) return (new Item(m.ItemId, ItemType.File, "(missing item " + m.ItemId + ")", ""), m.Launch, new(PreflightState.Unsupported, "the saved item record is missing from the catalog"), OpenState.NotOpen);
+        var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
+        var dup = f.State == PreflightState.Unsupported ? OpenState.NotOpen : _detector.Detect(it, m.Launch);
+        return (it, m.Launch, f, dup);
+    }
+
+    /// <summary>Checks run on at most <see cref="CheckWorkers"/> background workers, never on the caller's thread, with one overall deadline. A newer Open, a
+    /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
+    private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // the deadline stops workers from taking NEW items; a call already running finishes by itself
+        var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
+        var next = -1;
+        Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
+        {
+            while (!stop.Token.IsCancellationRequested)
             {
-                var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
-                var dup = f.State == PreflightState.Unsupported ? OpenState.NotOpen : _detector.Detect(it, m.Launch);
-                plan.Add((it, m.Launch, f, dup));
+                var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
+                try { results[i] = Evaluate(snapshot[i].M, snapshot[i].Item); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+                { results[i] = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); }
             }
-        var bad = plan.Where(p => p.Item3.State != PreflightState.Ready || p.Item4 != OpenState.NotOpen).ToList();
-        if (bad.Count == 0) { Launch(plan); return; }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        var all = Task.WhenAll(Enumerable.Range(0, Math.Min(CheckWorkers, snapshot.Count)).Select(_ => Worker()));
+        await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
+        if (gen != _generation || token.IsCancellationRequested) return;
+        stop.Cancel();
+        IsChecking = false;
+        var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
+        for (int i = 0; i < snapshot.Count; i++)
+        {
+            var r = results[i];
+            if (r is { } done) plan.Add(done);
+            else if (snapshot[i].Item is { } it) plan.Add((it, snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
+        }
+        var bad = plan.Where(p => p.Finding.State != PreflightState.Ready || p.Dup != OpenState.NotOpen).ToList();
+        if (bad.Count == 0) { await LaunchAsync(plan); return; }
         _pendingOpen = plan;
-        foreach (var b in bad) OpenProblems.Add($"{b.Item1.Name}: {Describe(b.Item3, b.Item4)}");
-        Status = $"{bad.Count} of {plan.Count} items need your decision. Nothing was opened yet.";
+        foreach (var b in bad) OpenProblems.Add($"{b.Item.Name}: {Describe(b.Finding, b.Dup)}");
+        Status = $"{bad.Count} of {plan.Count} {(plan.Count == 1 ? "item needs" : "items need")} your decision. Nothing was opened yet.";
         Raise(nameof(OpenDecisionPending)); RaiseCommands();
     }
 
@@ -142,25 +188,48 @@ public sealed class MainViewModel : ObservableBase
         var parts = new List<string>();
         if (f.State == PreflightState.Missing) parts.Add("not found" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
         else if (f.State == PreflightState.Unsupported) return "will not be opened (" + f.Detail + ")";
+        else if (f.State == PreflightState.NeedsDecision) return "will not be opened, it needs an explicit decision for this item (" + f.Detail + ")";
         else if (f.State == PreflightState.Unavailable) parts.Add("could not be checked" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
         if (dup == OpenState.Open) parts.Add("already open (confirmed), opening again will create a duplicate");
         else if (dup == OpenState.Unknown) parts.Add("cannot tell whether it is already open, opening may create a duplicate");
         return string.Join("; ", parts);
     }
 
-    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); Launch(plan); }
+    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); OpenTask = Guard(LaunchAsync(plan)); }
 
-    private void Launch(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan)
+    /// <summary>Unexpected exceptions must stay loud, but a fire-and-forget command would swallow them: show a status, clear the busy flags, then rethrow into the task.</summary>
+    private async Task Guard(Task t)
     {
-        OpenReport.Clear(); int ok = 0, refused = 0;
-        foreach (var p in plan)
+        try { await t; }
+        catch (Exception e) { IsChecking = false; IsLaunching = false; Status = "Open stopped by an unexpected error: " + e.GetType().Name; throw; }
+    }
+
+    private static bool NeverLaunched(PreflightState s) => s is PreflightState.Unsupported or PreflightState.NeedsDecision;
+
+    /// <summary>Starts items one after another on a background worker (Process.Start can block). Cancel stops FURTHER items only: requests already sent cannot be undone
+    /// and are reported. A start call that is blocked in the OS cannot be interrupted; only the single launch worker is ever held by it.</summary>
+    private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan)
+    {
+        OpenReport.Clear(); _launchCts = new CancellationTokenSource(); var cts = _launchCts; IsLaunching = true; Status = "Opening items...";
+        var lines = await Task.Run(() =>
         {
-            if (p.Finding.State == PreflightState.Unsupported) { refused++; OpenReport.Add($"{p.Item.Name}: skipped, not opened ({p.Finding.Detail})"); continue; }
-            var r = _launcher.Launch(p.Item, p.Launch);
-            if (r.Status == LaunchStatus.Started) { ok++; OpenReport.Add($"{p.Item.Name}: open request sent (not proof it loaded)" + (p.Dup == OpenState.Open ? "; was already open (confirmed), so this may be a duplicate" : p.Dup == OpenState.Unknown ? "; could not tell if it was already open, so it may be a duplicate" : "")); }
-            else OpenReport.Add($"{p.Item.Name}: failed ({r.Detail ?? r.Status.ToString()})");
-        }
+            var res = new List<(string Line, int Ok, int Refused, int NotTried)>();
+            foreach (var p in plan)
+            {
+                if (cts.IsCancellationRequested) { res.Add(($"{p.Item.Name}: not attempted (cancelled before this item)", 0, 0, 1)); continue; }
+                if (NeverLaunched(p.Finding.State)) { res.Add(($"{p.Item.Name}: skipped, not opened ({p.Finding.Detail})", 0, 1, 0)); continue; }
+                var r = _launcher.Launch(p.Item, p.Launch);
+                if (r.Status == LaunchStatus.Started)
+                    res.Add(($"{p.Item.Name}: open request sent (not proof it loaded)" + (p.Dup == OpenState.Open ? "; was already open (confirmed), so this may be a duplicate" : p.Dup == OpenState.Unknown ? "; could not tell if it was already open, so it may be a duplicate" : ""), 1, 0, 0));
+                else res.Add(($"{p.Item.Name}: failed ({r.Detail ?? r.Status.ToString()})", 0, 0, 0));
+            }
+            return res;
+        }).ConfigureAwait(true);
+        int ok = lines.Sum(l => l.Ok), refused = lines.Sum(l => l.Refused), notTried = lines.Sum(l => l.NotTried);
+        foreach (var l in lines) OpenReport.Add(l.Line);
+        IsLaunching = false;
         var notOpened = plan.Count - ok;
-        Status = notOpened == 0 ? $"Open requests sent for {ok} items" : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")})";
+        Status = notOpened == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
+            : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")}{(notTried > 0 ? $", {notTried} not attempted because you cancelled; requests already sent cannot be undone" : "")})";
     }
 }
