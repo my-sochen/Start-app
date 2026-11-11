@@ -135,4 +135,27 @@ public class WriteFailureAndProcessTests
         js.Mutate(c => c.CreateWorkspace("after"));                // lock released with the process
         Assert.Contains(js.Load().Workspaces, w => w.Name == "after");
     }
+
+    [Fact] public void DiscardInvalidFile_does_not_move_the_file_while_another_writer_holds_the_lock()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+        var p = Path.Combine(dir, "store.json");
+        using (var holder = new JsonStore(p)) { holder.Mutate(c => c.CreateWorkspace("w")); }
+        File.WriteAllText(p, "{ not json");
+        using var other = new JsonStore(p);
+        using var writer = new JsonStore(p); // second instance becomes the lock holder
+        writer.GetType().GetMethod("EnsureWriter", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(writer, null);
+        Assert.Throws<StoreLockedException>(() => other.DiscardInvalidFile());
+        Assert.Equal("{ not json", File.ReadAllText(p));
+        Assert.Empty(Directory.GetFiles(dir, "store.json.invalid-*"));
+    }
+
+    [Fact] public void DiscardInvalidFile_moves_the_file_when_it_holds_the_lock()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dir);
+        var p = Path.Combine(dir, "store.json"); File.WriteAllText(p, "{ not json");
+        using var st = new JsonStore(p);
+        var moved = st.DiscardInvalidFile();
+        Assert.NotNull(moved); Assert.False(File.Exists(p)); Assert.Equal("{ not json", File.ReadAllText(moved!));
+    }
 }
