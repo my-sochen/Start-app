@@ -4,11 +4,11 @@
         Title="Start-app" Height="480" Width="860" MinWidth="720" MinHeight="360">
     <Window.Resources><BooleanToVisibilityConverter x:Key="B2V"/></Window.Resources>
     <DockPanel Margin="8">
-        <StackPanel DockPanel.Dock="Bottom" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}" Margin="0,8,0,0">
-            <TextBlock Text="Problems found before opening:" FontWeight="SemiBold"/>
-            <ListBox ItemsSource="{Binding OpenProblems}" MaxHeight="64" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+        <StackPanel DockPanel.Dock="Bottom" Visibility="{Binding ShowOpenPanel, Converter={StaticResource B2V}}" Margin="0,8,0,0">
+            <TextBlock Text="Problems found before opening:" FontWeight="SemiBold" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
+            <ListBox ItemsSource="{Binding OpenProblems}" MaxHeight="64" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                <Button Content="Open anyway" Command="{Binding ConfirmOpenAnywayCommand}" Padding="8,2"/>
+                <Button Content="Open anyway" Command="{Binding ConfirmOpenAnywayCommand}" Padding="8,2" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
                 <Button Content="Cancel" Command="{Binding CancelOpenCommand}" Padding="8,2" Margin="8,0,0,0"/>
             </StackPanel>
         </StackPanel>
