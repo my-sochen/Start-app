@@ -103,14 +103,38 @@ public sealed class JsonStore : IStoreRepository
         }
     }
 
-    /// <summary>Before a schema 1 file is replaced by a schema 2 file, keep its exact bytes once as store.json.schema1.bak (never overwritten), so an upgrade can be undone by hand.</summary>
+    /// <summary>
+    /// Before a schema 1 file is replaced by a schema 2 file, make sure a byte-exact copy of it exists next to it.
+    /// The copy is written to a temp name, flushed, then published with a no-overwrite move, so a final backup name only ever holds a complete copy
+    /// (an interrupted copy leaves just a *.tmp that the next attempt rewrites). An existing backup is trusted only if its bytes equal the current file;
+    /// otherwise it is left alone and the copy goes to store.json.schema1.&lt;hash&gt;.bak. Nothing is overwritten or deleted. Any failure throws, so the upgrade does not happen.
+    /// Not claimed: power-loss durability beyond the flush of the temp file.
+    /// </summary>
     private void KeepSchema1Copy()
     {
         if (!File.Exists(_path)) return;
+        var bytes = File.ReadAllBytes(_path);
+        var body = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes.AsMemory(3) : bytes.AsMemory(); // JsonDocument rejects a BOM; the backup still copies the original bytes
+        using (var doc = JsonDocument.Parse(body))
+            if (!(doc.RootElement.TryGetProperty("schemaVersion", out var v) && v.TryGetInt32(out var ver) && ver == 1)) return;
         var bak = _path + ".schema1.bak";
-        if (File.Exists(bak)) return;
-        using var doc = JsonDocument.Parse(File.ReadAllText(_path));
-        if (doc.RootElement.TryGetProperty("schemaVersion", out var v) && v.TryGetInt32(out var ver) && ver == 1) File.Copy(_path, bak);
+        if (File.Exists(bak))
+        {
+            if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;
+            bak = _path + ".schema1." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16] + ".bak";
+            if (File.Exists(bak))
+            {
+                if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;
+                throw new IOException("A different file already uses the backup name " + bak + "; not upgrading.");
+            }
+        }
+        var tmp = bak + ".tmp";
+        try
+        {
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None)) { fs.Write(bytes, 0, bytes.Length); fs.Flush(true); }
+            File.Move(tmp, bak); // no overwrite: throws if the name appeared meanwhile
+        }
+        catch { try { File.Delete(tmp); } catch { } throw; }
     }
 
     /// <summary>Isolated mutation: change a deep copy, validate, persist; only a successful save is reported. Nothing partial leaks to the caller.</summary>
