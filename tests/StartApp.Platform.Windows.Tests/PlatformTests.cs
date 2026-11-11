@@ -84,4 +84,50 @@ public class PlatformTests
         gate.Set(); Thread.Sleep(300);
         Assert.Equal(ProbeKind.File, new FileSystemProbe().Probe("C:\\y", _ => new(ProbeKind.File)).Kind); Assert.NotEqual("too many unfinished checks", p.Probe("C:\\y", _ => new(ProbeKind.File)).Reason);
     }
+    [Theory]
+    [InlineData("C:\\d\\a.exe")] [InlineData("C:\\d\\a.BAT")] [InlineData("C:\\d\\a.cmd")] [InlineData("C:\\d\\a.ps1")] [InlineData("C:\\d\\a.vbs")] [InlineData("C:\\d\\a.js")]
+    [InlineData("C:\\d\\a.hta")] [InlineData("C:\\d\\a.lnk")] [InlineData("C:\\d\\a.url")] [InlineData("C:\\d\\a.msi")] [InlineData("C:\\d\\a.scr")] [InlineData("C:\\d\\a.pif")]
+    [InlineData("C:\\d\\a.exe.")] [InlineData("C:\\d\\a.exe ")] [InlineData("C:\\d\\a.txt:evil.exe")] [InlineData("\\\\srv\\share\\a.cmd")]
+    public void File_ExecutableOrScriptCapable_NeverReachesTheShell(string path)
+    {
+        foreach (var t in new[] { ItemType.File, ItemType.Folder })
+        {
+            var r = new Rec(); var res = new WindowsLauncher(r).Launch(It(t, path), null);
+            Assert.Empty(r.Calls); Assert.Equal(LaunchStatus.Unavailable, res.Status);
+        }
+    }
+    [Fact] public void File_Document_StillReachesShell_ButOpenWithDoesNotExemptCodeCapableTargetsOrInterpreters()
+    {
+        var r = new Rec(); var l = new WindowsLauncher(r);
+        l.Launch(It(ItemType.File, "C:\\d\\a.docx"), null);
+        Assert.Single(r.Calls); Assert.True(r.Calls[0].UseShell);
+        l.Launch(It(ItemType.File, "C:\\d\\a.ps1"), new LaunchConfig(OpenWith: "C:\\Apps\\ed.exe"));
+        l.Launch(It(ItemType.File, "C:\\d\\a.txt"), new LaunchConfig(OpenWith: "C:\\Windows\\System32\\cmd.exe"));
+        l.Launch(It(ItemType.File, "C:\\d\\a.txt"), new LaunchConfig(OpenWith: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\PowerShell.EXE"));
+        Assert.Single(r.Calls);
+    }
+    [Theory]
+    [InlineData("https://user@evil.example/")] [InlineData("https://user:pw@evil.example/")] [InlineData("http://exa%6dple.com/")] [InlineData("https://example.com\\@evil.example/")]
+    [InlineData("https://\u00e9xample.com/")] [InlineData("https:///nohost")] [InlineData("http://exa mple.com/")] [InlineData("https://example.com/a\tb")]
+    public void AmbiguousHttpForms_AreRefusedAsNeedsDecision_AndNotRewritten(string link)
+    {
+        var f = PreflightRules.CheckForm(It(ItemType.Link, link), null);
+        Assert.Equal(PreflightState.NeedsDecision, f!.State);
+        var r = new Rec(); Assert.Equal(LaunchStatus.Unavailable, new WindowsLauncher(r).Launch(It(ItemType.Link, link), null).Status); Assert.Empty(r.Calls);
+    }
+    [Theory] [InlineData("http://example.com")] [InlineData("HTTPS://Example.com:8443/a/b?x=1&y=2#frag")] [InlineData("https://192.168.0.1/")] [InlineData("https://example.com/caf\u00e9")]
+    public void PlainHttpForms_AreAccepted_AndLaunchedWithTheSavedBytes(string link)
+    {
+        Assert.Null(PreflightRules.CheckForm(It(ItemType.Link, link), null));
+        var r = new Rec(); new WindowsLauncher(r).Launch(It(ItemType.Link, link), null); Assert.Equal(link, r.Calls[0].FileName);
+    }
+    [Fact] public void ReparsePoints_AndLinkedLaunchPrograms_NeedADecision()
+    {
+        PreflightFinding Run(ProbeResult pr, ItemType t, LaunchConfig? l = null) => new FileSystemPreflight(new FakeProbe(_ => pr)).Check(It(t, "C:\\x"), l);
+        Assert.Equal(PreflightState.NeedsDecision, Run(new(ProbeKind.File, null, true), ItemType.File).State);
+        Assert.Equal(PreflightState.NeedsDecision, Run(new(ProbeKind.Directory, null, true), ItemType.Folder).State);
+        Assert.Equal(PreflightState.NeedsDecision, Run(new(ProbeKind.File, null, true), ItemType.Program).State);
+        var pf = new FileSystemPreflight(new FakeProbe(p => p.Contains("ed.exe") ? new(ProbeKind.File, null, true) : new(ProbeKind.File)));
+        Assert.Equal(PreflightState.NeedsDecision, pf.Check(It(ItemType.File, "C:\\a.txt"), new LaunchConfig(OpenWith: "C:\\Apps\\ed.exe")).State);
+    }
 }
