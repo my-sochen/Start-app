@@ -2,7 +2,7 @@ using StartApp.Core;
 using StartApp.Platform.Windows;
 using Xunit;
 
-public class PlatformTests
+public class PlatformTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private sealed class Rec : IProcessStarter { public List<StartRequest> Calls = new(); public Exception? Throw; public void Start(StartRequest r) { if (Throw != null) throw Throw; Calls.Add(r); } }
     private sealed class FakeProbe(Func<string, ProbeResult> f) : IFileSystemProbe { public ProbeResult Probe(string p) => f(p); }
@@ -147,6 +147,7 @@ public class PlatformTests
             Assert.Single(rec.Calls); Assert.Equal(ok, rec.Calls[0].FileName); Assert.True(rec.Calls[0].UseShell);   // recorded only: the real shell was not used in this test
             var blocked = launcher.Launch(new Item("b", ItemType.File, "ps", ps), null);
             Assert.NotEqual(LaunchStatus.Started, blocked.Status); Assert.Single(rec.Calls);
+            output.WriteLine($"COMPOSITION-TEST-EXECUTED os={Environment.OSVersion.Platform} recorded-requests={rec.Calls.Count} blocked-status={blocked.Status}"); // proof in the test log that the body ran (an early return on non-Windows prints nothing)
         }
         finally { Directory.Delete(dir, true); }
     }
