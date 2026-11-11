@@ -13,7 +13,8 @@ public sealed class MainViewModel : ObservableBase
     private readonly IStoreRepository _repo;
     private readonly IItemLauncher _launcher;
     private readonly IItemPreflight? _preflight;
-    private List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding)>? _pendingOpen;
+    private readonly IOpenStateDetector _detector;
+    private List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>? _pendingOpen;
     private Workspace? _selected; private string _status = ""; private bool _readOnly; private string _newName = "";
 
     public ObservableCollection<Workspace> Workspaces { get; } = new();
@@ -35,9 +36,9 @@ public sealed class MainViewModel : ObservableBase
     public bool OpenDecisionPending => _pendingOpen != null;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
 
-    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null)
+    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null)
     {
-        _repo = repo; _launcher = launcher; _preflight = preflight;
+        _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         DeleteWorkspaceCommand = Cmd(_ => Apply(c => c.DeleteWorkspace(Selected!.Id)), _ => !ReadOnly && Selected != null);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveFromWorkspace(Selected!.Id, ((ItemRow)p!).ItemId)), p => !ReadOnly && Selected != null && p is ItemRow);
@@ -111,46 +112,55 @@ public sealed class MainViewModel : ObservableBase
         return false;
     }
 
-    /// <summary>Every item is checked first. With no problems everything is launched. With problems nothing starts; the user sees each item's reason and
-    /// chooses to open anyway or cancel. After "anyway", Unsupported items (alias, non-http(s) link, bad config) are never launched; Missing and
-    /// Unavailable items are attempted exactly as saved, with no substitute app, and each outcome is reported per item. Additive: nothing is closed.
-    /// Already-open (duplicate) detection is not implemented.</summary>
+    /// <summary>Every item is checked first (environment and already-open state). Anything that is not clean is listed with its reason and nothing starts until the
+    /// user chooses open anyway or cancel. Already-open is Unknown unless a detector has reliable exact-target evidence: Unknown is reported as "cannot tell whether
+    /// this is already open, opening may create a duplicate", never as a duplicate and never as safe. After "anyway", Unsupported items (alias, non-http(s) link,
+    /// bad config) are never launched; the rest are attempted exactly as saved, with no substitute app. Nothing is closed. "Started" only means the open request was
+    /// sent successfully, not that the document loaded.</summary>
     private void Open()
     {
         ClearPending(); OpenReport.Clear();
         if (Selected!.Items.Count == 0) { Status = "Workspace is empty, nothing to open"; return; }
-        var plan = new List<(Item, LaunchConfig?, PreflightFinding)>();
+        var plan = new List<(Item, LaunchConfig?, PreflightFinding, OpenState)>();
         foreach (var m in Selected!.Items)
             if (_current.Items.TryGetValue(m.ItemId, out var it))
-                plan.Add((it, m.Launch, PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready)));
-        var bad = plan.Where(p => p.Item3.State != PreflightState.Ready).ToList();
+            {
+                var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
+                var dup = f.State == PreflightState.Unsupported ? OpenState.NotOpen : _detector.Detect(it, m.Launch);
+                plan.Add((it, m.Launch, f, dup));
+            }
+        var bad = plan.Where(p => p.Item3.State != PreflightState.Ready || p.Item4 != OpenState.NotOpen).ToList();
         if (bad.Count == 0) { Launch(plan); return; }
         _pendingOpen = plan;
-        foreach (var b in bad) OpenProblems.Add($"{b.Item1.Name}: {Describe(b.Item3)}");
-        Status = $"{bad.Count} of {plan.Count} items have problems. Nothing was opened yet.";
+        foreach (var b in bad) OpenProblems.Add($"{b.Item1.Name}: {Describe(b.Item3, b.Item4)}");
+        Status = $"{bad.Count} of {plan.Count} items need your decision. Nothing was opened yet.";
         Raise(nameof(OpenDecisionPending)); RaiseCommands();
     }
 
-    private static string Describe(PreflightFinding f) => f.State switch
+    private static string Describe(PreflightFinding f, OpenState dup)
     {
-        PreflightState.Missing => "not found" + (f.Detail is null ? "" : " (" + f.Detail + ")"),
-        PreflightState.Unsupported => "will not be opened (" + f.Detail + ")",
-        _ => "could not be checked" + (f.Detail is null ? "" : " (" + f.Detail + ")"),
-    };
+        var parts = new List<string>();
+        if (f.State == PreflightState.Missing) parts.Add("not found" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
+        else if (f.State == PreflightState.Unsupported) return "will not be opened (" + f.Detail + ")";
+        else if (f.State == PreflightState.Unavailable) parts.Add("could not be checked" + (f.Detail is null ? "" : " (" + f.Detail + ")"));
+        if (dup == OpenState.Open) parts.Add("already open (confirmed), opening again will create a duplicate");
+        else if (dup == OpenState.Unknown) parts.Add("cannot tell whether it is already open, opening may create a duplicate");
+        return string.Join("; ", parts);
+    }
 
     private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); Launch(plan); }
 
-    private void Launch(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding)> plan)
+    private void Launch(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan)
     {
         OpenReport.Clear(); int ok = 0, refused = 0;
         foreach (var p in plan)
         {
-            if (p.Finding.State == PreflightState.Unsupported) { refused++; OpenReport.Add($"{p.Item.Name}: not opened ({p.Finding.Detail})"); continue; }
+            if (p.Finding.State == PreflightState.Unsupported) { refused++; OpenReport.Add($"{p.Item.Name}: skipped, not opened ({p.Finding.Detail})"); continue; }
             var r = _launcher.Launch(p.Item, p.Launch);
-            if (r.Status == LaunchStatus.Started) { ok++; OpenReport.Add($"{p.Item.Name}: started"); }
-            else OpenReport.Add($"{p.Item.Name}: not opened ({r.Detail ?? r.Status.ToString()})");
+            if (r.Status == LaunchStatus.Started) { ok++; OpenReport.Add($"{p.Item.Name}: open request sent (not proof it loaded)" + (p.Dup == OpenState.Open ? "; was already open (confirmed), so this may be a duplicate" : p.Dup == OpenState.Unknown ? "; could not tell if it was already open, so it may be a duplicate" : "")); }
+            else OpenReport.Add($"{p.Item.Name}: failed ({r.Detail ?? r.Status.ToString()})");
         }
         var notOpened = plan.Count - ok;
-        Status = notOpened == 0 ? $"Opened {ok} items" : $"Opened {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} never opened by policy" : "")})";
+        Status = notOpened == 0 ? $"Open requests sent for {ok} items" : $"Open requests sent for {ok} of {plan.Count} items ({notOpened} not opened{(refused > 0 ? $", {refused} skipped by policy" : "")})";
     }
 }
