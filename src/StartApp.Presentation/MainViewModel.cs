@@ -153,9 +153,9 @@ public sealed class MainViewModel : ObservableBase
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
     private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
     {
-        using var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // the deadline stops workers from taking NEW items; a call already running finishes by itself
+        var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
         var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
-        var next = -1; Exception? fault = null; var gate = new object(); var published = false; // results[] is written by workers and read once at the deadline: both under gate
+        var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = 0; // results[] is written by workers and read once at the deadline: both under gate
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
             while (!stop.Token.IsCancellationRequested)
@@ -164,13 +164,12 @@ public sealed class MainViewModel : ObservableBase
                 try { var r = Evaluate(snapshot[i].M, snapshot[i].Item); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
                 { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
-                catch (Exception e) { Interlocked.CompareExchange(ref fault, e, null); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
+                catch (Exception e) { Interlocked.CompareExchange(ref fault, e, null); stop.Cancel(); bool late; lock (gate) late = published; if (late && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(e); return; } // after the deadline nobody awaits this worker: report now, not when all workers finish // a programming bug is not "unavailable": stop and surface it
             }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var all = Task.WhenAll(Enumerable.Range(0, Math.Min(CheckWorkers, snapshot.Count)).Select(_ => Worker()));
         await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
         // Workers still running at the deadline are not awaited, but a fault they hit is still observed exactly once: either thrown here or reported through ReportLate.
-        var reported = 0;
         _ = all.ContinueWith(t => { var late = Volatile.Read(ref fault) ?? t.Exception?.GetBaseException(); if (late != null && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(late); }, TaskScheduler.Default);
         (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
         lock (gate) { published = true; done = ((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[])results.Clone(); }
