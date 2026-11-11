@@ -1,10 +1,10 @@
-# CI-only evidence run for PR #16 (wired launcher): the NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
+# CI-only evidence run for PR #16 (wired launcher) AFTER the panel wording fix (head 6bb03ff + CI files): the NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
 # Synthetic temp files only. The only program that may really start is the marker-only ci-helper (writes a marker file and exits). A missing file goes to the real shell and must fail.
 # No browser, no network, no user files. The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM; the app ignores the LOCALAPPDATA env var).
 name: windows-wired-app
 on:
   push:
-    branches: [ci/paused-no-run]
+    branches: [ci/smoke-wired-app]
 permissions:
   contents: read
 env:
@@ -25,6 +25,11 @@ jobs:
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
           dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
           dotnet build ci-helper/Helper.csproj --configuration Release 2>&1 | Tee-Object diag/build-helper.txt | Select-Object -Last 3
+      - name: Presentation unit tests (Windows)
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests --configuration Release 2>&1 | Tee-Object diag/test-presentation.txt | Select-Object -Last 6
+          if ($LASTEXITCODE -ne 0) { 'PRESENTATION TESTS FAILED' | Out-File -Append diag/errors.txt }
       - name: Wired normal app UI run
         shell: pwsh
         run: |
@@ -92,8 +97,11 @@ jobs:
             }
             Shot 'items-added'; Info 'item rows after adding (UIA)' ((ListLines) -join ' || ')
             [void](ClickBtn 'Open workspace' 300)
-            Assert 'decision panel appears' (WaitText 'need your decision' 30) ((Texts) -join ' | ')
+            Assert 'decision panel appears' (WaitText 'Nothing has been opened yet' 30) ((Texts) -join ' | ')
             Start-Sleep -Milliseconds 600; Shot 'decision-panel'
+            $exp1 = '3 items will be skipped. 2 items can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.'
+            Assert 'mixed panel status text exact' (@(Texts) -contains $exp1) ((Texts) -join ' | ')
+            Assert 'mixed panel confirm button is Open anyway' ($null -ne (Btn 'Open anyway')) ''
             Info 'decision status (UIA)' ((Texts) -join ' | '); Info 'decision list lines (UIA, full text)' ((ListLines) -join ' || ')
             Assert 'nothing started before the decision' (-not (Test-Path $marker) -and -not (Test-Path "$root\EXECUTED-*")) ''
             [void](ClickBtn 'Open anyway' 300)
@@ -102,6 +110,19 @@ jobs:
             Start-Sleep -Seconds 2; Shot 'report'
             Info 'report status (UIA)' ((Texts) -join ' | '); Info 'report lines (UIA, full text)' ((ListLines) -join ' || ')
             Info 'top-level windows after the run' (TopWindows)
+            # Second workspace: every item is skipped by policy -> the confirm button must read "Show report"
+            SetText $nameBox 'All skipped'; Assert 'create second workspace' ((ClickBtn 'Create workspace') -eq 'ok') ''
+            foreach ($r in @(@{ t = 'File'; v = "$root\run.ps1" }, @{ t = 'Link'; v = 'ms-settings:display' })) { [void](SetType $r.t); SetText $targetBox $r.v; [void](ClickBtn 'Add' 500) }
+            [void](ClickBtn 'Open workspace' 300)
+            Assert 'all-skipped panel appears' (WaitText 'Nothing has been opened yet' 30) ((Texts) -join ' | ')
+            Start-Sleep -Milliseconds 600; Shot 'allskipped-panel'
+            Assert 'all-skipped panel status text exact' (@(Texts) -contains '2 items will be skipped. Nothing has been opened yet.') ((Texts) -join ' | ')
+            Assert 'all-skipped confirm button is Show report' ($null -ne (Btn 'Show report') -and $null -eq (Btn 'Open anyway')) ''
+            Info 'all-skipped list lines (UIA, full text)' ((ListLines) -join ' || ')
+            [void](ClickBtn 'Show report' 300)
+            Assert 'all-skipped report appears' (WaitText 'Open requests sent for' 40) ((Texts) -join ' | ')
+            Start-Sleep -Seconds 1; Shot 'allskipped-report'; Info 'all-skipped report status (UIA)' ((Texts) -join ' | '); Info 'all-skipped report lines (UIA)' ((ListLines) -join ' || ')
+            Info 'top-level windows at end' (TopWindows)
             $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" | ForEach-Object { "$($_.Name)[pid=$($_.ProcessId)]" }); Info 'child processes of the app (still alive)' ($kids -join ',')
             Assert 'helper really started through the wired app and wrote its marker' (Test-Path $marker) $(if (Test-Path $marker) { Get-Content $marker } else { 'marker absent' })
             Assert 'run.ps1 never executed' (-not (Test-Path "$root\EXECUTED-ps1.txt")) ''
@@ -132,6 +153,18 @@ jobs:
         if: always()
         with:
           path: out-images/run${{ github.run_id }}-wiredapp-03-report.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-wiredapp-04-allskipped-panel.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-wiredapp-05-allskipped-report.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
