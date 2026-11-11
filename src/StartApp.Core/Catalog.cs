@@ -49,10 +49,10 @@ public sealed class Catalog
 
     public const int MaxDescriptionLength = 500;
 
-    /// <summary>Description is optional. Null or empty means none. Never trimmed or rewritten here; only length and control characters (other than line breaks and tabs) are rejected.</summary>
+    /// <summary>Description is optional. Null, empty or whitespace-only means none. A real description is stored exactly as typed (not trimmed). Limit: 500 UTF-16 code units (the same unit the text box counts; an emoji counts as 2). Control characters other than line breaks and tabs are rejected.</summary>
     public static string? ValidateDescription(string? d)
     {
-        if (string.IsNullOrEmpty(d)) return null;
+        if (string.IsNullOrWhiteSpace(d)) return null;
         if (d.Length > MaxDescriptionLength) return $"description is longer than {MaxDescriptionLength} characters";
         if (d.Any(ch => char.IsControl(ch) && ch is not '\n' and not '\r' and not '\t')) return "description has control characters";
         return null;
@@ -63,7 +63,7 @@ public sealed class Catalog
     {
         var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
         var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
-        if (string.IsNullOrEmpty(description)) description = null;
+        if (string.IsNullOrWhiteSpace(description)) description = null;
         var key = Key(type, target);
         var existing = _s.Items.Values.FirstOrDefault(i => Key(i.Type, i.Target) == key);
         if (existing != null)
@@ -108,7 +108,7 @@ public sealed class Catalog
         RemoveOrphans();
     }
 
-    /// <summary>Local edit: only this workspace's reference changes. Reuses a matching catalog item or creates one; old item removed if orphaned. Launch config kept.</summary>
+    /// <summary>Not used by the UI yet. If the new target is already a catalog item, that item keeps its own description and the description of the replaced item is dropped with it (when it becomes an orphan). Local edit: only this workspace's reference changes. Reuses a matching catalog item or creates one; old item removed if orphaned. Launch config kept.</summary>
     public Item ReplaceTargetLocal(string workspaceId, string itemId, string newTarget, string? newName = null)
     {
         var w = Ws(workspaceId);
