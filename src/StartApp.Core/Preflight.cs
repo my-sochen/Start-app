@@ -30,3 +30,19 @@ public static class PreflightRules
         return le is null ? null : new(PreflightState.Unsupported, le);
     }
 }
+
+/// <summary>Whether the saved target is already open. Unknown is the honest default: no reliable detection exists yet, and a running program says nothing
+/// about which document it has open. Open (confirmed) may only be returned on reliable exact-target evidence.</summary>
+public enum OpenState { NotOpen, Open, Unknown }
+
+/// <summary>Port: already-open detection. Must not launch, close or modify anything. Until an adapter exists every item is Unknown.</summary>
+public interface IOpenStateDetector
+{
+    OpenState Detect(Item item, LaunchConfig? launch);
+}
+
+/// <summary>Default: no detection, so nothing is ever claimed to be a duplicate and nothing is ever claimed to be safe.</summary>
+public sealed class NoOpenStateDetection : IOpenStateDetector
+{
+    public OpenState Detect(Item item, LaunchConfig? launch) => OpenState.Unknown;
+}
