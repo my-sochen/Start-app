@@ -1,0 +1,143 @@
+# One-off UI smoke: create workspace, add item, remove item, delete workspace through the real window on a hosted Windows runner.
+# Synthetic data only (fresh runner profile). Launcher in the app is a stub; no program is started by the app.
+name: windows-ui-smoke
+on:
+  push:
+    branches: [ci/smoke-interaction]
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build WPF app (Release)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag, out-images | Out-Null
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-log.txt
+      - name: Drive the UI and capture app-window images
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); }'
+          $A = [System.Windows.Automation.AutomationElement]
+          $CT = [System.Windows.Automation.ControlType]
+          $PC = [System.Windows.Automation.PropertyCondition]
+          $TS = [System.Windows.Automation.TreeScope]
+          $results = New-Object System.Collections.ArrayList
+          $script:shot = 0
+          $runId = $env:GITHUB_RUN_ID
+          function Assert($name, $ok, $detail) {
+            [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" })
+            "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail"
+          }
+          function Shot($state) {
+            $script:shot++
+            $f = "out-images/run$runId-{0:00}-$state.png" -f $script:shot
+            $r = New-Object W+R
+            [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r)
+            $w = $r.Rt - $r.L; $h = $r.B - $r.T
+            if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+            $bmp = New-Object System.Drawing.Bitmap $w, $h
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+            $bmp.Save("$PWD/$f")
+            "shot $f ${w}x${h}"
+          }
+          function Texts() {
+            $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }
+          }
+          function Btn($name) {
+            $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name)))))
+          }
+          function ClickBtn($name) {
+            $b = $null
+            for ($i = 0; $i -lt 20; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
+            if (-not $b) { return "button '$name' not found" }
+            if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
+            $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Start-Sleep -Milliseconds 800
+            return 'ok'
+          }
+          function Edits() {
+            $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Sort-Object { $_.Current.BoundingRectangle.X }
+          }
+          function SetText($edit, $text) {
+            $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text)
+            Start-Sleep -Milliseconds 500
+          }
+          try {
+            $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+            $p = Start-Process -FilePath $exe.FullName -PassThru
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Seconds 2
+            Assert 'window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) "waited $([math]::Round($sw.Elapsed.TotalSeconds,1))s"
+            $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
+            Assert 'automation window found' ($null -ne $win) ''
+            Shot 'start'
+            $edits = @(Edits)
+            Assert 'two text boxes found' ($edits.Count -eq 2) "count=$($edits.Count)"
+            $nameBox = $edits[0]; $targetBox = $edits[1]
+
+            # 1 create workspace
+            SetText $nameBox 'Smoke WS'
+            $r = ClickBtn 'Create workspace'
+            Assert 'create clicked' ($r -eq 'ok') $r
+            $t = @(Texts)
+            Assert 'workspace listed' ($t -contains 'Smoke WS') ($t -join ' | ')
+            Shot 'workspace-created'
+
+            # 2 select it and add an item
+            $li = $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | Where-Object { $_.Current.Name -match 'Smoke WS' -or ($_.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Smoke WS')))) } | Select-Object -First 1
+            Assert 'workspace row found' ($null -ne $li) ''
+            if ($li) { $li.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 800 }
+            SetText $targetBox 'C:\Windows\System32\notepad.exe'
+            $r = ClickBtn 'Add'
+            Assert 'add clicked' ($r -eq 'ok') $r
+            $t = @(Texts)
+            Assert 'item listed' (($t -contains 'notepad.exe') -and ($t -contains 'C:\Windows\System32\notepad.exe')) ($t -join ' | ')
+            Shot 'item-added'
+
+            # 3 remove the item
+            $r = ClickBtn 'Remove'
+            Assert 'remove clicked' ($r -eq 'ok') $r
+            $t = @(Texts)
+            Assert 'item gone' (-not ($t -contains 'notepad.exe')) ($t -join ' | ')
+            Shot 'item-removed'
+
+            # 4 delete the workspace
+            $r = ClickBtn 'Delete workspace'
+            Assert 'delete clicked' ($r -eq 'ok') $r
+            $t = @(Texts)
+            Assert 'workspace gone' (-not ($t -contains 'Smoke WS')) ($t -join ' | ')
+            Shot 'workspace-deleted'
+          }
+          catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
+          finally {
+            $results | ConvertTo-Json -Depth 4 | Tee-Object diag/assertions.json
+            $store = Join-Path $env:LOCALAPPDATA 'StartApp/store.json'
+            if (Test-Path $store) { Copy-Item $store diag/store.json }
+            if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
+          }
+          if (@($results | Where-Object { -not $_.ok }).Count -gt 0) { exit 1 }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ui-images-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out-images/
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: diagnostics-run-${{ github.run_id }}-${{ github.run_attempt }}
+          path: diag/
+          if-no-files-found: warn
