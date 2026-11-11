@@ -4,7 +4,7 @@
 name: windows-wired-app
 on:
   push:
-    branches: [ci/smoke-wired-app]
+    branches: [ci/paused-no-run]
 permissions:
   contents: read
 env:
