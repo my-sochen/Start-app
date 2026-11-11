@@ -45,11 +45,15 @@ public sealed class FileSystemPreflight(IFileSystemProbe probe) : IItemPreflight
 {
     public PreflightFinding Check(Item item, LaunchConfig? launch)
     {
-        if (item.Type == ItemType.Link) return new(PreflightState.Ready);
-        var r = probe.Probe(item.Target);
-        var finding = Map(item.Type, r, "saved target");
-        if (finding.State != PreflightState.Ready) return finding;
-        if (r.Reparse) return new(PreflightState.NeedsDecision, "saved target is a link (reparse point); its real target was not verified");
+        // A Link has no file target to probe, but an explicit Browser program is a real executable and gets the same existence and reparse checks as OpenWith.
+        var finding = new PreflightFinding(PreflightState.Ready);
+        if (item.Type != ItemType.Link)
+        {
+            var r = probe.Probe(item.Target);
+            finding = Map(item.Type, r, "saved target");
+            if (finding.State != PreflightState.Ready) return finding;
+            if (r.Reparse) return new(PreflightState.NeedsDecision, "saved target is a link (reparse point); its real target was not verified");
+        }
         foreach (var exe in new[] { launch?.OpenWith, launch?.Browser })
             if (exe is not null) { var pr = probe.Probe(exe); var f = Map(ItemType.Program, pr, "launch program"); if (f.State != PreflightState.Ready) return f; if (pr.Reparse) return new(PreflightState.NeedsDecision, "launch program is a link (reparse point); its real target was not verified"); }
         return finding;
