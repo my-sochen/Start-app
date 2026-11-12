@@ -136,13 +136,15 @@ jobs:
             $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
             Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
             Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            # 3c. item actions menu (spec בנתיים: עריכה, מחיקה, העתק כתובת) and the edit form changes one instance only
+            # 3c. item actions menu (no עריכה inside - spec: direct edit button only) and the edit form changes one instance only
             $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-            $ifound = @('עריכה','מחיקה','העתק כתובת') | Where-Object { $null -ne (AnyByName $_) }
-            Assert 'item menu shows the three spec actions' (@($ifound).Count -eq 3) ("found: $($ifound -join ', ')")
-            $editMi = AnyByName 'עריכה'
-            $editMi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 800
+            $ifound = @('מחיקה','העתק כתובת') | Where-Object { $null -ne (AnyByName $_) }
+            Assert 'item menu shows מחיקה and העתק כתובת' (@($ifound).Count -eq 2) ("found: $($ifound -join ', ')")
+            Assert 'no עריכה inside the actions menu (direct row button is the only edit path)' ($null -eq (AnyByName 'עריכה')) ''
+            [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
+            $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
             $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
+            Assert 'edit form shows the address too' ($null -ne (NamedEdit 'Edit item target')) ''
             SetText $eName 'My link edited'
             $c = ClickBtn 'Save' 900; Assert 'item edit saved' ($c -eq 'ok') $c
             Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')
