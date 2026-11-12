@@ -7,7 +7,7 @@ namespace StartApp.Presentation;
 
 /// <summary>One visible instance row. Name/Description are the instance's own values with fallback to the catalog item's original name /
 /// no description. Group is the display category (decided: sites, folders, files+programs); order inside a group is undecided, so insertion order is kept.</summary>
-public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null);
+public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null, string? Program = null);
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
 /// read-only state with a message; nothing is written until the user decides (no silent reset).</summary>
@@ -54,6 +54,24 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>עריכה from the row: opens the item edit form (טופס עריכת אייטם) for that one instance.</summary>
     public ICommand EditItemCommand { get; }
     public ICommand SaveItemEditCommand { get; }
+    /// <summary>עריכת כתובת from the row actions: opens the dedicated address popup (פופאפ עריכת כתובת).</summary>
+    public ICommand EditAddressCommand { get; }
+    public ICommand SaveAddressCommand { get; }
+    /// <summary>The copy button inside the address popup: copies the full value as currently shown.</summary>
+    public ICommand CopyFullAddressCommand { get; }
+    /// <summary>The popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CloseAddressEditCommand { get; }
+    /// <summary>פתח באמצעות from the row actions: opens the open-with popup (פופאפ פתח באמצעות).</summary>
+    public ICommand OpenWithCommand { get; }
+    /// <summary>פתח in the open-with popup: opens with the chosen program now and saves it when הגדר כברירת מחדל is checked.</summary>
+    public ICommand OpenWithGoCommand { get; }
+    public ICommand CloseOpenWithCommand { get; }
+    /// <summary>הזז למעלה / הזז למטה: reorder this instance inside its display group.</summary>
+    public ICommand MoveItemUpCommand { get; }
+    public ICommand MoveItemDownCommand { get; }
+    /// <summary>שיתוף לסביבה אחרת is shown in the actions menu only when another workspace exists (the settled display condition);
+    /// its popup is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled.</summary>
+    public bool HasOtherWorkspaces => Workspaces.Count > 1;
     /// <summary>ביטול in the item edit form: closes immediately when untouched, otherwise asks via the unsaved-exit dialog.</summary>
     public ICommand CancelItemEditCommand { get; }
     public ICommand OpenWorkspaceCommand { get; }
@@ -77,14 +95,16 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
     public bool RequestAppClose()
     {
-        if (DetailsDirty) { UnsavedForCreate = false; UnsavedForItemEdit = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (CreateDirty) { UnsavedForCreate = true; UnsavedForItemEdit = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (CreateDirty) { MarkUnsavedHost(true, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         return true;
     }
     private void SaveAndExit()
     {
         if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
+        else if (UnsavedForAddress) { if (!SaveAddress()) return; }
         else if (UnsavedForCreate)
         {
             if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
@@ -121,7 +141,7 @@ public sealed class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
@@ -129,6 +149,15 @@ public sealed class MainViewModel : ObservableBase
         EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
         SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
         CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
+        EditAddressCommand = Cmd(p => BeginAddressEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
+        CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
+        CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
+        OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching);
+        CloseOpenWithCommand = Cmd(_ => OpenWithOpen = false, _ => OpenWithOpen);
+        MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
+        MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
@@ -143,7 +172,7 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; ItemEditOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
@@ -170,6 +199,71 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>True while the open unsaved-exit dialog guards the item edit form (טופס עריכת אייטם).</summary>
     public bool UnsavedForItemEdit { get => _unsavedForItemEdit; private set => Set(ref _unsavedForItemEdit, value); }
     private bool _unsavedForItemEdit;
+    /// <summary>True while the open unsaved-exit dialog guards the address popup (פופאפ עריכת כתובת).</summary>
+    public bool UnsavedForAddress { get => _unsavedForAddress; private set => Set(ref _unsavedForAddress, value); }
+    private bool _unsavedForAddress;
+    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress) { UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; }
+
+    // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
+    public bool AddressEditOpen { get => _addressEditOpen; private set => Set(ref _addressEditOpen, value); }
+    private bool _addressEditOpen;
+    private string _addressInstId = "";
+    public string EditAddress { get => _editAddress; set { Set(ref _editAddress, value ?? ""); Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
+    private string _editAddress = "";
+    private string _origAddress = "";
+    /// <summary>Any change in the address popup shows its Save button (same rule as the other edit screens).</summary>
+    public bool AddressEditDirty => AddressEditOpen && EditAddress != _origAddress;
+    private void BeginAddressEdit(ItemRow row) { _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    private bool SaveAddress()
+    {
+        var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
+        if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing"; return false; }
+        var err = Catalog.ValidateTarget(it.Type, EditAddress);
+        if (err != null) { Status = "Not saved: " + err; return false; }
+        // The change applies to the current workspace only, for every type including sites: ReplaceTargetLocal re-points this one
+        // instance at the new address; the same item in other workspaces and other instances here keep their own address.
+        var ok = Apply(c => c.ReplaceTargetLocal(Selected!.Id, _addressInstId, EditAddress));
+        if (ok) { Status = "Address saved"; AddressEditOpen = false; }
+        return ok;
+    }
+    private void CloseAddressEdit()
+    {
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => AddressEditOpen = false; UnsavedOpen = true; return; }
+        AddressEditOpen = false;
+    }
+
+    // ---- open-with popup (פופאפ פתח באמצעות): browser for a site, program for a file; per-instance הגדר כברירת מחדל ----
+    public bool OpenWithOpen { get => _openWithOpen; private set => Set(ref _openWithOpen, value); }
+    private bool _openWithOpen;
+    private ItemRow? _openWithRow;
+    /// <summary>Which program the popup asks for: a browser for a site, a program for a file/folder.</summary>
+    public string OpenWithLabel => _openWithRow?.Type == nameof(ItemType.Link) ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
+    public string OpenWithProgram { get => _openWithProgram; set { Set(ref _openWithProgram, value ?? ""); RaiseCommands(); } }
+    private string _openWithProgram = "";
+    /// <summary>הגדר כברירת מחדל: save the choice for THIS instance only (never a Windows default, never other workspaces).</summary>
+    public bool OpenWithSetDefault { get => _openWithSetDefault; set => Set(ref _openWithSetDefault, value); }
+    private bool _openWithSetDefault;
+    private void BeginOpenWith(ItemRow row)
+    {
+        if (row.Type == nameof(ItemType.Program)) { Status = "Open with does not apply to a program item (it is the program)"; return; }
+        var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
+        _openWithRow = row;
+        OpenWithProgram = m?.Launch?.Browser ?? m?.Launch?.OpenWith ?? "";
+        OpenWithSetDefault = m?.Launch is not null;
+        OpenWithOpen = true; Raise(nameof(OpenWithLabel));
+    }
+    private void OpenWithGo()
+    {
+        if (_openWithRow is null) return;
+        var row = _openWithRow; var prog = OpenWithProgram.Trim();
+        LaunchConfig? cfg = prog.Length == 0 ? null : row.Type == nameof(ItemType.Link) ? new LaunchConfig(Browser: prog) : new LaunchConfig(OpenWith: prog);
+        if (OpenWithSetDefault && !Apply(c => c.SetLaunch(Selected!.Id, row.InstanceId, cfg))) return;
+        OpenWithOpen = false;
+        var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
+        if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = row.Name + ": not opened (the saved item record is missing)"; return; }
+        // This open uses the choice just made (empty = the Windows default for this open), whether or not it was saved.
+        OpenOneCore(row.Name, it, cfg);
+    }
 
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
     public bool ItemEditOpen { get => _itemEditOpen; private set => Set(ref _itemEditOpen, value); }
@@ -207,7 +301,7 @@ public sealed class MainViewModel : ObservableBase
     }
     private void CancelItemEdit()
     {
-        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => ItemEditOpen = false; UnsavedOpen = true; return; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => ItemEditOpen = false; UnsavedOpen = true; return; }
         ItemEditOpen = false;
     }
     /// <summary>לחיצה על שם האייטם: opens that one item after the same honest preflight the full open uses; the report line
@@ -216,12 +310,17 @@ public sealed class MainViewModel : ObservableBase
     {
         var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = row.Name + ": not opened (the saved item record is missing)"; return; }
-        var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new PreflightFinding(PreflightState.Ready);
-        if (NeverLaunched(f.State)) { Status = row.Name + ": skipped, not opened (" + f.Detail + ")"; return; }
-        var gen = ++_generation; var name = row.Name; var wsId = Selected!.Id;
-        OpenTask = Guard(gen, OpenOneAsync(it, m.Launch, name, wsId, gen));
+        // After הגדר כברירת מחדל a plain name click opens with the saved choice directly, without reopening the popup.
+        OpenOneCore(row.Name, it, m.Launch);
     }
-    private async Task OpenOneAsync(Item it, LaunchConfig? launch, string name, string wsId, int gen)
+    private void OpenOneCore(string name, Item it, LaunchConfig? launch)
+    {
+        var f = PreflightRules.CheckForm(it, launch) ?? _preflight?.Check(it, launch) ?? new PreflightFinding(PreflightState.Ready);
+        if (NeverLaunched(f.State)) { Status = name + ": skipped, not opened (" + f.Detail + ")"; return; }
+        var gen = ++_generation;
+        OpenTask = Guard(gen, OpenOneAsync(it, launch, name, gen));
+    }
+    private async Task OpenOneAsync(Item it, LaunchConfig? launch, string name, int gen)
     {
         var r = await Task.Run(() => _launcher.Launch(it, launch)).ConfigureAwait(true);
         if (gen != _generation) return;
@@ -267,9 +366,10 @@ public sealed class MainViewModel : ObservableBase
     private void Back()
     {
         ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
-        if (DetailsDirty) { UnsavedForCreate = false; UnsavedForItemEdit = false; _exitAction = () => { ItemEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
-        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => { ItemEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
-        ItemEditOpen = false;
+        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _exitAction = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => { AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false;
         InDetails = false;
     }
     private bool SaveDetails()
@@ -295,10 +395,11 @@ public sealed class MainViewModel : ObservableBase
     {
         _current = s; var keep = Selected?.Id;
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
+        Raise(nameof(HasOtherWorkspaces));
         Selected = Workspaces.FirstOrDefault(w => w.Id == keep) ?? Workspaces.FirstOrDefault();
     }
 
-    private static int GroupRank(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, _ => 2 };
+    private static int GroupRank(ItemType t) => Catalog.DisplayGroup(t);
     public static string GroupOf(ItemType t) => t switch { ItemType.Link => "Sites", ItemType.Folder => "Folders", _ => "Files & Programs" };
 
     private void RefreshItems()
@@ -306,7 +407,7 @@ public sealed class MainViewModel : ObservableBase
         Items.Clear(); Raise(nameof(ShowEmptyItemsMessage)); if (Selected is null) return;
         foreach (var m in Selected.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 3).ThenBy(x => x.i))
             if (_current.Items.TryGetValue(m.m.ItemId, out var it))
-                Items.Add(new ItemRow(m.m.Id ?? m.m.ItemId, it.Id, m.m.Name ?? it.Name, it.Target, it.Type.ToString(), GroupOf(it.Type), m.m.Description ?? it.Description));
+                Items.Add(new ItemRow(m.m.Id ?? m.m.ItemId, it.Id, m.m.Name ?? it.Name, it.Target, it.Type.ToString(), GroupOf(it.Type), m.m.Description ?? it.Description, m.m.Launch?.Browser ?? m.m.Launch?.OpenWith));
     }
 
     /// <summary>Manual add. The target and name are used exactly as typed (never trimmed); invalid input is reported, not corrected.
