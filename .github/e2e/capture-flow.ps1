@@ -15,6 +15,11 @@ function DumpState($why) {
     $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id))))
     "DUMP($why): top-level windows for pid=$($p.Id): $($ws.Count)" | Tee-Object -Append diag/errors.txt
     foreach ($w0 in $ws) { try { $c = $w0.Current; "DUMP win: name='$($c.Name)' class='$($c.ClassName)' offscreen=$($c.IsOffscreen) rect=$($c.BoundingRectangle)" | Tee-Object -Append diag/errors.txt } catch { "DUMP win unreadable: $($_.Exception.GetType().Name)" | Tee-Object -Append diag/errors.txt } }
+    try {
+      $ev = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = @('Application Error', '.NET Runtime', 'Windows Error Reporting') } -MaxEvents 60 -ErrorAction Stop | Where-Object { $_.Message -like '*StartApp*' } | Select-Object -First 3
+      foreach ($e in $ev) { $m = ($e.Message -replace '\s+', ' '); if ($m.Length -gt 1600) { $m = $m.Substring(0, 1600) }; "DUMP event $($e.ProviderName) $($e.TimeCreated.ToString('HH:mm:ss')): $m" | Out-File -Append diag/errors.txt }
+      if (-not $ev) { "DUMP no StartApp crash events in Application log" | Out-File -Append diag/errors.txt }
+    } catch { "DUMP event log read failed: $($_.Exception.Message)" | Out-File -Append diag/errors.txt }
     $vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
     $bmp = New-Object System.Drawing.Bitmap $vs.Width, $vs.Height; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($vs.Left, $vs.Top, 0, 0, $bmp.Size)
     $f = "out-images/cap-DESKTOP-$why.png"; $bmp.Save("$PWD/$f"); "DUMP desktop shot $f $($vs.Width)x$($vs.Height)"
