@@ -15,12 +15,46 @@ public class CatalogTests
         var z = c.GetOrAddItem(ItemType.File, "case differs", "c:\\docs\\spec.docx");
         Assert.NotEqual(x.Id, z.Id); // conservative: no case folding / slash rewriting
     }
-    [Fact] public void NoDuplicateMembership_AndLaunchConfigNotOverwritten()
+    [Fact] public void DuplicateAdds_CreateIndependentInstances_OlderInstanceNeverModified()
     {
         var (c, a, _) = Two(); var i = c.GetOrAddItem(ItemType.File, "f", "C:/f.txt");
-        Assert.True(c.AddToWorkspace(a.Id, i.Id, new LaunchConfig("C:\\Tools\\code.exe")));
-        Assert.False(c.AddToWorkspace(a.Id, i.Id, new LaunchConfig("C:\\Tools\\notepad.exe")));
-        Assert.Equal("C:\\Tools\\code.exe", a.Items.Single().Launch!.OpenWith);
+        var m1 = c.AddToWorkspace(a.Id, i.Id, new LaunchConfig("C:\\Tools\\code.exe"), "first", "d1");
+        var m2 = c.AddToWorkspace(a.Id, i.Id, new LaunchConfig("C:\\Tools\\notepad.exe"), "second");
+        Assert.NotEqual(m1.Id, m2.Id); Assert.Equal(2, a.Items.Count); Assert.Single(c.Store.Items);
+        Assert.Equal("C:\\Tools\\code.exe", a.Items[0].Launch!.OpenWith); Assert.Equal("first", a.Items[0].Name); Assert.Equal("d1", a.Items[0].Description);
+        Assert.Equal("C:\\Tools\\notepad.exe", a.Items[1].Launch!.OpenWith); Assert.Equal("second", a.Items[1].Name); Assert.Null(a.Items[1].Description);
+        Assert.Empty(c.Validate());
+        c.RemoveInstance(a.Id, m1.Id);
+        Assert.Single(a.Items); Assert.Equal(m2.Id, a.Items[0].Id); Assert.True(c.Store.Items.ContainsKey(i.Id)); // still referenced by m2
+        c.RemoveInstance(a.Id, m2.Id); Assert.False(c.Store.Items.ContainsKey(i.Id)); // orphan cleanup after the last instance
+    }
+    [Fact] public void HasTarget_PerWorkspace_AndInstanceValidation()
+    {
+        var (c, a, b) = Two(); var i = c.GetOrAddItem(ItemType.Link, "l", "https://x.com/");
+        Assert.False(c.HasTarget(a.Id, ItemType.Link, "https://x.com/"));
+        c.AddToWorkspace(a.Id, i.Id);
+        Assert.True(c.HasTarget(a.Id, ItemType.Link, "https://x.com/"));
+        Assert.False(c.HasTarget(b.Id, ItemType.Link, "https://x.com/"));   // another workspace: no duplicate warning there
+        Assert.False(c.HasTarget(a.Id, ItemType.File, "https://x.com/"));   // identity includes the type
+        Assert.Throws<ArgumentException>(() => c.AddToWorkspace(b.Id, i.Id, null, "   "));
+        Assert.Throws<ArgumentException>(() => c.AddToWorkspace(b.Id, i.Id, null, null, new string('x', 501)));
+    }
+    [Fact] public void OlderFile_InstancesWithoutId_GetIds_OnCatalogLoad()
+    {
+        var s = new Store();
+        s.Items["it_1"] = new Item("it_1", ItemType.File, "a", "C:\\a.txt");
+        var w = new Workspace { Id = "ws_1", Name = "w" }; w.Items.Add(new Membership("it_1")); s.Workspaces.Add(w);
+        var c = new Catalog(s);
+        Assert.NotNull(w.Items[0].Id); Assert.Empty(c.Validate());
+    }
+    [Fact] public void Category_Defaults_AndEmptyIsInvalid()
+    {
+        var c = new Catalog(new Store());
+        var w = c.CreateWorkspace("plain");
+        Assert.Equal("כללי", w.EffectiveCategory);
+        var x = c.CreateWorkspace("music", null, "music projects");
+        Assert.Equal("music projects", x.EffectiveCategory);
+        x.Category = "  "; Assert.Contains(c.Validate(), e => e.Contains("category is empty"));
     }
     [Fact] public void SameFileDifferentAppPerWorkspace()
     {
@@ -46,17 +80,20 @@ public class CatalogTests
     [Fact] public void LocalTargetReplace_DoesNotAffectOtherWorkspace_ReusesMatch_KeepsLaunch()
     {
         var (c, a, b) = Two(); var old = c.GetOrAddItem(ItemType.File, "f", "C:/old.txt"); var other = c.GetOrAddItem(ItemType.File, "g", "C:/new.txt");
-        c.AddToWorkspace(a.Id, old.Id, new LaunchConfig("C:\\Tools\\x.exe")); c.AddToWorkspace(b.Id, old.Id);
-        var r = c.ReplaceTargetLocal(a.Id, old.Id, "C:/new.txt");
+        var m1 = c.AddToWorkspace(a.Id, old.Id, new LaunchConfig("C:\\Tools\\x.exe")); var m2 = c.AddToWorkspace(b.Id, old.Id);
+        var r = c.ReplaceTargetLocal(a.Id, m1.Id, "C:/new.txt");
         Assert.Equal(other.Id, r.Id); Assert.Equal("C:\\Tools\\x.exe", a.Items.Single().Launch!.OpenWith);
+        Assert.Equal(other.Id, a.Items.Single().ItemId);
         Assert.Equal(old.Id, b.Items.Single().ItemId); Assert.True(c.Store.Items.ContainsKey(old.Id));
-        c.ReplaceTargetLocal(b.Id, old.Id, "C:/z.txt"); Assert.False(c.Store.Items.ContainsKey(old.Id)); Assert.Empty(c.Validate());
+        c.ReplaceTargetLocal(b.Id, m2.Id, "C:/z.txt"); Assert.False(c.Store.Items.ContainsKey(old.Id)); Assert.Empty(c.Validate());
     }
-    [Fact] public void ReplaceToTargetAlreadyInWorkspace_KeepsOneMembership()
+    [Fact] public void ReplaceToTargetAlreadyInWorkspace_KeepsBothInstancesIndependent()
     {
         var (c, a, _) = Two(); var i1 = c.GetOrAddItem(ItemType.File, "1", "C:/1"); var i2 = c.GetOrAddItem(ItemType.File, "2", "C:/2");
-        c.AddToWorkspace(a.Id, i1.Id); c.AddToWorkspace(a.Id, i2.Id);
-        c.ReplaceTargetLocal(a.Id, i1.Id, "C:/2"); Assert.Single(a.Items); Assert.Empty(c.Validate());
+        var m1 = c.AddToWorkspace(a.Id, i1.Id, null, "mine"); var m2 = c.AddToWorkspace(a.Id, i2.Id);
+        c.ReplaceTargetLocal(a.Id, m1.Id, "C:/2");
+        Assert.Equal(2, a.Items.Count); Assert.All(a.Items, m => Assert.Equal(i2.Id, m.ItemId));
+        Assert.Equal("mine", a.Items[0].Name); Assert.NotEqual(a.Items[0].Id, a.Items[1].Id); Assert.Empty(c.Validate());
     }
     [Fact] public void ReverseLookupByScan()
     {
@@ -72,7 +109,7 @@ public class IdentityAndLaunchTests
     [Fact] public void AmpersandAndSpacesInExecutablePathAreLegitimate_ButArgsAndAliasesAreNot()
     {
         var c = new Catalog(new Store()); var w = c.CreateWorkspace("w"); var f = c.GetOrAddItem(ItemType.File, "f", "C:\\a.txt");
-        Assert.True(c.AddToWorkspace(w.Id, f.Id, new LaunchConfig("C:\\Tom & Jerry\\My Editor\\ed.exe")));
+        c.AddToWorkspace(w.Id, f.Id, new LaunchConfig("C:\\Tom & Jerry\\My Editor\\ed.exe"));
         var w2 = c.CreateWorkspace("w2");
         Assert.Throws<ArgumentException>(() => c.AddToWorkspace(w2.Id, f.Id, new LaunchConfig("code")));            // alias
         Assert.Throws<ArgumentException>(() => c.AddToWorkspace(w2.Id, f.Id, new LaunchConfig("C:\\x\\ed.exe ")));  // trailing space
