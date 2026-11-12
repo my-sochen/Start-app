@@ -13,7 +13,8 @@ public class DescriptionViewModelTests
         using var repo = new JsonStore(Tmp()); var vm = Vm(repo);
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = "my notes"; vm.AddItemCommand.Execute(null);
         Assert.Equal("my notes", vm.Items.Single().Description); Assert.Equal("", vm.NewDescription); Assert.Equal("", vm.NewTarget);
-        Assert.Equal("my notes", repo.Load().Items.Values.Single().Description);
+        Assert.Equal("my notes", repo.Load().Workspaces.Single().Items.Single().Description); // per instance, not on the shared item
+        Assert.Null(repo.Load().Items.Values.Single().Description);
     }
     [Fact] public void Add_without_description_is_allowed_and_has_none()
     {
@@ -27,13 +28,17 @@ public class DescriptionViewModelTests
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = big; vm.AddItemCommand.Execute(null);
         Assert.StartsWith("Not added", vm.Status); Assert.Empty(vm.Items); Assert.Empty(repo.Load().Items); Assert.Equal(big, vm.NewDescription); Assert.Equal("C:\\a.txt", vm.NewTarget);
     }
-    [Fact] public void Existing_description_is_kept_and_the_user_is_told()
+    [Fact] public void Descriptions_are_per_workspace_instance_and_never_leak_across()
     {
         using var repo = new JsonStore(Tmp()); var vm = Vm(repo);
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = "first"; vm.AddItemCommand.Execute(null);
         vm.NewName = "w2"; vm.CreateWorkspaceCommand.Execute(null);
+        vm.Selected = vm.Workspaces.Single(w => w.Name == "w2");
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = "second"; vm.AddItemCommand.Execute(null);
-        Assert.Equal("first", vm.Items.Single().Description); Assert.Contains("existing one was kept", vm.Status); Assert.Single(repo.Load().Items);
+        Assert.Equal("second", vm.Items.Single().Description); Assert.Single(repo.Load().Items); // one shared catalog item
+        var w1 = repo.Load().Workspaces.Single(w => w.Name == "w"); var w2 = repo.Load().Workspaces.Single(w => w.Name == "w2");
+        Assert.Equal("first", w1.Items.Single().Description); Assert.Equal("second", w2.Items.Single().Description);
+        Assert.NotEqual(w1.Items.Single().Id, w2.Items.Single().Id);
     }
     [Fact] public void Row_of_a_pre_description_item_has_null_description()
     {
@@ -45,6 +50,6 @@ public class DescriptionViewModelTests
     {
         using var repo = new JsonStore(Tmp()); var vm = Vm(repo);
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewDescription = "   "; vm.AddItemCommand.Execute(null);
-        Assert.Null(vm.Items.Single().Description); Assert.Null(repo.Load().Items.Values.Single().Description);
+        Assert.Null(vm.Items.Single().Description); Assert.Null(repo.Load().Workspaces.Single().Items.Single().Description);
     }
 }
