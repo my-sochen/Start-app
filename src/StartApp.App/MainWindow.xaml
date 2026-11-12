@@ -313,7 +313,7 @@
                             <TextBlock DockPanel.Dock="Top" Text="Drag items here or use the add button. Nothing is saved until שמור." Foreground="Gray" FontSize="11" Margin="0,2,0,4"/>
                             <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace">
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate><StackPanel><TextBlock><Run Text="{Binding Name}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group}" Foreground="Gray"/></TextBlock><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
+                                    <DataTemplate><StackPanel><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/></TextBlock><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
@@ -349,7 +349,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Label}">
-                                        <StackPanel><TextBlock><Run Text="{Binding Name}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group}" Foreground="Gray"/></TextBlock>
+                                        <StackPanel><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/></TextBlock>
                                             <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis"/></StackPanel>
                                     </CheckBox>
                                 </DataTemplate>
