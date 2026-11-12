@@ -1,1 +1,1 @@
-v15 - same v14 visual fixes; re-triggered only to widen the unit-step console filter so failing test names/details print (v13 lost one unnamed test failure)
+v16 - user feedback: item-row actions menu clipped off-screen (now kept inside the window, right-aligned to the button, flips above when no room below); display groups split into four (sites/folders/files/programs), superseding the combined files+programs group
