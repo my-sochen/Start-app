@@ -59,10 +59,12 @@ jobs:
           }
           function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
           function NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
+          function NamedCombo($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
+          function ComboValue($combo) { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name }; return '' }
           function SetText($edit, $text) { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Start-Sleep -Milliseconds 400 }
           function SetType($typeName) {
-            $combo = $win.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)))
-            if (-not $combo) { return 'combo not found' }
+            $combo = NamedCombo 'Item type'
+            if (-not $combo) { return 'item type combo not found' }
             $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
             $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
             if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
@@ -96,8 +98,8 @@ jobs:
             Assert 'creation date shown, not unknown' (-not (WaitText 'Created: unknown' 2)) ((Texts) -join ' | ')
             Assert 'empty state message in Hebrew' (WaitText 'עדיין אין אייטמים בסביבה' 10) ((Texts) -join ' | ')
             Assert 'empty state has an add-item button' ($null -ne (Btn 'הוסף אייטם')) ''
-            $catBox = NamedEdit 'Workspace category'
-            Assert 'category defaults to כללי' ($null -ne $catBox -and $catBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'כללי') ($catBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value)
+            $catCombo = NamedCombo 'Workspace category'
+            Assert 'category defaults to כללי' ($null -ne $catCombo -and (ComboValue $catCombo) -eq 'כללי') ($catCombo ? (ComboValue $catCombo) : 'combo not found')
             Shot 'details-after-create-empty'
             # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
             $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
@@ -236,6 +238,27 @@ jobs:
             $show = AnyByName 'הצג'
             $show.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
             Assert 'details opened from the menu (הצג)' (WaitText 'Created:' 10) ''
+            # 9. card design popup + category popup (פופאפ עיצוב כרטיס / פופאפ עריכת קטגוריה)
+            $c = ClickBtn 'Back' 900; Assert 'back to overview for the popups' ($c -eq 'ok') $c
+            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for design' ($c -eq 'ok') $c
+            $mi = AnyByName 'עצב כרטיס'; $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'design popup opened' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
+            $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
+            if ($colorBox) { SetText $colorBox '#BFDBFE' }
+            $c = ClickBtn 'Save card design' 1500; Assert 'design saved from the popup' ($c -eq 'ok') $c
+            Assert 'design popup closed after save' (-not (WaitText 'תמונת רקע' 2)) ''
+            Assert 'design persisted to the store' ((StoreJson) -like '*#BFDBFE*') (StoreJson)
+            Shot 'card-design-saved'
+            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
+            $mi = AnyByName 'ערוך קטגוריה'; $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
+            $newCat = NamedEdit 'New category name'; Assert 'new category box found' ($null -ne $newCat) ''
+            if ($newCat) { SetText $newCat 'E2Ecat' }
+            $c = ClickBtn 'Add category' 900; Assert 'custom category added' ($c -eq 'ok') $c
+            Assert 'custom category listed' (WaitText 'E2Ecat' 5) ((Texts) -join ' | ')
+            Shot 'category-popup-custom-added'
+            $c = ClickBtn 'Close category popup' 900; Assert 'category popup closed' ($c -eq 'ok') $c
+            Assert 'custom category persisted to the store' ((StoreJson) -like '*E2Ecat*') (StoreJson)
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
           finally {
