@@ -70,6 +70,7 @@ jobs:
             $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
           }
           function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
+          function AnyByName($name) { $e = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
           function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
           try {
             $root = Join-Path $env:RUNNER_TEMP 'open-flow'; New-Item -ItemType Directory -Force $root | Out-Null
@@ -153,7 +154,7 @@ jobs:
             $card.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
             Assert 'details reopened from card' (WaitText 'Created:' 10) ''
             $npBefore = NotepadCount
-            $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked' ($c -eq 'ok') $c
+            $c = ClickBtn 'שגר' 2500; Assert 'open clicked' ($c -eq 'ok') $c
             Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
             Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
             Shot 'decision-panel'
@@ -161,7 +162,7 @@ jobs:
             Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
             Start-Sleep -Seconds 2
             Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
-            $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
+            $c = ClickBtn 'שגר' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
             Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
             $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
             Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')
@@ -177,11 +178,21 @@ jobs:
             $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
             SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
             Assert 'empty workspace created into details with the Hebrew empty message' (WaitText 'עדיין אין אייטמים בסביבה' 15) ((Texts) -join ' | ')
-            $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
+            $c = ClickBtn 'שגר' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
             Assert 'empty workspace dialog with the spec title' (WaitText 'סביבת עבודה ריקה' 15) ((Texts) -join ' | ')
             Shot 'empty-workspace-dialog'
             $c = ClickBtn 'עבור לפרטי הסביבה' 900; Assert 'go-to-details clicked' ($c -eq 'ok') $c
             Assert 'dialog closed, still in details with the empty message' (-not (WaitText 'This workspace has no items yet' 2) -and (WaitText 'עדיין אין אייטמים בסביבה' 5)) ((Texts) -join ' | ')
+            # 8. card actions menu (spec: הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה; workspace deletion was rejected by the user)
+            $c = ClickBtn 'Back' 900; Assert 'back to overview for the menu check' ($c -eq 'ok') $c
+            Assert 'no workspace deletion offered anywhere' ($null -eq (BtnLike 'Delete') -and $null -eq (BtnLike 'מחק') -and $null -eq (BtnLike 'מחיקה')) ((ListLines) -join ' || ')
+            $c = ClickBtn 'Workspace actions' 900; Assert 'card actions menu opened' ($c -eq 'ok') $c
+            $found = @('הצג','שגר','הוסף אייטם','עצב כרטיס','ערוך קטגוריה') | Where-Object { $null -ne (AnyByName $_) }
+            Assert 'menu shows the five spec actions' (@($found).Count -eq 5) ("found: $($found -join ', ')")
+            Shot 'card-actions-menu'
+            $show = AnyByName 'הצג'
+            $show.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'details opened from the menu (הצג)' (WaitText 'Created:' 10) ''
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
           finally {
@@ -249,6 +260,12 @@ jobs:
         if: always()
         with:
           path: out-images/run${{ github.run_id }}-feat-10-empty-workspace-dialog.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-feat-11-card-actions-menu.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
