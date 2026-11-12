@@ -220,7 +220,7 @@ public class UpdateInstanceTests
         var c = NewCatalog();
         var f1 = c.GetOrAddItem(ItemType.File, "f1", "C:\\f1");
         var f2 = c.GetOrAddItem(ItemType.File, "f2", "C:\\f2");
-        var p1 = c.GetOrAddItem(ItemType.Program, "p1", "C:\\p1.exe"); // files and programs share one display group
+        var p1 = c.GetOrAddItem(ItemType.Program, "p1", "C:\\p1.exe"); // programs are their own display group (settled Nov 12, superseding the combined files+programs group)
         var l1 = c.GetOrAddItem(ItemType.Link, "l1", "https://a.example/");
         var w = c.CreateWorkspace("w", null);
         var mf1 = c.AddToWorkspace(w.Id, f1.Id); var ml1 = c.AddToWorkspace(w.Id, l1.Id);
@@ -232,8 +232,8 @@ public class UpdateInstanceTests
         Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
         c.MoveInstance(w.Id, mf2.Id!, -1); // already first in its group: no-op
         Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
-        c.MoveInstance(w.Id, mf1.Id!, 1); // file swaps with the program: same display group
-        Assert.Equal(new[] { f2.Id, l1.Id, p1.Id, f1.Id }, Order());
+        c.MoveInstance(w.Id, mf1.Id!, 1); // file vs program is now a group boundary: no-op
+        Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
         Assert.Throws<KeyNotFoundException>(() => c.MoveInstance(w.Id, "mi_missing", 1));
     }
 }
