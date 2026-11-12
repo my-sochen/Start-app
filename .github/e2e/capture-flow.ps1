@@ -223,6 +223,11 @@ try {
   Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
   $npNew | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1
   Assert 'the source capture list is unchanged by all staged actions' ((Checks).Count -eq $rowCount -and $null -ne (CheckByLike '*capfolder*')) ("rows=$((Checks).Count) before=$rowCount")
+  # restore the tick state the duplicate flow below expects: only the saved folder ticked
+  $npRow2 = CheckByLike '*Notepad*'; [void](ToggleEl $npRow2 'notepad row untick'); Start-Sleep -Milliseconds 300
+  $termRow2 = CheckByLike '*Terminal*'; [void](ToggleEl $termRow2 'terminal row untick'); Start-Sleep -Milliseconds 300
+  $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row retick'); Start-Sleep -Milliseconds 400
+  Assert 'tick state restored for the duplicate flow: only the saved folder ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
 
   $c = ClickBtn 'Capture save' 1200; Assert 'save clicked' ($c -eq 'ok') $c
   $sj = StoreJson
