@@ -160,6 +160,20 @@ public sealed class Catalog
         RemoveOrphans();
     }
 
+    /// <summary>Edits one instance's per-workspace name and description (טופס עריכת אייטם). Only this instance changes:
+    /// other instances of the same item, here or in other workspaces, and the shared catalog record keep their own values.
+    /// Null name falls back to the catalog item's original name; null or blank description means no description.</summary>
+    public void UpdateInstance(string workspaceId, string membershipId, string? name, string? description)
+    {
+        var w = Ws(workspaceId);
+        var i = w.Items.FindIndex(m => m.Id == membershipId);
+        if (i < 0) throw new KeyNotFoundException(membershipId);
+        var ne = ValidateInstanceName(name); if (ne != null) throw new ArgumentException(ne);
+        var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
+        if (string.IsNullOrWhiteSpace(description)) description = null;
+        w.Items[i] = w.Items[i] with { Name = name, Description = description };
+    }
+
     /// <summary>Removes every instance of the item in this workspace. UI removal targets one instance via <see cref="RemoveInstance"/>.</summary>
     public void RemoveFromWorkspace(string workspaceId, string itemId)
     {
