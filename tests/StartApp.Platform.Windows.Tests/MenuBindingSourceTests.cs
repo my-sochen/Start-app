@@ -22,7 +22,7 @@ public class MenuBindingSourceTests
     {
         var xaml = Xaml();
         var menus = Regex.Matches(xaml, "<ContextMenu>.*?</ContextMenu>", RegexOptions.Singleline);
-        Assert.Equal(3, menus.Count); // workspace card menu + item actions menu + capture dropdown
+        Assert.Equal(4, menus.Count); // workspace card menu + item actions menu + staged capture item menu + capture dropdown
         foreach (Match m in menus)
         {
             Assert.DoesNotContain("AncestorType=Window", m.Value);
@@ -36,7 +36,7 @@ public class MenuBindingSourceTests
     {
         var xaml = Xaml();
         const string tag = "Tag=\"{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}\"";
-        foreach (var button in new[] { "AutomationProperties.Name=\"Item actions\"", "AutomationProperties.Name=\"Workspace actions\"", "AutomationProperties.Name=\"Capture\"" })
+        foreach (var button in new[] { "AutomationProperties.Name=\"Item actions\"", "AutomationProperties.Name=\"Workspace actions\"", "AutomationProperties.Name=\"Staged item actions\"", "AutomationProperties.Name=\"Capture\"" })
         {
             var i = xaml.IndexOf(button, StringComparison.Ordinal);
             Assert.True(i >= 0, button + " not found");
