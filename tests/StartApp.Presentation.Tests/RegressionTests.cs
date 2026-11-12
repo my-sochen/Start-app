@@ -27,8 +27,9 @@ public class CommandNotificationTests
     {
         using var repo = new JsonStore(Tmp());
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.NewName = "e"; vm.CreateWorkspaceCommand.Execute(null); vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Contains("empty", vm.Status);
+        vm.NewName = "e"; vm.CreateWorkspaceCommand.Execute(null); vm.OpenWorkspaceCommand.Execute(null);
+        Assert.True(vm.EmptyWorkspaceOpen); Assert.Equal("", vm.Status); // dialog state, never an "opened 0" success
+        vm.CloseEmptyWorkspaceCommand.Execute(null); Assert.False(vm.EmptyWorkspaceOpen);
     }
 }
 
