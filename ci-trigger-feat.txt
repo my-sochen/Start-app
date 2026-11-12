@@ -1,1 +1,1 @@
-v13 - gate fix: INFO records (no ok property) were misflagged as FAIL asserts; v12 asserts all PASS, 16 shots saved
+v14 - visual fixes from pixel review: explicit ContextMenu placement (Bottom at the button), transparent card buttons so color/image is the card surface, no frame when image file missing, create-form category combo keeps selection (diff-wise rebuild); new design-popup screenshot
