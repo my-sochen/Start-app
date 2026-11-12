@@ -46,6 +46,16 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>The empty-workspace dialog's button that leads to the details screen (to add items).</summary>
     public ICommand GoToDetailsCommand { get; }
     public ICommand RemoveItemCommand { get; }
+    /// <summary>לחיצה על שם האייטם בשורה פותחת אותו (spec שורה של אייטם).</summary>
+    public ICommand OpenItemCommand { get; }
+    /// <summary>העתק כתובת/קישור/נתיב from the row actions: direct copy, no popup. The view puts the target on the clipboard.</summary>
+    public ICommand CopyAddressCommand { get; }
+    public event Action<string>? CopyAddressRequested;
+    /// <summary>עריכה from the row: opens the item edit form (טופס עריכת אייטם) for that one instance.</summary>
+    public ICommand EditItemCommand { get; }
+    public ICommand SaveItemEditCommand { get; }
+    /// <summary>ביטול in the item edit form: closes immediately when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CancelItemEditCommand { get; }
     public ICommand OpenWorkspaceCommand { get; }
     public ICommand AddItemCommand { get; }
     /// <summary>Duplicate-add confirmation: visible while an add waits for the user to approve a second instance of the same target.</summary>
@@ -67,13 +77,15 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
     public bool RequestAppClose()
     {
-        if (DetailsDirty) { UnsavedForCreate = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (CreateDirty) { UnsavedForCreate = true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (DetailsDirty) { UnsavedForCreate = false; UnsavedForItemEdit = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (CreateDirty) { UnsavedForCreate = true; UnsavedForItemEdit = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         return true;
     }
     private void SaveAndExit()
     {
-        if (UnsavedForCreate)
+        if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
+        else if (UnsavedForCreate)
         {
             if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
             Create();
@@ -109,9 +121,14 @@ public sealed class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
+        OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
+        CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
+        EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
+        CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
@@ -126,7 +143,7 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; ItemEditOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
@@ -150,6 +167,57 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
     public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
     private bool _unsavedForCreate;
+    /// <summary>True while the open unsaved-exit dialog guards the item edit form (טופס עריכת אייטם).</summary>
+    public bool UnsavedForItemEdit { get => _unsavedForItemEdit; private set => Set(ref _unsavedForItemEdit, value); }
+    private bool _unsavedForItemEdit;
+
+    // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
+    public bool ItemEditOpen { get => _itemEditOpen; private set => Set(ref _itemEditOpen, value); }
+    private bool _itemEditOpen;
+    private string _editItemId = "";
+    public string EditItemName { get => _editItemName; set { Set(ref _editItemName, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    private string _editItemName = "";
+    public string EditItemDescription { get => _editItemDesc; set { Set(ref _editItemDesc, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    private string _editItemDesc = "";
+    private string _origItemName = "", _origItemDesc = "";
+    /// <summary>Any change in the item edit form shows its Save button (same rule as the details screen).</summary>
+    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc);
+    private void BeginItemEdit(ItemRow row)
+    {
+        _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? "";
+        EditItemName = _origItemName; EditItemDescription = _origItemDesc;
+        ItemEditOpen = true;
+    }
+    private bool SaveItemEdit()
+    {
+        if (string.IsNullOrWhiteSpace(EditItemName)) { Status = "Not saved: item name is required"; return false; }
+        var ok = Apply(c => c.UpdateInstance(Selected!.Id, _editItemId, EditItemName, EditItemDescription));
+        if (ok) { Status = "Item saved"; ItemEditOpen = false; }
+        return ok;
+    }
+    private void CancelItemEdit()
+    {
+        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => ItemEditOpen = false; UnsavedOpen = true; return; }
+        ItemEditOpen = false;
+    }
+    /// <summary>לחיצה על שם האייטם: opens that one item after the same honest preflight the full open uses; the report line
+    /// never claims more than a sent request. A real request also stamps the card's last-opened time.</summary>
+    private void OpenOne(ItemRow row)
+    {
+        var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
+        if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = row.Name + ": not opened (the saved item record is missing)"; return; }
+        var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new PreflightFinding(PreflightState.Ready);
+        if (NeverLaunched(f.State)) { Status = row.Name + ": skipped, not opened (" + f.Detail + ")"; return; }
+        var gen = ++_generation; var name = row.Name; var wsId = Selected!.Id;
+        OpenTask = Guard(gen, OpenOneAsync(it, m.Launch, name, wsId, gen));
+    }
+    private async Task OpenOneAsync(Item it, LaunchConfig? launch, string name, string wsId, int gen)
+    {
+        var r = await Task.Run(() => _launcher.Launch(it, launch)).ConfigureAwait(true);
+        if (gen != _generation) return;
+        if (r.Status == LaunchStatus.Started) Apply(c => c.TouchLastOpened(wsId)); // Apply clears Status, so the report line comes after
+        Status = r.Status == LaunchStatus.Started ? name + ": open request sent (not proof it loaded)" : name + ": failed (" + (r.Detail ?? r.Status.ToString()) + ")";
+    }
 
     // ---- navigation and the details screen (פרטי סביבה) ----
     /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
@@ -188,7 +256,9 @@ public sealed class MainViewModel : ObservableBase
     private void Back()
     {
         ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
-        if (DetailsDirty) { UnsavedForCreate = false; _exitAction = () => InDetails = false; UnsavedOpen = true; return; }
+        if (DetailsDirty) { UnsavedForCreate = false; UnsavedForItemEdit = false; _exitAction = () => { ItemEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (ItemEditDirty) { UnsavedForCreate = false; UnsavedForItemEdit = true; _exitAction = () => { ItemEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        ItemEditOpen = false;
         InDetails = false;
     }
     private bool SaveDetails()
