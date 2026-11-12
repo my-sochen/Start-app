@@ -1,1 +1,1 @@
-v17 - four-group visual proof: E2E adds a fresh workspace with one item of each type (link/folder/file/program) and screenshots the separate Sites/Folders/Files/Programs headers
+v18
