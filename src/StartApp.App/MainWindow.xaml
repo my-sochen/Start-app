@@ -341,6 +341,7 @@
                     <!-- right: the capture list (default details only; no actions, no editing) -->
                     <DockPanel Grid.Column="2">
                         <TextBlock DockPanel.Dock="Top" Text="Open now" FontWeight="SemiBold"/>
+                        <TextBlock DockPanel.Dock="Top" Text="סורק מה פתוח עכשיו..." Foreground="Gray" Margin="0,2,0,2" Visibility="{Binding IsScanning, Converter={StaticResource B2V}}"/>
                         <Button DockPanel.Dock="Top" Content="{Binding CaptureAddLabel}" Command="{Binding CaptureAddCommand}" HorizontalAlignment="Left" Margin="0,4,0,4" Padding="10,2" AutomationProperties.Name="{Binding CaptureAddLabel}"
                                 Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}"/>
                         <TextBlock DockPanel.Dock="Top" Text="Nothing open was detected" Foreground="Gray" Visibility="{Binding CaptureEmpty, Converter={StaticResource B2V}}"/>
