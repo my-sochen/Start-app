@@ -210,7 +210,7 @@
                                                 <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
                                                     <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
                                                         <!-- a program item IS the program; open-with does not apply to it -->
-                                                        <DataTrigger Binding="{Binding Type}" Value="Program"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                                     </Style.Triggers></Style></MenuItem.Style>
                                                 </MenuItem>
                                                 <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
@@ -308,7 +308,7 @@
                             <DockPanel DockPanel.Dock="Top">
                                 <Button DockPanel.Dock="Left" Content="חזור" Command="{Binding CaptureBackCommand}" Padding="8,1" Margin="0,0,6,0" FontSize="11" AutomationProperties.Name="Capture back"/>
                                 <Button DockPanel.Dock="Right" Content="שמור" Command="{Binding CaptureSaveCommand}" Padding="12,2" AutomationProperties.Name="Capture save"/>
-                                <TextBlock Text="{Binding CaptureWorkspaceName}" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Capture target workspace"/>
+                                <TextBlock Text="{Binding CaptureWorkspaceName}" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/>
                             </DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="Drag items here or use the add button. Nothing is saved until שמור." Foreground="Gray" FontSize="11" Margin="0,2,0,4"/>
                             <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace">
@@ -324,6 +324,22 @@
                                             <DockPanel>
                                                 <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
                                                         Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <Button DockPanel.Dock="Right" Content="⋯" Padding="6,0" AutomationProperties.Name="Staged item actions" ToolTip="Staged item actions"
+                                                        Click="CardActions_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                            <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.StagedCopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                            <MenuItem Header="עריכת כתובת" Click="StagedEditAddress_Click"/>
+                                                            <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.StagedOpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
+                                                                <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers><DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                                            </MenuItem>
+                                                            <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.StagedMoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                            <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.StagedMoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                            <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
+                                                </Button>
                                                 <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/>
                                             </DockPanel>
                                             <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
