@@ -40,9 +40,19 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="0,2">
-                                <Button DockPanel.Dock="Right" Content="Delete" Padding="8,2" Margin="4,0,0,0"
-                                        Command="{Binding DataContext.DeleteWorkspaceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                <Button DockPanel.Dock="Right" Content="Open" Padding="8,2" Margin="4,0,0,0"
+                                <Button DockPanel.Dock="Right" Content="⋯" Padding="8,2" Margin="4,0,0,0"
+                                        AutomationProperties.Name="Workspace actions" Click="CardActions_Click">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="הצג" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="שגר" Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="הוסף אייטם" Command="{Binding DataContext.AddItemToCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="עצב כרטיס" IsEnabled="False"/>
+                                            <MenuItem Header="ערוך קטגוריה" IsEnabled="False"/>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0"
                                         Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                 <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
                                         HorizontalContentAlignment="Left" Padding="6,2">
@@ -62,7 +72,7 @@
             <DockPanel Margin="8" Visibility="{Binding InDetails, Converter={StaticResource B2V}}">
                 <DockPanel DockPanel.Dock="Top">
                     <Button DockPanel.Dock="Left" Content="Back" Command="{Binding BackCommand}" Padding="8,2"/>
-                    <Button DockPanel.Dock="Right" Content="Open workspace" Command="{Binding OpenWorkspaceCommand}" Padding="8,2"/>
+                    <Button DockPanel.Dock="Right" Content="שגר" Command="{Binding OpenWorkspaceCommand}" Padding="8,2"/>
                     <TextBlock Text="{Binding CreatedAtText, StringFormat='Created: {0}'}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="Gray" Margin="0,0,10,0"/>
                 </DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,6,0,0">
