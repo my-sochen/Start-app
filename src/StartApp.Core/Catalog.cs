@@ -122,6 +122,84 @@ public sealed class Catalog
     /// <summary>Records a real open (שגר) of the workspace for the card's "last opened" display.</summary>
     public void TouchLastOpened(string workspaceId) => Ws(workspaceId).LastOpenedAt = DateTime.UtcNow;
 
+    // ---- managed categories (פופאפ עריכת קטגוריה, settled Nov 11): built-ins are defined in code and can never be edited or
+    // deleted; the user creates, renames and deletes custom ones. כללי is the default and the one guaranteed built-in; the exact
+    // contents of the built-in base list beyond it are still an open product choice, so the list holds only what is settled. ----
+
+    /// <summary>Built-in base categories. Only כללי is settled by the user's originals; more can be added here once decided.</summary>
+    public static readonly IReadOnlyList<string> BuiltInCategories = new[] { Workspace.DefaultCategory };
+    /// <summary>Exact-match rule for category identity (Hebrew names; case-insensitive duplicate check for Latin letters).</summary>
+    private static bool SameCategory(string a, string b) => string.Equals(a, b, StringComparison.Ordinal);
+    public static bool IsBuiltInCategory(string name) => BuiltInCategories.Any(b => SameCategory(b, name));
+    public bool IsCustomCategory(string name) => _s.CustomCategories.Any(c => SameCategory(c, name));
+    /// <summary>Built-ins first, then the user's custom categories in creation order.</summary>
+    public IReadOnlyList<string> AllCategories() => BuiltInCategories.Concat(_s.CustomCategories).ToList();
+    /// <summary>Category names are stored exactly as typed (never trimmed). Whitespace-only is rejected, control characters are rejected, limit 100.</summary>
+    public static string? ValidateCategoryName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "category name is empty";
+        if (name.Length > 100) return "category name is longer than 100 characters";
+        if (name.Any(char.IsControl)) return "category name has control characters";
+        return null;
+    }
+    /// <summary>Adds a custom category. Built-ins and existing customs (compared case-insensitively) are rejected as duplicates.</summary>
+    public string AddCustomCategory(string name)
+    {
+        var e = ValidateCategoryName(name); if (e != null) throw new ArgumentException(e);
+        if (AllCategories().Any(c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("category already exists");
+        _s.CustomCategories.Add(name);
+        return name;
+    }
+    /// <summary>Renames a custom category; built-ins cannot be renamed. Every workspace assigned to it shows the new name.</summary>
+    public void RenameCustomCategory(string oldName, string newName)
+    {
+        if (!IsCustomCategory(oldName)) throw new ArgumentException("only a custom category can be renamed");
+        var e = ValidateCategoryName(newName); if (e != null) throw new ArgumentException(e);
+        if (!SameCategory(oldName, newName) && AllCategories().Any(c => string.Equals(c, newName, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("category already exists");
+        var i = _s.CustomCategories.FindIndex(c => SameCategory(c, oldName));
+        _s.CustomCategories[i] = newName;
+        foreach (var w in _s.Workspaces) if (w.Category is not null && SameCategory(w.Category, oldName)) w.Category = newName;
+    }
+    /// <summary>Workspaces currently assigned to this category (for the deletion warning). Comparison is exact.</summary>
+    public IReadOnlyList<Workspace> WorkspacesInCategory(string name) =>
+        _s.Workspaces.Where(w => SameCategory(w.EffectiveCategory, name)).ToList();
+    /// <summary>Deletes a custom category; built-ins cannot be deleted. Workspaces assigned to it are NOT deleted: they move
+    /// to the default כללי (settled Nov 11; the confirmation dialog is a UI concern, Catalog just performs the reassignment).</summary>
+    public void DeleteCustomCategory(string name)
+    {
+        if (!IsCustomCategory(name)) throw new ArgumentException("only a custom category can be deleted");
+        _s.CustomCategories.RemoveAll(c => SameCategory(c, name));
+        foreach (var w in _s.Workspaces) if (w.Category is not null && SameCategory(w.Category, name)) w.Category = null;
+    }
+    /// <summary>Assigns a category from the managed list (ערוך קטגוריה / create form). The default is stored as null.</summary>
+    public void SetCategory(string workspaceId, string? category)
+    {
+        var w = Ws(workspaceId);
+        if (string.IsNullOrWhiteSpace(category)) { w.Category = null; return; }
+        if (!AllCategories().Any(c => SameCategory(c, category))) throw new ArgumentException("unknown category");
+        w.Category = SameCategory(category, Workspace.DefaultCategory) ? null : category;
+    }
+
+    // ---- card design (פופאפ עיצוב כרטיס, settled Nov 11): per-workspace color and background image. ----
+
+    private static readonly System.Text.RegularExpressions.Regex ColorHex = new(@"^#[0-9A-Fa-f]{6}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>Card color as #RRGGBB (the form the preview and the card render). Null = default look.</summary>
+    public static string? ValidateColor(string? color)
+    {
+        if (color is null) return null;
+        if (!ColorHex.IsMatch(color)) return "color must be #RRGGBB";
+        return null;
+    }
+    /// <summary>Saves the card design of one workspace (color + background image path; null clears each). Other workspaces are
+    /// untouched. The image is stored as a path reference; the file itself is not copied or verified (platform/storage decision).</summary>
+    public void SetCardDesign(string workspaceId, string? color, string? imagePath)
+    {
+        var w = Ws(workspaceId);
+        var ce = ValidateColor(color); if (ce != null) throw new ArgumentException(ce);
+        if (imagePath is not null && (string.IsNullOrWhiteSpace(imagePath) || imagePath.Any(char.IsControl))) throw new ArgumentException("image path is empty");
+        w.Color = color; w.ImagePath = imagePath;
+    }
+
     private static void ValidateWorkspaceFields(string name, string? description, string? category)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("workspace name is required");
@@ -251,6 +329,8 @@ public sealed class Catalog
         foreach (var w in _s.Workspaces)
         {
             if (w.Category is not null && string.IsNullOrWhiteSpace(w.Category)) errs.Add($"{w.Id}: category is empty");
+            if (ValidateColor(w.Color) is { } ce) errs.Add($"{w.Id}: {ce}");
+            if (w.ImagePath is not null && (string.IsNullOrWhiteSpace(w.ImagePath) || w.ImagePath.Any(char.IsControl))) errs.Add($"{w.Id}: image path is empty");
             if (string.IsNullOrWhiteSpace(w.Name)) errs.Add($"{w.Id}: workspace name is required");
             if (ValidateDescription(w.Description) is { } wde) errs.Add($"{w.Id}: {wde}");
             if (w.Items.Any(m => m.Id is null)) errs.Add($"{w.Id}: instance without an id");
@@ -264,6 +344,9 @@ public sealed class Catalog
             }
         }
         if (_s.Workspaces.GroupBy(w => w.Id).Any(g => g.Count() > 1)) errs.Add("duplicate workspace id");
+        if (_s.CustomCategories.Any(c => ValidateCategoryName(c) != null)) errs.Add("invalid custom category name");
+        if (_s.CustomCategories.Any(IsBuiltInCategory)) errs.Add("a custom category shadows a built-in");
+        if (_s.CustomCategories.GroupBy(c => c, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) errs.Add("duplicate custom category");
         return errs;
     }
 }
