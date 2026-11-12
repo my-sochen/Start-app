@@ -29,16 +29,22 @@ public partial class App : Application
 public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
 {
     private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase) { "chrome", "msedge", "brave" };
+    private delegate bool EnumProc(IntPtr h, IntPtr l);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     public CaptureScan Scan()
     {
         var items = new List<CapturedItem>(); var notes = new List<string>();
         var ids = System.Diagnostics.Process.GetProcesses().Where(p => { try { return Browsers.Contains(p.ProcessName); } catch (InvalidOperationException) { return false; } }).Select(p => p.Id).ToHashSet();
-        var root = System.Windows.Automation.AutomationElement.RootElement;
-        foreach (System.Windows.Automation.AutomationElement w in root.FindAll(System.Windows.Automation.TreeScope.Children, System.Windows.Automation.Condition.TrueCondition))
+        var handles = new List<IntPtr>();
+        EnumWindows((h, _) => { if (IsWindowVisible(h)) { GetWindowThreadProcessId(h, out var pid); if (ids.Contains((int)pid)) handles.Add(h); } return true; }, IntPtr.Zero);
+        // Only browser windows are touched through UI Automation (never this app's own window, which would deadlock on the UI thread).
+        foreach (var hwnd in handles)
         {
             try
             {
-                if (!ids.Contains(w.Current.ProcessId)) continue;
+                var w = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
                 var edit = w.FindFirst(System.Windows.Automation.TreeScope.Descendants, new System.Windows.Automation.AndCondition(
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.Edit),
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.NameProperty, "Address and search bar")));
