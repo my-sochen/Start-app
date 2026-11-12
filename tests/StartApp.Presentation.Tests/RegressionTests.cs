@@ -55,17 +55,23 @@ public class StartupFailureTests
     [Fact] public void ProgrammingErrors_AreNotSwallowed()
         => Assert.Throws<NullReferenceException>(() => new MainViewModel(new ThrowingRepo(new NullReferenceException()), new NotImplementedLauncher()));
 
-    [Fact] public void AddAndDelete_RaiseCommandNotifications()
+    [Fact] public void AddAndRemoveItem_RaiseCommandNotifications()
     {
         using var repo = new JsonStore(Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N"), "s.json"));
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
         vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null);
-        int add = 0, del = 0; vm.AddItemCommand.CanExecuteChanged += (_, _) => add++; vm.DeleteWorkspaceCommand.CanExecuteChanged += (_, _) => del++;
+        int add = 0, rem = 0; vm.AddItemCommand.CanExecuteChanged += (_, _) => add++; vm.RemoveItemCommand.CanExecuteChanged += (_, _) => rem++;
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt";
         Assert.True(add > 0 && vm.AddItemCommand.CanExecute(null));
-        var w = vm.Workspaces.Single();
-        Assert.True(vm.DeleteWorkspaceCommand.CanExecute(w));
-        vm.DeleteWorkspaceCommand.Execute(w);
-        Assert.True(del > 0); Assert.False(vm.DeleteWorkspaceCommand.CanExecute(w)); Assert.Empty(vm.Workspaces);
+        vm.AddItemCommand.Execute(null);
+        var row = vm.Items.Single();
+        Assert.True(vm.RemoveItemCommand.CanExecute(row));
+        vm.RemoveItemCommand.Execute(row);
+        Assert.True(rem > 0); Assert.Empty(vm.Items);
+    }
+
+    [Fact] public void Card_menu_has_no_workspace_deletion() // the user explicitly rejected it (Nov 11)
+    {
+        Assert.Null(typeof(MainViewModel).GetProperty("DeleteWorkspaceCommand"));
     }
 }
