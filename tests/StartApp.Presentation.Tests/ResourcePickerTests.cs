@@ -113,3 +113,221 @@ public class ResourcePickerTests
         Assert.Single(vm.Items);
     }
 }
+
+/// <summary>לכידה (settled Nov 12 07:14-07:45): the list is a snapshot of what the scan reported, read-only; adds to a new workspace (checked by default)
+/// or to an existing one side by side, staged until שמור; duplicates warn per drag or once for a group; X resets, חזור keeps the snapshot.</summary>
+public class CaptureViewModelTests
+{
+    private static string Tmp() => Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N"), "store.json");
+    private sealed class FakeCapturer : IOpenItemCapturer
+    {
+        public List<CapturedItem> Items = new()
+        {
+            new(ItemType.Program, "Notepad", "C:\\Windows\\notepad.exe"),
+            new(ItemType.Folder, "proj", "D:\\proj"),
+            new(ItemType.Link, "example.com", "https://example.com/"),
+        };
+        public int Scans;
+        public CaptureScan Scan() { Scans++; return new(Items.ToList(), new[] { "Files: not detected" }); }
+    }
+    private static (MainViewModel vm, FakeCapturer cap, JsonStore repo) Make(Action<MainViewModel>? setup = null)
+    {
+        var repo = new JsonStore(Tmp()); var cap = new FakeCapturer();
+        var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: cap);
+        setup?.Invoke(vm);
+        return (vm, cap, repo);
+    }
+    private static void Ws(MainViewModel vm, string name) { vm.NewName = name; vm.CreateWorkspaceCommand.Execute(null); vm.BackCommand.Execute(null); }
+    private static Workspace Find(MainViewModel vm, string name) => vm.Workspaces.Single(w => w.Name == name);
+    private static int Saved(JsonStore repo, string ws) => repo.Load().Workspaces.Single(w => w.Name == ws).Items.Count;
+
+    [Fact] public void New_workspace_capture_scans_shows_rows_all_checked_and_creates_only_checked_items()
+    {
+        var (vm, cap, repo) = Make(); using var _ = repo;
+        vm.CaptureNewCommand.Execute(null);
+        Assert.True(vm.IsCaptureNew); Assert.Equal(1, cap.Scans);
+        Assert.Equal(3, vm.CaptureRows.Count); Assert.All(vm.CaptureRows, r => Assert.True(r.IsChecked));
+        Assert.Contains("Files: not detected", vm.CaptureNotes);
+        vm.CaptureRows.Single(r => r.Name == "proj").IsChecked = false;
+        vm.NewName = "from capture";
+        vm.CaptureCreateCommand.Execute(null);
+        Assert.False(vm.CaptureOpen); Assert.True(vm.InDetails);
+        var w = repo.Load(); var ws = w.Workspaces.Single();
+        Assert.Equal(2, ws.Items.Count);
+        Assert.Equal(new[] { "C:\\Windows\\notepad.exe", "https://example.com/" }.OrderBy(x => x, StringComparer.Ordinal), ws.Items.Select(m => w.Items[m.ItemId].Target).OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Empty(vm.CaptureRows);
+    }
+
+    [Fact] public void Create_needs_a_name_and_a_typed_name_then_X_asks_before_discarding()
+    {
+        var (vm, _, repo) = Make(); using var _ = repo;
+        vm.CaptureNewCommand.Execute(null);
+        Assert.False(vm.CaptureCreateCommand.CanExecute(null));
+        vm.NewName = "typed";
+        vm.CaptureCloseCommand.Execute(null);
+        Assert.True(vm.UnsavedOpen); Assert.True(vm.UnsavedForCapture); Assert.True(vm.CaptureOpen);
+        vm.CloseUnsavedCommand.Execute(null);               // the dialog's X: back to the capture screen, nothing lost
+        Assert.True(vm.CaptureOpen); Assert.Equal("typed", vm.NewName); Assert.Equal(3, vm.CaptureRows.Count);
+        vm.CaptureCloseCommand.Execute(null); vm.ExitWithoutSavingCommand.Execute(null);
+        Assert.False(vm.CaptureOpen); Assert.Empty(repo.Load().Workspaces); Assert.Equal("", vm.NewName);
+    }
+
+    [Fact] public void Existing_mode_staging_is_not_saved_until_Save_and_the_capture_list_stays_open()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "A"); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null);
+        Assert.True(vm.IsCapturePick); Assert.All(vm.CaptureRows, r => Assert.False(r.IsChecked));
+        vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        Assert.True(vm.IsCaptureSide);
+        Assert.Equal("הוסף הכל", vm.CaptureAddLabel);
+        vm.CaptureAddCommand.Execute(null);
+        Assert.Equal(3, vm.StagedRows.Count); Assert.Equal(0, Saved(repo, "A")); Assert.True(vm.CaptureDirty);
+        vm.CaptureSaveCommand.Execute(null);
+        Assert.Equal(3, Saved(repo, "A")); Assert.Empty(vm.StagedRows);
+        Assert.Equal(3, vm.CaptureRows.Count); Assert.True(vm.IsCaptureSide); Assert.Equal(3, vm.CaptureWorkspaceItems.Count);
+        Assert.False(vm.CaptureDirty);
+    }
+
+    [Fact] public void Add_button_becomes_add_selected_and_adds_only_the_ticked_rows()
+    {
+        var (vm, _, repo) = Make(v => Ws(v, "A")); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureRows[0].IsChecked = true; vm.CaptureRows[2].IsChecked = true;
+        Assert.Equal("הוסף נבחרים", vm.CaptureAddLabel);
+        vm.CaptureAddCommand.Execute(null);
+        Assert.Equal(new[] { "Notepad", "example.com" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
+        vm.CaptureRows[0].IsChecked = false; vm.CaptureRows[2].IsChecked = false;
+        Assert.Equal("הוסף הכל", vm.CaptureAddLabel);
+    }
+
+    [Fact] public void Dragging_a_duplicate_warns_for_that_drag_and_confirm_adds_a_second_instance()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "A"); v.OpenDetailsCommand.Execute(Find(v, "A")); v.NewItemType = ItemType.Folder; v.NewTarget = "D:\\proj"; v.AddItemCommand.Execute(null); v.BackCommand.Execute(null); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureDropCommand.Execute(vm.CaptureRows.Single(r => r.Name == "Notepad"));
+        Assert.Single(vm.StagedRows); Assert.False(vm.CaptureDupSinglePending);          // new address: no warning
+        vm.CaptureDropCommand.Execute(vm.CaptureRows.Single(r => r.Name == "proj"));
+        Assert.True(vm.CaptureDupSinglePending); Assert.Single(vm.StagedRows);           // already saved in the workspace: warning, not added yet
+        vm.CancelCaptureDupSingleCommand.Execute(null);
+        Assert.False(vm.CaptureDupSinglePending); Assert.Single(vm.StagedRows);
+        vm.CaptureDropCommand.Execute(vm.CaptureRows.Single(r => r.Name == "proj"));
+        vm.ConfirmCaptureDupSingleCommand.Execute(null);
+        Assert.Equal(2, vm.StagedRows.Count);
+        vm.CaptureDropCommand.Execute(vm.CaptureRows.Single(r => r.Name == "Notepad"));  // already staged counts as a duplicate too
+        Assert.True(vm.CaptureDupSinglePending);
+    }
+
+    [Fact] public void Adding_several_shows_one_grouped_duplicate_dialog_and_adds_only_the_ticked_duplicates()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "A"); v.OpenDetailsCommand.Execute(Find(v, "A"));
+            v.NewItemType = ItemType.Folder; v.NewTarget = "D:\\proj"; v.AddItemCommand.Execute(null);
+            v.NewItemType = ItemType.Link; v.NewTarget = "https://example.com/"; v.AddItemCommand.Execute(null); v.BackCommand.Execute(null); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureAddCommand.Execute(null);
+        Assert.Single(vm.StagedRows); Assert.Equal("Notepad", vm.StagedRows[0].OriginalName);      // the non-duplicate is staged at once
+        Assert.True(vm.CaptureDupGroupPending); Assert.Equal(2, vm.CaptureDupChoices.Count);          // ONE dialog listing both duplicates
+        Assert.All(vm.CaptureDupChoices, c => Assert.False(c.IsChecked));
+        vm.CaptureDupChoices.Single(c => c.Row.Name == "proj").IsChecked = true;
+        vm.ConfirmCaptureDupGroupCommand.Execute(null);
+        Assert.False(vm.CaptureDupGroupPending);
+        Assert.Equal(new[] { "Notepad", "proj" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
+    }
+
+    [Fact] public void Back_keeps_the_snapshot_and_lets_you_add_to_another_workspace_after_the_unsaved_dialog()
+    {
+        var (vm, cap, repo) = Make(v => { Ws(v, "A"); Ws(v, "B"); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureRows[0].IsChecked = true; vm.CaptureAddCommand.Execute(null);
+        vm.CaptureBackCommand.Execute(null);
+        Assert.True(vm.UnsavedOpen); Assert.True(vm.IsCaptureSide);
+        vm.SaveAndExitCommand.Execute(null);                                   // שמור וצא: saves A then returns to the workspace search
+        Assert.Equal(1, Saved(repo, "A")); Assert.True(vm.IsCapturePick);
+        Assert.Equal(3, vm.CaptureRows.Count); Assert.Equal(1, cap.Scans);     // same snapshot, no rescan
+        vm.CapturePickWorkspaceCommand.Execute(Find(vm, "B"));
+        vm.CaptureRows[0].IsChecked = true; vm.CaptureAddCommand.Execute(null); vm.CaptureSaveCommand.Execute(null);
+        Assert.Equal(1, Saved(repo, "B"));                                      // the same capture fed several workspaces
+        var s = repo.Load(); Assert.NotEqual(s.Workspaces[0].Items[0].Id, s.Workspaces[1].Items[0].Id);  // independent instances
+    }
+
+    [Fact] public void Back_without_saving_discards_staging_but_keeps_earlier_saves()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "A"); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureRows[0].IsChecked = true; vm.CaptureAddCommand.Execute(null); vm.CaptureSaveCommand.Execute(null);
+        vm.CaptureRows[0].IsChecked = false; vm.CaptureRows[1].IsChecked = true; vm.CaptureAddCommand.Execute(null);
+        vm.CaptureBackCommand.Execute(null); vm.ExitWithoutSavingCommand.Execute(null);
+        Assert.True(vm.IsCapturePick); Assert.Equal(1, Saved(repo, "A")); Assert.Empty(vm.StagedRows);
+    }
+
+    [Fact] public void X_resets_the_snapshot_asks_when_unsaved_and_the_next_capture_scans_again()
+    {
+        var (vm, cap, repo) = Make(v => Ws(v, "A")); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureAddCommand.Execute(null);
+        vm.CaptureCloseCommand.Execute(null);
+        Assert.True(vm.UnsavedOpen); Assert.True(vm.CaptureOpen);
+        vm.ExitWithoutSavingCommand.Execute(null);
+        Assert.False(vm.CaptureOpen); Assert.Empty(vm.CaptureRows); Assert.Equal(0, Saved(repo, "A"));
+        cap.Items = new() { new(ItemType.Program, "Calc", "C:\\Windows\\calc.exe") };
+        vm.CaptureExistingCommand.Execute(null);
+        Assert.Equal(2, cap.Scans); Assert.Equal("Calc", vm.CaptureRows.Single().Name);
+    }
+
+    [Fact] public void Close_with_nothing_unsaved_closes_without_a_dialog()
+    {
+        var (vm, _, repo) = Make(v => Ws(v, "A")); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CaptureCloseCommand.Execute(null);
+        Assert.False(vm.UnsavedOpen); Assert.False(vm.CaptureOpen);
+    }
+
+    [Fact] public void Staged_item_edits_apply_to_the_new_instance_only_and_never_to_the_capture_row()
+    {
+        var (vm, _, repo) = Make(v => Ws(v, "A")); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureRows[1].IsChecked = true; vm.CaptureAddCommand.Execute(null);
+        var st = vm.StagedRows.Single(); st.Name = "my project"; st.Description = "main folder";
+        Assert.Equal("proj", vm.CaptureRows[1].Name);
+        vm.CaptureSaveCommand.Execute(null);
+        var s = repo.Load(); var m = s.Workspaces.Single().Items.Single();
+        Assert.Equal("my project", m.Name); Assert.Equal("main folder", m.Description); Assert.Equal("proj", s.Items[m.ItemId].Name);
+        vm.CaptureRows[1].IsChecked = true; vm.CaptureAddCommand.Execute(null);   // default details again, not the edited ones
+        Assert.True(vm.CaptureDupGroupPending);
+    }
+
+    [Fact] public void Invalid_staged_values_are_reported_and_nothing_is_saved()
+    {
+        var (vm, _, repo) = Make(v => Ws(v, "A")); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
+        vm.CaptureRows[1].IsChecked = true; vm.CaptureAddCommand.Execute(null);
+        vm.StagedRows.Single().OpenWith = "notepad";   // not an absolute path
+        vm.CaptureSaveCommand.Execute(null);
+        Assert.StartsWith("Not saved", vm.Status); Assert.Equal(0, Saved(repo, "A")); Assert.Single(vm.StagedRows);
+    }
+
+    [Fact] public void Add_from_open_in_details_goes_straight_to_the_current_workspace_and_Back_leads_to_the_search()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "A"); v.OpenDetailsCommand.Execute(Find(v, "A")); }); using var _ = repo;
+        Assert.True(vm.AddFromOpenCommand.CanExecute(null));
+        vm.AddFromOpenCommand.Execute(null);
+        Assert.True(vm.IsCaptureSide); Assert.Equal("A", vm.CaptureWorkspaceName);
+        vm.CaptureBackCommand.Execute(null);
+        Assert.True(vm.IsCapturePick); Assert.Single(vm.CaptureWorkspaceResults);
+    }
+
+    [Fact] public void Workspace_search_filters_by_name()
+    {
+        var (vm, _, repo) = Make(v => { Ws(v, "alpha"); Ws(v, "beta"); }); using var _ = repo;
+        vm.CaptureExistingCommand.Execute(null);
+        Assert.Equal(2, vm.CaptureWorkspaceResults.Count);
+        vm.CaptureSearch = "bet"; Assert.Equal("beta", vm.CaptureWorkspaceResults.Single().Name);
+    }
+
+    [Fact] public void Capture_entries_are_not_available_while_read_only_or_already_open_and_without_a_detector_it_says_so()
+    {
+        var repo = new JsonStore(Tmp()); using var _ = repo;
+        var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        vm.CaptureNewCommand.Execute(null);
+        Assert.True(vm.CaptureEmpty); Assert.Equal("Nothing open was detected", vm.Status); Assert.Single(vm.CaptureNotes);
+        Assert.False(vm.CaptureNewCommand.CanExecute(null));
+    }
+}
