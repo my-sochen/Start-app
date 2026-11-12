@@ -21,9 +21,10 @@ public sealed class JsonStore : IStoreRepository
     private readonly string _path;
     private readonly object _gate = new();
     /// <summary>Newest schema this build reads and writes. Schema 2 = schema 1 plus the optional item description; schema 3 = schema 2 plus
-    /// per-instance membership fields (id, local name, local description) and the optional workspace category. Older builds refuse a newer
-    /// file as "too new" and leave it untouched; this build still reads schemas 1-2 and upgrades them on the next save, after keeping a one-time copy.</summary>
-    public const int SupportedSchema = 3;
+    /// per-instance membership fields (id, local name, local description) and the optional workspace category; schema 4 = schema 3 plus
+    /// custom categories and the per-workspace card design (color, image path). Older builds refuse a newer
+    /// file as "too new" and leave it untouched; this build still reads schemas 1-3 and upgrades them on the next save, after keeping a one-time copy.</summary>
+    public const int SupportedSchema = 4;
     private const int OldestReadableSchema = 1;
     /// <summary>Moves the invalid file aside, then the next load starts empty. Code only: nothing in the app calls it, and a real reset needs the user's own explicit approval. Needs the writer lock like any other write.</summary>
     public string? DiscardInvalidFile()
@@ -163,7 +164,8 @@ public sealed class JsonStore : IStoreRepository
     /// <summary>Syntactically valid JSON can still carry nulls where the model requires values; treat that as corrupt data.</summary>
     private static void CheckShape(Store s)
     {
-        if (s.Items is null || s.Workspaces is null) throw new JsonException("items and workspaces are required");
+        if (s.Items is null || s.Workspaces is null || s.CustomCategories is null) throw new JsonException("items, workspaces and custom categories are required");
+        foreach (var c in s.CustomCategories) if (c is null) throw new JsonException("custom category is null");
         foreach (var (key, it) in s.Items)
         {
             if (it is null || it.Id is null || it.Name is null || it.Target is null) throw new JsonException($"item '{key}' has missing fields");
