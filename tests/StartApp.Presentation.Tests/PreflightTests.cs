@@ -111,15 +111,26 @@ public class PreflightTests
     private static (string, ItemType)[] Many(int n) => Enumerable.Range(0, n).Select(i => ($"C:\\d\\f{i}.txt", ItemType.File)).ToArray();
     [Fact] public void SlowChecks_DoNotBlockCaller_AndAggregateDeadlineApplies()
     {
+        // The contract (MainViewModel.CheckThenOpenAsync): ONE aggregate deadline - Task.WhenAny(all workers, Task.Delay(OpenCheckTimeout)).
+        // Checks still running at the deadline are ABANDONED, not awaited, and every unstarted/unfinished item is reported
+        // "check did not finish in time". The proof below is deterministic: the checks stay blocked the whole time, so if
+        // OpenTask completes at all before the gate opens, the wait cannot have depended on any check finishing.
         using var repo = Repo(Many(12).Select(x => (x.Item2, x.Item1)).ToArray()); var l = new FakeLauncher();
-        var vm = new MainViewModel(repo, l, new FakePreflight(_ => { Thread.Sleep(1500); return new(PreflightState.Ready); }), new FixedDetector(OpenState.NotOpen)) { OpenCheckTimeout = TimeSpan.FromMilliseconds(400) };
+        var gate = new ManualResetEventSlim(false); int started = 0;
+        var vm = new MainViewModel(repo, l, new FakePreflight(_ => { Interlocked.Increment(ref started); gate.Wait(TimeSpan.FromSeconds(30)); return new(PreflightState.Ready); }), new FixedDetector(OpenState.NotOpen)) { OpenCheckTimeout = TimeSpan.FromMilliseconds(400) };
         var sw = System.Diagnostics.Stopwatch.StartNew();
         vm.OpenWorkspaceCommand.Execute(null);
         Assert.True(sw.ElapsedMilliseconds < 200, "Execute must return immediately"); Assert.True(vm.IsChecking); Assert.False(vm.OpenWorkspaceCommand.CanExecute(null));
-        vm.OpenTask.Wait();
-        Assert.True(sw.ElapsedMilliseconds < 3000, "overall deadline (~3 x 400 ms batches), not 12 x 1.5 s"); Assert.False(vm.IsChecking); // 3000 keeps the intent (a missed per-batch deadline would take 3 x 1.5 s = 4.5 s) without a zero-headroom race at exactly 1200 ms
-        Assert.Empty(l.Launched); Assert.Equal(12, vm.OpenProblems.Count); Assert.All(vm.OpenProblems, p => Assert.Contains("did not finish in time", p));
+        // Broad watchdog only: the semantics above are proven by completion-while-blocked, not by this number.
+        Assert.True(vm.OpenTask.Wait(TimeSpan.FromSeconds(15)), "the aggregate deadline must end the wait while every check is still blocked");
+        Assert.False(vm.IsChecking);
+        Assert.Equal(12, vm.OpenProblems.Count); Assert.All(vm.OpenProblems, p => Assert.Contains("did not finish in time", p));
+        Assert.InRange(Volatile.Read(ref started), 1, CheckWorkersUpperBound); // workers blocked on their first item; the queue behind them was abandoned
+        Assert.Empty(l.Launched);
+        gate.Set(); // let the abandoned workers exit; their late results must not change the published outcome
+        Assert.Equal(12, vm.OpenProblems.Count);
     }
+    private const int CheckWorkersUpperBound = 4;
     [Fact] public void Checks_UseAtMostFourWorkers()
     {
         using var repo = Repo(Many(20).Select(x => (x.Item2, x.Item1)).ToArray()); int cur = 0, max = 0;
