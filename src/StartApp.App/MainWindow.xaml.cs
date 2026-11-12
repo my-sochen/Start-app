@@ -32,6 +32,33 @@ public partial class MainWindow : Window
         if (!_closeApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
         base.OnClosing(e);
     }
+    // Capture dropdown (לכידה): anchored under its button at the window's left edge, so it opens downward and stays inside the window.
+    private void CaptureMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.PlacementTarget = button;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
+    // Drag from the capture list onto the workspace side. Each drop is one item and goes through the per-drag duplicate warning in the view model.
+    private Point _dragStart;
+    private void CaptureList_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _dragStart = e.GetPosition(null);
+    private void CaptureList_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+        var pos = e.GetPosition(null);
+        if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        if (e.OriginalSource is DependencyObject src && ItemsControl.ContainerFromElement(CaptureList, src) is ListBoxItem { DataContext: MainViewModel.CaptureRow row })
+            DragDrop.DoDragDrop(CaptureList, new DataObject(typeof(MainViewModel.CaptureRow), row), DragDropEffects.Copy);
+    }
+    private void CaptureDropZone_DragOver(object sender, DragEventArgs e) { e.Effects = e.Data.GetDataPresent(typeof(MainViewModel.CaptureRow)) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
+    private void CaptureDropZone_Drop(object sender, DragEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
+        e.Handled = true;
+    }
     private void CardActions_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu })
