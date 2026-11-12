@@ -21,7 +21,7 @@ jobs:
     - name: All unit tests (Windows, whole solution)
       shell: pwsh
       run: |
-        dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
+        dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error|Failed |Error Message|Stack Trace' | ForEach-Object { $_.Line }
         if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
     - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
       shell: pwsh
