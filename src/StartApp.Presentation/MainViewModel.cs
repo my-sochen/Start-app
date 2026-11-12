@@ -120,11 +120,11 @@ public sealed class MainViewModel : ObservableBase
     public ICommand ConfirmDuplicateCommand { get; }
     public ICommand CancelDuplicateCommand { get; }
     /// <summary>Set instead of opening when the workspace has no items (the spec's דיאלוג סביבת עבודה ריקה).</summary>
-    public bool EmptyWorkspaceOpen { get => _emptyOpen; private set => Set(ref _emptyOpen, value); }
+    public bool EmptyWorkspaceOpen { get => _emptyOpen; private set { Set(ref _emptyOpen, value); RaiseCommands(); } }
     private bool _emptyOpen;
     public ICommand CloseEmptyWorkspaceCommand { get; }
     /// <summary>The shared unsaved-changes exit dialog (דיאלוג יציאה עם שינויים שלא נשמרו).</summary>
-    public bool UnsavedOpen { get => _unsavedOpen; private set => Set(ref _unsavedOpen, value); }
+    public bool UnsavedOpen { get => _unsavedOpen; private set { Set(ref _unsavedOpen, value); RaiseCommands(); } }
     private bool _unsavedOpen;
     private Action _exitAction = () => { };
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
@@ -269,7 +269,7 @@ public sealed class MainViewModel : ObservableBase
     private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false) { UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
-    public bool AddressEditOpen { get => _addressEditOpen; private set => Set(ref _addressEditOpen, value); }
+    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); RaiseCommands(); } }
     private bool _addressEditOpen;
     private string _addressInstId = "";
     public string EditAddress { get => _editAddress; set { Set(ref _editAddress, value ?? ""); Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
@@ -297,7 +297,7 @@ public sealed class MainViewModel : ObservableBase
     }
 
     // ---- open-with popup (פופאפ פתח באמצעות): browser for a site, program for a file; per-instance הגדר כברירת מחדל ----
-    public bool OpenWithOpen { get => _openWithOpen; private set => Set(ref _openWithOpen, value); }
+    public bool OpenWithOpen { get => _openWithOpen; private set { Set(ref _openWithOpen, value); RaiseCommands(); } }
     private bool _openWithOpen;
     private ItemRow? _openWithRow;
     /// <summary>Which program the popup asks for: a browser for a site, a program for a file/folder.</summary>
@@ -331,7 +331,7 @@ public sealed class MainViewModel : ObservableBase
 
     // ---- card design popup (פופאפ עיצוב כרטיס, settled Nov 11): per-workspace color and background image, with a live
     // preview in the view, a save button on any change, and the shared unsaved-exit dialog on X ----
-    public bool DesignEditOpen { get => _designEditOpen; private set => Set(ref _designEditOpen, value); }
+    public bool DesignEditOpen { get => _designEditOpen; private set { Set(ref _designEditOpen, value); RaiseCommands(); } }
     private bool _designEditOpen;
     private string _designWsId = "";
     /// <summary>#RRGGBB, empty = the default look. The preview and the card show this value as the frame (with an image) or the background (without).</summary>
@@ -373,7 +373,7 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<CategoryRow> CategoryRows { get; } = new();
     /// <summary>The flat list for the create form and the details screen: built-ins first, then custom.</summary>
     public ObservableCollection<string> CategoryChoices { get; } = new();
-    public bool CategoryEditOpen { get => _categoryEditOpen; private set => Set(ref _categoryEditOpen, value); }
+    public bool CategoryEditOpen { get => _categoryEditOpen; private set { Set(ref _categoryEditOpen, value); RaiseCommands(); } }
     private bool _categoryEditOpen;
     private string _categoryWsId = "";
     /// <summary>The category the workspace in the popup currently has (displayed as the selected one).</summary>
@@ -498,7 +498,7 @@ public sealed class MainViewModel : ObservableBase
     }
 
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
-    public bool ItemEditOpen { get => _itemEditOpen; private set => Set(ref _itemEditOpen, value); }
+    public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); RaiseCommands(); } }
     private bool _itemEditOpen;
     private string _editItemId = "";
     public string EditItemName { get => _editItemName; set { Set(ref _editItemName, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
