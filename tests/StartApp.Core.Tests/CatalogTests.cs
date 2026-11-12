@@ -142,4 +142,23 @@ public class OwnedCloseTests
         Assert.Equal(CloseOutcome.Closed, OwnedClose.Try(spy, new LaunchResult(LaunchStatus.Started, Ownership.Confirmed, "h")));
         Assert.Equal(1, spy.Calls);
     }
+    [Fact] public void UpdateWorkspace_ReplacesFields_AndValidates()
+    {
+        var c = new Catalog(new Store());
+        var w = c.CreateWorkspace("w", "d1", "cat1");
+        Assert.NotNull(w.CreatedAt);
+        c.UpdateWorkspace(w.Id, "w2", "d2", "cat2");
+        Assert.Equal("w2", w.Name); Assert.Equal("d2", w.Description); Assert.Equal("cat2", w.Category);
+        c.UpdateWorkspace(w.Id, "w2", "   ", "  ");
+        Assert.Null(w.Description); Assert.Null(w.Category); Assert.Equal("כללי", w.EffectiveCategory);
+        Assert.Throws<ArgumentException>(() => c.UpdateWorkspace(w.Id, " ", null, null));
+        Assert.Throws<ArgumentException>(() => c.UpdateWorkspace(w.Id, "w2", new string('x', 501), null));
+        Assert.Empty(c.Validate());
+    }
+    [Fact] public void CreateWorkspace_RequiresAName()
+    {
+        var c = new Catalog(new Store());
+        Assert.Throws<ArgumentException>(() => c.CreateWorkspace("  "));
+        Assert.Empty(c.Store.Workspaces);
+    }
 }
