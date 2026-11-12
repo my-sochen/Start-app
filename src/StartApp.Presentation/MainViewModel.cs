@@ -273,7 +273,7 @@ public sealed class MainViewModel : ObservableBase
     private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false) { UnsavedForCapture = forCapture; UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
-    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); RaiseCommands(); } }
+    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); if (!value) { _addressStaged = null; _addressInstId = ""; } RaiseCommands(); } }
     private bool _addressEditOpen;
     private string _addressInstId = "";
     public string EditAddress { get => _editAddress; set { Set(ref _editAddress, value ?? ""); Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
@@ -281,9 +281,20 @@ public sealed class MainViewModel : ObservableBase
     private string _origAddress = "";
     /// <summary>Any change in the address popup shows its Save button (same rule as the other edit screens).</summary>
     public bool AddressEditDirty => AddressEditOpen && EditAddress != _origAddress;
-    private void BeginAddressEdit(ItemRow row) { _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    private StagedRow? _addressStaged;
+    private void BeginAddressEdit(ItemRow row) { _addressStaged = null; _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    /// <summary>עריכת כתובת on a staged row: the same address popup a saved item gets, but שמור writes the staged row's
+    /// address (staged until the capture's own שמור) instead of the store.</summary>
+    private void BeginAddressEditStaged(StagedRow row) { _addressInstId = ""; _addressStaged = row; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
     private bool SaveAddress()
     {
+        if (_addressStaged is { } sa)
+        {
+            var errS = Catalog.ValidateTarget(sa.Type, EditAddress);
+            if (errS != null) { Status = "Not saved: " + errS; return false; }
+            sa.Target = EditAddress; Status = "Address updated on the staged item (saved to the workspace on שמור)"; AddressEditOpen = false;
+            return true;
+        }
         var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing"; return false; }
         var err = Catalog.ValidateTarget(it.Type, EditAddress);
@@ -977,6 +988,7 @@ public sealed class MainViewModel : ObservableBase
     public ICommand StagedMoveUpCommand { get; private set; } = null!;
     public ICommand StagedMoveDownCommand { get; private set; } = null!;
     public ICommand StagedOpenWithCommand { get; private set; } = null!;
+    public ICommand StagedEditAddressCommand { get; private set; } = null!;
     public ICommand ConfirmCaptureDupSingleCommand { get; private set; } = null!;
     public ICommand CancelCaptureDupSingleCommand { get; private set; } = null!;
     public ICommand ConfirmCaptureDupGroupCommand { get; private set; } = null!;
@@ -999,8 +1011,9 @@ public sealed class MainViewModel : ObservableBase
         // הזז למעלה/למטה; שיתוף לסביבה אחרת stays visible-disabled while that action is undefined) with staged semantics:
         // edits and a chosen default stay staged until שמור, and the source capture list is never changed.
         StagedCopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((StagedRow)p!).Target); Status = "Address copied"; }, p => p is StagedRow && IsCaptureSide);
-        StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow sr && IsCaptureSide && StagedRows.IndexOf(sr) > 0);
-        StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow sr && IsCaptureSide && StagedRows.IndexOf(sr) >= 0 && StagedRows.IndexOf(sr) < StagedRows.Count - 1);
+        StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow sr && IsCaptureSide && StagedCanMove(sr, -1));
+        StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow sr && IsCaptureSide && StagedCanMove(sr, 1));
+        StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);
@@ -1100,11 +1113,22 @@ public sealed class MainViewModel : ObservableBase
         if (dups.Count > 0) { CaptureDupChoices.Clear(); foreach (var d in dups) CaptureDupChoices.Add(new DupChoice(d)); CaptureDupGroupPending = true; }
         Status = $"{rows.Count - dups.Count} added on screen, not saved yet" + (dups.Count > 0 ? $"; {dups.Count} already in the workspace need your choice" : "");
     }
+    /// <summary>Staged reorder mirrors the details screen: הזז swaps with the next staged row IN THE SAME display
+    /// group; at the group's edge it does nothing (same boundary rule as Catalog.MoveInstance).</summary>
     private void MoveStaged(StagedRow row, int delta)
     {
-        var i = StagedRows.IndexOf(row); var j = i + delta;
-        if (i < 0 || j < 0 || j >= StagedRows.Count) return;
+        var i = StagedRows.IndexOf(row); if (i < 0 || delta == 0) return;
+        var g = row.Group; var step = Math.Sign(delta); var j = i + step;
+        while (j >= 0 && j < StagedRows.Count && StagedRows[j].Group != g) j += step;
+        if (j < 0 || j >= StagedRows.Count) return;
         StagedRows.Move(i, j); RaiseCommands();
+    }
+    private bool StagedCanMove(StagedRow row, int delta)
+    {
+        var i = StagedRows.IndexOf(row); if (i < 0) return false;
+        var g = row.Group; var step = Math.Sign(delta); var j = i + step;
+        while (j >= 0 && j < StagedRows.Count) { if (StagedRows[j].Group == g) return true; j += step; }
+        return false;
     }
     /// <summary>פתח באמצעות on a staged row: the same popup a saved item gets, but a chosen default lands on the staged
     /// row's open-with field (written to the store only on שמור) and Go opens the item straight from the staged values.</summary>
