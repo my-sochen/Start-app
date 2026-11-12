@@ -62,11 +62,11 @@
                                         AutomationProperties.Name="Workspace actions" Click="CardActions_Click">
                                     <Button.ContextMenu>
                                         <ContextMenu>
-                                            <MenuItem Header="הצג" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="שגר" Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="הוסף אייטם" Command="{Binding DataContext.AddItemToCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="עצב כרטיס" Command="{Binding DataContext.DesignCardCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="ערוך קטגוריה" Command="{Binding DataContext.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="הצג" Command="{Binding PlacementTarget.DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="שגר" Command="{Binding PlacementTarget.DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.DataContext.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.DataContext.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.DataContext.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>
@@ -107,7 +107,7 @@
                         <TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
                         <TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Workspace description"/>
                     </DockPanel>
-                    <Button Content="Save" Command="{Binding SaveDetailsCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="12,2"
+                    <Button Content="Save" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="12,2"
                             Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                 </StackPanel>
                 <Border DockPanel.Dock="Top" Margin="0,8,0,0" BorderBrush="Gray" BorderThickness="1" Padding="6"
@@ -127,7 +127,7 @@
                             <TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
                         </DockPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="Save" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
+                            <Button Content="Save" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
                                     Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
                             <Button Content="Cancel" Command="{Binding CancelItemEditCommand}" Padding="12,2"/>
                         </StackPanel>
@@ -193,20 +193,20 @@
                                     <Button Content="⋯" AutomationProperties.Name="Item actions" Click="CardActions_Click" Padding="6,0">
                                         <Button.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="מחיקה" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="העתק כתובת" Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="עריכת כתובת" Command="{Binding DataContext.EditAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="פתח באמצעות" Command="{Binding DataContext.OpenWithCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
+                                                <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.DataContext.EditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.DataContext.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
                                                     <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
                                                         <!-- a program item IS the program; open-with does not apply to it -->
                                                         <DataTrigger Binding="{Binding Type}" Value="Program"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                                     </Style.Triggers></Style></MenuItem.Style>
                                                 </MenuItem>
-                                                <MenuItem Header="הזז למעלה" Command="{Binding DataContext.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="הזז למטה" Command="{Binding DataContext.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.DataContext.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.DataContext.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
                                                 <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False"
-                                                          Visibility="{Binding DataContext.HasOtherWorkspaces, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource B2V}}"/>
+                                                          Visibility="{Binding PlacementTarget.DataContext.HasOtherWorkspaces, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource B2V}}"/>
                                                 <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
                                             </ContextMenu>
                                         </Button.ContextMenu>
