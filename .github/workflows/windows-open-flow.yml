@@ -1,0 +1,173 @@
+# CI-only evidence run for implementation cycle 1: create workspace, add items manually, open them.
+# The NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
+# Synthetic temp files only. ok.txt really opens in its default handler; a missing file must be flagged and skipped/failed; an https link gets a real open request.
+# The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM). No user files, nothing outside the runner.
+name: windows-open-flow
+on:
+  push:
+    branches: [ci/smoke-open-flow]
+    paths: [ci-trigger-open.txt]   # only this marker file starts a run, so file-by-file commits cost nothing
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  evidence:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build normal App
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag, out-images | Out-Null
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+      - name: All unit tests (Windows, whole solution)
+        shell: pwsh
+        run: |
+          dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
+          if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
+      - name: Cycle-1 flow UI run (create, add, open, cancel, open anyway)
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); }'
+          $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
+          $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
+          function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
+          function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
+          function Shot($state) {
+            $script:shot++; $f = "out-images/run$runId-open-{0:00}-$state.png" -f $script:shot
+            $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
+            if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+            $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+          }
+          function Texts() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+          function ListLines() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+          function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+          function ClickBtn($name, $settle = 900) {
+            $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
+            if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
+            $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
+          }
+          function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
+          function Edits() { $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Sort-Object { $_.Current.BoundingRectangle.X } }
+          function SetText($edit, $text) { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Start-Sleep -Milliseconds 400 }
+          function SetType($typeName) {
+            $combo = $win.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)))
+            if (-not $combo) { return 'combo not found' }
+            $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
+            $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
+            if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
+            if (-not $it) { return "type item '$typeName' not found" }
+            $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
+          }
+          function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
+          try {
+            $root = Join-Path $env:RUNNER_TEMP 'open-flow'; New-Item -ItemType Directory -Force $root | Out-Null
+            Set-Content "$root\ok.txt" 'synthetic'
+            $missing = "$root\missing.txt"   # deliberately NOT created: preflight must flag it
+            $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; if (Test-Path $storeDir) { Remove-Item -Recurse -Force $storeDir }
+            $store = Join-Path $storeDir 'store.json'
+            $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+            $p = Start-Process -FilePath $exe.FullName -PassThru
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Seconds 2
+            Assert 'app window opened with no store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
+            $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
+            Assert 'automation window found' ($null -ne $win) ''
+            $descBox = $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Item description')))))
+            $plainEdits = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.Name -ne 'Item description' } | Sort-Object { $_.Current.BoundingRectangle.X })
+            Assert 'two plain text boxes (name, target) plus description box' ($plainEdits.Count -eq 2 -and $null -ne $descBox) "plain=$($plainEdits.Count) desc=$($null -ne $descBox)"
+            $nameBox = $plainEdits[0]; $targetBox = $plainEdits[1]
+            # 1. create workspace
+            SetText $nameBox 'E2E ws'
+            $c = ClickBtn 'Create workspace'; Assert 'create workspace clicked' ($c -eq 'ok') $c
+            Assert 'workspace listed and selected' (WaitText 'E2E ws' 20) ((ListLines) -join ' || ')
+            Assert 'name box cleared after create' ($nameBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '') ''
+            # 2. manual adds: https link, existing file, missing file
+            [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "add link" ($c -eq 'ok') $c
+            [void](SetType 'File'); SetText $targetBox "$root\ok.txt"; $c = ClickBtn 'Add' 600; Assert "add existing file" ($c -eq 'ok') $c
+            [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add' 600; Assert "add missing file" ($c -eq 'ok') $c
+            Start-Sleep -Milliseconds 600
+            $rows = (ListLines) -join ' || '
+            Assert 'three rows listed' ((@($rows -split ' \|\| ' | Where-Object { $_ }).Count) -ge 3) $rows
+            Info 'rows after adds' $rows
+            Shot 'workspace-created-items-added'
+            # persistence of what was typed
+            Start-Sleep -Milliseconds 800
+            $json = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
+            Assert 'store.json has the workspace and all three targets' ($json -match 'E2E ws' -and $json -match 'example\.com' -and $json -match 'ok\.txt' -and $json -match 'missing\.txt') ($json -replace '\s+', ' ')
+            # 3. open: preflight must stop and ask (missing file + honest unknown dup state)
+            $npBefore = NotepadCount
+            $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked' ($c -eq 'ok') $c
+            Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
+            Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
+            Shot 'decision-panel'
+            # 4. cancel: nothing may start
+            $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c
+            Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
+            Start-Sleep -Seconds 2
+            Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
+            Shot 'after-cancel'
+            # 5. open again, confirm: existing file really starts; missing one is attempted and fails honestly; link open request sent
+            $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
+            Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
+            $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
+            Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')
+            Assert 'report: link open request sent' (WaitText 'example.com' 10) ((ListLines) -join ' || ')
+            Assert 'report: missing file failed honestly' (WaitText 'missing.txt: failed' 10) ((ListLines) -join ' || ')
+            Info 'open report' ((ListLines) -join ' || ')
+            $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }
+            Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) "before=$npBefore after=$npAfter"
+            Info 'edge processes after link open' "$(@(Get-Process msedge -ErrorAction SilentlyContinue).Count)"
+            Shot 'after-open-anyway'
+          }
+          catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
+          finally {
+            $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json
+            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
+          }
+          if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt }
+        continue-on-error: true
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-open-01-workspace-created-items-added.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-open-02-decision-panel.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-open-03-after-cancel.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-open-04-after-open-anyway.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: diagnostics-open-flow-${{ github.run_id }}-${{ github.run_attempt }}
+          path: diag/
+          if-no-files-found: warn
+      - name: Fail the job if anything failed
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
