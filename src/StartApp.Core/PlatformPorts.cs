@@ -28,3 +28,66 @@ public static class OwnedClose
             ? closer.TryCloseGracefully(launch.OpaqueHandle)
             : CloseOutcome.NotOwned;
 }
+
+/// <summary>One thing the scan found open right now: the resource's original name and its exact address.</summary>
+public sealed record CapturedItem(ItemType Type, string Name, string Target);
+
+/// <summary>Result of one scan. Notes say honestly what this source cannot see (shown on the capture screen), so a partial detector never looks complete.</summary>
+public sealed record CaptureScan(IReadOnlyList<CapturedItem> Items, IReadOnlyList<string> Notes);
+
+/// <summary>Port: lists what is open on the machine at this moment (לכידה). Implementations must never guess: only what the OS or the app itself reported.</summary>
+public interface IOpenItemCapturer { CaptureScan Scan(); }
+
+/// <summary>No detection available (tests, non-Windows).</summary>
+public sealed class NoCapture : IOpenItemCapturer
+{
+    public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), new[] { "Detection of open items is not available here" });
+}
+
+/// <summary>Runs several sources and merges them; one failing source never hides the others (its failure is reported as a note).</summary>
+public sealed class CompositeCapturer(params IOpenItemCapturer[] sources) : IOpenItemCapturer
+{
+    public CaptureScan Scan()
+    {
+        var items = new List<CapturedItem>(); var notes = new List<string>();
+        foreach (var s in sources)
+        {
+            try { var r = s.Scan(); items.AddRange(r.Items); notes.AddRange(r.Notes); }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException)
+            { notes.Add(s.GetType().Name + " failed: " + e.GetType().Name); }
+        }
+        return new(CaptureRules.Dedupe(items), notes);
+    }
+}
+
+public static class CaptureRules
+{
+    /// <summary>One row per resource: same type and exact target appears once (the first name wins). Order is kept.</summary>
+    public static IReadOnlyList<CapturedItem> Dedupe(IEnumerable<CapturedItem> items)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal); var list = new List<CapturedItem>();
+        foreach (var i in items) if (seen.Add(Catalog.Key(i.Type, i.Target))) list.Add(i);
+        return list;
+    }
+
+    /// <summary>file:///C:/Users/a%20b -> C:\Users\a b; null when it is not a local file URL (or not an absolute drive/UNC path).</summary>
+    public static string? FileUrlToPath(string? url)
+    {
+        if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var u) || !u.IsFile) return null;
+        var p = u.LocalPath;
+        return Catalog.IsAbsoluteWindowsPath(p) ? p : null;
+    }
+
+    /// <summary>Browsers hide the scheme in the address bar. Accepts only a single token that parses as an http(s) URL after adding https:// when no scheme is shown; anything else (search text, internal pages) is not a site.</summary>
+    public static string? SiteFromAddressText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Any(char.IsWhiteSpace) || text.Any(char.IsControl)) return null;
+        var t = text.Contains("://") ? text : "https://" + text;
+        if (!Uri.TryCreate(t, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || !u.Host.Contains('.')) return null;
+        return t;
+    }
+
+    /// <summary>Process names that are shell/system hosts, not user programs.</summary>
+    public static readonly IReadOnlySet<string> NonProgramProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    { "explorer", "ApplicationFrameHost", "TextInputHost", "SearchHost", "ShellExperienceHost", "StartMenuExperienceHost", "LockApp", "SystemSettings", "StartApp.App", "dwm", "csrss", "RuntimeBroker" };
+}
