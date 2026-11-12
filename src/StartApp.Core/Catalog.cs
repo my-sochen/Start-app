@@ -6,7 +6,14 @@ public sealed class Catalog
     private readonly Store _s;
     private readonly Func<string> _rand;
     /// <param name="randomPart">Test hook for deterministic id parts; default is random.</param>
-    public Catalog(Store s, Func<string>? randomPart = null) { _s = s; _rand = randomPart ?? (() => Guid.NewGuid().ToString("N")[..8]); }
+    public Catalog(Store s, Func<string>? randomPart = null)
+    {
+        _s = s; _rand = randomPart ?? (() => Guid.NewGuid().ToString("N")[..8]);
+        // Instances in older files have no id yet: assign one in memory. It persists only if a later save happens (the normal upgrade path).
+        foreach (var w in _s.Workspaces)
+            for (var i = 0; i < w.Items.Count; i++)
+                if (w.Items[i].Id is null) w.Items[i] = w.Items[i] with { Id = NewId("mi_", id => _s.Workspaces.SelectMany(x => x.Items).Any(m => m.Id == id)) };
+    }
     public Store Store => _s;
 
     // Identity key: type + exact target. No trim, case folding, slash rewriting or URL normalization, so distinct
@@ -58,6 +65,15 @@ public sealed class Catalog
         return null;
     }
 
+    /// <summary>Instance/workspace names are stored exactly as typed (never trimmed). Null means "no local name" (fall back to the
+    /// original); a whitespace-only name is rejected, not silently dropped.</summary>
+    public static string? ValidateInstanceName(string? name)
+    {
+        if (name is null) return null;
+        if (string.IsNullOrWhiteSpace(name)) return "name is empty";
+        return null;
+    }
+
     /// <summary>Reuses the catalog item with the same type and target. A given description never overwrites an existing non-empty one; it only fills an empty one.</summary>
     public Item GetOrAddItem(ItemType type, string name, string target, string? description = null)
     {
@@ -76,26 +92,46 @@ public sealed class Catalog
         return item;
     }
 
-    public Workspace CreateWorkspace(string name, string? description = null)
+    public Workspace CreateWorkspace(string name, string? description = null, string? category = null)
     {
-        var w = new Workspace { Id = NewId("ws_", id => _s.Workspaces.Any(w => w.Id == id)), Name = name, Description = description };
+        var w = new Workspace { Id = NewId("ws_", id => _s.Workspaces.Any(w => w.Id == id)), Name = name, Description = description, Category = category };
         _s.Workspaces.Add(w);
         return w;
     }
 
     private Workspace Ws(string id) => _s.Workspaces.FirstOrDefault(w => w.Id == id) ?? throw new KeyNotFoundException(id);
 
-    /// <summary>Adds an item reference. Existing membership is kept as is (no duplicate, launch config not overwritten).</summary>
-    public bool AddToWorkspace(string workspaceId, string itemId, LaunchConfig? launch = null)
+    /// <summary>Adds a new instance of the item. The same item may appear more than once in a workspace: each call creates an
+    /// independent instance with its own id, name, description and launch config (the duplicate warning and confirmation are a UI concern).
+    /// An existing instance is never modified by adding another one.</summary>
+    public Membership AddToWorkspace(string workspaceId, string itemId, LaunchConfig? launch = null, string? name = null, string? description = null)
     {
         var w = Ws(workspaceId);
-        if (!_s.Items.ContainsKey(itemId)) throw new KeyNotFoundException(itemId);
-        if (w.Items.Any(m => m.ItemId == itemId)) return false;
-        var le = ValidateLaunch(_s.Items[itemId].Type, launch); if (le != null) throw new ArgumentException(le);
-        w.Items.Add(new Membership(itemId, launch));
-        return true;
+        if (!_s.Items.TryGetValue(itemId, out var item)) throw new KeyNotFoundException(itemId);
+        var le = ValidateLaunch(item.Type, launch); if (le != null) throw new ArgumentException(le);
+        var ne = ValidateInstanceName(name); if (ne != null) throw new ArgumentException(ne);
+        var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
+        if (string.IsNullOrWhiteSpace(description)) description = null;
+        var m = new Membership(itemId, launch, NewId("mi_", id => _s.Workspaces.SelectMany(x => x.Items).Any(x => x.Id == id)), name, description);
+        w.Items.Add(m);
+        return m;
     }
 
+    /// <summary>True when the workspace already holds at least one instance whose catalog item has this exact type and target.</summary>
+    public bool HasTarget(string workspaceId, ItemType type, string target)
+    {
+        var key = Key(type, target);
+        return Ws(workspaceId).Items.Any(m => _s.Items.TryGetValue(m.ItemId, out var it) && Key(it.Type, it.Target) == key);
+    }
+
+    /// <summary>Removes one instance. Other instances of the same item, in this or other workspaces, are not affected.</summary>
+    public void RemoveInstance(string workspaceId, string membershipId)
+    {
+        if (Ws(workspaceId).Items.RemoveAll(m => m.Id == membershipId) == 0) throw new KeyNotFoundException(membershipId);
+        RemoveOrphans();
+    }
+
+    /// <summary>Removes every instance of the item in this workspace. UI removal targets one instance via <see cref="RemoveInstance"/>.</summary>
     public void RemoveFromWorkspace(string workspaceId, string itemId)
     {
         Ws(workspaceId).Items.RemoveAll(m => m.ItemId == itemId);
@@ -108,18 +144,16 @@ public sealed class Catalog
         RemoveOrphans();
     }
 
-    /// <summary>Not used by the UI yet. If the new target is already a catalog item, that item keeps its own description and the description of the replaced item is dropped with it (when it becomes an orphan). Local edit: only this workspace's reference changes. Reuses a matching catalog item or creates one; old item removed if orphaned. Launch config kept.</summary>
-    public Item ReplaceTargetLocal(string workspaceId, string itemId, string newTarget, string? newName = null)
+    /// <summary>Not used by the UI yet. Local edit: only this one instance changes; every other instance of the same target keeps its
+    /// own name, description and launch config. Reuses a matching catalog item or creates one; the old item is removed if orphaned.</summary>
+    public Item ReplaceTargetLocal(string workspaceId, string membershipId, string newTarget, string? newName = null)
     {
         var w = Ws(workspaceId);
-        var idx = w.Items.FindIndex(m => m.ItemId == itemId);
-        if (idx < 0) throw new KeyNotFoundException(itemId);
-        var old = _s.Items[itemId];
+        var idx = w.Items.FindIndex(m => m.Id == membershipId);
+        if (idx < 0) throw new KeyNotFoundException(membershipId);
+        var old = _s.Items[w.Items[idx].ItemId];
         var item = GetOrAddItem(old.Type, newName ?? old.Name, newTarget, old.Description);
-        if (item.Id == itemId) return item;
-        var launch = w.Items[idx].Launch;
-        if (w.Items.Any(m => m.ItemId == item.Id)) w.Items.RemoveAt(idx); // target already present in this workspace: keep one membership
-        else w.Items[idx] = new Membership(item.Id, launch);
+        w.Items[idx] = w.Items[idx] with { ItemId = item.Id };
         RemoveOrphans();
         return item;
     }
@@ -141,9 +175,13 @@ public sealed class Catalog
         foreach (var it in _s.Items.Values) { var te = ValidateTarget(it.Type, it.Target); if (te != null) errs.Add($"{it.Id}: {te}"); var de = ValidateDescription(it.Description); if (de != null) errs.Add($"{it.Id}: {de}"); }
         foreach (var w in _s.Workspaces)
         {
-            if (w.Items.GroupBy(m => m.ItemId).Any(g => g.Count() > 1)) errs.Add($"{w.Id}: duplicate membership");
+            if (w.Category is not null && string.IsNullOrWhiteSpace(w.Category)) errs.Add($"{w.Id}: category is empty");
+            if (w.Items.Any(m => m.Id is null)) errs.Add($"{w.Id}: instance without an id");
+            if (w.Items.Where(m => m.Id is not null).GroupBy(m => m.Id).Any(g => g.Count() > 1)) errs.Add($"{w.Id}: duplicate instance id");
             foreach (var m in w.Items)
             {
+                if (ValidateInstanceName(m.Name) is { } ne) errs.Add($"{w.Id}/{m.Id}: {ne}");
+                if (ValidateDescription(m.Description) is { } de) errs.Add($"{w.Id}/{m.Id}: {de}");
                 if (!_s.Items.TryGetValue(m.ItemId, out var it)) { errs.Add($"{w.Id}: dangling {m.ItemId}"); continue; }
                 var le = ValidateLaunch(it.Type, m.Launch); if (le != null) errs.Add($"{w.Id}/{m.ItemId}: {le}");
             }
