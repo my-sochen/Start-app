@@ -1,14 +1,4 @@
-# CI-only evidence run for implementation cycle 1 (feat/per-instance-items): create workspace -> details screen,
-# manual add (per-instance name/description), duplicate confirmation, details edit/save/cancel with the
-# unsaved-changes guard, empty-workspace dialog with go-to-details, and a real open with preflight.
-# The NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
-# Synthetic temp files only. ok.txt really opens in its default handler; a missing file must be flagged; an https link gets a real open request.
-# The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM). No user files, nothing outside the runner.
 name: windows-open-flow-feat
-on:
-  push:
-    branches: [feat/per-instance-items]
-    paths: [ci-trigger-feat.txt]   # only this marker file starts a run, so file-by-file commits cost nothing
 permissions:
   contents: read
 env:
@@ -19,422 +9,161 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-dotnet@v6.1.0
-        with:
-          dotnet-version: 10.0.x
-      - name: Build normal App
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force diag, out-images | Out-Null
-          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
-      - name: All unit tests (Windows, whole solution)
-        shell: pwsh
-        run: |
-          dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
-          if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
-      - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
-        shell: pwsh
-        run: |
-          try {
-          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
-          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
-          $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
-          $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
-          function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
-          function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
-          function Shot($state) {
-            [void][W]::SetCursorPos(5, 5); [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x27); Start-Sleep -Milliseconds 400
-            $script:shot++; $f = "out-images/feat-{0:00}-$state.png" -f $script:shot
-            $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
-            if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
-            $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
-          }
-          function Texts() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
-          function ListLines() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
-          function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
-          function BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
-          function ClickBtn($name, $settle = 900) {
-            $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
-            if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
-            $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
-          }
-          function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
-          function NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
-          function NamedCombo($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
-          function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
-          function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
-          function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
-          function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
-          function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
-          function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
-          function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
-          function SetType($typeName) {
-            $combo = NamedCombo 'Item type'
-            if (-not $combo) { return 'item type combo not found' }
-            $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
-            $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
-            if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
-            if (-not $it) { return "type item '$typeName' not found" }
-            $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
-          }
-          function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
-          function AnyByName($name) { $e = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
-          function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
-          try {
-            $root = Join-Path $env:RUNNER_TEMP 'open-flow'; New-Item -ItemType Directory -Force $root | Out-Null
-            Set-Content "$root\ok.txt" 'synthetic'
-            $missing = "$root\missing.txt"   # deliberately NOT created: preflight must flag it
-            $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; if (Test-Path $storeDir) { Remove-Item -Recurse -Force $storeDir }
-            $store = Join-Path $storeDir 'store.json'
-            $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
-            $p = Start-Process -FilePath $exe.FullName -PassThru
-            $sw = [Diagnostics.Stopwatch]::StartNew()
-            while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
-            Start-Sleep -Seconds 2
-            Assert 'app window opened with no store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
-            $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
-            Assert 'automation window found' ($null -ne $win) ''
-            # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
-            Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
-            $wsNameBox = NamedEdit 'Workspace name'; $wsDescBox = NamedEdit 'Workspace description'
-            Assert 'create form boxes found' ($null -ne $wsNameBox -and $null -ne $wsDescBox) ''
-            SetText $wsNameBox 'E2E ws'; SetText $wsDescBox 'first workspace'
-            $c = ClickBtn 'Create workspace'; Assert 'create workspace clicked' ($c -eq 'ok') $c
-            Assert 'details screen opened after create' (WaitText 'Created:' 15) ((Texts) -join ' | ')
-            Assert 'creation date shown, not unknown' (-not (WaitText 'Created: unknown' 2)) ((Texts) -join ' | ')
-            Assert 'empty state message in Hebrew' (WaitText 'עדיין אין אייטמים בסביבה' 10) ((Texts) -join ' | ')
-            Assert 'empty state has an add-item button' ($null -ne (Btn 'הוסף אייטם')) ''
-            $catCombo = NamedCombo 'Workspace category'
-            Assert 'category defaults to כללי' ($null -ne $catCombo -and (ComboValue $catCombo) -eq 'כללי') ($catCombo ? (ComboValue $catCombo) : 'combo not found')
-            Shot 'details-after-create-empty'
-            # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
-            $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
-            Assert 'add form boxes found' ($null -ne $targetBox -and $null -ne $itemNameBox -and $null -ne $descBox) ''
-            [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add' 600; Assert "add link" ($c -eq 'ok') $c
-            Assert 'instance name shown instead of derived name' (WaitText 'My link' 10) ((Texts) -join ' | ')
-            Assert 'empty message gone after first add' (-not (WaitText 'עדיין אין אייטמים בסביבה' 2)) ''
-            [void](SetType 'File'); SetText $targetBox "$root\ok.txt"; $c = ClickBtn 'Add' 600; Assert "add existing file" ($c -eq 'ok') $c
-            [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add' 600; Assert "add missing file" ($c -eq 'ok') $c
-            Start-Sleep -Milliseconds 600
-            Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')
-            $groups = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-            Assert 'items grouped: Sites and Files & Programs headers shown' (($groups -contains 'Sites') -and ($groups -contains 'Files & Programs')) ("groups: $($groups -join ', ')")
-            Assert 'details category combo still shows כללי after adds' ((ComboValue (NamedCombo 'Workspace category')) -eq 'כללי') (ComboValue (NamedCombo 'Workspace category'))
-            Shot 'details-items-added'
-            # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
-            [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked" ($c -eq 'ok') $c
-            Assert 'duplicate warning shown, nothing added yet' (WaitText 'already in the workspace' 10) ((Texts) -join ' | ')
-            Shot 'duplicate-warning'
-            $c = ClickBtn 'Cancel' 800; Assert 'duplicate cancel clicked' ($c -eq 'ok') $c
-            Start-Sleep -Milliseconds 500
-            $o = StoreObj; $wsItems = @($o.workspaces[0].items)
-            $linkId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq 'https://example.com/' } | Select-Object -First 1).id
-            $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count
-            Assert 'cancel kept a single instance' ($wsItems.Count -eq 3 -and $linkCount -eq 1) "items=$($wsItems.Count) linkInstances=$linkCount"
-            SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked again" ($c -eq 'ok') $c
-            Assert 'duplicate warning shown again' (WaitText 'already in the workspace' 10) ''
-            $c = ClickBtn 'Add anyway' 800; Assert 'add anyway clicked' ($c -eq 'ok') $c
-            Start-Sleep -Milliseconds 500
-            $o = StoreObj; $wsItems = @($o.workspaces[0].items); $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count
-            Assert 'confirm added a second independent instance' ($wsItems.Count -eq 4 -and $linkCount -eq 2) "items=$($wsItems.Count) linkInstances=$linkCount"
-            Shot 'duplicate-added'
-            Start-Sleep -Milliseconds 800
-            $json = StoreJson
-            $inst = @($o.workspaces[0].items | Where-Object { $_.itemId -eq $linkId })
-            Assert 'store.json: two separate instances of the link, instance name persisted' ($inst.Count -eq 2 -and $inst[0].id -ne $inst[1].id -and $inst[0].name -eq 'My link') $json
-            Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
-            # 3b. item row: clicking the name opens that one item only (spec שורה של אייטם: לחיצה על השם פותחת)
-            $npB = NotepadCount
-            $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'ok.txt: open request sent' 15)) ((Texts) -join ' | ')
-            $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
-            Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
-            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            # 3c. item actions menu (no עריכה inside - spec: direct edit button only) and the edit form changes one instance only
-            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-            $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
-            Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
-            Assert 'no עריכה inside the actions menu (direct row button is the only edit path)' ($null -eq (MenuItemByName 'עריכה')) ''
-            $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
-            Assert 'שיתוף לסביבה אחרת hidden with a single workspace' ($null -eq $shareMi -or $shareMi.Current.IsOffscreen) ''
-            [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
-            $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
-            $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
-            Assert 'edit form shows the address too' ($null -ne (NamedEdit 'Edit item target')) ''
-            SetText $eName 'My link edited'
-            $c = ClickBtn 'Save item edit' 900; Assert 'item edit saved' ($c -eq 'ok') $c
-            Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')
-            Assert 'store.json: that instance renamed, target untouched' ((StoreJson) -match 'My link edited' -and (StoreJson) -match 'example\.com') (StoreJson)
-            # 3d. פופאפ עריכת כתובת: full address shown, copy button present, save is instance-local (the second instance keeps its address)
-            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for address popup' ($c -eq 'ok') $c
-            $mi = AnyByName 'עריכת כתובת'; Assert 'address edit entry exists' ($null -ne $mi) ''
-            [void](InvokeEl $mi 'address edit entry'); Start-Sleep -Milliseconds 800
-            $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
-            Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
-            SetText $addr 'https://edited.example/'
-            $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (WaitText 'Address saved' 10)) ((Texts) -join ' | ')
-            Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\.example' -and (StoreJson) -match 'example\.com') (StoreJson)
-            # 3e. פופאפ פתח באמצעות: per-instance הגדר כברירת מחדל, then the open uses the chosen program
-            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
-            $mi = AnyByName 'פתח באמצעות'; Assert 'open-with entry exists' ($null -ne $mi) ''
-            [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
-            $prog = NamedEdit 'Program path'; Assert 'open-with popup opened' ($null -ne $prog) ''
-            SetText $prog 'C:\Windows\notepad.exe'
-            $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''
-            [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
-            $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
-            Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
-            Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
-            Assert 'row shows the chosen program' (WaitText 'notepad.exe' 5) ((Texts) -join ' | ')
-            Shot 'open-with-saved'
-            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            # 4. details editing: change shows Save; save persists
-            $wsNameBox2 = NamedEdit 'Workspace name'
-            SetText $wsNameBox2 'E2E ws renamed'
-            $saveBtn = $null; for ($i = 0; $i -lt 20; $i++) { $saveBtn = Btn 'Save workspace details'; if ($saveBtn) { break }; Start-Sleep -Milliseconds 250 }
-            Assert 'any change shows a Save button' ($null -ne $saveBtn) ''
-            [void](InvokeEl $saveBtn 'Save button'); Start-Sleep -Milliseconds 900
-            Assert 'saved name persisted to store.json' ((StoreJson) -match 'E2E ws renamed') (StoreJson)
-            Shot 'details-after-save'
-            # 5. unsaved-changes guard: edit, Back -> dialog, X returns to editing, Back -> exit without saving
-            SetText (NamedEdit 'Workspace description') 'unsaved edit'
-            $c = ClickBtn 'Back' 800; Assert 'back clicked' ($c -eq 'ok') $c
-            Assert 'unsaved dialog shown with both spec buttons' ((WaitText 'You have changes that were not saved' 10) -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
-            Shot 'unsaved-dialog'
-            $c = ClickBtn 'Back to editing' 600; Assert 'dialog X clicked' ($c -eq 'ok') $c
-            Assert 'X returned to editing, changes kept' ((WaitText 'Created:' 5) -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''
-            $c = ClickBtn 'Back' 800; Assert 'back clicked again' ($c -eq 'ok') $c
-            $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
-            Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
-            Shot 'overview-after-guard'
-            # 6. open flow from details: preflight, cancel, open anyway
-            $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
-            [void](InvokeEl $card 'workspace card'); Start-Sleep -Milliseconds 900
-            Assert 'details reopened from card' (WaitText 'Created:' 10) ''
-            $npBefore = NotepadCount
-            $c = ClickBtn 'שגר' 2500; Assert 'open clicked' ($c -eq 'ok') $c
-            Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-            Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
-            Shot 'decision-panel'
-            $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c
-            Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
-            Start-Sleep -Seconds 2
-            Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
-            $c = ClickBtn 'שגר' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
-            Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-            $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
-            Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')
-            Assert 'report: link open request sent' (WaitText 'example.com' 10) ((ListLines) -join ' || ')
-            Assert 'report: missing file failed honestly' (WaitText 'missing.txt: failed' 10) ((ListLines) -join ' || ')
-            Info 'open report' ((ListLines) -join ' || ')
-            $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }
-            Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) "before=$npBefore after=$npAfter"
-            Shot 'after-open-anyway'
-            Start-Sleep -Milliseconds 800
-            Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)
-            # 7. empty workspace: open shows the dialog, go-to-details button leads to details
-            $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
-            SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
-            Assert 'empty workspace created into details with the Hebrew empty message' (WaitText 'עדיין אין אייטמים בסביבה' 15) ((Texts) -join ' | ')
-            $c = ClickBtn 'שגר' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
-            Assert 'empty workspace dialog with the spec title' (WaitText 'סביבת עבודה ריקה' 15) ((Texts) -join ' | ')
-            Shot 'empty-workspace-dialog'
-            $c = ClickBtn 'עבור לפרטי הסביבה' 900; Assert 'go-to-details clicked' ($c -eq 'ok') $c
-            Assert 'dialog closed, still in details with the empty message' (-not (WaitText 'This workspace has no items yet' 2) -and (WaitText 'עדיין אין אייטמים בסביבה' 5)) ((Texts) -join ' | ')
-            # 8. card actions menu (spec: הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה; workspace deletion was rejected by the user)
-            $c = ClickBtn 'Back' 900; Assert 'back to overview for the menu check' ($c -eq 'ok') $c
-            Assert 'no workspace deletion offered anywhere' ($null -eq (BtnLike 'Delete') -and $null -eq (BtnLike 'מחק') -and $null -eq (BtnLike 'מחיקה')) ((ListLines) -join ' || ')
-            $c = ClickBtn 'Workspace actions' 900; Assert 'card actions menu opened' ($c -eq 'ok') $c
-            $found = @('הצג','שגר','הוסף אייטם','עצב כרטיס','ערוך קטגוריה') | Where-Object { $null -ne (MenuItemByName $_) }
-            Assert 'menu shows the five spec actions' (@($found).Count -eq 5) ("found: $($found -join ', ')")
-            Shot 'card-actions-menu'
-            $show = MenuItemByName 'הצג'
-            [void](InvokeEl $show 'הצג menu entry'); Start-Sleep -Milliseconds 900
-            Assert 'details opened from the menu (הצג)' (WaitText 'Created:' 10) ''
-            # 9. card design popup + category popup (פופאפ עיצוב כרטיס / פופאפ עריכת קטגוריה)
-            $c = ClickBtn 'Back' 900; Assert 'back to overview for the popups' ($c -eq 'ok') $c
-            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for design' ($c -eq 'ok') $c
-            $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900
-            Assert 'design popup opened' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
-            $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
-            if ($colorBox) { SetText $colorBox '#BFDBFE' }
-            $c = ClickBtn 'Save card design' 1500; Assert 'design saved from the popup' ($c -eq 'ok') $c
-            Assert 'design popup closed after save' (-not (WaitText 'תמונת רקע' 2)) ''
-            Assert 'design persisted to the store' ((StoreJson) -like '*#BFDBFE*') (StoreJson)
-            Shot 'card-design-saved'
-            # missing/moved source image: the path is a reference, so a missing file must fall back to the color without breaking the card
-            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for missing-image check' ($c -eq 'ok') $c
-            $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900
-            Assert 'design popup reopened with the saved color' ((ValOf (NamedEdit 'Card color')) -eq '#BFDBFE') ''
-            SetText (NamedEdit 'Card image path') "$root\no-such-image.png"
-            $c = ClickBtn 'Save card design' 1500; Assert 'design with a missing image path saved' ($c -eq 'ok') $c
-            Assert 'app survived a missing image path' (-not $p.HasExited) ''
-            Assert 'missing image path persisted as a reference' ((StoreJson) -like '*no-such-image.png*') (StoreJson)
-            Shot 'card-with-missing-image'
-            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
-            $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
-            Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
-            $newCat = NamedEdit 'New category name'; Assert 'new category box found' ($null -ne $newCat) ''
-            if ($newCat) { SetText $newCat 'E2Ecat' }
-            $c = ClickBtn 'Add category' 900; Assert 'custom category added' ($c -eq 'ok') $c
-            Assert 'custom category listed' (WaitText 'E2Ecat' 5) ((Texts) -join ' | ')
-            Shot 'category-popup-custom-added'
-            $c = ClickBtn 'Close category popup' 900; Assert 'category popup closed' ($c -eq 'ok') $c
-            Assert 'custom category persisted to the store' ((StoreJson) -like '*E2Ecat*') (StoreJson)
-            # 10. existing-resource picker (בחר מסביבות קיימות): four type buttons, pick fills the form (original-name and
-            # usage-sort behavior are unit-tested; the instance-name text also exists in the row below, so E2E does not assert on it)
-            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for details' ($c -eq 'ok') $c
-            $mi = MenuItemByName 'הצג'; [void](InvokeEl $mi 'הצג menu entry for picker'); Start-Sleep -Milliseconds 900
-            Assert 'details opened for the picker' (WaitText 'Created:' 10) ''
-            $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c
-            Assert 'picker shows the four type buttons' ((WaitText 'Program' 5) -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
-            Shot 'resource-picker'
-            $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c
-            $targetVal = ValOf (NamedEdit 'Item target')
-            Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal
-            Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
-          }
-          catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
-          finally {
-            $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json
-            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
-          }
-          if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt }
-          }
-          catch { $il = $_.InvocationInfo; "harness setup error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Out-File -Append diag/errors.txt; @([ordered]@{ name = 'harness setup error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json }
-        continue-on-error: true
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-01-details-after-create-empty
-          path: out-images/feat-01-details-after-create-empty.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-02-details-items-added
-          path: out-images/feat-02-details-items-added.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-03-duplicate-warning
-          path: out-images/feat-03-duplicate-warning.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-04-duplicate-added
-          path: out-images/feat-04-duplicate-added.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-05-open-with-saved
-          path: out-images/feat-05-open-with-saved.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-06-details-after-save
-          path: out-images/feat-06-details-after-save.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-07-unsaved-dialog
-          path: out-images/feat-07-unsaved-dialog.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-08-overview-after-guard
-          path: out-images/feat-08-overview-after-guard.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-09-decision-panel
-          path: out-images/feat-09-decision-panel.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-10-after-open-anyway
-          path: out-images/feat-10-after-open-anyway.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-11-empty-workspace-dialog
-          path: out-images/feat-11-empty-workspace-dialog.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-12-card-actions-menu
-          path: out-images/feat-12-card-actions-menu.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-13-card-design-saved
-          path: out-images/feat-13-card-design-saved.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-14-card-with-missing-image
-          path: out-images/feat-14-card-with-missing-image.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-15-category-popup-custom-added
-          path: out-images/feat-15-category-popup-custom-added.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: shot-feat-16-resource-picker
-          path: out-images/feat-16-resource-picker.png
-          if-no-files-found: warn
-          archive: false
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: diagnostics-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
-          path: diag/
-          if-no-files-found: warn
-      - name: Fail the job if anything failed
-        if: always()
-        shell: pwsh
-        run: |
-          if (-not (Test-Path diag/assertions.json)) { 'E2E step never produced assertions.json - it failed before completing; its step log has the cause' | Out-File -Append diag/errors.txt }
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-dotnet@v6.1.0
+      with:
+        dotnet-version: 10.0.x
+    - name: Build normal App
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force diag, out-images | Out-Null
+        dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+    - name: All unit tests (Windows, whole solution)
+      shell: pwsh
+      run: |
+        dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
+        if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
+    - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
+      shell: pwsh
+      run: "try {\nAdd-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing\nAdd-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport(\"user32.dll\")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport(\"user32.dll\")] public static extern bool SetCursorPos(int x, int y); [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'\n$A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]\n$results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID\nfunction Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = \"$detail\" }); \"ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail\" }\nfunction Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = $true; info = $true; detail = \"$detail\" }); \"INFO $name :: $detail\" }\nfunction Shot($state) {\n  [void][W]::SetCursorPos(5, 5); [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x27); Start-Sleep -Milliseconds 400\n  $script:shot++; $f = \"out-images/feat-{0:00}-$state.png\" -f $script:shot\n  $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T\n  if ($w -le 0 -or $h -le 0) { \"no window rect for $state\" | Tee-Object -Append diag/errors.txt; return }\n  $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save(\"$PWD/$f\"); \"shot $f ${w}x${h}\"\n}\nfunction Texts() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }\nfunction ListLines() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }\nfunction Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }\nfunction BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like \"*$needle*\" } | Select-Object -First 1 }\nfunction ClickBtn($name, $settle = 900) {\n  $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }\n  if (-not $b) { return \"button '$name' not found\" }; if (-not $b.Current.IsEnabled) { return \"button '$name' stayed disabled\" }\n  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'\n}\nfunction WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like \"*$needle*\" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }\nfunction NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }\nfunction NamedCombo($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }\nfunction ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }\nfunction ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }\nfunction InvokeEl($el, $what) { if ($null -eq $el) { Assert \"$what found\" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert \"$what invokable\" $false \"$_\"; return $false } }\nfunction ToggleEl($el, $what) { if ($null -eq $el) { Assert \"$what found\" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert \"$what toggleable\" $false \"$_\"; return $false } }\nfunction MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }\nfunction StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }\nfunction SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false \"$_\" }; Start-Sleep -Milliseconds 400 }\nfunction SetType($typeName) {\n  $combo = NamedCombo 'Item type'\n  if (-not $combo) { return 'item type combo not found' }\n  $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400\n  $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))\n  if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }\n  if (-not $it) { return \"type item '$typeName' not found\" }\n  $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'\n}\nfunction NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }\nfunction AnyByName($name) { $e = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }\nfunction StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\\s+', ' ' } else { '' } }\ntry {\n  $root = Join-Path $env:RUNNER_TEMP 'open-flow'; New-Item -ItemType Directory -Force $root | Out-Null\n  Set-Content \"$root\\ok.txt\" 'synthetic'\n  $missing = \"$root\\missing.txt\"   # deliberately NOT created: preflight must flag it\n  $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; if (Test-Path $storeDir) { Remove-Item -Recurse -Force $storeDir }\n  $store = Join-Path $storeDir 'store.json'\n  $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1\n  $p = Start-Process -FilePath $exe.FullName -PassThru\n  $sw = [Diagnostics.Stopwatch]::StartNew()\n  while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }\n  Start-Sleep -Seconds 2\n  Assert 'app window opened with no store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''\n  $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))\n  Assert 'automation window found' ($null -ne $win) ''\n  # 1. overview: create form + create -> details screen opens (spec: \u05D0\u05D7\u05E8\u05D9 \u05D4\u05D9\u05E6\u05D9\u05E8\u05D4 \u05E0\u05E4\u05EA\u05D7\u05D9\u05DD \u05E4\u05E8\u05D8\u05D9 \u05E1\u05D1\u05D9\u05D1\u05D4)\n  Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')\n  $wsNameBox = NamedEdit 'Workspace name'; $wsDescBox = NamedEdit 'Workspace description'\n  Assert 'create form boxes found' ($null -ne $wsNameBox -and $null -ne $wsDescBox) ''\n  SetText $wsNameBox 'E2E ws'; SetText $wsDescBox 'first workspace'\n  $c = ClickBtn 'Create workspace'; Assert 'create workspace clicked' ($c -eq 'ok') $c\n  Assert 'details screen opened after create' (WaitText 'Created:' 15) ((Texts) -join ' | ')\n  Assert 'creation date shown, not unknown' (-not (WaitText 'Created: unknown' 2)) ((Texts) -join ' | ')\n  Assert 'empty state message in Hebrew' (WaitText '\u05E2\u05D3\u05D9\u05D9\u05DF \u05D0\u05D9\u05DF \u05D0\u05D9\u05D9\u05D8\u05DE\u05D9\u05DD \u05D1\u05E1\u05D1\u05D9\u05D1\u05D4' 10) ((Texts) -join ' | ')\n  Assert 'empty state has an add-item button' ($null -ne (Btn '\u05D4\u05D5\u05E1\u05E3 \u05D0\u05D9\u05D9\u05D8\u05DD')) ''\n  $catCombo = NamedCombo 'Workspace category'\n  Assert 'category defaults to \u05DB\u05DC\u05DC\u05D9' ($null -ne $catCombo -and (ComboValue $catCombo) -eq '\u05DB\u05DC\u05DC\u05D9') ($catCombo ? (ComboValue $catCombo) : 'combo not found')\n  Shot 'details-after-create-empty'\n  # 2. manual adds in the details screen: https link (with instance name), existing file, missing file\n  $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'\n  Assert 'add form boxes found' ($null -ne $targetBox -and $null -ne $itemNameBox -and $null -ne $descBox) ''\n  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add' 600; Assert \"add link\" ($c -eq 'ok') $c\n  Assert 'instance name shown instead of derived name' (WaitText 'My link' 10) ((Texts) -join ' | ')\n  Assert 'empty message gone after first add' (-not (WaitText '\u05E2\u05D3\u05D9\u05D9\u05DF \u05D0\u05D9\u05DF \u05D0\u05D9\u05D9\u05D8\u05DE\u05D9\u05DD \u05D1\u05E1\u05D1\u05D9\u05D1\u05D4' 2)) ''\n  [void](SetType 'File'); SetText $targetBox \"$root\\ok.txt\"; $c = ClickBtn 'Add' 600; Assert \"add existing file\" ($c -eq 'ok') $c\n  [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add' 600; Assert \"add missing file\" ($c -eq 'ok') $c\n  Start-Sleep -Milliseconds 600\n  Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')\n  $groups = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })\n  Assert 'items grouped: Sites and Files & Programs headers shown' (($groups -contains 'Sites') -and ($groups -contains 'Files & Programs')) (\"groups: $($groups -join ', ')\")\n  Assert 'details category combo still shows \u05DB\u05DC\u05DC\u05D9 after adds' ((ComboValue (NamedCombo 'Workspace category')) -eq '\u05DB\u05DC\u05DC\u05D9') (ComboValue (NamedCombo 'Workspace category'))\n  Shot 'details-items-added'\n  # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance\n  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert \"re-add link clicked\" ($c -eq 'ok') $c\n  Assert 'duplicate warning shown, nothing added yet' (WaitText 'already in the workspace' 10) ((Texts) -join ' | ')\n  Shot 'duplicate-warning'\n  $c = ClickBtn 'Cancel' 800; Assert 'duplicate cancel clicked' ($c -eq 'ok') $c\n  Start-Sleep -Milliseconds 500\n  $o = StoreObj; $wsItems = @($o.workspaces[0].items)\n  $linkId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq 'https://example.com/' } | Select-Object -First 1).id\n  $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count\n  Assert 'cancel kept a single instance' ($wsItems.Count -eq 3 -and $linkCount -eq 1) \"items=$($wsItems.Count) linkInstances=$linkCount\"\n  SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert \"re-add link clicked again\" ($c -eq 'ok') $c\n  Assert 'duplicate warning shown again' (WaitText 'already in the workspace' 10) ''\n  $c = ClickBtn 'Add anyway' 800; Assert 'add anyway clicked' ($c -eq 'ok') $c\n  Start-Sleep -Milliseconds 500\n  $o = StoreObj; $wsItems = @($o.workspaces[0].items); $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count\n  Assert 'confirm added a second independent instance' ($wsItems.Count -eq 4 -and $linkCount -eq 2) \"items=$($wsItems.Count) linkInstances=$linkCount\"\n  Shot 'duplicate-added'\n  Start-Sleep -Milliseconds 800\n  $json = StoreJson\n  $inst = @($o.workspaces[0].items | Where-Object { $_.itemId -eq $linkId })\n  Assert 'store.json: two separate instances of the link, instance name persisted' ($inst.Count -eq 2 -and $inst[0].id -ne $inst[1].id -and $inst[0].name -eq 'My link') $json\n  Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json\n  # 3b. item row: clicking the name opens that one item only (spec \u05E9\u05D5\u05E8\u05D4 \u05E9\u05DC \u05D0\u05D9\u05D9\u05D8\u05DD: \u05DC\u05D7\u05D9\u05E6\u05D4 \u05E2\u05DC \u05D4\u05E9\u05DD \u05E4\u05D5\u05EA\u05D7\u05EA)\n  $npB = NotepadCount\n  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'ok.txt: open request sent' 15)) ((Texts) -join ' | ')\n  $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }\n  Assert 'single-item open really started notepad' ($npC -gt $npB) \"before=$npB after=$npC\"\n  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\n  # 3c. item actions menu (no \u05E2\u05E8\u05D9\u05DB\u05D4 inside - spec: direct edit button only) and the edit form changes one instance only\n  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c\n  $ifound = @('\u05DE\u05D7\u05D9\u05E7\u05D4','\u05D4\u05E2\u05EA\u05E7 \u05DB\u05EA\u05D5\u05D1\u05EA','\u05E2\u05E8\u05D9\u05DB\u05EA \u05DB\u05EA\u05D5\u05D1\u05EA','\u05E4\u05EA\u05D7 \u05D1\u05D0\u05DE\u05E6\u05E2\u05D5\u05EA','\u05D4\u05D6\u05D6 \u05DC\u05DE\u05E2\u05DC\u05D4','\u05D4\u05D6\u05D6 \u05DC\u05DE\u05D8\u05D4') | Where-Object { $null -ne (MenuItemByName $_) }\n  Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) (\"found: $($ifound -join ', ')\")\n  Assert 'no \u05E2\u05E8\u05D9\u05DB\u05D4 inside the actions menu (direct row button is the only edit path)' ($null -eq (MenuItemByName '\u05E2\u05E8\u05D9\u05DB\u05D4')) ''\n  $shareMi = MenuItemByName '\u05E9\u05D9\u05EA\u05D5\u05E3 \u05DC\u05E1\u05D1\u05D9\u05D1\u05D4 \u05D0\u05D7\u05E8\u05EA'\n  Assert '\u05E9\u05D9\u05EA\u05D5\u05E3 \u05DC\u05E1\u05D1\u05D9\u05D1\u05D4 \u05D0\u05D7\u05E8\u05EA hidden with a single workspace' ($null -eq $shareMi -or $shareMi.Current.IsOffscreen) ''\n  [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500\n  $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c\n  $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''\n  Assert 'edit form shows the address too' ($null -ne (NamedEdit 'Edit item target')) ''\n  SetText $eName 'My link edited'\n  $c = ClickBtn 'Save item edit' 900; Assert 'item edit saved' ($c -eq 'ok') $c\n  Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')\n  Assert 'store.json: that instance renamed, target untouched' ((StoreJson) -match 'My link edited' -and (StoreJson) -match 'example\\.com') (StoreJson)\n  # 3d. \u05E4\u05D5\u05E4\u05D0\u05E4 \u05E2\u05E8\u05D9\u05DB\u05EA \u05DB\u05EA\u05D5\u05D1\u05EA: full address shown, copy button present, save is instance-local (the second instance keeps its address)\n  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for address popup' ($c -eq 'ok') $c\n  $mi = AnyByName '\u05E2\u05E8\u05D9\u05DB\u05EA \u05DB\u05EA\u05D5\u05D1\u05EA'; Assert 'address edit entry exists' ($null -ne $mi) ''\n  [void](InvokeEl $mi 'address edit entry'); Start-Sleep -Milliseconds 800\n  $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''\n  Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''\n  SetText $addr 'https://edited.example/'\n  $c = ClickBtn '\u05E9\u05DE\u05D5\u05E8' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (WaitText 'Address saved' 10)) ((Texts) -join ' | ')\n  Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\\.example' -and (StoreJson) -match 'example\\.com') (StoreJson)\n  # 3e. \u05E4\u05D5\u05E4\u05D0\u05E4 \u05E4\u05EA\u05D7 \u05D1\u05D0\u05DE\u05E6\u05E2\u05D5\u05EA: per-instance \u05D4\u05D2\u05D3\u05E8 \u05DB\u05D1\u05E8\u05D9\u05E8\u05EA \u05DE\u05D7\u05D3\u05DC, then the open uses the chosen program\n  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c\n  $mi = AnyByName '\u05E4\u05EA\u05D7 \u05D1\u05D0\u05DE\u05E6\u05E2\u05D5\u05EA'; Assert 'open-with entry exists' ($null -ne $mi) ''\n  [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800\n  $prog = NamedEdit 'Program path'; Assert 'open-with popup opened' ($null -ne $prog) ''\n  SetText $prog 'C:\\Windows\\notepad.exe'\n  $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''\n  [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300\n  $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c\n  Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')\n  Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\\.exe') (StoreJson)\n  Assert 'row shows the chosen program' (WaitText 'notepad.exe' 5) ((Texts) -join ' | ')\n  Shot 'open-with-saved'\n  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\n  # 4. details editing: change shows Save; save persists\n  $wsNameBox2 = NamedEdit 'Workspace name'\n  SetText $wsNameBox2 'E2E ws renamed'\n  $saveBtn = $null; for ($i = 0; $i -lt 20; $i++) { $saveBtn = Btn 'Save workspace details'; if ($saveBtn) { break }; Start-Sleep -Milliseconds 250 }\n  Assert 'any change shows a Save button' ($null -ne $saveBtn) ''\n  [void](InvokeEl $saveBtn 'Save button'); Start-Sleep -Milliseconds 900\n  Assert 'saved name persisted to store.json' ((StoreJson) -match 'E2E ws renamed') (StoreJson)\n  Shot 'details-after-save'\n  # 5. unsaved-changes guard: edit, Back -> dialog, X returns to editing, Back -> exit without saving\n  SetText (NamedEdit 'Workspace description') 'unsaved edit'\n  $c = ClickBtn 'Back' 800; Assert 'back clicked' ($c -eq 'ok') $c\n  Assert 'unsaved dialog shown with both spec buttons' ((WaitText 'You have changes that were not saved' 10) -and $null -ne (Btn '\u05E9\u05DE\u05D5\u05E8 \u05D5\u05E6\u05D0') -and $null -ne (Btn '\u05E6\u05D0 \u05D1\u05DC\u05D9 \u05DC\u05E9\u05DE\u05D5\u05E8')) ((Texts) -join ' | ')\n  Shot 'unsaved-dialog'\n  $c = ClickBtn 'Back to editing' 600; Assert 'dialog X clicked' ($c -eq 'ok') $c\n  Assert 'X returned to editing, changes kept' ((WaitText 'Created:' 5) -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''\n  $c = ClickBtn 'Back' 800; Assert 'back clicked again' ($c -eq 'ok') $c\n  $c = ClickBtn '\u05E6\u05D0 \u05D1\u05DC\u05D9 \u05DC\u05E9\u05DE\u05D5\u05E8' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c\n  Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')\n  Shot 'overview-after-guard'\n  # 6. open flow from details: preflight, cancel, open anyway\n  $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')\n  [void](InvokeEl $card 'workspace card'); Start-Sleep -Milliseconds 900\n  Assert 'details reopened from card' (WaitText 'Created:' 10) ''\n  $npBefore = NotepadCount\n  $c = ClickBtn '\u05E9\u05D2\u05E8' 2500; Assert 'open clicked' ($c -eq 'ok') $c\n  Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')\n  Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')\n  Shot 'decision-panel'\n  $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c\n  Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')\n  Start-Sleep -Seconds 2\n  Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) \"before=$npBefore after=$(NotepadCount)\"\n  $c = ClickBtn '\u05E9\u05D2\u05E8' 2500; Assert 'open clicked again' ($c -eq 'ok') $c\n  Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')\n  $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c\n  Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')\n  Assert 'report: link open request sent' (WaitText 'example.com' 10) ((ListLines) -join ' || ')\n  Assert 'report: missing file failed honestly' (WaitText 'missing.txt: failed' 10) ((ListLines) -join ' || ')\n  Info 'open report' ((ListLines) -join ' || ')\n  $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }\n  Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) \"before=$npBefore after=$npAfter\"\n  Shot 'after-open-anyway'\n  Start-Sleep -Milliseconds 800\n  Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)\n  # 7. empty workspace: open shows the dialog, go-to-details button leads to details\n  $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c\n  SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c\n  Assert 'empty workspace created into details with the Hebrew empty message' (WaitText '\u05E2\u05D3\u05D9\u05D9\u05DF \u05D0\u05D9\u05DF \u05D0\u05D9\u05D9\u05D8\u05DE\u05D9\u05DD \u05D1\u05E1\u05D1\u05D9\u05D1\u05D4' 15) ((Texts) -join ' | ')\n  $c = ClickBtn '\u05E9\u05D2\u05E8' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c\n  Assert 'empty workspace dialog with the spec title' (WaitText '\u05E1\u05D1\u05D9\u05D1\u05EA \u05E2\u05D1\u05D5\u05D3\u05D4 \u05E8\u05D9\u05E7\u05D4' 15) ((Texts) -join ' | ')\n  Shot 'empty-workspace-dialog'\n  $c = ClickBtn '\u05E2\u05D1\u05D5\u05E8 \u05DC\u05E4\u05E8\u05D8\u05D9 \u05D4\u05E1\u05D1\u05D9\u05D1\u05D4' 900; Assert 'go-to-details clicked' ($c -eq 'ok') $c\n  Assert 'dialog closed, still in details with the empty message' (-not (WaitText 'This workspace has no items yet' 2) -and (WaitText '\u05E2\u05D3\u05D9\u05D9\u05DF \u05D0\u05D9\u05DF \u05D0\u05D9\u05D9\u05D8\u05DE\u05D9\u05DD \u05D1\u05E1\u05D1\u05D9\u05D1\u05D4' 5)) ((Texts) -join ' | ')\n  # 8. card actions menu (spec: \u05D4\u05E6\u05D2 / \u05E9\u05D2\u05E8 / \u05D4\u05D5\u05E1\u05E3 \u05D0\u05D9\u05D9\u05D8\u05DD / \u05E2\u05E6\u05D1 \u05DB\u05E8\u05D8\u05D9\u05E1 / \u05E2\u05E8\u05D5\u05DA \u05E7\u05D8\u05D2\u05D5\u05E8\u05D9\u05D4; workspace deletion was rejected by the user)\n  $c = ClickBtn 'Back' 900; Assert 'back to overview for the menu check' ($c -eq 'ok') $c\n  Assert 'no workspace deletion offered anywhere' ($null -eq (BtnLike 'Delete') -and $null -eq (BtnLike '\u05DE\u05D7\u05E7') -and $null -eq (BtnLike '\u05DE\u05D7\u05D9\u05E7\u05D4')) ((ListLines) -join ' || ')\n  $c = ClickBtn 'Workspace actions' 900; Assert 'card actions menu opened' ($c -eq 'ok') $c\n  $found = @('\u05D4\u05E6\u05D2','\u05E9\u05D2\u05E8','\u05D4\u05D5\u05E1\u05E3 \u05D0\u05D9\u05D9\u05D8\u05DD','\u05E2\u05E6\u05D1 \u05DB\u05E8\u05D8\u05D9\u05E1','\u05E2\u05E8\u05D5\u05DA \u05E7\u05D8\u05D2\u05D5\u05E8\u05D9\u05D4') | Where-Object { $null -ne (MenuItemByName $_) }\n  Assert 'menu shows the five spec actions' (@($found).Count -eq 5) (\"found: $($found -join ', ')\")\n  Shot 'card-actions-menu'\n  $show = MenuItemByName '\u05D4\u05E6\u05D2'\n  [void](InvokeEl $show '\u05D4\u05E6\u05D2 menu entry'); Start-Sleep -Milliseconds 900\n  Assert 'details opened from the menu (\u05D4\u05E6\u05D2)' (WaitText 'Created:' 10) ''\n  # 9. card design popup + category popup (\u05E4\u05D5\u05E4\u05D0\u05E4 \u05E2\u05D9\u05E6\u05D5\u05D1 \u05DB\u05E8\u05D8\u05D9\u05E1 / \u05E4\u05D5\u05E4\u05D0\u05E4 \u05E2\u05E8\u05D9\u05DB\u05EA \u05E7\u05D8\u05D2\u05D5\u05E8\u05D9\u05D4)\n  $c = ClickBtn 'Back' 900; Assert 'back to overview for the popups' ($c -eq 'ok') $c\n  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for design' ($c -eq 'ok') $c\n  $mi = MenuItemByName '\u05E2\u05E6\u05D1 \u05DB\u05E8\u05D8\u05D9\u05E1'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900\n  Assert 'design popup opened' (WaitText '\u05EA\u05DE\u05D5\u05E0\u05EA \u05E8\u05E7\u05E2' 10) ((Texts) -join ' | ')\n  $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''\n  if ($colorBox) { SetText $colorBox '#BFDBFE' }\n  $c = ClickBtn 'Save card design' 1500; Assert 'design saved from the popup' ($c -eq 'ok') $c\n  Assert 'design popup closed after save' (-not (WaitText '\u05EA\u05DE\u05D5\u05E0\u05EA \u05E8\u05E7\u05E2' 2)) ''\n  Assert 'design persisted to the store' ((StoreJson) -like '*#BFDBFE*') (StoreJson)\n  Shot 'card-design-saved'\n  # missing/moved source image: the path is a reference, so a missing file must fall back to the color without breaking the card\n  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for missing-image check' ($c -eq 'ok') $c\n  $mi = MenuItemByName '\u05E2\u05E6\u05D1 \u05DB\u05E8\u05D8\u05D9\u05E1'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900\n  Assert 'design popup reopened with the saved color' ((ValOf (NamedEdit 'Card color')) -eq '#BFDBFE') ''\n  SetText (NamedEdit 'Card image path') \"$root\\no-such-image.png\"\n  $c = ClickBtn 'Save card design' 1500; Assert 'design with a missing image path saved' ($c -eq 'ok') $c\n  Assert 'app survived a missing image path' (-not $p.HasExited) ''\n  Assert 'missing image path persisted as a reference' ((StoreJson) -like '*no-such-image.png*') (StoreJson)\n  Shot 'card-with-missing-image'\n  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c\n  $mi = MenuItemByName '\u05E2\u05E8\u05D5\u05DA \u05E7\u05D8\u05D2\u05D5\u05E8\u05D9\u05D4'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900\n  Assert 'category popup opened with \u05DB\u05DC\u05DC\u05D9 current' (WaitText 'Current: \u05DB\u05DC\u05DC\u05D9' 10) ((Texts) -join ' | ')\n  $newCat = NamedEdit 'New category name'; Assert 'new category box found' ($null -ne $newCat) ''\n  if ($newCat) { SetText $newCat 'E2Ecat' }\n  $c = ClickBtn 'Add category' 900; Assert 'custom category added' ($c -eq 'ok') $c\n  Assert 'custom category listed' (WaitText 'E2Ecat' 5) ((Texts) -join ' | ')\n  Shot 'category-popup-custom-added'\n  $c = ClickBtn 'Close category popup' 900; Assert 'category popup closed' ($c -eq 'ok') $c\n  Assert 'custom category persisted to the store' ((StoreJson) -like '*E2Ecat*') (StoreJson)\n  # 10. existing-resource picker (\u05D1\u05D7\u05E8 \u05DE\u05E1\u05D1\u05D9\u05D1\u05D5\u05EA \u05E7\u05D9\u05D9\u05DE\u05D5\u05EA): four type buttons, pick fills the form (original-name and\n  # usage-sort behavior are unit-tested; the instance-name text also exists in the row below, so E2E does not assert on it)\n  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for details' ($c -eq 'ok') $c\n  $mi = MenuItemByName '\u05D4\u05E6\u05D2'; [void](InvokeEl $mi '\u05D4\u05E6\u05D2 menu entry for picker'); Start-Sleep -Milliseconds 900\n  Assert 'details opened for the picker' (WaitText 'Created:' 10) ''\n  $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c\n  Assert 'picker shows the four type buttons' ((WaitText 'Program' 5) -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')\n  Shot 'resource-picker'\n  $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c\n  $targetVal = ValOf (NamedEdit 'Item target')\n  Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal\n  Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA\n}\ncatch { $il = $_.InvocationInfo; \"script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())\" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = \"$_ at line $($il.ScriptLineNumber)\" }) }\nfinally {\n  $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json\n  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\n  if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }\n}\nif (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt }\n}\ncatch { $il = $_.InvocationInfo; \"harness setup error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())\" | Out-File -Append diag/errors.txt; @([ordered]@{ name = 'harness setup error'; ok = $false; detail = \"$_ at line $($il.ScriptLineNumber)\" }) | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json }\n"
+      continue-on-error: true
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-01-details-after-create-empty
+        path: out-images/feat-01-details-after-create-empty.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-02-details-items-added
+        path: out-images/feat-02-details-items-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-03-duplicate-warning
+        path: out-images/feat-03-duplicate-warning.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-04-duplicate-added
+        path: out-images/feat-04-duplicate-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-05-open-with-saved
+        path: out-images/feat-05-open-with-saved.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-06-details-after-save
+        path: out-images/feat-06-details-after-save.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-07-unsaved-dialog
+        path: out-images/feat-07-unsaved-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-08-overview-after-guard
+        path: out-images/feat-08-overview-after-guard.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-09-decision-panel
+        path: out-images/feat-09-decision-panel.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-10-after-open-anyway
+        path: out-images/feat-10-after-open-anyway.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-11-empty-workspace-dialog
+        path: out-images/feat-11-empty-workspace-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-12-card-actions-menu
+        path: out-images/feat-12-card-actions-menu.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-13-card-design-saved
+        path: out-images/feat-13-card-design-saved.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-14-card-with-missing-image
+        path: out-images/feat-14-card-with-missing-image.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-15-category-popup-custom-added
+        path: out-images/feat-15-category-popup-custom-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-16-resource-picker
+        path: out-images/feat-16-resource-picker.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: diagnostics-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
+        path: diag/
+        if-no-files-found: warn
+    - name: Fail the job if anything failed
+      if: always()
+      shell: pwsh
+      run: |
+        if (-not (Test-Path diag/assertions.json)) { 'E2E step never produced assertions.json - it failed before completing; its step log has the cause' | Out-File -Append diag/errors.txt }
+        else {
+          $a = Get-Content diag/assertions.json | ConvertFrom-Json
+          if (-not $a) { 'assertions.json is empty - E2E ran no checks' | Out-File -Append diag/errors.txt }
           else {
-            $a = Get-Content diag/assertions.json | ConvertFrom-Json
-            if (-not $a) { 'assertions.json is empty - E2E ran no checks' | Out-File -Append diag/errors.txt }
-            else {
-              if (@($a | Where-Object { -not $_.ok }).Count -gt 0) { 'assertions.json contains FAIL asserts' | Out-File -Append diag/errors.txt }
-              $last = @($a)[-1]
-              if ($last.name -ne 'FLOW-COMPLETE' -or -not $last.ok) { 'E2E flow stopped before its end-of-flow completion marker - partial run treated as failure' | Out-File -Append diag/errors.txt }
-              elseif ($last.detail -ne '${{ github.sha }}') { "completion marker commit $($last.detail) does not match run commit ${{ github.sha }}" | Out-File -Append diag/errors.txt }
-            }
+            if (@($a | Where-Object { $_.PSObject.Properties['ok'] -and -not $_.ok }).Count -gt 0) { 'assertions.json contains FAIL asserts' | Out-File -Append diag/errors.txt }
+            $last = @($a)[-1]
+            if ($last.name -ne 'FLOW-COMPLETE' -or -not $last.ok) { 'E2E flow stopped before its end-of-flow completion marker - partial run treated as failure' | Out-File -Append diag/errors.txt }
+            elseif ($last.detail -ne '${{ github.sha }}') { "completion marker commit $($last.detail) does not match run commit ${{ github.sha }}" | Out-File -Append diag/errors.txt }
           }
-          if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
+        }
+        if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
+'on':
+  push:
+    branches:
+    - feat/per-instance-items
+    paths:
+    - ci-trigger-feat.txt
