@@ -75,3 +75,35 @@ public class StartupFailureTests
         Assert.Null(typeof(MainViewModel).GetProperty("DeleteWorkspaceCommand"));
     }
 }
+
+/// <summary>Regression: rebuilding CategoryChoices (after any catalog change such as adding an item) wipes a bound
+/// ComboBox selection, and the TwoWay SelectedItem binding pushes null back into the view model. RefreshCategories
+/// must restore the create/details selections so the category never blanks and the details form never turns dirty
+/// from an unrelated change. The test simulates exactly what WPF does on CollectionChanged(Reset).</summary>
+public class CategorySelectionStabilityTests
+{
+    private static string Tmp() => Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N"), "store.json");
+
+    [Fact] public void Adding_an_item_keeps_the_details_category_selection()
+    {
+        using var repo = new JsonStore(Tmp());
+        var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null);
+        Assert.True(vm.InDetails);
+        Assert.Equal(Workspace.DefaultCategory, vm.EditCategory);
+        Assert.False(vm.DetailsDirty);
+
+        // What WPF does when the ItemsSource is reset: the ComboBox loses its selection and the TwoWay
+        // binding writes null (read here as "") back into the view-model property, synchronously.
+        vm.CategoryChoices.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset) vm.EditCategory = "";
+        };
+
+        vm.NewItemType = ItemType.Link; vm.NewTarget = "https://example.com/"; vm.NewItemName = "x";
+        vm.AddItemCommand.Execute(null);
+
+        Assert.Equal(Workspace.DefaultCategory, vm.EditCategory); // selection restored, not blank
+        Assert.False(vm.DetailsDirty); // no spurious unsaved-changes state (Save button / exit guard)
+    }
+}
