@@ -179,19 +179,29 @@ public sealed class MainViewModel : ObservableBase
     private string _editItemName = "";
     public string EditItemDescription { get => _editItemDesc; set { Set(ref _editItemDesc, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
     private string _editItemDesc = "";
-    private string _origItemName = "", _origItemDesc = "";
+    /// <summary>The instance's address, editable in the full edit form (spec: כל נתוני האייטם הניתנים לעריכה, כולל הכתובת).</summary>
+    public string EditItemTarget { get => _editItemTarget; set { Set(ref _editItemTarget, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    private string _editItemTarget = "";
+    private string _origItemName = "", _origItemDesc = "", _origItemTarget = "";
     /// <summary>Any change in the item edit form shows its Save button (same rule as the details screen).</summary>
-    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc);
+    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget);
     private void BeginItemEdit(ItemRow row)
     {
-        _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? "";
-        EditItemName = _origItemName; EditItemDescription = _origItemDesc;
+        _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
+        EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true;
     }
     private bool SaveItemEdit()
     {
         if (string.IsNullOrWhiteSpace(EditItemName)) { Status = "Not saved: item name is required"; return false; }
-        var ok = Apply(c => c.UpdateInstance(Selected!.Id, _editItemId, EditItemName, EditItemDescription));
+        var targetChanged = EditItemTarget != _origItemTarget;
+        var ok = Apply(c =>
+        {
+            // A target change is a local edit: only this instance points at the new address (Catalog.ReplaceTargetLocal);
+            // the same item in other workspaces keeps its address, and the instance id stays stable.
+            if (targetChanged) c.ReplaceTargetLocal(Selected!.Id, _editItemId, EditItemTarget);
+            c.UpdateInstance(Selected!.Id, _editItemId, EditItemName, EditItemDescription);
+        });
         if (ok) { Status = "Item saved"; ItemEditOpen = false; }
         return ok;
     }
@@ -215,7 +225,8 @@ public sealed class MainViewModel : ObservableBase
     {
         var r = await Task.Run(() => _launcher.Launch(it, launch)).ConfigureAwait(true);
         if (gen != _generation) return;
-        if (r.Status == LaunchStatus.Started) Apply(c => c.TouchLastOpened(wsId)); // Apply clears Status, so the report line comes after
+        // No TouchLastOpened here: the settled card field "פתיחה אחרונה" is the workspace's last launch (שגר);
+        // no source defines a single-item open as stamping it, so it does not.
         Status = r.Status == LaunchStatus.Started ? name + ": open request sent (not proof it loaded)" : name + ": failed (" + (r.Detail ?? r.Status.ToString()) + ")";
     }
 
@@ -345,7 +356,7 @@ public sealed class MainViewModel : ObservableBase
         catch (StoreLockedException e) { Status = e.Message; }
         catch (StoreCorruptException e) { ReadOnly = true; Status = "Data file is invalid and was left untouched: " + e.Message; }
         catch (StoreTooNewException e) { ReadOnly = true; Status = e.Message; }
-        catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException) { Status = "Save failed, nothing was changed: " + e.Message; }
+        catch (Exception e) when (e is IOException or InvalidOperationException or ArgumentException or UnauthorizedAccessException) { Status = "Save failed, nothing was changed: " + e.Message; }
         return false;
     }
 
