@@ -19,7 +19,8 @@ public sealed record Membership(string ItemId, LaunchConfig? Launch = null, stri
 
 public sealed class Workspace
 {
-    /// <summary>Built-in default category, used when none is chosen. Custom categories and their management are a separate feature.</summary>
+    /// <summary>Built-in default category, used when none is chosen. Managed categories (custom add/edit/delete) live in
+    /// <see cref="Store.CustomCategories"/> and Catalog; כללי is the one guaranteed built-in.</summary>
     public const string DefaultCategory = "כללי";
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
@@ -30,13 +31,22 @@ public sealed class Workspace
     public DateTime? CreatedAt { get; set; }
     /// <summary>Last time open requests were actually sent for this workspace (שגר). Null = never opened.</summary>
     public DateTime? LastOpenedAt { get; set; }
+    /// <summary>Card design (פופאפ עיצוב כרטיס): user-chosen color as #RRGGBB; null = the app's default look. With an image it is
+    /// the frame (thick top, thin other sides); without one it is the card background. Per workspace, never shared.</summary>
+    public string? Color { get; set; }
+    /// <summary>Card design (פופאפ עיצוב כרטיס): path of the background image the user uploaded; null = none. Stored as a path
+    /// reference (copying the file into app storage is an open storage decision). Per workspace, never shared.</summary>
+    public string? ImagePath { get; set; }
     public string EffectiveCategory => string.IsNullOrWhiteSpace(Category) ? DefaultCategory : Category;
     public List<Membership> Items { get; set; } = new();
 }
 
 public sealed class Store
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
     public Dictionary<string, Item> Items { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
+    /// <summary>Custom categories the user created (schema 4+). Built-ins are defined in code (Catalog.BuiltInCategories), are never
+    /// stored here, and cannot be edited or deleted; custom ones can. Missing/null on older files = none.</summary>
+    public List<string> CustomCategories { get; set; } = new();
 }
