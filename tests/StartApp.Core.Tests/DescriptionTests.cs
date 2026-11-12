@@ -34,8 +34,8 @@ public class DescriptionTests
     [Fact] public void ReplaceTargetLocal_carries_the_description_to_the_new_item()
     {
         var c = new Catalog(new Store()); var w = c.CreateWorkspace("w");
-        var it = c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "about a"); c.AddToWorkspace(w.Id, it.Id);
-        var n = c.ReplaceTargetLocal(w.Id, it.Id, "C:\\a2.txt");
+        var it = c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "about a"); var m = c.AddToWorkspace(w.Id, it.Id);
+        var n = c.ReplaceTargetLocal(w.Id, m.Id!, "C:\\a2.txt");
         Assert.Equal("about a", n.Description);
     }
     [Fact] public void Validate_reports_an_invalid_description_found_in_data()
@@ -52,9 +52,9 @@ public class DescriptionTests
     [Fact] public void ReplaceTargetLocal_to_an_existing_item_keeps_that_items_own_description_and_drops_the_old_one()
     {
         var c = new Catalog(new Store()); var w = c.CreateWorkspace("w");
-        var a = c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "about a"); c.AddToWorkspace(w.Id, a.Id);
+        var a = c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt", "about a"); var ma = c.AddToWorkspace(w.Id, a.Id);
         var b = c.GetOrAddItem(ItemType.File, "b", "C:\\b.txt", "about b"); var w2 = c.CreateWorkspace("w2"); c.AddToWorkspace(w2.Id, b.Id);
-        var n = c.ReplaceTargetLocal(w.Id, a.Id, "C:\\b.txt");
+        var n = c.ReplaceTargetLocal(w.Id, ma.Id!, "C:\\b.txt");
         Assert.Equal(b.Id, n.Id); Assert.Equal("about b", n.Description); Assert.DoesNotContain(c.Store.Items.Values, i => i.Description == "about a");
     }
 }
