@@ -54,6 +54,7 @@ jobs:
           $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
         }
         function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
+        function WaitGone($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" })) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
         function NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
         function NamedCombo($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
         function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
@@ -86,7 +87,10 @@ jobs:
           $mi = $null; for ($i = 0; $i -lt 20; $i++) { $mi = MenuItemByName $item; if ($mi) { break }; Start-Sleep -Milliseconds 250 }
           if (-not $mi) { return "menu item '$item' not found" }
           MenuInsideWindow "capture dropdown ($item)"
-          if (-not (InvokeEl $mi "capture menu item $item")) { return 'invoke failed' }; Start-Sleep -Milliseconds 1200; return 'ok'
+          if (-not (InvokeEl $mi "capture menu item $item")) { return 'invoke failed' }
+          $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()  # the scan now runs off the UI thread with a visible scanning state
+          while ($swS.Elapsed.TotalMilliseconds -lt 1500) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
+          return 'ok'
         }
         try {
           $root = Join-Path $env:RUNNER_TEMP 'cap-flow'; New-Item -ItemType Directory -Force $root | Out-Null
@@ -113,6 +117,8 @@ jobs:
           # 1. dropdown -> new workspace: real scan, all rows ticked, read-only list
           $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> סביבה חדשה' ($c -eq 'ok') $c
           Assert 'capture screen shown' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+          Assert 'scanning state was visible while the scan ran' $script:sawScanning ''
+          Assert 'scan finished before the rows are read' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
           $names = CheckNames
           Info 'detected rows (new form)' ($names -join ' | ')
           $npRow = CheckByLike '*Notepad*'; $folderRow = CheckByLike '*capfolder*'
@@ -140,6 +146,8 @@ jobs:
           # 2. dropdown -> existing workspace: search, side by side, staged until Save
           $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> סביבה קיימת' ($c -eq 'ok') $c
           Assert 'workspace search shown' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+          Info 'scanning state observed (existing)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
+          Assert 'existing-mode scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
           Assert 'existing mode: rows start unticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0 -and (Checks).Count -gt 0) ''
           SetText (NamedEdit 'Capture workspace search') 'Cap B'
           Start-Sleep -Milliseconds 600
@@ -192,6 +200,10 @@ jobs:
           Assert 'details screen shown' (WaitText 'Created:' 10) ''
           $c = ClickBtn 'Add from open items' 1500; Assert 'add-from-open clicked' ($c -eq 'ok') $c
           Assert 'goes straight to side by side for the current workspace' ((WaitText 'Open now' 10) -and $null -ne (Btn 'Capture save')) ((Texts) -join ' | ')
+          $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()
+          while ($swS.Elapsed.TotalMilliseconds -lt 2000) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
+          Info 'scanning state observed (details entry)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
+          Assert 'rescan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
           Assert 'target workspace is Cap A' (@(Texts) -contains 'Cap A') ((Texts) -join ' | ')
           $names2 = CheckNames; Info 'detected rows (after closing Notepad)' ($names2 -join ' | ')
           Assert 'REAL rescan: the closed Notepad is gone from the new scan' ($null -eq (CheckByLike '*Notepad*')) ($names2 -join ' | ')
