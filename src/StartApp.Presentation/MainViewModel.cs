@@ -919,7 +919,22 @@ public sealed class MainViewModel : ObservableBase
     public bool IsCaptureNew => _captureStage == CaptureStage.NewForm;
     public bool IsCapturePick => _captureStage == CaptureStage.PickWorkspace;
     public bool IsCaptureSide => _captureStage == CaptureStage.SideBySide;
-    public bool CaptureEmpty => CaptureOpen && CaptureRows.Count == 0;
+    public bool CaptureEmpty => CaptureOpen && !IsScanning && CaptureRows.Count == 0;
+    /// <summary>True while a scan runs in the background; the capture screen is already up and shows a scanning state.</summary>
+    public bool IsScanning { get => _isScanning; private set { Set(ref _isScanning, value); Raise(nameof(CaptureEmpty)); RaiseCommands(); } }
+    private bool _isScanning;
+    /// <summary>The in-flight background scan; tests await it. Null until the first capture entry.</summary>
+    public Task? CurrentScan { get; private set; }
+    /// <summary>Hard bound for one scan: a source stuck in COM/UI Automation is abandoned after this, never waited on forever.</summary>
+    public TimeSpan ScanTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    /// <summary>Anti-flicker floor so the scanning state is actually visible (and steady) on fast scans.</summary>
+    public TimeSpan ScanMinVisible { get; set; } = TimeSpan.FromMilliseconds(700);
+    private int _scanGen;
+    private CancellationTokenSource? _scanCts;
+    /// <summary>Background Scan() calls that have not returned yet (hung or just slow). A stuck COM/UIA call cannot be aborted, only
+    /// abandoned - so abandonment is bounded: while <see cref="MaxOpenScans"/> scans have not come back, no new one starts.</summary>
+    private int _openScans;
+    private const int MaxOpenScans = 2;
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
     public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
     public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
@@ -961,7 +976,7 @@ public sealed class MainViewModel : ObservableBase
         CaptureSaveCommand = Cmd(_ => SaveStaged(), _ => IsCaptureSide && StagedRows.Count > 0 && CaptureIdle && !ReadOnly);
         CaptureBackCommand = Cmd(_ => CaptureBack(), _ => IsCaptureSide && CaptureIdle);
         CaptureCloseCommand = Cmd(_ => CaptureClose(), _ => CaptureOpen && CaptureIdle);
-        CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly);
+        CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly && !IsScanning);
         RemoveStagedCommand = Cmd(p => { StagedRows.Remove((StagedRow)p!); Raise(nameof(CaptureDirty)); RaiseCommands(); }, p => p is StagedRow && IsCaptureSide);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);
@@ -971,17 +986,54 @@ public sealed class MainViewModel : ObservableBase
     private void OnCaptureCheckChanged() => Raise(nameof(CaptureAddLabel));
     private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
     {
-        CaptureScan scan;
-        try { scan = _capturer.Scan(); }
-        catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or NotSupportedException)
-        { scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Scan failed: " + e.GetType().Name }); }
-        CaptureRows.Clear(); foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
-        CaptureNotes.Clear(); foreach (var n in scan.Notes) CaptureNotes.Add(n);
+        CaptureRows.Clear(); CaptureNotes.Clear();
         StagedRows.Clear(); CaptureDupChoices.Clear(); _dupSingle = null; CaptureDupGroupPending = false; CaptureSearch = "";
         Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
-        Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
+        // The screen opens right away; the scan itself runs off the UI thread, so a stuck COM/UIA call can never freeze the window.
         if (wsId != null) EnterSideBySide(wsId);
         else { RefreshCaptureResults(); CaptureStageNow = stage; }
+        CurrentScan = RunScanAsync(checkedByDefault);
+    }
+    /// <summary>Background scan: bounded by <see cref="ScanTimeout"/>, cancelled by X or superseded by a newer scan (late results are
+    /// discarded, never applied), with a visible scanning state. Unexpected faults are not swallowed: they reach <see cref="UnexpectedError"/>.
+    /// Unlike the open flow there is no Guard generation here; <see cref="_scanGen"/> plays that role for scans.</summary>
+    private async Task RunScanAsync(bool checkedByDefault)
+    {
+        var gen = ++_scanGen;
+        try { _scanCts?.Cancel(); } catch (ObjectDisposedException) { }
+        _scanCts?.Dispose(); var cts = new CancellationTokenSource(); _scanCts = cts;
+        IsScanning = true; Status = "Scanning open items...";
+        CaptureScan scan;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (Volatile.Read(ref _openScans) >= MaxOpenScans)
+        {
+            scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Earlier scans never came back (a stuck call cannot be aborted), so no new scan was started; items can still be added by hand" });
+        }
+        else
+        {
+            Interlocked.Increment(ref _openScans);
+            try { scan = await CaptureScanning.BoundedAsync(_capturer, ScanTimeout, cts.Token, () => Interlocked.Decrement(ref _openScans)); }
+            catch (OperationCanceledException) { return; } // X or a newer scan: nothing to apply
+            catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or NotSupportedException)
+            { scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Scan failed: " + e.GetType().Name }); }
+            catch (Exception e)
+            {
+                if (gen == _scanGen) { IsScanning = false; Status = "Scan stopped by an unexpected error: " + e.GetType().Name; }
+                var h = UnexpectedError; if (h is null) throw; h(e); return;
+            }
+        }
+        if (gen != _scanGen || cts.IsCancellationRequested) return;
+        var floor = ScanMinVisible - sw.Elapsed;
+        if (floor > TimeSpan.Zero)
+        {
+            try { await Task.Delay(floor, cts.Token); } catch (OperationCanceledException) { return; }
+            if (gen != _scanGen) return;
+        }
+        foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
+        foreach (var n in scan.Notes) CaptureNotes.Add(n);
+        IsScanning = false;
+        Raise(nameof(CaptureAddLabel)); RaiseCommands();
+        Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
     }
     private void RefreshCaptureResults()
     {
@@ -1095,6 +1147,8 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>X: the capture list is dropped; opening capture again scans what is open at that moment. What was already saved stays saved.</summary>
     private void ResetCapture()
     {
+        _scanGen++; try { _scanCts?.Cancel(); } catch (ObjectDisposedException) { } // a scan still in flight is discarded, never applied
+        IsScanning = false;
         CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _dupSingle = null; _capWsId = "";
         CaptureDupGroupPending = false; CaptureSearch = "";
         Raise(nameof(CaptureDupSinglePending)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureAddLabel));
