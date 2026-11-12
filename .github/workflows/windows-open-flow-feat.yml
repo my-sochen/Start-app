@@ -162,7 +162,7 @@ jobs:
             $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
             Assert 'edit form shows the address too' ($null -ne (NamedEdit 'Edit item target')) ''
             SetText $eName 'My link edited'
-            $c = ClickBtn 'Save' 900; Assert 'item edit saved' ($c -eq 'ok') $c
+            $c = ClickBtn 'Save item edit' 900; Assert 'item edit saved' ($c -eq 'ok') $c
             Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')
             Assert 'store.json: that instance renamed, target untouched' ((StoreJson) -match 'My link edited' -and (StoreJson) -match 'example\.com') (StoreJson)
             # 3d. פופאפ עריכת כתובת: full address shown, copy button present, save is instance-local (the second instance keeps its address)
@@ -199,13 +199,13 @@ jobs:
             # 5. unsaved-changes guard: edit, Back -> dialog, X returns to editing, Back -> exit without saving
             SetText (NamedEdit 'Workspace description') 'unsaved edit'
             $c = ClickBtn 'Back' 800; Assert 'back clicked' ($c -eq 'ok') $c
-            Assert 'unsaved dialog shown with both spec buttons' (WaitText 'You have changes that were not saved' 10 -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
+            Assert 'unsaved dialog shown with both spec buttons' ((WaitText 'You have changes that were not saved' 10) -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
             Shot 'unsaved-dialog'
             $c = ClickBtn 'Back to editing' 600; Assert 'dialog X clicked' ($c -eq 'ok') $c
-            Assert 'X returned to editing, changes kept' (WaitText 'Created:' 5 -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''
+            Assert 'X returned to editing, changes kept' ((WaitText 'Created:' 5) -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''
             $c = ClickBtn 'Back' 800; Assert 'back clicked again' ($c -eq 'ok') $c
             $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
-            Assert 'back in overview, unsaved edit discarded' (WaitText 'Create workspace' 10 -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
+            Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
             Shot 'overview-after-guard'
             # 6. open flow from details: preflight, cancel, open anyway
             $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
@@ -287,7 +287,7 @@ jobs:
             $mi = MenuItemByName 'הצג'; [void](InvokeEl $mi 'הצג menu entry for picker'); Start-Sleep -Milliseconds 900
             Assert 'details opened for the picker' (WaitText 'Created:' 10) ''
             $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c
-            Assert 'picker shows the four type buttons' (WaitText 'Program' 5 -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
+            Assert 'picker shows the four type buttons' ((WaitText 'Program' 5) -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
             Shot 'resource-picker'
             $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c
             $targetVal = ValOf (NamedEdit 'Item target')
