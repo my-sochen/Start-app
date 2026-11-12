@@ -45,7 +45,7 @@ jobs:
           function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
           function Shot($state) {
             [void][W]::SetCursorPos(5, 5); [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x27); Start-Sleep -Milliseconds 400
-            $script:shot++; $f = "out-images/run$runId-feat-{0:00}-$state.png" -f $script:shot
+            $script:shot++; $f = "out-images/feat-{0:00}-$state.png" -f $script:shot
             $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
             if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
             $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
@@ -307,8 +307,113 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: screenshots-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
-          path: out-images/
+          name: shot-feat-01-details-after-create-empty
+          path: out-images/feat-01-details-after-create-empty.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-02-details-items-added
+          path: out-images/feat-02-details-items-added.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-03-duplicate-warning
+          path: out-images/feat-03-duplicate-warning.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-04-duplicate-added
+          path: out-images/feat-04-duplicate-added.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-05-open-with-saved
+          path: out-images/feat-05-open-with-saved.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-06-details-after-save
+          path: out-images/feat-06-details-after-save.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-07-unsaved-dialog
+          path: out-images/feat-07-unsaved-dialog.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-08-overview-after-guard
+          path: out-images/feat-08-overview-after-guard.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-09-decision-panel
+          path: out-images/feat-09-decision-panel.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-10-after-open-anyway
+          path: out-images/feat-10-after-open-anyway.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-11-empty-workspace-dialog
+          path: out-images/feat-11-empty-workspace-dialog.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-12-card-actions-menu
+          path: out-images/feat-12-card-actions-menu.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-13-card-design-saved
+          path: out-images/feat-13-card-design-saved.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-14-card-with-missing-image
+          path: out-images/feat-14-card-with-missing-image.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-15-category-popup-custom-added
+          path: out-images/feat-15-category-popup-custom-added.png
+          if-no-files-found: warn
+          archive: false
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: shot-feat-16-resource-picker
+          path: out-images/feat-16-resource-picker.png
           if-no-files-found: warn
           archive: false
       - uses: actions/upload-artifact@v7.0.2
