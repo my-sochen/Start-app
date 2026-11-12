@@ -1,1 +1,1 @@
-v12
+v13 - gate fix: INFO records (no ok property) were misflagged as FAIL asserts; v12 asserts all PASS, 16 shots saved
