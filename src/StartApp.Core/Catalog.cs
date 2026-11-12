@@ -293,8 +293,8 @@ public sealed class Catalog
         w.Items[i] = w.Items[i] with { Launch = launch };
     }
 
-    /// <summary>The display grouping the user settled on (Nov 11): Sites, Folders, and Files &amp; Programs together.</summary>
-    public static int DisplayGroup(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, _ => 2 };
+    /// <summary>The display grouping the user settled on (Nov 12, superseding the Nov 11 combined files+programs group): Sites, Folders, Files, Programs.</summary>
+    public static int DisplayGroup(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, ItemType.File => 2, _ => 3 };
 
     /// <summary>הזז למעלה / הזז למטה: moves one instance within its display group, swapping with the nearest group neighbor.
     /// At the group's edge there is nothing to swap with and the call is a no-op. The new order is persisted in the workspace's item list.</summary>
