@@ -1011,8 +1011,10 @@ public sealed class MainViewModel : ObservableBase
         // הזז למעלה/למטה; שיתוף לסביבה אחרת stays visible-disabled while that action is undefined) with staged semantics:
         // edits and a chosen default stay staged until שמור, and the source capture list is never changed.
         StagedCopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((StagedRow)p!).Target); Status = "Address copied"; }, p => p is StagedRow && IsCaptureSide);
-        StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow sr && IsCaptureSide && StagedCanMove(sr, -1));
-        StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow sr && IsCaptureSide && StagedCanMove(sr, 1));
+        // Enabled at the group edge exactly like the details screen's MoveItemUp/DownCommand: the four-group boundary is
+        // enforced inside MoveStaged as a no-op, not by disabling the entry.
+        StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
+        StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
@@ -1122,13 +1124,6 @@ public sealed class MainViewModel : ObservableBase
         while (j >= 0 && j < StagedRows.Count && StagedRows[j].Group != g) j += step;
         if (j < 0 || j >= StagedRows.Count) return;
         StagedRows.Move(i, j); RaiseCommands();
-    }
-    private bool StagedCanMove(StagedRow row, int delta)
-    {
-        var i = StagedRows.IndexOf(row); if (i < 0) return false;
-        var g = row.Group; var step = Math.Sign(delta); var j = i + step;
-        while (j >= 0 && j < StagedRows.Count) { if (StagedRows[j].Group == g) return true; j += step; }
-        return false;
     }
     /// <summary>פתח באמצעות on a staged row: the same popup a saved item gets, but a chosen default lands on the staged
     /// row's open-with field (written to the store only on שמור) and Go opens the item straight from the staged values.</summary>
