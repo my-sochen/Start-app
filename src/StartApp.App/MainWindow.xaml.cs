@@ -34,6 +34,13 @@ public partial class MainWindow : Window
     }
     private void CardActions_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { ContextMenu: { } menu }) { menu.PlacementTarget = (Button)sender; menu.IsOpen = true; }
+        if (sender is Button { ContextMenu: { } menu })
+        {
+            // Anchor the popup to the button itself: default placement tracks the mouse/work-area, which
+            // renders the menu clipped off-window when the pointer is parked at the screen corner.
+            menu.PlacementTarget = (Button)sender;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
     }
 }
