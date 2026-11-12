@@ -36,10 +36,22 @@ public partial class MainWindow : Window
     {
         if (sender is Button { ContextMenu: { } menu })
         {
-            // Anchor the popup to the button itself: default placement tracks the mouse/work-area, which
-            // renders the menu clipped off-window when the pointer is parked at the screen corner.
-            menu.PlacementTarget = (Button)sender;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            // Keep the whole menu inside the window (user report Nov 12: the item-row menu clipped off-screen).
+            // Anchor it to the button itself (default placement tracks the mouse/work-area and clips off-window),
+            // right-align it with the button so it grows leftward (both action buttons sit at the window's right
+            // edge), and flip above the button when the space below it inside the window is too small.
+            var button = (Button)sender;
+            menu.PlacementTarget = button;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
+            menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+            {
+                var x = targetSize.Width - popupSize.Width;
+                var y = targetSize.Height;
+                if (Window.GetWindow(button) is { } w &&
+                    button.TransformToAncestor(w).Transform(new Point(0, targetSize.Height)).Y + popupSize.Height > w.ActualHeight)
+                    y = -popupSize.Height;
+                return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x, y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
+            };
             menu.IsOpen = true;
         }
     }
