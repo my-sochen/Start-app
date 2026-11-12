@@ -138,9 +138,10 @@ jobs:
             Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
             # 3c. item actions menu (no עריכה inside - spec: direct edit button only) and the edit form changes one instance only
             $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-            $ifound = @('מחיקה','העתק כתובת') | Where-Object { $null -ne (AnyByName $_) }
-            Assert 'item menu shows מחיקה and העתק כתובת' (@($ifound).Count -eq 2) ("found: $($ifound -join ', ')")
+            $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (AnyByName $_) }
+            Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
             Assert 'no עריכה inside the actions menu (direct row button is the only edit path)' ($null -eq (AnyByName 'עריכה')) ''
+            Assert 'שיתוף לסביבה אחרת hidden with a single workspace' ($null -eq (AnyByName 'שיתוף לסביבה אחרת')) ''
             [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
             $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
             $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
@@ -149,6 +150,29 @@ jobs:
             $c = ClickBtn 'Save' 900; Assert 'item edit saved' ($c -eq 'ok') $c
             Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')
             Assert 'store.json: that instance renamed, target untouched' ((StoreJson) -match 'My link edited' -and (StoreJson) -match 'example\.com') (StoreJson)
+            # 3d. פופאפ עריכת כתובת: full address shown, copy button present, save is instance-local (the second instance keeps its address)
+            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for address popup' ($c -eq 'ok') $c
+            $mi = AnyByName 'עריכת כתובת'; Assert 'address edit entry exists' ($null -ne $mi) ''
+            $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 800
+            $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
+            Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
+            SetText $addr 'https://edited.example/'
+            $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (WaitText 'Address saved' 10)) ((Texts) -join ' | ')
+            Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\.example' -and (StoreJson) -match 'example\.com') (StoreJson)
+            # 3e. פופאפ פתח באמצעות: per-instance הגדר כברירת מחדל, then the open uses the chosen program
+            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
+            $mi = AnyByName 'פתח באמצעות'; Assert 'open-with entry exists' ($null -ne $mi) ''
+            $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 800
+            $prog = NamedEdit 'Program path'; Assert 'open-with popup opened' ($null -ne $prog) ''
+            SetText $prog 'C:\Windows\notepad.exe'
+            $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''
+            $cb.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); Start-Sleep -Milliseconds 300
+            $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
+            Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+            Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
+            Assert 'row shows the chosen program' (WaitText 'notepad.exe' 5) ((Texts) -join ' | ')
+            Shot 'open-with-saved'
+            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
             # 4. details editing: change shows Save; save persists
             $wsNameBox2 = NamedEdit 'Workspace name'
             SetText $wsNameBox2 'E2E ws renamed'
