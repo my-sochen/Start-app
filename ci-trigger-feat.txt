@@ -1,1 +1,1 @@
-v16 - user feedback: item-row actions menu clipped off-screen (now kept inside the window, right-aligned to the button, flips above when no room below); display groups split into four (sites/folders/files/programs), superseding the combined files+programs group
+v17 - four-group visual proof: E2E adds a fresh workspace with one item of each type (link/folder/file/program) and screenshots the separate Sites/Folders/Files/Programs headers
