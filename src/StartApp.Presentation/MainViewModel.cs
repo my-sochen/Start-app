@@ -17,6 +17,7 @@ public sealed class MainViewModel : ObservableBase
     private readonly IItemLauncher _launcher;
     private readonly IItemPreflight? _preflight;
     private readonly IOpenStateDetector _detector;
+    private readonly IOpenItemCapturer _capturer;
     private List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>? _pendingOpen;
     private Workspace? _selected; private string _status = ""; private bool _readOnly; private string _newName = "";
 
@@ -130,6 +131,7 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
     public bool RequestAppClose()
     {
+        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         if (DetailsDirty) { MarkUnsavedHost(false, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         if (CreateDirty) { MarkUnsavedHost(true, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
@@ -139,7 +141,8 @@ public sealed class MainViewModel : ObservableBase
     }
     private void SaveAndExit()
     {
-        if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
+        if (UnsavedForCapture) { if (!CaptureGuardSave()) return; }
+        else if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
         else if (UnsavedForAddress) { if (!SaveAddress()) return; }
         else if (UnsavedForDesign) { if (!SaveDesign()) return; }
         else if (UnsavedForCreate)
@@ -166,9 +169,10 @@ public sealed class MainViewModel : ObservableBase
     public bool ShowOpenPanel => _pendingOpen != null || _isChecking || _isLaunching;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
 
-    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null)
+    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
     {
-        _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection();
+        _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
+        InitCaptureCommands();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
         // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
@@ -178,7 +182,7 @@ public sealed class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
@@ -266,7 +270,7 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>True while the open unsaved-exit dialog guards the card design popup (פופאפ עיצוב כרטיס).</summary>
     public bool UnsavedForDesign { get => _unsavedForDesign; private set => Set(ref _unsavedForDesign, value); }
     private bool _unsavedForDesign;
-    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false) { UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
+    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false) { UnsavedForCapture = forCapture; UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
     public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); RaiseCommands(); } }
@@ -860,4 +864,241 @@ public sealed class MainViewModel : ObservableBase
         Status = parts.Count == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
             : $"Open requests sent for {ok} of {plan.Count} items ({string.Join(", ", parts)})";
     }
+    // ---- capture (לכידה, settled Nov 12 07:14-07:45): scan what is open now, show it read-only (checkbox, original name, address under it),
+    // add to a NEW workspace (create form, items checked by default) or to an EXISTING one side by side. Staged additions are NOT saved until
+    // שמור; the snapshot survives workspace changes and saves; X resets it. Duplicates: one warning per drag, one grouped dialog for add-all/selected. ----
+    public enum CaptureStage { None, NewForm, PickWorkspace, SideBySide }
+    /// <summary>One line of the capture list. Shows default details only: no actions menu, no editing (settled).</summary>
+    public sealed class CaptureRow : ObservableBase
+    {
+        private readonly Action _changed; private bool _checked;
+        public CaptureRow(CapturedItem item, bool isChecked, Action changed) { Item = item; _checked = isChecked; _changed = changed; }
+        public CapturedItem Item { get; }
+        public ItemType Type => Item.Type;
+        public string Name => Item.Name;
+        public string Target => Item.Target;
+        public string Group => GroupOf(Item.Type);
+        public string Label => "Select " + Item.Name;
+        public bool IsChecked { get => _checked; set { if (_checked == value) return; _checked = value; Raise(nameof(IsChecked)); _changed(); } }
+    }
+    /// <summary>An item moved to the workspace side but not saved yet. Editable here (name, description, address, open-with); the capture side is never changed by these edits.</summary>
+    public sealed class StagedRow : ObservableBase
+    {
+        private string _name, _description = "", _target, _openWith = "";
+        public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; }
+        public ItemType Type { get; }
+        public string OriginalName { get; }
+        public string Group => GroupOf(Type);
+        public string Label => "Added: " + OriginalName;
+        public string Name { get => _name; set => Set(ref _name, value ?? ""); }
+        public string Description { get => _description; set => Set(ref _description, value ?? ""); }
+        public string Target { get => _target; set => Set(ref _target, value ?? ""); }
+        public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
+    }
+    /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
+    public sealed record CaptureExistingRow(string Name, string Target, string Group);
+    /// <summary>One duplicate in the grouped dialog; the user ticks which ones to add anyway (none ticked by default).</summary>
+    public sealed class DupChoice : ObservableBase
+    {
+        private bool _checked;
+        public DupChoice(CaptureRow row) { Row = row; }
+        public CaptureRow Row { get; }
+        public string Label => "Add again: " + Row.Name;
+        public bool IsChecked { get => _checked; set => Set(ref _checked, value); }
+    }
+
+    public ObservableCollection<CaptureRow> CaptureRows { get; } = new();
+    public ObservableCollection<string> CaptureNotes { get; } = new();
+    public ObservableCollection<Workspace> CaptureWorkspaceResults { get; } = new();
+    public ObservableCollection<CaptureExistingRow> CaptureWorkspaceItems { get; } = new();
+    public ObservableCollection<StagedRow> StagedRows { get; } = new();
+    public ObservableCollection<DupChoice> CaptureDupChoices { get; } = new();
+    private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
+    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); RaiseCommands(); } }
+    public bool CaptureOpen => _captureStage != CaptureStage.None;
+    public bool IsCaptureNew => _captureStage == CaptureStage.NewForm;
+    public bool IsCapturePick => _captureStage == CaptureStage.PickWorkspace;
+    public bool IsCaptureSide => _captureStage == CaptureStage.SideBySide;
+    public bool CaptureEmpty => CaptureOpen && CaptureRows.Count == 0;
+    /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
+    public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
+    public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
+    public string CaptureSearch { get => _captureSearch; set { Set(ref _captureSearch, value ?? ""); RefreshCaptureResults(); } }
+    private string _captureSearch = "";
+    /// <summary>Unsaved capture work: staged additions on the side-by-side screen, or a filled-in new-workspace form.</summary>
+    public bool CaptureDirty => (_captureStage == CaptureStage.SideBySide && StagedRows.Count > 0) || (_captureStage == CaptureStage.NewForm && CreateDirty);
+    public bool UnsavedForCapture { get => _unsavedForCapture; private set => Set(ref _unsavedForCapture, value); }
+    private bool _unsavedForCapture;
+    public bool CaptureDupSinglePending { get => _dupSingle != null; }
+    public string CaptureDupSingleMessage { get => _dupSingleMessage; private set => Set(ref _dupSingleMessage, value); }
+    private string _dupSingleMessage = ""; private CaptureRow? _dupSingle;
+    public bool CaptureDupGroupPending { get => _dupGroup; private set { Set(ref _dupGroup, value); RaiseCommands(); } }
+    private bool _dupGroup;
+    public ICommand CaptureNewCommand { get; private set; } = null!;
+    public ICommand CaptureExistingCommand { get; private set; } = null!;
+    public ICommand AddFromOpenCommand { get; private set; } = null!;
+    public ICommand CapturePickWorkspaceCommand { get; private set; } = null!;
+    public ICommand CaptureAddCommand { get; private set; } = null!;
+    public ICommand CaptureDropCommand { get; private set; } = null!;
+    public ICommand CaptureSaveCommand { get; private set; } = null!;
+    public ICommand CaptureBackCommand { get; private set; } = null!;
+    public ICommand CaptureCloseCommand { get; private set; } = null!;
+    public ICommand CaptureCreateCommand { get; private set; } = null!;
+    public ICommand RemoveStagedCommand { get; private set; } = null!;
+    public ICommand ConfirmCaptureDupSingleCommand { get; private set; } = null!;
+    public ICommand CancelCaptureDupSingleCommand { get; private set; } = null!;
+    public ICommand ConfirmCaptureDupGroupCommand { get; private set; } = null!;
+    public ICommand CancelCaptureDupGroupCommand { get; private set; } = null!;
+    private bool CaptureIdle => !_dupGroup && _dupSingle == null;
+    private void InitCaptureCommands()
+    {
+        CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview);
+        CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview);
+        AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null);
+        CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
+        CaptureAddCommand = Cmd(_ => AddCaptured(), _ => IsCaptureSide && CaptureRows.Count > 0 && CaptureIdle && !ReadOnly);
+        CaptureDropCommand = Cmd(p => DropCaptured((CaptureRow)p!), p => p is CaptureRow && IsCaptureSide && CaptureIdle && !ReadOnly);
+        CaptureSaveCommand = Cmd(_ => SaveStaged(), _ => IsCaptureSide && StagedRows.Count > 0 && CaptureIdle && !ReadOnly);
+        CaptureBackCommand = Cmd(_ => CaptureBack(), _ => IsCaptureSide && CaptureIdle);
+        CaptureCloseCommand = Cmd(_ => CaptureClose(), _ => CaptureOpen && CaptureIdle);
+        CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly);
+        RemoveStagedCommand = Cmd(p => { StagedRows.Remove((StagedRow)p!); Raise(nameof(CaptureDirty)); RaiseCommands(); }, p => p is StagedRow && IsCaptureSide);
+        ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
+        CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);
+        ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
+        CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _dupGroup);
+    }
+    private void OnCaptureCheckChanged() => Raise(nameof(CaptureAddLabel));
+    private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
+    {
+        CaptureScan scan;
+        try { scan = _capturer.Scan(); }
+        catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or NotSupportedException)
+        { scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Scan failed: " + e.GetType().Name }); }
+        CaptureRows.Clear(); foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
+        CaptureNotes.Clear(); foreach (var n in scan.Notes) CaptureNotes.Add(n);
+        StagedRows.Clear(); CaptureDupChoices.Clear(); _dupSingle = null; CaptureDupGroupPending = false; CaptureSearch = "";
+        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
+        Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
+        if (wsId != null) EnterSideBySide(wsId);
+        else { RefreshCaptureResults(); CaptureStageNow = stage; }
+    }
+    private void RefreshCaptureResults()
+    {
+        CaptureWorkspaceResults.Clear();
+        foreach (var w in Workspaces.Where(w => _captureSearch.Length == 0 || w.Name.Contains(_captureSearch, StringComparison.OrdinalIgnoreCase) || w.EffectiveCategory.Contains(_captureSearch, StringComparison.OrdinalIgnoreCase)))
+            CaptureWorkspaceResults.Add(w);
+    }
+    private void EnterSideBySide(string wsId)
+    {
+        _capWsId = wsId; StagedRows.Clear(); RefreshCaptureWorkspaceItems(); Raise(nameof(CaptureWorkspaceName)); CaptureStageNow = CaptureStage.SideBySide;
+    }
+    private void RefreshCaptureWorkspaceItems()
+    {
+        CaptureWorkspaceItems.Clear();
+        var w = _current.Workspaces.FirstOrDefault(x => x.Id == _capWsId); if (w is null) return;
+        foreach (var m in w.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 4).ThenBy(x => x.i))
+            if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type)));
+    }
+    private bool IsCaptureDuplicate(CaptureRow r) =>
+        new Catalog(_current).HasTarget(_capWsId, r.Type, r.Target) || StagedRows.Any(s => s.Type == r.Type && s.Target == r.Target);
+    private void Stage(CaptureRow r) { StagedRows.Add(new StagedRow(r.Item)); Raise(nameof(CaptureDirty)); RaiseCommands(); }
+    /// <summary>One item dragged (or dropped by the view) onto the workspace side: a duplicate gets its own warning for that one drag.</summary>
+    public void DropCaptured(CaptureRow r)
+    {
+        if (!IsCaptureSide || !CaptureIdle) return;
+        if (IsCaptureDuplicate(r))
+        {
+            _dupSingle = r; CaptureDupSingleMessage = $"'{r.Name}' is already in this workspace (or already added here). Add it again as a separate instance?";
+            Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); return;
+        }
+        Stage(r);
+    }
+    /// <summary>הוסף הכל / הוסף נבחרים: new addresses are staged at once; every duplicate goes into ONE grouped dialog where the user picks which to add.</summary>
+    private void AddCaptured()
+    {
+        var ticked = CaptureRows.Where(r => r.IsChecked).ToList();
+        var rows = ticked.Count > 0 ? ticked : CaptureRows.ToList();
+        var dups = rows.Where(IsCaptureDuplicate).ToList();
+        foreach (var r in rows.Except(dups)) Stage(r);
+        if (dups.Count > 0) { CaptureDupChoices.Clear(); foreach (var d in dups) CaptureDupChoices.Add(new DupChoice(d)); CaptureDupGroupPending = true; }
+        Status = $"{rows.Count - dups.Count} added on screen, not saved yet" + (dups.Count > 0 ? $"; {dups.Count} already in the workspace need your choice" : "");
+    }
+    private bool SaveStaged()
+    {
+        var wsId = _capWsId; var staged = StagedRows.ToList();
+        foreach (var s in staged)
+        {
+            var ow = s.OpenWith.Trim(); LaunchConfig? launch = ow.Length == 0 ? null : s.Type == ItemType.Link ? new LaunchConfig(Browser: ow) : new LaunchConfig(OpenWith: ow);
+            var err = Catalog.ValidateTarget(s.Type, s.Target) ?? Catalog.ValidateDescription(s.Description) ?? Catalog.ValidateLaunch(s.Type, launch);
+            if (err != null) { Status = $"Not saved ({s.OriginalName}): " + err; return false; }
+        }
+        var ok = Apply(c =>
+        {
+            foreach (var s in staged)
+            {
+                var ow = s.OpenWith.Trim(); LaunchConfig? launch = ow.Length == 0 ? null : s.Type == ItemType.Link ? new LaunchConfig(Browser: ow) : new LaunchConfig(OpenWith: ow);
+                var it = c.GetOrAddItem(s.Type, s.OriginalName, s.Target);
+                var nm = string.IsNullOrWhiteSpace(s.Name) || s.Name == it.Name ? null : s.Name;
+                c.AddToWorkspace(wsId, it.Id, launch, nm, s.Description);
+            }
+        });
+        if (!ok) return false;
+        StagedRows.Clear(); RefreshCaptureWorkspaceItems(); Raise(nameof(CaptureDirty)); RaiseCommands();
+        Status = $"Saved {staged.Count} {(staged.Count == 1 ? "item" : "items")} to the workspace; the capture list stays open";
+        return true;
+    }
+    private bool CreateFromCapture()
+    {
+        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
+        var chosen = CaptureRows.Where(r => r.IsChecked).Select(r => r.Item).ToList();
+        if (string.IsNullOrWhiteSpace(n)) { Status = "Not created: workspace name is required"; return false; }
+        var ok = Apply(c =>
+        {
+            id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat);
+            foreach (var i in chosen) { var it = c.GetOrAddItem(i.Type, i.Name, i.Target); c.AddToWorkspace(id, it.Id); }
+        });
+        if (!ok) return false;
+        NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory;
+        ResetCapture();
+        Selected = Workspaces.FirstOrDefault(w => w.Id == id);
+        LoadDetails(); InDetails = true;
+        Status = $"Workspace created with {chosen.Count} captured {(chosen.Count == 1 ? "item" : "items")}";
+        return true;
+    }
+    private bool CaptureGuardSave()
+    {
+        if (IsCaptureNew)
+        {
+            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return false; }
+            return CreateFromCapture();
+        }
+        return SaveStaged();
+    }
+    private void DiscardCaptureChanges()
+    {
+        StagedRows.Clear();
+        if (IsCaptureNew) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; }
+        Raise(nameof(CaptureDirty));
+    }
+    private void CaptureBack()
+    {
+        if (StagedRows.Count > 0) { MarkUnsavedHost(false, false, false, false, true); _exitAction = BackToPick; UnsavedOpen = true; return; }
+        BackToPick();
+    }
+    private void BackToPick() { StagedRows.Clear(); _capWsId = ""; CaptureSearch = ""; RefreshCaptureResults(); CaptureStageNow = CaptureStage.PickWorkspace; }
+    private void CaptureClose()
+    {
+        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _exitAction = ResetCapture; UnsavedOpen = true; return; }
+        ResetCapture();
+    }
+    /// <summary>X: the capture list is dropped; opening capture again scans what is open at that moment. What was already saved stays saved.</summary>
+    private void ResetCapture()
+    {
+        CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _dupSingle = null; _capWsId = "";
+        CaptureDupGroupPending = false; CaptureSearch = "";
+        Raise(nameof(CaptureDupSinglePending)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureAddLabel));
+        CaptureStageNow = CaptureStage.None;
+    }
+
 }
