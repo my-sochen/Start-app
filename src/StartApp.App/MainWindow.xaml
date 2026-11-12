@@ -216,8 +216,7 @@
                                                 <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
-                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False"
-                                                          Visibility="{Binding PlacementTarget.Tag.HasOtherWorkspaces, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource B2V}}"/>
+                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
                                                 <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
                                             </ContextMenu>
                                         </Button.ContextMenu>
