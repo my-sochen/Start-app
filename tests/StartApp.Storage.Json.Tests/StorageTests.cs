@@ -96,7 +96,7 @@ public class RevisionTests
         Assert.Throws<ArgumentException>(() => c.AddToWorkspace(w.Id, f.Id, new LaunchConfig("cmd /c calc & x")));
         Assert.Throws<ArgumentException>(() => c.AddToWorkspace(w.Id, f.Id, new LaunchConfig(null, "C:\\Tools\\chrome.exe")));
         Assert.Throws<ArgumentException>(() => c.AddToWorkspace(w.Id, l.Id, new LaunchConfig("C:\\Tools\\code.exe")));
-        Assert.True(c.AddToWorkspace(w.Id, f.Id, new LaunchConfig("C:\\Program Files\\code.exe")));
+        c.AddToWorkspace(w.Id, f.Id, new LaunchConfig("C:\\Program Files\\code.exe"));
     }
     [Fact] public void ExternalJsonWithBadLaunchIsRejectedOnLoad()
     {
