@@ -59,6 +59,31 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
+    /// <summary>עריכת כתובת on a staged capture row: the address field is already inline, so the menu entry focuses it.</summary>
+    private void StagedEditAddress_Click(object sender, RoutedEventArgs e)
+    {
+        var btn = ((sender as MenuItem)?.Parent as ContextMenu)?.PlacementTarget as Button;
+        var host = btn is null ? null : FindVisualParent<StackPanel>(btn);
+        if (host is null) return;
+        foreach (var box in FindChildren<TextBox>(host))
+            if (System.Windows.Automation.AutomationProperties.GetName(box) == "Added item address") { box.Focus(); box.SelectAll(); break; }
+    }
+    private static T? FindVisualParent<T>(DependencyObject? d) where T : DependencyObject
+    {
+        while (d != null) { if (d is T t) return t; d = System.Windows.Media.VisualTreeHelper.GetParent(d); }
+        return null;
+    }
+    private static IEnumerable<T> FindChildren<T>(DependencyObject d) where T : DependencyObject
+    {
+        var n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);
+        for (var i = 0; i < n; i++)
+        {
+            var c = System.Windows.Media.VisualTreeHelper.GetChild(d, i);
+            if (c is T t) yield return t;
+            foreach (var x in FindChildren<T>(c)) yield return x;
+        }
+    }
+
     private void CardActions_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu })
