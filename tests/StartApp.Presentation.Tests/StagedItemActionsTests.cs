@@ -69,9 +69,12 @@ public class StagedItemActionsTests
         vm.CaptureAddCommand.Execute(null);
         Assert.Equal(new[] { "proj", "docs", "example.com" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
         var proj = vm.StagedRows[0]; var docs = vm.StagedRows[1]; var link = vm.StagedRows[2];
-        Assert.False(vm.StagedMoveUpCommand.CanExecute(proj));                     // group edge above
-        Assert.False(vm.StagedMoveUpCommand.CanExecute(link));                     // the only Link: no same-group neighbor
-        Assert.False(vm.StagedMoveDownCommand.CanExecute(link));
+        // Mirror of the details screen: the entries stay enabled at the group edge and the boundary no-op lives in the move itself.
+        Assert.True(vm.StagedMoveUpCommand.CanExecute(proj));                      // group edge above
+        Assert.True(vm.StagedMoveUpCommand.CanExecute(link));                      // the only Link: no same-group neighbor
+        Assert.True(vm.StagedMoveDownCommand.CanExecute(link));
+        vm.StagedMoveDownCommand.Execute(link);                                    // edge no-op, order unchanged
+        Assert.Equal(new[] { "proj", "docs", "example.com" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
         vm.StagedMoveDownCommand.Execute(proj);                                    // swaps within the Folders group
         Assert.Equal(new[] { "docs", "proj", "example.com" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
         vm.StagedMoveDownCommand.Execute(proj);                                    // group edge below (next is a Link): no-op
