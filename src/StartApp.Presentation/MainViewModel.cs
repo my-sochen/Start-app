@@ -6,7 +6,7 @@ using StartApp.Core;
 namespace StartApp.Presentation;
 
 /// <summary>One visible instance row. Name/Description are the instance's own values with fallback to the catalog item's original name /
-/// no description. Group is the display category (decided: sites, folders, files+programs); order inside a group is undecided, so insertion order is kept.</summary>
+/// no description. Group is the display category (decided Nov 12: sites, folders, files, programs - the earlier files+programs combined group was superseded); order inside a group is undecided, so insertion order is kept.</summary>
 public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null, string? Program = null);
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
@@ -635,12 +635,12 @@ public sealed class MainViewModel : ObservableBase
     }
 
     private static int GroupRank(ItemType t) => Catalog.DisplayGroup(t);
-    public static string GroupOf(ItemType t) => t switch { ItemType.Link => "Sites", ItemType.Folder => "Folders", _ => "Files & Programs" };
+    public static string GroupOf(ItemType t) => t switch { ItemType.Link => "Sites", ItemType.Folder => "Folders", ItemType.File => "Files", _ => "Programs" };
 
     private void RefreshItems()
     {
         Items.Clear(); Raise(nameof(ShowEmptyItemsMessage)); if (Selected is null) return;
-        foreach (var m in Selected.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 3).ThenBy(x => x.i))
+        foreach (var m in Selected.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 4).ThenBy(x => x.i))
             if (_current.Items.TryGetValue(m.m.ItemId, out var it))
                 Items.Add(new ItemRow(m.m.Id ?? m.m.ItemId, it.Id, m.m.Name ?? it.Name, it.Target, it.Type.ToString(), GroupOf(it.Type), m.m.Description ?? it.Description, m.m.Launch?.Browser ?? m.m.Launch?.OpenWith));
     }
