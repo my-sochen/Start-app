@@ -1,1 +1,1 @@
-v14 - visual fixes from pixel review: explicit ContextMenu placement (Bottom at the button), transparent card buttons so color/image is the card surface, no frame when image file missing, create-form category combo keeps selection (diff-wise rebuild); new design-popup screenshot
+v15 - same v14 visual fixes; re-triggered only to widen the unit-step console filter so failing test names/details print (v13 lost one unnamed test failure)
