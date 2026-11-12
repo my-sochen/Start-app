@@ -196,7 +196,7 @@ public sealed class MainViewModel : ObservableBase
         CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
         OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
         OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching);
-        CloseOpenWithCommand = Cmd(_ => OpenWithOpen = false, _ => OpenWithOpen);
+        CloseOpenWithCommand = Cmd(_ => CloseOpenWith(), _ => OpenWithOpen);
         MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
         MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
         DesignCardCommand = Cmd(p => BeginDesign((Workspace)p!), p => p is Workspace && !ReadOnly);
@@ -304,8 +304,9 @@ public sealed class MainViewModel : ObservableBase
     public bool OpenWithOpen { get => _openWithOpen; private set { Set(ref _openWithOpen, value); RaiseCommands(); } }
     private bool _openWithOpen;
     private ItemRow? _openWithRow;
+    private StagedRow? _openWithStaged;
     /// <summary>Which program the popup asks for: a browser for a site, a program for a file/folder.</summary>
-    public string OpenWithLabel => _openWithRow?.Type == nameof(ItemType.Link) ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
+    public string OpenWithLabel => _openWithRow?.Type == nameof(ItemType.Link) || _openWithStaged?.Type == ItemType.Link ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
     public string OpenWithProgram { get => _openWithProgram; set { Set(ref _openWithProgram, value ?? ""); RaiseCommands(); } }
     private string _openWithProgram = "";
     /// <summary>הגדר כברירת מחדל: save the choice for THIS instance only (never a Windows default, never other workspaces).</summary>
@@ -315,13 +316,23 @@ public sealed class MainViewModel : ObservableBase
     {
         if (row.Type == nameof(ItemType.Program)) { Status = "Open with does not apply to a program item (it is the program)"; return; }
         var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
-        _openWithRow = row;
+        _openWithRow = row; _openWithStaged = null;
         OpenWithProgram = m?.Launch?.Browser ?? m?.Launch?.OpenWith ?? "";
         OpenWithSetDefault = m?.Launch is not null;
         OpenWithOpen = true; Raise(nameof(OpenWithLabel));
     }
     private void OpenWithGo()
     {
+        if (_openWithStaged is { } sg)
+        {
+            var prog2 = OpenWithProgram.Trim();
+            LaunchConfig? cfg2 = prog2.Length == 0 ? null : sg.Type == ItemType.Link ? new LaunchConfig(Browser: prog2) : new LaunchConfig(OpenWith: prog2);
+            if (OpenWithSetDefault) sg.OpenWith = prog2; // a staged default stays staged until שמור
+            CloseOpenWith();
+            var stagedItem = new Item("staged", sg.Type, sg.Name, sg.Target, string.IsNullOrWhiteSpace(sg.Description) ? null : sg.Description);
+            OpenOneCore(sg.Name, stagedItem, cfg2);
+            return;
+        }
         if (_openWithRow is null) return;
         var row = _openWithRow; var prog = OpenWithProgram.Trim();
         LaunchConfig? cfg = prog.Length == 0 ? null : row.Type == nameof(ItemType.Link) ? new LaunchConfig(Browser: prog) : new LaunchConfig(OpenWith: prog);
@@ -894,6 +905,8 @@ public sealed class MainViewModel : ObservableBase
         public string Description { get => _description; set => Set(ref _description, value ?? ""); }
         public string Target { get => _target; set => Set(ref _target, value ?? ""); }
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
+        /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
+        public bool IsProgram => Type == ItemType.Program;
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
     public sealed record CaptureExistingRow(string Name, string Target, string Group);
@@ -960,6 +973,10 @@ public sealed class MainViewModel : ObservableBase
     public ICommand CaptureCloseCommand { get; private set; } = null!;
     public ICommand CaptureCreateCommand { get; private set; } = null!;
     public ICommand RemoveStagedCommand { get; private set; } = null!;
+    public ICommand StagedCopyAddressCommand { get; private set; } = null!;
+    public ICommand StagedMoveUpCommand { get; private set; } = null!;
+    public ICommand StagedMoveDownCommand { get; private set; } = null!;
+    public ICommand StagedOpenWithCommand { get; private set; } = null!;
     public ICommand ConfirmCaptureDupSingleCommand { get; private set; } = null!;
     public ICommand CancelCaptureDupSingleCommand { get; private set; } = null!;
     public ICommand ConfirmCaptureDupGroupCommand { get; private set; } = null!;
@@ -978,6 +995,13 @@ public sealed class MainViewModel : ObservableBase
         CaptureCloseCommand = Cmd(_ => CaptureClose(), _ => CaptureOpen && CaptureIdle);
         CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly && !IsScanning);
         RemoveStagedCommand = Cmd(p => { StagedRows.Remove((StagedRow)p!); Raise(nameof(CaptureDirty)); RaiseCommands(); }, p => p is StagedRow && IsCaptureSide);
+        // Settled capture rule: a staged item offers the FULL item action set (מחיקה, העתק כתובת, עריכת כתובת, פתח באמצעות,
+        // הזז למעלה/למטה; שיתוף לסביבה אחרת stays visible-disabled while that action is undefined) with staged semantics:
+        // edits and a chosen default stay staged until שמור, and the source capture list is never changed.
+        StagedCopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((StagedRow)p!).Target); Status = "Address copied"; }, p => p is StagedRow && IsCaptureSide);
+        StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow sr && IsCaptureSide && StagedRows.IndexOf(sr) > 0);
+        StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow sr && IsCaptureSide && StagedRows.IndexOf(sr) >= 0 && StagedRows.IndexOf(sr) < StagedRows.Count - 1);
+        StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
@@ -1076,6 +1100,22 @@ public sealed class MainViewModel : ObservableBase
         if (dups.Count > 0) { CaptureDupChoices.Clear(); foreach (var d in dups) CaptureDupChoices.Add(new DupChoice(d)); CaptureDupGroupPending = true; }
         Status = $"{rows.Count - dups.Count} added on screen, not saved yet" + (dups.Count > 0 ? $"; {dups.Count} already in the workspace need your choice" : "");
     }
+    private void MoveStaged(StagedRow row, int delta)
+    {
+        var i = StagedRows.IndexOf(row); var j = i + delta;
+        if (i < 0 || j < 0 || j >= StagedRows.Count) return;
+        StagedRows.Move(i, j); RaiseCommands();
+    }
+    /// <summary>פתח באמצעות on a staged row: the same popup a saved item gets, but a chosen default lands on the staged
+    /// row's open-with field (written to the store only on שמור) and Go opens the item straight from the staged values.</summary>
+    private void BeginOpenWithStaged(StagedRow row)
+    {
+        _openWithRow = null; _openWithStaged = row;
+        OpenWithProgram = row.OpenWith;
+        OpenWithSetDefault = row.OpenWith.Trim().Length > 0;
+        OpenWithOpen = true; Raise(nameof(OpenWithLabel));
+    }
+    private void CloseOpenWith() { OpenWithOpen = false; _openWithRow = null; _openWithStaged = null; }
     private bool SaveStaged()
     {
         var wsId = _capWsId; var staged = StagedRows.ToList();
