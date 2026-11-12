@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
@@ -23,5 +24,9 @@ public partial class MainWindow : Window
     {
         if (!_closeApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
         base.OnClosing(e);
+    }
+    private void CardActions_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu }) { menu.PlacementTarget = (Button)sender; menu.IsOpen = true; }
     }
 }
