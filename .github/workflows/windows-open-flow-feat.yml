@@ -191,7 +191,7 @@ jobs:
             # 4. details editing: change shows Save; save persists
             $wsNameBox2 = NamedEdit 'Workspace name'
             SetText $wsNameBox2 'E2E ws renamed'
-            $saveBtn = $null; for ($i = 0; $i -lt 20; $i++) { $saveBtn = Btn 'Save'; if ($saveBtn) { break }; Start-Sleep -Milliseconds 250 }
+            $saveBtn = $null; for ($i = 0; $i -lt 20; $i++) { $saveBtn = Btn 'Save workspace details'; if ($saveBtn) { break }; Start-Sleep -Milliseconds 250 }
             Assert 'any change shows a Save button' ($null -ne $saveBtn) ''
             [void](InvokeEl $saveBtn 'Save button'); Start-Sleep -Milliseconds 900
             Assert 'saved name persisted to store.json' ((StoreJson) -match 'E2E ws renamed') (StoreJson)
@@ -310,6 +310,7 @@ jobs:
           name: screenshots-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
           path: out-images/
           if-no-files-found: warn
+          archive: false
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
