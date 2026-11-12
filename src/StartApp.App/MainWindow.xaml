@@ -158,6 +158,7 @@
                         <Button Content="Add anyway" Command="{Binding ConfirmDuplicateCommand}" Padding="8,2" Margin="8,0,0,0"/>
                         <Button Content="Cancel" Command="{Binding CancelDuplicateCommand}" Padding="8,2" Margin="4,0,0,0"/>
                     </StackPanel>
+                    <Button Content="בחר מסביבות קיימות" Command="{Binding OpenPickerCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="10,2" AutomationProperties.Name="Pick from existing resources"/>
                 </StackPanel>
                 <ListView ItemsSource="{Binding Source={StaticResource ItemsView}}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Margin="0,8,0,0">
                     <ListView.GroupStyle>
@@ -296,6 +297,44 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                         <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Padding="12,2" AutomationProperties.Name="Open with chosen program"/>
                     </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ existing-resource picker (בחר מסביבות קיימות): items only, four type buttons,
+             original resource names (site address under the name), search, usage-count sort ============ -->
+        <Grid Visibility="{Binding PickerOpen, Converter={StaticResource B2V}}" Background="#66000000">
+            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="460">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Padding="6,0" AutomationProperties.Name="Close resource picker" ToolTip="Close"/>
+                        <TextBlock Text="בחר מסביבות קיימות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding PickerTypes}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Button Padding="10,2" Margin="0,0,4,0" Command="{Binding DataContext.PickTypeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                    Content="{Binding}" AutomationProperties.Name="Picker type"/>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox Text="{Binding PickerSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Search resources" ToolTip="Search"/>
+                    <ListBox ItemsSource="{Binding PickerRows}" MaxHeight="200" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Resource list">
+                        <ListBox.ItemTemplate><DataTemplate>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="בחר" Padding="8,0" Margin="4,0,0,0" AutomationProperties.Name="Pick resource"
+                                        Command="{Binding DataContext.PickResourceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}"/>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                    <!-- sites also show the address under the name (settled); other types show the name only -->
+                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="Link"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                        </Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
                 </StackPanel>
             </Border>
         </Grid>
