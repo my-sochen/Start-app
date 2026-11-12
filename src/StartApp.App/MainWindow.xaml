@@ -330,7 +330,7 @@
                                                         <ContextMenu>
                                                             <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.StagedCopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                            <MenuItem Header="עריכת כתובת" Click="StagedEditAddress_Click"/>
+                                                            <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.StagedEditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.StagedOpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
                                                                 <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers><DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></MenuItem.Style>
                                                             </MenuItem>
