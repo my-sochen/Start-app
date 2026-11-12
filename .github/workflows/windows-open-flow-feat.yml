@@ -36,6 +36,7 @@ jobs:
       - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
         shell: pwsh
         run: |
+          try {
           Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
           Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
           $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
@@ -291,6 +292,7 @@ jobs:
             $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c
             $targetVal = ValOf (NamedEdit 'Item target')
             Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal
+            Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
           }
           catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
           finally {
@@ -299,6 +301,8 @@ jobs:
             if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
           }
           if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt }
+          }
+          catch { $il = $_.InvocationInfo; "harness setup error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Out-File -Append diag/errors.txt; @([ordered]@{ name = 'harness setup error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json }
         continue-on-error: true
       - uses: actions/upload-artifact@v7.0.2
         if: always()
@@ -316,5 +320,15 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          if (-not (Test-Path diag/assertions.json)) { 'E2E step never produced assertions.json - it failed before completing; its step log has the cause' | Out-File diag/errors.txt }
+          if (-not (Test-Path diag/assertions.json)) { 'E2E step never produced assertions.json - it failed before completing; its step log has the cause' | Out-File -Append diag/errors.txt }
+          else {
+            $a = Get-Content diag/assertions.json | ConvertFrom-Json
+            if (-not $a) { 'assertions.json is empty - E2E ran no checks' | Out-File -Append diag/errors.txt }
+            else {
+              if (@($a | Where-Object { -not $_.ok }).Count -gt 0) { 'assertions.json contains FAIL asserts' | Out-File -Append diag/errors.txt }
+              $last = @($a)[-1]
+              if ($last.name -ne 'FLOW-COMPLETE' -or -not $last.ok) { 'E2E flow stopped before its end-of-flow completion marker - partial run treated as failure' | Out-File -Append diag/errors.txt }
+              elseif ($last.detail -ne '${{ github.sha }}') { "completion marker commit $($last.detail) does not match run commit ${{ github.sha }}" | Out-File -Append diag/errors.txt }
+            }
+          }
           if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
