@@ -56,6 +56,13 @@ jobs:
     - uses: actions/upload-artifact@v7.0.2
       if: always()
       with:
+        name: shot-cap-DESKTOP-no-capture-screen
+        path: out-images/cap-DESKTOP-no-capture-screen.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
         name: shot-cap-created-from-capture-details
         path: out-images/cap-created-from-capture-details.png
         if-no-files-found: warn
