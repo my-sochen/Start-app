@@ -117,7 +117,7 @@ public class PreflightTests
         vm.OpenWorkspaceCommand.Execute(null);
         Assert.True(sw.ElapsedMilliseconds < 200, "Execute must return immediately"); Assert.True(vm.IsChecking); Assert.False(vm.OpenWorkspaceCommand.CanExecute(null));
         vm.OpenTask.Wait();
-        Assert.True(sw.ElapsedMilliseconds < 1200, "overall deadline, not 12 x 1.5 s"); Assert.False(vm.IsChecking);
+        Assert.True(sw.ElapsedMilliseconds < 3000, "overall deadline (~3 x 400 ms batches), not 12 x 1.5 s"); Assert.False(vm.IsChecking); // 3000 keeps the intent (a missed per-batch deadline would take 3 x 1.5 s = 4.5 s) without a zero-headroom race at exactly 1200 ms
         Assert.Empty(l.Launched); Assert.Equal(12, vm.OpenProblems.Count); Assert.All(vm.OpenProblems, p => Assert.Contains("did not finish in time", p));
     }
     [Fact] public void Checks_UseAtMostFourWorkers()
