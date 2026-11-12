@@ -63,7 +63,9 @@ public class StartupFailureTests
         int add = 0, del = 0; vm.AddItemCommand.CanExecuteChanged += (_, _) => add++; vm.DeleteWorkspaceCommand.CanExecuteChanged += (_, _) => del++;
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt";
         Assert.True(add > 0 && vm.AddItemCommand.CanExecute(null));
-        vm.DeleteWorkspaceCommand.Execute(null);
-        Assert.True(del > 0); Assert.False(vm.DeleteWorkspaceCommand.CanExecute(null));
+        var w = vm.Workspaces.Single();
+        Assert.True(vm.DeleteWorkspaceCommand.CanExecute(w));
+        vm.DeleteWorkspaceCommand.Execute(w);
+        Assert.True(del > 0); Assert.False(vm.DeleteWorkspaceCommand.CanExecute(w)); Assert.Empty(vm.Workspaces);
     }
 }
