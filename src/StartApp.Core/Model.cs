@@ -7,7 +7,8 @@ public enum ItemType { Link, File, Folder, Program }
 /// descriptions are per workspace instance (see <see cref="Membership"/>), so editing one workspace never changes another.</summary>
 public sealed record Item(string Id, ItemType Type, string Name, string Target, string? Description = null);
 
-/// <summary>Per-instance launch preferences. PROPOSAL: optional fields, null = OS default.</summary>
+/// <summary>Per-instance launch preference (פתח באמצעות → הגדר כברירת מחדל): Browser for a link, OpenWith for a file/folder.
+/// Null = the Windows default is used. The choice lives on the instance, is honored only inside Start-app, and never changes Windows associations.</summary>
 public sealed record LaunchConfig(string? OpenWith = null, string? Browser = null);
 
 /// <summary>One appearance of a catalog item in a workspace. The same target may appear more than once in a workspace
