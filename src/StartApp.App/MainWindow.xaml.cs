@@ -17,6 +17,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.FocusAddRequested += () => TargetBox.Focus();
+            vm.CopyAddressRequested += a => Clipboard.SetText(a);
             vm.AppCloseApproved += () => { _closeApproved = true; Close(); };
         }
     }
