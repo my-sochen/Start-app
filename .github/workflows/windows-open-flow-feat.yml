@@ -130,6 +130,23 @@ jobs:
             $json = StoreJson
             Assert 'store.json: two separate instances of the link, instance name persisted' (([regex]::Matches($json, 'example\.com')).Count -ge 3 -and $json -match 'My link') $json
             Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
+            # 3b. item row: clicking the name opens that one item only (spec שורה של אייטם: לחיצה על השם פותחת)
+            $npB = NotepadCount
+            $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'ok.txt: open request sent' 15)) ((Texts) -join ' | ')
+            $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
+            Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
+            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            # 3c. item actions menu (spec בנתיים: עריכה, מחיקה, העתק כתובת) and the edit form changes one instance only
+            $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
+            $ifound = @('עריכה','מחיקה','העתק כתובת') | Where-Object { $null -ne (AnyByName $_) }
+            Assert 'item menu shows the three spec actions' (@($ifound).Count -eq 3) ("found: $($ifound -join ', ')")
+            $editMi = AnyByName 'עריכה'
+            $editMi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 800
+            $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
+            SetText $eName 'My link edited'
+            $c = ClickBtn 'Save' 900; Assert 'item edit saved' ($c -eq 'ok') $c
+            Assert 'edited instance name shown' (WaitText 'My link edited' 10) ((Texts) -join ' | ')
+            Assert 'store.json: that instance renamed, target untouched' ((StoreJson) -match 'My link edited' -and (StoreJson) -match 'example\.com') (StoreJson)
             # 4. details editing: change shows Save; save persists
             $wsNameBox2 = NamedEdit 'Workspace name'
             SetText $wsNameBox2 'E2E ws renamed'
