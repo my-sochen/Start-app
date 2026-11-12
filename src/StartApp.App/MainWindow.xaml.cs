@@ -69,20 +69,28 @@ public partial class MainWindow : Window
             // edge), and flip above the button when the space below it inside the window is too small.
             var button = (Button)sender;
             menu.PlacementTarget = button;
-            // Settle the share entry's visibility BEFORE the popup measures. The previous Visibility binding through
-            // PlacementTarget lagged a layout pass on a menu's first open, so the placement callback measured a 6-item
-            // menu that then rendered as 7 items and overflowed the window bottom (run 43307032198: 19px past it).
+            // Settle the share entry's visibility BEFORE the popup measures, so its height is final at placement time.
             foreach (var mi in menu.Items.OfType<System.Windows.Controls.MenuItem>())
                 if (mi.Header as string == "שיתוף לסביבה אחרת")
                     mi.Visibility = (button.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
+            // Decide up/down from the real measured space inside the window at click time, and hard-bound the menu
+            // height to the larger side so it can never extend past the window. The placement callback's popupSize is
+            // not reliable on a menu's first open (runs 43307032198/43310237708: last-row menu overflowed the window
+            // bottom by 19px because the flip never engaged).
+            var openAbove = false;
+            if (Window.GetWindow(button) is { } host)
+            {
+                var topLeft = button.TransformToAncestor(host).Transform(new Point(0, 0));
+                var spaceBelow = host.ActualHeight - (topLeft.Y + button.ActualHeight);
+                var spaceAbove = topLeft.Y;
+                openAbove = spaceBelow < spaceAbove;
+                menu.MaxHeight = Math.Max(spaceBelow, spaceAbove);
+            }
             menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
             menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
             {
                 var x = targetSize.Width - popupSize.Width;
-                var y = targetSize.Height;
-                if (Window.GetWindow(button) is { } w &&
-                    button.TransformToAncestor(w).Transform(new Point(0, targetSize.Height)).Y + popupSize.Height > w.ActualHeight)
-                    y = -popupSize.Height;
+                var y = openAbove ? -popupSize.Height : targetSize.Height;
                 return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x, y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
             };
             menu.IsOpen = true;
