@@ -2,26 +2,36 @@ namespace StartApp.Core;
 
 public enum ItemType { Link, File, Folder, Program }
 
-/// <summary>Catalog item: identity (what it is) plus an optional user-written description of it, shared by every workspace that holds the item. Old files without a description load as null. Launch preferences live on the workspace membership.</summary>
+/// <summary>Catalog item: the resource itself (identity = type + exact target) with its original name.
+/// Schema-2 files may carry a shared description on the item; it still loads and shows as a fallback, but new
+/// descriptions are per workspace instance (see <see cref="Membership"/>), so editing one workspace never changes another.</summary>
 public sealed record Item(string Id, ItemType Type, string Name, string Target, string? Description = null);
 
-/// <summary>Per-workspace launch preferences. PROPOSAL: optional fields, null = OS default.</summary>
+/// <summary>Per-instance launch preferences. PROPOSAL: optional fields, null = OS default.</summary>
 public sealed record LaunchConfig(string? OpenWith = null, string? Browser = null);
 
-/// <summary>A workspace's reference to a catalog item, with workspace-local launch config.</summary>
-public sealed record Membership(string ItemId, LaunchConfig? Launch = null);
+/// <summary>One appearance of a catalog item in a workspace. The same target may appear more than once in a workspace
+/// (after a user-confirmed duplicate warning); each appearance is a separate instance with its own id, name, description
+/// and launch config, and changing one instance never changes another. Name/Description null = fall back to the catalog
+/// item's original name / no description. Id is assigned when the instance is added; instances in older files get one on load.</summary>
+public sealed record Membership(string ItemId, LaunchConfig? Launch = null, string? Id = null, string? Name = null, string? Description = null);
 
 public sealed class Workspace
 {
+    /// <summary>Built-in default category, used when none is chosen. Custom categories and their management are a separate feature.</summary>
+    public const string DefaultCategory = "כללי";
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string? Description { get; set; }
+    /// <summary>User-chosen category; null or empty means the built-in default.</summary>
+    public string? Category { get; set; }
+    public string EffectiveCategory => string.IsNullOrWhiteSpace(Category) ? DefaultCategory : Category;
     public List<Membership> Items { get; set; } = new();
 }
 
 public sealed class Store
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
     public Dictionary<string, Item> Items { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
 }
