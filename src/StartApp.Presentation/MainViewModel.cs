@@ -26,11 +26,12 @@ public sealed class MainViewModel : ObservableBase
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
     private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); }
     public ICommand CreateWorkspaceCommand { get; }
-    public ICommand DeleteWorkspaceCommand { get; }
     /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
     public ICommand OpenDetailsCommand { get; }
     /// <summary>שגר from a card in the overview: opens that workspace's items without navigating.</summary>
     public ICommand OpenWorkspaceForCommand { get; }
+    /// <summary>הוסף אייטם from the card's actions menu: opens the details screen and focuses the add form.</summary>
+    public ICommand AddItemToCommand { get; }
     public ICommand BackCommand { get; }
     public ICommand SaveDetailsCommand { get; }
     /// <summary>Unsaved-changes exit dialog: שמור וצא.</summary>
@@ -64,7 +65,23 @@ public sealed class MainViewModel : ObservableBase
     private bool _unsavedOpen;
     private Action _exitAction = () => { };
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
-    public bool RequestAppClose() { if (!DetailsDirty) return true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+    public bool RequestAppClose()
+    {
+        if (DetailsDirty) { UnsavedForCreate = false; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (CreateDirty) { UnsavedForCreate = true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        return true;
+    }
+    private void SaveAndExit()
+    {
+        if (UnsavedForCreate)
+        {
+            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
+            Create();
+            if (CreateDirty) { UnsavedOpen = false; _exitAction = () => { }; return; } // creation failed; keep editing
+        }
+        else if (!SaveDetails()) return;
+        UnsavedOpen = false; var a = _exitAction; _exitAction = () => { }; a();
+    }
     /// <summary>Fired when the user chose שמור וצא or צא בלי לשמור for a window close.</summary>
     public event Action? AppCloseApproved;
     public ICommand ConfirmOpenAnywayCommand { get; }
@@ -84,13 +101,15 @@ public sealed class MainViewModel : ObservableBase
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
-        DeleteWorkspaceCommand = Cmd(p => DeleteWorkspace((Workspace)p!), p => !ReadOnly && p is Workspace w && Workspaces.Contains(w));
+        // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
+        // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
         OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching);
+        AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
-        SaveAndExitCommand = Cmd(_ => { if (SaveDetails()) { UnsavedOpen = false; var a = _exitAction; _exitAction = () => { }; a(); } }, _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
@@ -121,10 +140,16 @@ public sealed class MainViewModel : ObservableBase
     private string _newDescription = "";
 
     private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
-    public string NewName { get => _newName; set { Set(ref _newName, value); RaiseCommands(); } }
+    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); RaiseCommands(); } }
     /// <summary>Optional workspace description in the create form.</summary>
-    public string NewWorkspaceDescription { get => _newWsDesc; set => Set(ref _newWsDesc, value ?? ""); }
+    public string NewWorkspaceDescription { get => _newWsDesc; set { Set(ref _newWsDesc, value ?? ""); Raise(nameof(CreateDirty)); } }
     private string _newWsDesc = "";
+    /// <summary>The create form holds unsaved input; closing the app then goes through the same unsaved-exit
+    /// dialog (spec: דיאלוג יציאה עם שינויים שלא נשמרו applies to טופס יצירת סביבה too).</summary>
+    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0;
+    /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
+    public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
+    private bool _unsavedForCreate;
 
     // ---- navigation and the details screen (פרטי סביבה) ----
     /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
@@ -163,7 +188,7 @@ public sealed class MainViewModel : ObservableBase
     private void Back()
     {
         ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
-        if (DetailsDirty) { _exitAction = () => InDetails = false; UnsavedOpen = true; return; }
+        if (DetailsDirty) { UnsavedForCreate = false; _exitAction = () => InDetails = false; UnsavedOpen = true; return; }
         InDetails = false;
     }
     private bool SaveDetails()
@@ -174,12 +199,6 @@ public sealed class MainViewModel : ObservableBase
         if (ok) { Status = "Workspace details saved"; RaiseDirty(); Raise(nameof(CreatedAtText)); }
         return ok;
     }
-    private void DeleteWorkspace(Workspace w)
-    {
-        if (Selected?.Id == w.Id) InDetails = false;
-        Apply(c => c.DeleteWorkspace(w.Id));
-    }
-
     public void Reload()
     {
         try { Show(_repo.Load()); ReadOnly = false; Status = ""; }
