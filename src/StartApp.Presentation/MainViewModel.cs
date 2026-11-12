@@ -5,7 +5,9 @@ using StartApp.Core;
 
 namespace StartApp.Presentation;
 
-public sealed record ItemRow(string ItemId, string Name, string Target, string Type, string? Description = null);
+/// <summary>One visible instance row. Name/Description are the instance's own values with fallback to the catalog item's original name /
+/// no description. Group is the display category (decided: sites, folders, files+programs); order inside a group is undecided, so insertion order is kept.</summary>
+public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null);
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
 /// read-only state with a message; nothing is written until the user decides (no silent reset).</summary>
@@ -22,12 +24,24 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<ItemRow> Items { get; } = new();
     private readonly List<RelayCommand> _commands = new();
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
-    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); }
+    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); }
     public ICommand CreateWorkspaceCommand { get; }
     public ICommand DeleteWorkspaceCommand { get; }
     public ICommand RemoveItemCommand { get; }
     public ICommand OpenWorkspaceCommand { get; }
     public ICommand AddItemCommand { get; }
+    /// <summary>Duplicate-add confirmation: visible while an add waits for the user to approve a second instance of the same target.</summary>
+    public bool DuplicatePending => _pendingDup;
+    private bool _pendingDup;
+    /// <summary>Text shown next to the duplicate confirm/cancel buttons.</summary>
+    public string DuplicateMessage { get => _dupMessage; private set => Set(ref _dupMessage, value); }
+    private string _dupMessage = "";
+    public ICommand ConfirmDuplicateCommand { get; }
+    public ICommand CancelDuplicateCommand { get; }
+    /// <summary>Set instead of opening when the workspace has no items (the spec's empty-workspace dialog; the go-to-details button is deferred with the details screen).</summary>
+    public bool EmptyWorkspaceOpen { get => _emptyOpen; private set => Set(ref _emptyOpen, value); }
+    private bool _emptyOpen;
+    public ICommand CloseEmptyWorkspaceCommand { get; }
     public ICommand ConfirmOpenAnywayCommand { get; }
     public ICommand CancelOpenCommand { get; }
     /// <summary>Per-item problems found before opening; the user decides. Empty when nothing is pending.</summary>
@@ -46,8 +60,11 @@ public sealed class MainViewModel : ObservableBase
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         DeleteWorkspaceCommand = Cmd(_ => Apply(c => c.DeleteWorkspace(Selected!.Id)), _ => !ReadOnly && Selected != null);
-        RemoveItemCommand = Cmd(p => Apply(c => c.RemoveFromWorkspace(Selected!.Id, ((ItemRow)p!).ItemId)), p => !ReadOnly && Selected != null && p is ItemRow);
+        RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
+        ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
+        CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
+        CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
         CancelOpenCommand = Cmd(_ => { var launching = IsLaunching; ClearPending(); if (!launching) Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null || IsChecking || IsLaunching);
@@ -56,15 +73,20 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
-    public ItemType NewItemType { get => _newType; set => Set(ref _newType, value); }
-    public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value); RaiseCommands(); } }
+    public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
+    public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value); ClearDup(); RaiseCommands(); } }
     private ItemType _newType = ItemType.File; private string _newTarget = "";
+    /// <summary>Optional local name for the instance in this workspace. Empty means the original (derived) name.</summary>
+    public string NewItemName { get => _newItemName; set { Set(ref _newItemName, value ?? ""); ClearDup(); } }
+    private string _newItemName = "";
     /// <summary>Optional description typed in the add form. Empty means none.</summary>
-    public string NewDescription { get => _newDescription; set => Set(ref _newDescription, value ?? ""); }
+    public string NewDescription { get => _newDescription; set { Set(ref _newDescription, value ?? ""); ClearDup(); } }
     private string _newDescription = "";
+
+    private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
     public string NewName { get => _newName; set { Set(ref _newName, value); RaiseCommands(); } }
 
     public void Reload()
@@ -85,24 +107,35 @@ public sealed class MainViewModel : ObservableBase
         Selected = Workspaces.FirstOrDefault(w => w.Id == keep) ?? Workspaces.FirstOrDefault();
     }
 
+    private static int GroupRank(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, _ => 2 };
+    public static string GroupOf(ItemType t) => t switch { ItemType.Link => "Sites", ItemType.Folder => "Folders", _ => "Files & Programs" };
+
     private void RefreshItems()
     {
         Items.Clear(); if (Selected is null) return;
-        foreach (var m in Selected.Items)
-            if (_current.Items.TryGetValue(m.ItemId, out var it)) Items.Add(new ItemRow(it.Id, it.Name, it.Target, it.Type.ToString(), it.Description));
+        foreach (var m in Selected.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 3).ThenBy(x => x.i))
+            if (_current.Items.TryGetValue(m.m.ItemId, out var it))
+                Items.Add(new ItemRow(m.m.Id ?? m.m.ItemId, it.Id, m.m.Name ?? it.Name, it.Target, it.Type.ToString(), GroupOf(it.Type), m.m.Description ?? it.Description));
     }
 
-    /// <summary>Manual add. The target is used exactly as typed (never trimmed); invalid input is reported, not corrected.</summary>
-    private void AddItem()
+    /// <summary>Manual add. The target and name are used exactly as typed (never trimmed); invalid input is reported, not corrected.
+    /// The description is stored on the instance, so it never changes another workspace or another instance. Adding a target that already
+    /// exists in this workspace first asks for confirmation; confirming adds a second, independent instance.</summary>
+    private void AddItem(bool force = false)
     {
-        var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id; var desc = NewDescription;
-        var err = Catalog.ValidateTarget(type, target) ?? Catalog.ValidateDescription(desc);
+        var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id; var desc = NewDescription; var name = NewItemName;
+        var err = Catalog.ValidateTarget(type, target) ?? Catalog.ValidateDescription(desc) ?? Catalog.ValidateInstanceName(string.IsNullOrWhiteSpace(name) ? null : name);
         if (err != null) { Status = "Not added: " + err; return; }
-        var keptOld = false;
-        if (Apply(c => { var it = c.GetOrAddItem(type, DisplayName(type, target), target, desc); keptOld = desc.Length > 0 && it.Description != desc; c.AddToWorkspace(wsId, it.Id); }))
+        if (!force && new Catalog(_current).HasTarget(wsId, type, target))
         {
-            NewTarget = ""; NewDescription = "";
-            if (keptOld) Status = "Added. This item already had a description, so the existing one was kept (the one you typed was not saved).";
+            _pendingDup = true; Raise(nameof(DuplicatePending)); RaiseCommands();
+            DuplicateMessage = "This target is already in the workspace. Add it again as a separate instance with its own name and settings?";
+            return;
+        }
+        _pendingDup = false; DuplicateMessage = ""; Raise(nameof(DuplicatePending));
+        if (Apply(c => { var it = c.GetOrAddItem(type, DisplayName(type, target), target); c.AddToWorkspace(wsId, it.Id, null, string.IsNullOrWhiteSpace(name) ? null : name, desc); }))
+        {
+            NewTarget = ""; NewDescription = ""; NewItemName = "";
         }
     }
 
@@ -143,7 +176,7 @@ public sealed class MainViewModel : ObservableBase
     private void Open()
     {
         ClearPending(); OpenReport.Clear();
-        if (Selected!.Items.Count == 0) { Status = "Workspace is empty, nothing to open"; return; }
+        if (Selected!.Items.Count == 0) { EmptyWorkspaceOpen = true; return; }
         // Snapshot semantics: what is checked and opened is the saved state at the moment Open was pressed; the store file is not watched.
         var snapshot = Selected!.Items.Select(m => (m, Item: _current.Items.TryGetValue(m.ItemId, out var it) ? it : null)).ToList();
         _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
