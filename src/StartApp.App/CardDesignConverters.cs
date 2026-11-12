@@ -20,11 +20,11 @@ public sealed class ColorBrushConverter : IValueConverter
 }
 
 /// <summary>The card frame: with a background image the color is a frame with a thick top and thin other sides
-/// (settled Nov 11; exact measurements were never fixed, so these are provisional); without an image there is no frame.</summary>
+/// (settled Nov 11; exact measurements were never fixed, so these are provisional); without an image (or with an image whose file is missing) there is no frame - the color is the background.</summary>
 public sealed class FrameThicknessConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is string s && s.Length > 0 ? new Thickness(1, 8, 1, 1) : new Thickness(0);
+        value is string s && s.Length > 0 && System.IO.File.Exists(s) ? new Thickness(1, 8, 1, 1) : new Thickness(0);
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
