@@ -23,6 +23,15 @@
 
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
             <DockPanel Margin="8" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
+                <Button DockPanel.Dock="Top" Content="לכידה ▾" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6" AutomationProperties.Name="Capture"
+                        Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                            <MenuItem Header="סביבה קיימת" Command="{Binding PlacementTarget.Tag.CaptureExistingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                     <TextBlock Text="Create workspace" FontWeight="SemiBold"/>
                     <DockPanel Margin="0,4,0,0">
@@ -160,6 +169,7 @@
                         <Button Content="Cancel" Command="{Binding CancelDuplicateCommand}" Padding="8,2" Margin="4,0,0,0"/>
                     </StackPanel>
                     <Button Content="בחר מסביבות קיימות" Command="{Binding OpenPickerCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="10,2" AutomationProperties.Name="Pick from existing resources"/>
+                    <Button Content="הוסף ממה שפתוח" Command="{Binding AddFromOpenCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="10,2" AutomationProperties.Name="Add from open items"/>
                 </StackPanel>
                 <ListView ItemsSource="{Binding Source={StaticResource ItemsView}}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Margin="0,8,0,0">
                     <ListView.GroupStyle>
@@ -250,6 +260,134 @@
                 </ListBox>
                 <TextBlock Text="{Binding Status}" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
+        </Grid>
+
+        <!-- ============ capture screen (מסך לכידה): open-now list on one side; new-workspace form, workspace search or the chosen workspace on the other ============ -->
+        <Grid Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
+            <DockPanel Margin="8">
+                <DockPanel DockPanel.Dock="Top">
+                    <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CaptureCloseCommand}" Padding="8,2" AutomationProperties.Name="Close capture" ToolTip="Close capture"/>
+                    <TextBlock Text="לכידה" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+                </DockPanel>
+                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CaptureNotes}" Margin="0,2,0,6">
+                    <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Gray" FontSize="11" TextWrapping="Wrap"/></DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+
+                    <!-- left: depends on the stage -->
+                    <Grid Grid.Column="0">
+                        <StackPanel Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}">
+                            <TextBlock Text="סביבה חדשה" FontWeight="SemiBold"/>
+                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
+                                <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace name"/></DockPanel>
+                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
+                                <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Capture workspace description"/></DockPanel>
+                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Category" Width="80" VerticalAlignment="Center"/>
+                                <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinWidth="120" HorizontalAlignment="Left" AutomationProperties.Name="Capture workspace category"/></DockPanel>
+                            <TextBlock Text="Only the ticked items on the right are added." Foreground="Gray" FontSize="11" Margin="0,6,0,0"/>
+                            <Button Content="Create workspace from capture" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
+                        </StackPanel>
+
+                        <DockPanel Visibility="{Binding IsCapturePick, Converter={StaticResource B2V}}">
+                            <TextBlock DockPanel.Dock="Top" Text="סביבה קיימת" FontWeight="SemiBold"/>
+                            <TextBox DockPanel.Dock="Top" Margin="0,4,0,4" Text="{Binding CaptureSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace search"/>
+                            <ListBox ItemsSource="{Binding CaptureWorkspaceResults}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.CapturePickWorkspaceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                                HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0" Padding="6,2"
+                                                AutomationProperties.Name="{Binding Name, StringFormat='Pick workspace {0}'}">
+                                            <StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/></StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <DockPanel x:Name="CaptureDropZone" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" AllowDrop="True" Background="Transparent" Drop="CaptureDropZone_Drop" DragOver="CaptureDropZone_DragOver">
+                            <DockPanel DockPanel.Dock="Top">
+                                <Button DockPanel.Dock="Left" Content="חזור" Command="{Binding CaptureBackCommand}" Padding="8,1" Margin="0,0,6,0" FontSize="11" AutomationProperties.Name="Capture back"/>
+                                <Button DockPanel.Dock="Right" Content="שמור" Command="{Binding CaptureSaveCommand}" Padding="12,2" AutomationProperties.Name="Capture save"/>
+                                <TextBlock Text="{Binding CaptureWorkspaceName}" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Capture target workspace"/>
+                            </DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="Drag items here or use the add button. Nothing is saved until שמור." Foreground="Gray" FontSize="11" Margin="0,2,0,4"/>
+                            <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate><StackPanel><TextBlock><Run Text="{Binding Name}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group}" Foreground="Gray"/></TextBlock><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
+                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,2">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
+                                                        Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/>
+                                            </DockPanel>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
+                                            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description" Margin="0,2,0,0"/>
+                                            <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address" Margin="0,2,0,0"/>
+                                            <TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" Margin="0,2,0,0" ToolTip="Optional: full path to the program/browser to open this item with"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Grid>
+
+                    <!-- right: the capture list (default details only; no actions, no editing) -->
+                    <DockPanel Grid.Column="2">
+                        <TextBlock DockPanel.Dock="Top" Text="Open now" FontWeight="SemiBold"/>
+                        <Button DockPanel.Dock="Top" Content="{Binding CaptureAddLabel}" Command="{Binding CaptureAddCommand}" HorizontalAlignment="Left" Margin="0,4,0,4" Padding="10,2" AutomationProperties.Name="{Binding CaptureAddLabel}"
+                                Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}"/>
+                        <TextBlock DockPanel.Dock="Top" Text="Nothing open was detected" Foreground="Gray" Visibility="{Binding CaptureEmpty, Converter={StaticResource B2V}}"/>
+                        <ListBox x:Name="CaptureList" ItemsSource="{Binding CaptureRows}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 PreviewMouseLeftButtonDown="CaptureList_PreviewMouseLeftButtonDown" PreviewMouseMove="CaptureList_PreviewMouseMove" AutomationProperties.Name="Open now list">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Label}">
+                                        <StackPanel><TextBlock><Run Text="{Binding Name}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group}" Foreground="Gray"/></TextBlock>
+                                            <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis"/></StackPanel>
+                                    </CheckBox>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Grid>
+            </DockPanel>
+        </Grid>
+
+        <!-- duplicate warning for ONE dragged item -->
+        <Grid Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">
+            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MaxWidth="480">
+                <StackPanel>
+                    <TextBlock Text="{Binding CaptureDupSingleMessage}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Add anyway" Command="{Binding ConfirmCaptureDupSingleCommand}" Padding="12,2" AutomationProperties.Name="Capture duplicate add anyway"/>
+                        <Button Content="Cancel" Command="{Binding CancelCaptureDupSingleCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ONE grouped dialog for the duplicates of an add-all / add-selected -->
+        <Grid Visibility="{Binding CaptureDupGroupPending, Converter={StaticResource B2V}}" Background="#66000000">
+            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340" MaxWidth="520">
+                <StackPanel>
+                    <TextBlock Text="Already in this workspace" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
+                    <TextBlock Text="Tick the ones you want to add again as separate instances." TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <ItemsControl ItemsSource="{Binding CaptureDupChoices}">
+                        <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Label}" AutomationProperties.Name="{Binding Label}" Margin="0,2"/></DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="Add ticked" Command="{Binding ConfirmCaptureDupGroupCommand}" Padding="12,2" AutomationProperties.Name="Capture duplicates add ticked"/>
+                        <Button Content="Skip duplicates" Command="{Binding CancelCaptureDupGroupCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- ============ empty-workspace dialog (דיאלוג סביבת עבודה ריקה) ============ -->
