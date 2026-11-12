@@ -1,1 +1,1 @@
-record live app v1
+record live application v2: suitable website browser and no Edge first run
