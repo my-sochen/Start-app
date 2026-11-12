@@ -68,10 +68,11 @@ function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).C
 function AnyByName($name) { $e = (CurWin).FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
 function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
 
-function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::NameProperty, 'Capture target workspace'))))); if ($null -eq $tw) { return '<no header element>' }; try { return $tw.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange.GetText(-1).Trim() } catch { return "<unreadable: $($_.Exception.GetType().Name)>" } }
+function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'CaptureTargetWorkspace'))))); if ($null -eq $tw) { return '<no header element>' }; return $tw.Current.Name }
 function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
+function StagedNames() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))) | ForEach-Object { ValOf $_ }) }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
   $c = ClickBtn 'Capture' 900; if ($c -ne 'ok') { return $c }
@@ -160,9 +161,47 @@ try {
   SetText (NamedEdit 'Added item name') 'my capture folder'; SetText (NamedEdit 'Added item description') 'added from capture'
   Assert 'NOT saved yet: store has no such instance name' (-not (StoreJson).Contains('my capture folder')) (StoreJson)
   Shot 'side-by-side-staged'
+
+  # 2b. settled rule: a staged item offers the FULL item action set, staged until Save, the source list unchanged
+  $rowCount = (Checks).Count
+  $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row untick'); Start-Sleep -Milliseconds 400
+  $termRow = CheckByLike '*Terminal*'; Assert 'a second scannable row (Windows Terminal Host) is present' ($null -ne $termRow) ((CheckNames) -join ' | ')
+  [void](ToggleEl $termRow 'terminal row'); Start-Sleep -Milliseconds 500
+  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'second staged row added' ($c -eq 'ok' -and @(StagedNames).Count -eq 2) $c
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged item actions menu opened' ($c -eq 'ok') $c
+  $sfound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  Assert 'staged menu shows the six settled entries' (@($sfound).Count -eq 6) ("found: $($sfound -join ', ')")
+  foreach ($h in @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה')) { $e = MenuItemByName $h; Assert "staged menu entry actually visible: $h" ($null -ne $e -and -not $e.Current.IsOffscreen) '' }
+  MenuInsideWindow 'staged item menu'
+  $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
+  Assert 'שיתוף לסביבה אחרת visible but disabled (action undefined) with another workspace present' ($null -ne $shareMi -and -not $shareMi.Current.IsOffscreen -and -not $shareMi.Current.IsEnabled) ("found=$($null -ne $shareMi) enabled=$(if ($shareMi) { $shareMi.Current.IsEnabled } else { 'n/a' })")
+  Shot 'side-by-side-staged-menu'
+  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'staged move down'); Start-Sleep -Milliseconds 700
+  $names = @(StagedNames)
+  Assert 'הזז למטה reorders the staged list' ($names.Count -eq 2 -and $names[0] -like '*Terminal*' -and $names[1] -eq 'my capture folder') ($names -join ' | ')
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for copy' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
+  Assert 'העתק כתובת on a staged row reports the copy' (WaitText 'Address copied' 5) ((Texts) -join ' | ')
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for delete' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete'); Start-Sleep -Milliseconds 700
+  Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 1 -and (StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for open-with' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'פתח באמצעות'; [void](InvokeEl $mi 'staged open-with entry'); Start-Sleep -Milliseconds 800
+  $prog = NamedEdit 'Program path'; Assert 'open-with popup opened on a staged row' ($null -ne $prog) ''
+  SetText $prog 'C:\Windows\notepad.exe'
+  $cb = AnyByName 'Set as default'; [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
+  $npBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $c = ClickBtn 'Open with chosen program' 900; Assert 'staged open-with go clicked' ($c -eq 'ok') $c
+  Assert 'staged open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
+  $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
+  Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
+  $npNew | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1
+  Assert 'the source capture list is unchanged by all staged actions' ((Checks).Count -eq $rowCount -and $null -ne (CheckByLike '*capfolder*')) ("rows=$((Checks).Count) before=$rowCount")
+
   $c = ClickBtn 'Capture save' 1200; Assert 'save clicked' ($c -eq 'ok') $c
   $sj = StoreJson
-  Assert 'after Save the instance name and description are persisted' ($sj.Contains('my capture folder') -and $sj.Contains('added from capture')) $sj
+  Assert 'after Save the instance name, description and staged open-with default are persisted' ($sj.Contains('my capture folder') -and $sj.Contains('added from capture') -and $sj.Contains('notepad.exe')) $sj
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
   Assert 'staged area is empty again after Save' ($null -eq (NamedEdit 'Added item name')) ''
   Shot 'side-by-side-after-save'
