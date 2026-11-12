@@ -66,6 +66,34 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>פתח in the open-with popup: opens with the chosen program now and saves it when הגדר כברירת מחדל is checked.</summary>
     public ICommand OpenWithGoCommand { get; }
     public ICommand CloseOpenWithCommand { get; }
+    /// <summary>עצב כרטיס from the card actions menu: opens the design popup (פופאפ עיצוב כרטיס) for that workspace.</summary>
+    public ICommand DesignCardCommand { get; }
+    /// <summary>ערוך קטגוריה from the card actions menu: opens the category popup (פופאפ עריכת קטגוריה) for that workspace.</summary>
+    public ICommand EditCategoryPopupCommand { get; }
+    /// <summary>העלאת תמונה in the design popup: the view opens a file picker and sets DesignImagePath.</summary>
+    public ICommand PickImageCommand { get; }
+    public event Action? PickImageRequested;
+    /// <summary>הסרת תמונה in the design popup: back to the color-as-background look (takes effect on save).</summary>
+    public ICommand RemoveImageCommand { get; }
+    /// <summary>A preset swatch in the design popup: applies that color to the preview (saved only via Save).</summary>
+    public ICommand ApplyPaletteColorCommand { get; }
+    public ICommand SaveDesignCommand { get; }
+    /// <summary>The design popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CloseDesignCommand { get; }
+    /// <summary>Selecting a category in the popup assigns it to the workspace immediately.</summary>
+    public ICommand PickCategoryCommand { get; }
+    public ICommand AddCategoryCommand { get; }
+    /// <summary>Starts renaming a custom category (built-ins never offer this).</summary>
+    public ICommand BeginRenameCategoryCommand { get; }
+    public ICommand SaveRenameCategoryCommand { get; }
+    public ICommand CancelRenameCategoryCommand { get; }
+    /// <summary>Deletes a custom category; with assigned workspaces this opens the warning first.</summary>
+    public ICommand DeleteCategoryCommand { get; }
+    public ICommand CloseCategoryPopupCommand { get; }
+    /// <summary>With several assigned workspaces, this button shows the list of them inside the warning.</summary>
+    public ICommand ShowCategoryDeleteListCommand { get; }
+    public ICommand ConfirmCategoryDeleteCommand { get; }
+    public ICommand CancelCategoryDeleteCommand { get; }
     /// <summary>הזז למעלה / הזז למטה: reorder this instance inside its display group.</summary>
     public ICommand MoveItemUpCommand { get; }
     public ICommand MoveItemDownCommand { get; }
@@ -99,12 +127,14 @@ public sealed class MainViewModel : ObservableBase
         if (CreateDirty) { MarkUnsavedHost(true, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         return true;
     }
     private void SaveAndExit()
     {
         if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
         else if (UnsavedForAddress) { if (!SaveAddress()) return; }
+        else if (UnsavedForDesign) { if (!SaveDesign()) return; }
         else if (UnsavedForCreate)
         {
             if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
@@ -141,7 +171,7 @@ public sealed class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
@@ -158,6 +188,23 @@ public sealed class MainViewModel : ObservableBase
         CloseOpenWithCommand = Cmd(_ => OpenWithOpen = false, _ => OpenWithOpen);
         MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
         MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
+        DesignCardCommand = Cmd(p => BeginDesign((Workspace)p!), p => p is Workspace && !ReadOnly);
+        PickImageCommand = Cmd(_ => PickImageRequested?.Invoke(), _ => DesignEditOpen && !ReadOnly);
+        RemoveImageCommand = Cmd(_ => DesignImagePath = "", _ => DesignEditOpen && DesignImagePath.Length > 0);
+        ApplyPaletteColorCommand = Cmd(p => DesignColor = (string)p!, p => p is string && DesignEditOpen && !ReadOnly);
+        SaveDesignCommand = Cmd(_ => SaveDesign(), _ => DesignEditOpen && DesignDirty && !ReadOnly);
+        CloseDesignCommand = Cmd(_ => CloseDesign(), _ => DesignEditOpen);
+        EditCategoryPopupCommand = Cmd(p => BeginCategoryEdit((Workspace)p!), p => p is Workspace && !ReadOnly);
+        PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && !ReadOnly);
+        AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !ReadOnly && NewCategoryName.Length > 0);
+        BeginRenameCategoryCommand = Cmd(p => { _renameOld = ((CategoryRow)p!).Name; RenameCategoryText = _renameOld; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !ReadOnly && RenameCategoryText.Length > 0);
+        CancelRenameCategoryCommand = Cmd(_ => RenameCategoryOpen = false, _ => RenameCategoryOpen);
+        DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        CloseCategoryPopupCommand = Cmd(_ => CloseCategoryPopup(), _ => CategoryEditOpen);
+        ShowCategoryDeleteListCommand = Cmd(_ => CategoryDeleteListShown = true, _ => CategoryDeletePending && !CategoryDeleteListShown);
+        ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !ReadOnly);
+        CancelCategoryDeleteCommand = Cmd(_ => CancelCategoryDelete("Category deletion cancelled, nothing was changed"), _ => CategoryDeletePending);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
@@ -190,9 +237,12 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Optional workspace description in the create form.</summary>
     public string NewWorkspaceDescription { get => _newWsDesc; set { Set(ref _newWsDesc, value ?? ""); Raise(nameof(CreateDirty)); } }
     private string _newWsDesc = "";
+    /// <summary>Category chosen in the create form from the managed list (קטגוריה: כללי מסומנת כברירת מחדל, ואפשר לבחור אחרת).</summary>
+    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); } }
+    private string _newWsCat = Workspace.DefaultCategory;
     /// <summary>The create form holds unsaved input; closing the app then goes through the same unsaved-exit
     /// dialog (spec: דיאלוג יציאה עם שינויים שלא נשמרו applies to טופס יצירת סביבה too).</summary>
-    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0;
+    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0 || NewWorkspaceCategory != Workspace.DefaultCategory;
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
     public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
     private bool _unsavedForCreate;
@@ -202,7 +252,10 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>True while the open unsaved-exit dialog guards the address popup (פופאפ עריכת כתובת).</summary>
     public bool UnsavedForAddress { get => _unsavedForAddress; private set => Set(ref _unsavedForAddress, value); }
     private bool _unsavedForAddress;
-    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress) { UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; }
+    /// <summary>True while the open unsaved-exit dialog guards the card design popup (פופאפ עיצוב כרטיס).</summary>
+    public bool UnsavedForDesign { get => _unsavedForDesign; private set => Set(ref _unsavedForDesign, value); }
+    private bool _unsavedForDesign;
+    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false) { UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
     public bool AddressEditOpen { get => _addressEditOpen; private set => Set(ref _addressEditOpen, value); }
@@ -263,6 +316,133 @@ public sealed class MainViewModel : ObservableBase
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = row.Name + ": not opened (the saved item record is missing)"; return; }
         // This open uses the choice just made (empty = the Windows default for this open), whether or not it was saved.
         OpenOneCore(row.Name, it, cfg);
+    }
+
+    // ---- card design popup (פופאפ עיצוב כרטיס, settled Nov 11): per-workspace color and background image, with a live
+    // preview in the view, a save button on any change, and the shared unsaved-exit dialog on X ----
+    public bool DesignEditOpen { get => _designEditOpen; private set => Set(ref _designEditOpen, value); }
+    private bool _designEditOpen;
+    private string _designWsId = "";
+    /// <summary>#RRGGBB, empty = the default look. The preview and the card show this value as the frame (with an image) or the background (without).</summary>
+    public string DesignColor { get => _designColor; set { Set(ref _designColor, value ?? ""); Raise(nameof(DesignDirty)); RaiseCommands(); } }
+    private string _designColor = "";
+    /// <summary>Path of the uploaded background image; empty = none. Stored as a path reference (copying the file is an open storage decision).</summary>
+    public string DesignImagePath { get => _designImagePath; set { Set(ref _designImagePath, value ?? ""); Raise(nameof(DesignDirty)); RaiseCommands(); } }
+    private string _designImagePath = "";
+    private string _origColor = "", _origImage = "";
+    /// <summary>Any change in the design popup shows its Save button (same rule as the other edit screens).</summary>
+    public bool DesignDirty => DesignEditOpen && (DesignColor != _origColor || DesignImagePath != _origImage);
+    /// <summary>Provisional preset palette: the exact color set was never settled, so the popup offers these and a free #RRGGBB entry.</summary>
+    public IReadOnlyList<string> DesignPalette { get; } = new[] { "#FFFFFF", "#FDE68A", "#BFDBFE", "#BBF7D0", "#FECACA", "#E9D5FF", "#E5E7EB" };
+    private void BeginDesign(Workspace w)
+    {
+        var fresh = _current.Workspaces.FirstOrDefault(x => x.Id == w.Id) ?? w; // the caller may hold a pre-reload reference
+        _designWsId = fresh.Id; _origColor = fresh.Color ?? ""; _origImage = fresh.ImagePath ?? "";
+        DesignColor = _origColor; DesignImagePath = _origImage;
+        DesignEditOpen = true;
+    }
+    private bool SaveDesign()
+    {
+        var color = DesignColor.Trim(); var image = DesignImagePath.Trim();
+        if (color.Length > 0 && Catalog.ValidateColor(color) is { } ce) { Status = "Not saved: " + ce; return false; }
+        var ok = Apply(c => c.SetCardDesign(_designWsId, color.Length == 0 ? null : color, image.Length == 0 ? null : image));
+        if (ok) { Status = "Card design saved"; DesignEditOpen = false; }
+        return ok;
+    }
+    private void CloseDesign()
+    {
+        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _exitAction = () => DesignEditOpen = false; UnsavedOpen = true; return; }
+        DesignEditOpen = false;
+    }
+
+    // ---- category popup (פופאפ עריכת קטגוריה, settled Nov 11): assign from the managed list; custom add/rename/delete with
+    // the settled deletion warning (one workspace shown directly; several behind a list button; confirm moves them to כללי) ----
+    /// <summary>One row in the category popup: built-ins expose no edit/delete (their commands guard on IsBuiltIn).</summary>
+    public sealed record CategoryRow(string Name, bool IsBuiltIn);
+    public ObservableCollection<CategoryRow> CategoryRows { get; } = new();
+    /// <summary>The flat list for the create form and the details screen: built-ins first, then custom.</summary>
+    public ObservableCollection<string> CategoryChoices { get; } = new();
+    public bool CategoryEditOpen { get => _categoryEditOpen; private set => Set(ref _categoryEditOpen, value); }
+    private bool _categoryEditOpen;
+    private string _categoryWsId = "";
+    /// <summary>The category the workspace in the popup currently has (displayed as the selected one).</summary>
+    public string CurrentCategoryName { get => _currentCategoryName; private set => Set(ref _currentCategoryName, value); }
+    private string _currentCategoryName = Workspace.DefaultCategory;
+    public string NewCategoryName { get => _newCategoryName; set { Set(ref _newCategoryName, value ?? ""); RaiseCommands(); } }
+    private string _newCategoryName = "";
+    public bool RenameCategoryOpen { get => _renameCategoryOpen; private set => Set(ref _renameCategoryOpen, value); }
+    private bool _renameCategoryOpen;
+    private string _renameOld = "";
+    public string RenameCategoryText { get => _renameCategoryText; set { Set(ref _renameCategoryText, value ?? ""); RaiseCommands(); } }
+    private string _renameCategoryText = "";
+    /// <summary>True while the delete-category warning waits for the user's answer.</summary>
+    public bool CategoryDeletePending { get => _categoryDeletePending; private set { Set(ref _categoryDeletePending, value); RaiseCommands(); } }
+    private bool _categoryDeletePending;
+    public string CategoryDeleteMessage { get => _categoryDeleteMessage; private set => Set(ref _categoryDeleteMessage, value); }
+    private string _categoryDeleteMessage = "";
+    /// <summary>Names of the workspaces assigned to the category being deleted.</summary>
+    public ObservableCollection<string> CategoryDeleteWorkspaces { get; } = new();
+    /// <summary>With one assigned workspace the warning shows it directly; with several, this becomes true via the list button.</summary>
+    public bool CategoryDeleteListShown { get => _categoryDeleteListShown; private set { Set(ref _categoryDeleteListShown, value); RaiseCommands(); } }
+    private bool _categoryDeleteListShown;
+    private string _deleteCategoryName = "";
+    private void BeginCategoryEdit(Workspace w)
+    {
+        _categoryWsId = w.Id; CategoryEditOpen = true; RenameCategoryOpen = false; CancelCategoryDelete();
+        RefreshCategories();
+    }
+    private void RefreshCategories()
+    {
+        var cats = new Catalog(_current).AllCategories();
+        CategoryRows.Clear(); foreach (var c in cats) CategoryRows.Add(new CategoryRow(c, Catalog.IsBuiltInCategory(c)));
+        CategoryChoices.Clear(); foreach (var c in cats) CategoryChoices.Add(c);
+        var w = _current.Workspaces.FirstOrDefault(x => x.Id == _categoryWsId);
+        CurrentCategoryName = w?.EffectiveCategory ?? Workspace.DefaultCategory;
+    }
+    private void PickCategory(CategoryRow row)
+    {
+        if (Apply(c => c.SetCategory(_categoryWsId, row.Name))) Status = "Category saved";
+    }
+    private void AddCategory()
+    {
+        if (Apply(c => c.AddCustomCategory(NewCategoryName))) { NewCategoryName = ""; Status = "Category added"; }
+    }
+    private void SaveRenameCategory()
+    {
+        if (Apply(c => c.RenameCustomCategory(_renameOld, RenameCategoryText))) { RenameCategoryOpen = false; Status = "Category renamed"; }
+    }
+    private void BeginDeleteCategory(CategoryRow row)
+    {
+        var used = new Catalog(_current).WorkspacesInCategory(row.Name);
+        if (used.Count == 0)
+        {
+            // settled edge case: no assigned workspaces means no warning at all
+            if (Apply(c => c.DeleteCustomCategory(row.Name))) Status = "Category deleted";
+            return;
+        }
+        _deleteCategoryName = row.Name;
+        CategoryDeleteWorkspaces.Clear(); foreach (var w in used) CategoryDeleteWorkspaces.Add(w.Name);
+        CategoryDeleteMessage = used.Count == 1
+            ? $"The workspace '{used[0].Name}' uses the category '{row.Name}'. Delete it and move the workspace to {Workspace.DefaultCategory}?"
+            : $"{used.Count} workspaces use the category '{row.Name}'. Delete it and move them to {Workspace.DefaultCategory}?";
+        CategoryDeleteListShown = used.Count == 1; // one workspace is shown directly; several sit behind the list button
+        CategoryDeletePending = true;
+    }
+    private void ConfirmCategoryDelete()
+    {
+        if (Apply(c => c.DeleteCustomCategory(_deleteCategoryName))) Status = "Category deleted, its workspaces moved to " + Workspace.DefaultCategory;
+        CancelCategoryDelete();
+    }
+    private void CancelCategoryDelete(string? status = null)
+    {
+        CategoryDeletePending = false; CategoryDeleteMessage = ""; CategoryDeleteWorkspaces.Clear(); CategoryDeleteListShown = false; _deleteCategoryName = "";
+        if (status != null) Status = status;
+    }
+    private void CloseCategoryPopup()
+    {
+        if (CategoryDeletePending) { CancelCategoryDelete("Category deletion cancelled, nothing was changed"); return; }
+        if (RenameCategoryOpen) { RenameCategoryOpen = false; return; }
+        CategoryEditOpen = false;
     }
 
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
@@ -394,6 +574,7 @@ public sealed class MainViewModel : ObservableBase
     private void Show(Store s)
     {
         _current = s; var keep = Selected?.Id;
+        RefreshCategories();
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
         Raise(nameof(HasOtherWorkspaces));
         Selected = Workspaces.FirstOrDefault(w => w.Id == keep) ?? Workspaces.FirstOrDefault();
@@ -442,10 +623,10 @@ public sealed class MainViewModel : ObservableBase
     /// and then opens its details screen, as the spec requires (אחרי היצירה נפתחים פרטי סביבה).</summary>
     private void Create()
     {
-        var n = NewName; var d = NewWorkspaceDescription; string? id = null;
-        if (Apply(c => id = c.CreateWorkspace(n, d).Id))
+        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
+        if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); }))
         {
-            NewName = ""; NewWorkspaceDescription = "";
+            NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory;
             Selected = Workspaces.FirstOrDefault(w => w.Id == id);
             LoadDetails(); InDetails = true;
         }
