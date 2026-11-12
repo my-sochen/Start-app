@@ -91,6 +91,25 @@
                     <Button Content="Save" Command="{Binding SaveDetailsCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="12,2"
                             Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                 </StackPanel>
+                <Border DockPanel.Dock="Top" Margin="0,8,0,0" BorderBrush="Gray" BorderThickness="1" Padding="6"
+                        Visibility="{Binding ItemEditOpen, Converter={StaticResource B2V}}">
+                    <StackPanel>
+                        <TextBlock Text="Edit item" FontWeight="SemiBold"/>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item name"/>
+                        </DockPanel>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
+                        </DockPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="Save" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
+                                    Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
+                            <Button Content="Cancel" Command="{Binding CancelItemEditCommand}" Padding="12,2"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                 <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Left" Text="עדיין אין אייטמים בסביבה" VerticalAlignment="Center" FontStyle="Italic"/>
@@ -137,18 +156,28 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="70"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <Button Grid.Column="0" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                        Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" HorizontalAlignment="Left" Cursor="Hand"
+                                        ToolTip="Open this item" Padding="0">
+                                    <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                                </Button>
                                 <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <Button Grid.Row="0" Grid.Column="3" Content="⋯" AutomationProperties.Name="Item actions" Click="CardActions_Click" Padding="6,0">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="עריכה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="מחיקה" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="העתק כתובת" Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
                                 <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
                                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                         <DataTrigger Binding="{Binding Description}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                         <DataTrigger Binding="{Binding Description}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                     </Style.Triggers></Style></TextBlock.Style>
                                 </TextBlock>
-                                <Button Grid.Row="0" Grid.Column="3" Content="Remove"
-                                        Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding}"/>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
