@@ -162,3 +162,36 @@ public class OwnedCloseTests
         Assert.Empty(c.Store.Workspaces);
     }
 }
+
+public class UpdateInstanceTests
+{
+    private static Catalog NewCatalog() => new(new Store());
+
+    [Fact] public void UpdateInstance_changes_only_that_instance()
+    {
+        var c = NewCatalog();
+        var item = c.GetOrAddItem(ItemType.File, "a.txt", "C:\\a.txt");
+        var w1 = c.CreateWorkspace("w1", null); var w2 = c.CreateWorkspace("w2", null);
+        var m1 = c.AddToWorkspace(w1.Id, item.Id, name: "one");
+        var m2 = c.AddToWorkspace(w1.Id, item.Id, name: "two");
+        var m3 = c.AddToWorkspace(w2.Id, item.Id, name: "other ws");
+        c.UpdateInstance(w1.Id, m1.Id!, "renamed", "d");
+        Assert.Equal("renamed", c.Store.Workspaces.Single(w => w.Id == w1.Id).Items.Single(m => m.Id == m1.Id).Name);
+        Assert.Equal("two", c.Store.Workspaces.Single(w => w.Id == w1.Id).Items.Single(m => m.Id == m2.Id).Name);
+        Assert.Equal("other ws", c.Store.Workspaces.Single(w => w.Id == w2.Id).Items.Single(m => m.Id == m3.Id).Name);
+        Assert.Equal("a.txt", c.Store.Items[item.Id].Name); // the shared catalog record keeps its original name
+    }
+
+    [Fact] public void UpdateInstance_validates_and_normalizes()
+    {
+        var c = NewCatalog();
+        var item = c.GetOrAddItem(ItemType.File, "a.txt", "C:\\a.txt");
+        var w = c.CreateWorkspace("w", null);
+        var m = c.AddToWorkspace(w.Id, item.Id, name: "one", description: "keep?");
+        Assert.Throws<ArgumentException>(() => c.UpdateInstance(w.Id, m.Id!, " ", null)); // empty name rejected
+        c.UpdateInstance(w.Id, m.Id!, null, "  "); // null name = fallback to the item name; blank description = none
+        var saved = c.Store.Workspaces.Single().Items.Single();
+        Assert.Null(saved.Name); Assert.Null(saved.Description);
+        Assert.Throws<KeyNotFoundException>(() => c.UpdateInstance(w.Id, "mi_missing", "x", null));
+    }
+}
