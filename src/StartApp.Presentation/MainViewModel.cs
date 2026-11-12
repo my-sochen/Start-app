@@ -27,6 +27,23 @@ public sealed class MainViewModel : ObservableBase
     private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); }
     public ICommand CreateWorkspaceCommand { get; }
     public ICommand DeleteWorkspaceCommand { get; }
+    /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
+    public ICommand OpenDetailsCommand { get; }
+    /// <summary>שגר from a card in the overview: opens that workspace's items without navigating.</summary>
+    public ICommand OpenWorkspaceForCommand { get; }
+    public ICommand BackCommand { get; }
+    public ICommand SaveDetailsCommand { get; }
+    /// <summary>Unsaved-changes exit dialog: שמור וצא.</summary>
+    public ICommand SaveAndExitCommand { get; }
+    /// <summary>Unsaved-changes exit dialog: צא בלי לשמור.</summary>
+    public ICommand ExitWithoutSavingCommand { get; }
+    /// <summary>Unsaved-changes exit dialog: X, back to editing with nothing lost.</summary>
+    public ICommand CloseUnsavedCommand { get; }
+    /// <summary>The הוסף אייטם button in the empty state; the view focuses the add form.</summary>
+    public ICommand FocusAddCommand { get; }
+    public event Action? FocusAddRequested;
+    /// <summary>The empty-workspace dialog's button that leads to the details screen (to add items).</summary>
+    public ICommand GoToDetailsCommand { get; }
     public ICommand RemoveItemCommand { get; }
     public ICommand OpenWorkspaceCommand { get; }
     public ICommand AddItemCommand { get; }
@@ -38,10 +55,18 @@ public sealed class MainViewModel : ObservableBase
     private string _dupMessage = "";
     public ICommand ConfirmDuplicateCommand { get; }
     public ICommand CancelDuplicateCommand { get; }
-    /// <summary>Set instead of opening when the workspace has no items (the spec's empty-workspace dialog; the go-to-details button is deferred with the details screen).</summary>
+    /// <summary>Set instead of opening when the workspace has no items (the spec's דיאלוג סביבת עבודה ריקה).</summary>
     public bool EmptyWorkspaceOpen { get => _emptyOpen; private set => Set(ref _emptyOpen, value); }
     private bool _emptyOpen;
     public ICommand CloseEmptyWorkspaceCommand { get; }
+    /// <summary>The shared unsaved-changes exit dialog (דיאלוג יציאה עם שינויים שלא נשמרו).</summary>
+    public bool UnsavedOpen { get => _unsavedOpen; private set => Set(ref _unsavedOpen, value); }
+    private bool _unsavedOpen;
+    private Action _exitAction = () => { };
+    /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
+    public bool RequestAppClose() { if (!DetailsDirty) return true; _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+    /// <summary>Fired when the user chose שמור וצא or צא בלי לשמור for a window close.</summary>
+    public event Action? AppCloseApproved;
     public ICommand ConfirmOpenAnywayCommand { get; }
     public ICommand CancelOpenCommand { get; }
     /// <summary>Per-item problems found before opening; the user decides. Empty when nothing is pending.</summary>
@@ -59,12 +84,21 @@ public sealed class MainViewModel : ObservableBase
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
-        DeleteWorkspaceCommand = Cmd(_ => Apply(c => c.DeleteWorkspace(Selected!.Id)), _ => !ReadOnly && Selected != null);
+        DeleteWorkspaceCommand = Cmd(p => DeleteWorkspace((Workspace)p!), p => !ReadOnly && p is Workspace w && Workspaces.Contains(w));
+        OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
+        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching);
+        BackCommand = Cmd(_ => Back(), _ => InDetails);
+        SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
+        SaveAndExitCommand = Cmd(_ => { if (SaveDetails()) { UnsavedOpen = false; var a = _exitAction; _exitAction = () => { }; a(); } }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
+        FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
         CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
+        GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
         OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
         CancelOpenCommand = Cmd(_ => { var launching = IsLaunching; ClearPending(); if (!launching) Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null || IsChecking || IsLaunching);
@@ -73,7 +107,7 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Set(ref _selected, value); RefreshItems(); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
@@ -88,6 +122,63 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
     public string NewName { get => _newName; set { Set(ref _newName, value); RaiseCommands(); } }
+    /// <summary>Optional workspace description in the create form.</summary>
+    public string NewWorkspaceDescription { get => _newWsDesc; set => Set(ref _newWsDesc, value ?? ""); }
+    private string _newWsDesc = "";
+
+    // ---- navigation and the details screen (פרטי סביבה) ----
+    /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
+    public bool InDetails { get => _inDetails; private set { Set(ref _inDetails, value); Raise(nameof(InOverview)); Raise(nameof(ShowEmptyItemsMessage)); RaiseCommands(); } }
+    private bool _inDetails;
+    public bool InOverview => !_inDetails;
+    /// <summary>Spec strings quoted in Hebrew on the cards, kept verbatim.</summary>
+    public const string EmptyWorkspaceTitle = "סביבת עבודה ריקה";
+    public const string EmptyItemsMessage = "עדיין אין אייטמים בסביבה";
+    /// <summary>The empty state of the details screen: message plus an הוסף אייטם button.</summary>
+    public bool ShowEmptyItemsMessage => InDetails && Selected != null && Selected.Items.Count == 0;
+
+    /// <summary>Editable workspace name on the details screen (direct editing, no edit button).</summary>
+    public string EditName { get => _editName; set { Set(ref _editName, value ?? ""); RaiseDirty(); } }
+    private string _editName = "";
+    /// <summary>Editable category; the built-in default is כללי and custom category management is a separate feature.</summary>
+    public string EditCategory { get => _editCategory; set { Set(ref _editCategory, value ?? ""); RaiseDirty(); } }
+    private string _editCategory = "";
+    /// <summary>Editable workspace description.</summary>
+    public string EditDescription { get => _editDescription; set { Set(ref _editDescription, value ?? ""); RaiseDirty(); } }
+    private string _editDescription = "";
+    private bool _detailsDirtyBypass;
+    /// <summary>Any change on the details screen shows the Save button (spec: כל שינוי מציג כפתור שמירה).</summary>
+    public bool DetailsDirty => !_detailsDirtyBypass && Selected != null && (EditName != Selected.Name || EditCategory != Selected.EffectiveCategory || EditDescription != (Selected.Description ?? ""));
+    public string CreatedAtText => Selected?.CreatedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "unknown";
+    /// <summary>Card display: last time the workspace was really opened, or never.</summary>
+    public static string LastOpenedTextOf(Workspace w) => w.LastOpenedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "never";
+    private void RaiseDirty() { Raise(nameof(DetailsDirty)); RaiseCommands(); }
+    private void LoadDetails()
+    {
+        if (Selected is null) return;
+        _editName = Selected.Name; _editCategory = Selected.EffectiveCategory; _editDescription = Selected.Description ?? "";
+        Raise(nameof(EditName)); Raise(nameof(EditCategory)); Raise(nameof(EditDescription)); RaiseDirty(); Raise(nameof(CreatedAtText));
+    }
+    private void OpenDetails(Workspace w) { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Selected = w; LoadDetails(); InDetails = true; }
+    private void Back()
+    {
+        ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
+        if (DetailsDirty) { _exitAction = () => InDetails = false; UnsavedOpen = true; return; }
+        InDetails = false;
+    }
+    private bool SaveDetails()
+    {
+        var id = Selected!.Id; var n = EditName; var d = EditDescription; var cat = EditCategory;
+        if (string.IsNullOrWhiteSpace(n)) { Status = "Not saved: workspace name is required"; return false; }
+        var ok = Apply(c => c.UpdateWorkspace(id, n, d, cat == Workspace.DefaultCategory ? null : cat)); // the default stays the default, not an explicit value
+        if (ok) { Status = "Workspace details saved"; RaiseDirty(); Raise(nameof(CreatedAtText)); }
+        return ok;
+    }
+    private void DeleteWorkspace(Workspace w)
+    {
+        if (Selected?.Id == w.Id) InDetails = false;
+        Apply(c => c.DeleteWorkspace(w.Id));
+    }
 
     public void Reload()
     {
@@ -112,7 +203,7 @@ public sealed class MainViewModel : ObservableBase
 
     private void RefreshItems()
     {
-        Items.Clear(); if (Selected is null) return;
+        Items.Clear(); Raise(nameof(ShowEmptyItemsMessage)); if (Selected is null) return;
         foreach (var m in Selected.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 3).ThenBy(x => x.i))
             if (_current.Items.TryGetValue(m.m.ItemId, out var it))
                 Items.Add(new ItemRow(m.m.Id ?? m.m.ItemId, it.Id, m.m.Name ?? it.Name, it.Target, it.Type.ToString(), GroupOf(it.Type), m.m.Description ?? it.Description));
@@ -146,7 +237,18 @@ public sealed class MainViewModel : ObservableBase
         return i >= 0 && i < target.Length - 1 ? target[(i + 1)..] : target;
     }
 
-    private void Create() { var n = NewName; if (Apply(c => c.CreateWorkspace(n))) NewName = ""; }
+    /// <summary>Creates the workspace from the create form (name required; כללי is the default category; description optional)
+    /// and then opens its details screen, as the spec requires (אחרי היצירה נפתחים פרטי סביבה).</summary>
+    private void Create()
+    {
+        var n = NewName; var d = NewWorkspaceDescription; string? id = null;
+        if (Apply(c => id = c.CreateWorkspace(n, d).Id))
+        {
+            NewName = ""; NewWorkspaceDescription = "";
+            Selected = Workspaces.FirstOrDefault(w => w.Id == id);
+            LoadDetails(); InDetails = true;
+        }
+    }
 
     private bool Apply(Action<Catalog> change)
     {
@@ -173,10 +275,12 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>The running (or last) check-and-open operation. UI code never waits on it; tests await it.</summary>
     public Task OpenTask { get; private set; } = Task.CompletedTask;
 
+    private string _openWsId = "";
     private void Open()
     {
         ClearPending(); OpenReport.Clear();
         if (Selected!.Items.Count == 0) { EmptyWorkspaceOpen = true; return; }
+        _openWsId = Selected!.Id;
         // Snapshot semantics: what is checked and opened is the saved state at the moment Open was pressed; the store file is not watched.
         var snapshot = Selected!.Items.Select(m => (m, Item: _current.Items.TryGetValue(m.ItemId, out var it) ? it : null)).ToList();
         _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
@@ -309,6 +413,7 @@ public sealed class MainViewModel : ObservableBase
         var lines = res;
         int ok = lines.Sum(l => l.Ok), refused = lines.Sum(l => l.Refused), notTried = lines.Sum(l => l.NotTried);
         foreach (var l in lines) OpenReport.Add(l.Line);
+        if (ok > 0) Apply(c => c.TouchLastOpened(_openWsId)); // the card's "last opened" is set only after a real open request went out, on the workspace that was opened even if the selection moved since
         IsLaunching = false;
         if (fault != null) ExceptionDispatchInfo.Capture(fault).Throw();
         var failed = plan.Count - ok - refused - notTried;
