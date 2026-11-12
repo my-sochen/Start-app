@@ -187,8 +187,9 @@ public sealed class Catalog
         RemoveOrphans();
     }
 
-    /// <summary>Not used by the UI yet. Local edit: only this one instance changes; every other instance of the same target keeps its
-    /// own name, description and launch config. Reuses a matching catalog item or creates one; the old item is removed if orphaned.</summary>
+    /// <summary>Local edit: only this one instance changes; every other instance of the same target keeps its
+    /// own name, description and launch config. Reuses a matching catalog item or creates one; the old item is removed if orphaned.
+    /// This is how an address change (טופס עריכת אייטם or פופאפ עריכת כתובת) stays local to the current workspace for EVERY type, sites included.</summary>
     public Item ReplaceTargetLocal(string workspaceId, string membershipId, string newTarget, string? newName = null)
     {
         var w = Ws(workspaceId);
@@ -199,6 +200,37 @@ public sealed class Catalog
         w.Items[idx] = w.Items[idx] with { ItemId = item.Id };
         RemoveOrphans();
         return item;
+    }
+
+    /// <summary>Saves this instance's launch choice (פתח באמצעות → הגדר כברירת מחדל). Per instance: two instances of the same address,
+    /// in this workspace or another, keep their own choices. Null clears back to the Windows default. The choice is only ever used inside
+    /// Start-app; Windows file associations are never touched. Validation matches <see cref="ValidateLaunch"/>.</summary>
+    public void SetLaunch(string workspaceId, string membershipId, LaunchConfig? launch)
+    {
+        var w = Ws(workspaceId);
+        var i = w.Items.FindIndex(m => m.Id == membershipId);
+        if (i < 0) throw new KeyNotFoundException(membershipId);
+        var err = ValidateLaunch(_s.Items[w.Items[i].ItemId].Type, launch);
+        if (err != null) throw new ArgumentException(err, nameof(launch));
+        w.Items[i] = w.Items[i] with { Launch = launch };
+    }
+
+    /// <summary>The display grouping the user settled on (Nov 11): Sites, Folders, and Files &amp; Programs together.</summary>
+    public static int DisplayGroup(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, _ => 2 };
+
+    /// <summary>הזז למעלה / הזז למטה: moves one instance within its display group, swapping with the nearest group neighbor.
+    /// At the group's edge there is nothing to swap with and the call is a no-op. The new order is persisted in the workspace's item list.</summary>
+    public void MoveInstance(string workspaceId, string membershipId, int delta)
+    {
+        if (delta == 0) return;
+        var w = Ws(workspaceId);
+        var i = w.Items.FindIndex(m => m.Id == membershipId);
+        if (i < 0) throw new KeyNotFoundException(membershipId);
+        var g = DisplayGroup(_s.Items[w.Items[i].ItemId].Type);
+        var step = Math.Sign(delta); var j = i + step;
+        while (j >= 0 && j < w.Items.Count && DisplayGroup(_s.Items[w.Items[j].ItemId].Type) != g) j += step;
+        if (j < 0 || j >= w.Items.Count) return; // edge of the group
+        (w.Items[i], w.Items[j]) = (w.Items[j], w.Items[i]);
     }
 
     public int RemoveOrphans()
