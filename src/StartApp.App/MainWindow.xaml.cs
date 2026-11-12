@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
@@ -19,6 +20,11 @@ public partial class MainWindow : Window
             vm.FocusAddRequested += () => TargetBox.Focus();
             vm.CopyAddressRequested += a => Clipboard.SetText(a);
             vm.AppCloseApproved += () => { _closeApproved = true; Close(); };
+            vm.PickImageRequested += () =>
+            {
+                var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
+                if (dlg.ShowDialog(this) == true) vm.DesignImagePath = dlg.FileName;
+            };
         }
     }
     protected override void OnClosing(CancelEventArgs e)
