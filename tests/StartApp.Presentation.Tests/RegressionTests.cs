@@ -106,4 +106,23 @@ public class CategorySelectionStabilityTests
         Assert.Equal(Workspace.DefaultCategory, vm.EditCategory); // selection restored, not blank
         Assert.False(vm.DetailsDirty); // no spurious unsaved-changes state (Save button / exit guard)
     }
+
+    [Fact] public void Adding_a_category_keeps_the_create_form_selection()
+    {
+        using var repo = new JsonStore(Tmp());
+        var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null); // a workspace exists so the category popup can open
+        vm.BackCommand.Execute(null);
+        vm.EditCategoryPopupCommand.Execute(vm.Selected!);
+        vm.NewCategoryName = "מוזיקה"; vm.AddCategoryCommand.Execute(null);
+        vm.NewWorkspaceCategory = "מוזיקה"; // user picked a custom category in the create form
+
+        // Any later catalog change (here: another category added) rebuilds the choices. With a Clear()/Reset
+        // rebuild the bound ComboBox lost its selection and rendered blank; the diff-wise rebuild must keep it.
+        vm.NewCategoryName = "גרפיקה"; vm.AddCategoryCommand.Execute(null);
+
+        Assert.Equal("מוזיקה", vm.NewWorkspaceCategory); // selection never blanked
+        Assert.Contains("מוזיקה", vm.CategoryChoices);
+        Assert.Contains("גרפיקה", vm.CategoryChoices);
+    }
 }
