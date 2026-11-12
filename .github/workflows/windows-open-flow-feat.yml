@@ -249,6 +249,15 @@ jobs:
             Assert 'design popup closed after save' (-not (WaitText 'תמונת רקע' 2)) ''
             Assert 'design persisted to the store' ((StoreJson) -like '*#BFDBFE*') (StoreJson)
             Shot 'card-design-saved'
+            # missing/moved source image: the path is a reference, so a missing file must fall back to the color without breaking the card
+            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for missing-image check' ($c -eq 'ok') $c
+            $mi = AnyByName 'עצב כרטיס'; $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'design popup reopened with the saved color' ((NamedEdit 'Card color').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '#BFDBFE') ''
+            SetText (NamedEdit 'Card image path') "$root\no-such-image.png"
+            $c = ClickBtn 'Save card design' 1500; Assert 'design with a missing image path saved' ($c -eq 'ok') $c
+            Assert 'app survived a missing image path' (-not $p.HasExited) ''
+            Assert 'missing image path persisted as a reference' ((StoreJson) -like '*no-such-image.png*') (StoreJson)
+            Shot 'card-with-missing-image'
             $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
             $mi = AnyByName 'ערוך קטגוריה'; $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
             Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
@@ -259,6 +268,17 @@ jobs:
             Shot 'category-popup-custom-added'
             $c = ClickBtn 'Close category popup' 900; Assert 'category popup closed' ($c -eq 'ok') $c
             Assert 'custom category persisted to the store' ((StoreJson) -like '*E2Ecat*') (StoreJson)
+            # 10. existing-resource picker (בחר מסביבות קיימות): four type buttons, pick fills the form (original-name and
+            # usage-sort behavior are unit-tested; the instance-name text also exists in the row below, so E2E does not assert on it)
+            $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for details' ($c -eq 'ok') $c
+            $mi = AnyByName 'הצג'; $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'details opened for the picker' (WaitText 'Created:' 10) ''
+            $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c
+            Assert 'picker shows the four type buttons' (WaitText 'Program' 5 -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
+            Shot 'resource-picker'
+            $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c
+            $targetVal = (NamedEdit 'Item target').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+            Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
           finally {
