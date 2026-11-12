@@ -1,6 +1,8 @@
-# CI-only evidence run for implementation cycle 1: create workspace, add items manually, open them.
+# CI-only evidence run for implementation cycle 1 (feat/per-instance-items): create workspace -> details screen,
+# manual add (per-instance name/description), duplicate confirmation, details edit/save/cancel with the
+# unsaved-changes guard, empty-workspace dialog with go-to-details, and a real open with preflight.
 # The NORMAL StartApp.App.exe (real composition: real preflight, real WindowsLauncher, real ProcessStarter) driven by UI Automation.
-# Synthetic temp files only. ok.txt really opens in its default handler; a missing file must be flagged and skipped/failed; an https link gets a real open request.
+# Synthetic temp files only. ok.txt really opens in its default handler; a missing file must be flagged; an https link gets a real open request.
 # The app store is the runner profile's %LOCALAPPDATA%\StartApp (throwaway VM). No user files, nothing outside the runner.
 name: windows-open-flow-feat
 on:
@@ -31,7 +33,7 @@ jobs:
         run: |
           dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error' | ForEach-Object { $_.Line }
           if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
-      - name: Cycle-1 flow UI run (create, add, open, cancel, open anyway)
+      - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
         shell: pwsh
         run: |
           Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
@@ -41,7 +43,7 @@ jobs:
           function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
           function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
           function Shot($state) {
-            $script:shot++; $f = "out-images/run$runId-open-{0:00}-$state.png" -f $script:shot
+            $script:shot++; $f = "out-images/run$runId-feat-{0:00}-$state.png" -f $script:shot
             $r = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
             if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
             $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
@@ -49,13 +51,14 @@ jobs:
           function Texts() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
           function ListLines() { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
           function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+          function BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
           function ClickBtn($name, $settle = 900) {
             $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
             if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
             $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
           }
           function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
-          function Edits() { $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Sort-Object { $_.Current.BoundingRectangle.X } }
+          function NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
           function SetText($edit, $text) { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Start-Sleep -Milliseconds 400 }
           function SetType($typeName) {
             $combo = $win.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)))
@@ -67,6 +70,7 @@ jobs:
             $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
           }
           function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
+          function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
           try {
             $root = Join-Path $env:RUNNER_TEMP 'open-flow'; New-Item -ItemType Directory -Force $root | Out-Null
             Set-Content "$root\ok.txt" 'synthetic'
@@ -81,63 +85,82 @@ jobs:
             Assert 'app window opened with no store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
             $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
             Assert 'automation window found' ($null -ne $win) ''
-            $descBox = $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Item description')))))
-            $itemNameBox = $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Item name')))))
-            $plainEdits = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.Name -ne 'Item description' -and $_.Current.Name -ne 'Item name' } | Sort-Object { $_.Current.BoundingRectangle.X })
-            Assert 'two plain text boxes (workspace name, target) plus item-name and description boxes' ($plainEdits.Count -eq 2 -and $null -ne $descBox -and $null -ne $itemNameBox) "plain=$($plainEdits.Count) itemName=$($null -ne $itemNameBox) desc=$($null -ne $descBox)"
-            $nameBox = $plainEdits[0]; $targetBox = $plainEdits[1]
-            # 1. create workspace
-            SetText $nameBox 'E2E ws'
+            # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
+            Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
+            $wsNameBox = NamedEdit 'Workspace name'; $wsDescBox = NamedEdit 'Workspace description'
+            Assert 'create form boxes found' ($null -ne $wsNameBox -and $null -ne $wsDescBox) ''
+            SetText $wsNameBox 'E2E ws'; SetText $wsDescBox 'first workspace'
             $c = ClickBtn 'Create workspace'; Assert 'create workspace clicked' ($c -eq 'ok') $c
-            Assert 'workspace listed and selected' (WaitText 'E2E ws' 20) ((ListLines) -join ' || ')
-            Assert 'name box cleared after create' ($nameBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '') ''
-            # 2. manual adds: https link (with an instance name), existing file, missing file
+            Assert 'details screen opened after create' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+            Assert 'creation date shown, not unknown' (-not (WaitText 'Created: unknown' 2)) ((Texts) -join ' | ')
+            Assert 'empty state message in Hebrew' (WaitText 'עדיין אין אייטמים בסביבה' 10) ((Texts) -join ' | ')
+            Assert 'empty state has an add-item button' ($null -ne (Btn 'הוסף אייטם')) ''
+            $catBox = NamedEdit 'Workspace category'
+            Assert 'category defaults to כללי' ($null -ne $catBox -and $catBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'כללי') ($catBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value)
+            Shot 'details-after-create-empty'
+            # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
+            $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
+            Assert 'add form boxes found' ($null -ne $targetBox -and $null -ne $itemNameBox -and $null -ne $descBox) ''
             [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add' 600; Assert "add link" ($c -eq 'ok') $c
-            Assert 'instance name shown instead of derived name' (WaitText 'My link' 10) ((ListLines) -join ' || ')
+            Assert 'instance name shown instead of derived name' (WaitText 'My link' 10) ((Texts) -join ' | ')
+            Assert 'empty message gone after first add' (-not (WaitText 'עדיין אין אייטמים בסביבה' 2)) ''
             [void](SetType 'File'); SetText $targetBox "$root\ok.txt"; $c = ClickBtn 'Add' 600; Assert "add existing file" ($c -eq 'ok') $c
             [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add' 600; Assert "add missing file" ($c -eq 'ok') $c
             Start-Sleep -Milliseconds 600
-            $rows = (Texts) -join ' | '
-            Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) $rows
-            Info 'texts after adds' $rows
+            Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')
             Assert 'items grouped: Sites and Files & Programs headers shown' ((@(Texts) | Where-Object { $_ -eq 'Sites' }).Count -ge 1 -and (@(Texts) | Where-Object { $_ -eq 'Files & Programs' }).Count -ge 1) ((Texts) -join ' | ')
-            Assert 'workspace shows default category' (@(Texts) + @(ListLines) | Where-Object { $_ -like '*כללי*' }) ((ListLines) -join ' || ')
-            Shot 'workspace-created-items-added'
-            # 2b. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
+            Shot 'details-items-added'
+            # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
             [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked" ($c -eq 'ok') $c
             Assert 'duplicate warning shown, nothing added yet' (WaitText 'already in the workspace' 10) ((Texts) -join ' | ')
             Shot 'duplicate-warning'
             $c = ClickBtn 'Cancel' 800; Assert 'duplicate cancel clicked' ($c -eq 'ok') $c
             Start-Sleep -Milliseconds 500
             $n1 = @(Texts | Where-Object { $_ -eq 'https://example.com/' }).Count
-            Assert 'cancel kept a single instance' ($n1 -eq 1) "example.com rows=$n1"
+            Assert 'cancel kept a single instance' ($n1 -eq 1) "example.com texts=$n1"
             SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked again" ($c -eq 'ok') $c
             Assert 'duplicate warning shown again' (WaitText 'already in the workspace' 10) ''
             $c = ClickBtn 'Add anyway' 800; Assert 'add anyway clicked' ($c -eq 'ok') $c
             Start-Sleep -Milliseconds 500
             $n2 = @(Texts | Where-Object { $_ -eq 'https://example.com/' }).Count
-            Assert 'confirm added a second independent instance' ($n2 -eq 2) "example.com rows=$n2"
+            Assert 'confirm added a second independent instance' ($n2 -eq 2) "example.com texts=$n2"
             Shot 'duplicate-added'
             Start-Sleep -Milliseconds 800
-            $json = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
-            Assert 'store.json: two separate instances of the link, instance name persisted' (([regex]::Matches($json, 'example\.com')).Count -ge 3 -and $json -match 'My link') ($json -replace '\s+', ' ')
-            # persistence of what was typed
-            Start-Sleep -Milliseconds 800
-            $json = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
-            Assert 'store.json has the workspace and all three targets' ($json -match 'E2E ws' -and $json -match 'example\.com' -and $json -match 'ok\.txt' -and $json -match 'missing\.txt') ($json -replace '\s+', ' ')
-            # 3. open: preflight must stop and ask (missing file + honest unknown dup state)
+            $json = StoreJson
+            Assert 'store.json: two separate instances of the link, instance name persisted' (([regex]::Matches($json, 'example\.com')).Count -ge 3 -and $json -match 'My link') $json
+            Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
+            # 4. details editing: change shows Save; save persists
+            $wsNameBox2 = NamedEdit 'Workspace name'
+            SetText $wsNameBox2 'E2E ws renamed'
+            $saveBtn = $null; for ($i = 0; $i -lt 20; $i++) { $saveBtn = Btn 'Save'; if ($saveBtn) { break }; Start-Sleep -Milliseconds 250 }
+            Assert 'any change shows a Save button' ($null -ne $saveBtn) ''
+            $saveBtn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'saved name persisted to store.json' ((StoreJson) -match 'E2E ws renamed') (StoreJson)
+            Shot 'details-after-save'
+            # 5. unsaved-changes guard: edit, Back -> dialog, X returns to editing, Back -> exit without saving
+            SetText (NamedEdit 'Workspace description') 'unsaved edit'
+            $c = ClickBtn 'Back' 800; Assert 'back clicked' ($c -eq 'ok') $c
+            Assert 'unsaved dialog shown with both spec buttons' (WaitText 'You have changes that were not saved' 10 -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
+            Shot 'unsaved-dialog'
+            $c = ClickBtn 'Back to editing' 600; Assert 'dialog X clicked' ($c -eq 'ok') $c
+            Assert 'X returned to editing, changes kept' (WaitText 'Created:' 5 -and (NamedEdit 'Workspace description').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'unsaved edit') ''
+            $c = ClickBtn 'Back' 800; Assert 'back clicked again' ($c -eq 'ok') $c
+            $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
+            Assert 'back in overview, unsaved edit discarded' (WaitText 'Create workspace' 10 -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
+            Shot 'overview-after-guard'
+            # 6. open flow from details: preflight, cancel, open anyway
+            $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
+            $card.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 900
+            Assert 'details reopened from card' (WaitText 'Created:' 10) ''
             $npBefore = NotepadCount
             $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked' ($c -eq 'ok') $c
             Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
             Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
             Shot 'decision-panel'
-            # 4. cancel: nothing may start
             $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c
             Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
             Start-Sleep -Seconds 2
             Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
-            Shot 'after-cancel'
-            # 5. open again, confirm: existing file really starts; missing one is attempted and fails honestly; link open request sent
             $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
             Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
             $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
@@ -147,28 +170,18 @@ jobs:
             Info 'open report' ((ListLines) -join ' || ')
             $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }
             Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) "before=$npBefore after=$npAfter"
-            Info 'edge processes after link open' "$(@(Get-Process msedge -ErrorAction SilentlyContinue).Count)"
             Shot 'after-open-anyway'
-            # 6. empty workspace: open shows the empty-workspace dialog, nothing is launched
-            SetText $nameBox 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
-            Assert 'empty workspace listed' (WaitText 'E2E empty' 15) ((ListLines) -join ' || ')
-            $wsItem = $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))) | Where-Object { $_.Current.Name -like 'E2E empty*' } | Select-Object -First 1
-            if (-not $wsItem) {
-              $tx = $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::NameProperty, 'E2E empty')))))
-              $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker; $e = $tx
-              while ($e -and $e.Current.ControlType -ne $CT::ListItem) { $e = $walker.GetParent($e) }
-              $wsItem = $e
-            }
-            Assert 'empty workspace selectable' ($null -ne $wsItem) ''
-            if ($wsItem) { $wsItem.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 700 }
-            $npMid = NotepadCount
+            Start-Sleep -Milliseconds 800
+            Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)
+            # 7. empty workspace: open shows the dialog, go-to-details button leads to details
+            $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
+            SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
+            Assert 'empty workspace created into details with the Hebrew empty message' (WaitText 'עדיין אין אייטמים בסביבה' 15) ((Texts) -join ' | ')
             $c = ClickBtn 'Open workspace' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
-            Assert 'empty workspace dialog shown' (WaitText 'This workspace has no items yet' 15) ((Texts) -join ' | ')
+            Assert 'empty workspace dialog with the spec title' (WaitText 'סביבת עבודה ריקה' 15) ((Texts) -join ' | ')
             Shot 'empty-workspace-dialog'
-            $c = ClickBtn 'Close' 800; Assert 'dialog close clicked' ($c -eq 'ok') $c
-            Start-Sleep -Milliseconds 500
-            Assert 'dialog closed' (-not (WaitText 'This workspace has no items yet' 2)) ''
-            Assert 'nothing launched from the empty workspace' ((NotepadCount) -eq $npMid) "before=$npMid after=$(NotepadCount)"
+            $c = ClickBtn 'עבור לפרטי הסביבה' 900; Assert 'go-to-details clicked' ($c -eq 'ok') $c
+            Assert 'dialog closed, still in details with the empty message' (-not (WaitText 'This workspace has no items yet' 2) -and (WaitText 'עדיין אין אייטמים בסביבה' 5)) ((Texts) -join ' | ')
           }
           catch { "script error: $_" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_" }) }
           finally {
@@ -181,49 +194,67 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-01-workspace-created-items-added.png
+          path: out-images/run${{ github.run_id }}-feat-01-details-after-create-empty.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-02-duplicate-warning.png
+          path: out-images/run${{ github.run_id }}-feat-02-details-items-added.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-03-duplicate-added.png
+          path: out-images/run${{ github.run_id }}-feat-03-duplicate-warning.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-04-decision-panel.png
+          path: out-images/run${{ github.run_id }}-feat-04-duplicate-added.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-05-after-cancel.png
+          path: out-images/run${{ github.run_id }}-feat-05-details-after-save.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-06-after-open-anyway.png
+          path: out-images/run${{ github.run_id }}-feat-06-unsaved-dialog.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          path: out-images/run${{ github.run_id }}-open-07-empty-workspace-dialog.png
+          path: out-images/run${{ github.run_id }}-feat-07-overview-after-guard.png
           archive: false
           if-no-files-found: warn
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: diagnostics-open-flow-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out-images/run${{ github.run_id }}-feat-08-decision-panel.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-feat-09-after-open-anyway.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          path: out-images/run${{ github.run_id }}-feat-10-empty-workspace-dialog.png
+          archive: false
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: diagnostics-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
           path: diag/
           if-no-files-found: warn
       - name: Fail the job if anything failed
