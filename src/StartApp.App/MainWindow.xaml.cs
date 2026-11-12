@@ -69,6 +69,12 @@ public partial class MainWindow : Window
             // edge), and flip above the button when the space below it inside the window is too small.
             var button = (Button)sender;
             menu.PlacementTarget = button;
+            // Settle the share entry's visibility BEFORE the popup measures. The previous Visibility binding through
+            // PlacementTarget lagged a layout pass on a menu's first open, so the placement callback measured a 6-item
+            // menu that then rendered as 7 items and overflowed the window bottom (run 43307032198: 19px past it).
+            foreach (var mi in menu.Items.OfType<System.Windows.Controls.MenuItem>())
+                if (mi.Header as string == "שיתוף לסביבה אחרת")
+                    mi.Visibility = (button.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
             menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
             menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
             {
