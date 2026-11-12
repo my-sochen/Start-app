@@ -13,6 +13,15 @@ public sealed class Catalog
         foreach (var w in _s.Workspaces)
             for (var i = 0; i < w.Items.Count; i++)
                 if (w.Items[i].Id is null) w.Items[i] = w.Items[i] with { Id = NewId("mi_", id => _s.Workspaces.SelectMany(x => x.Items).Any(m => m.Id == id)) };
+        // Schema-2 legacy: a shared description on the item. Move it onto the existing instances that have none, then clear it from the
+        // item, so it can never leak into a NEW instance or reappear after an instance description is explicitly cleared.
+        foreach (var w in _s.Workspaces)
+            for (var i = 0; i < w.Items.Count; i++)
+                if (w.Items[i].Description is null && _s.Items.TryGetValue(w.Items[i].ItemId, out var legacy) && legacy.Description is not null)
+                    w.Items[i] = w.Items[i] with { Description = legacy.Description };
+        foreach (var id in _s.Workspaces.SelectMany(w => w.Items).Select(m => m.ItemId).ToHashSet())
+            if (_s.Items.TryGetValue(id, out var it) && it.Description is not null)
+                _s.Items[id] = it with { Description = null };
     }
     public Store Store => _s;
 
@@ -94,9 +103,29 @@ public sealed class Catalog
 
     public Workspace CreateWorkspace(string name, string? description = null, string? category = null)
     {
-        var w = new Workspace { Id = NewId("ws_", id => _s.Workspaces.Any(w => w.Id == id)), Name = name, Description = description, Category = category };
+        ValidateWorkspaceFields(name, description, category);
+        var w = new Workspace { Id = NewId("ws_", id => _s.Workspaces.Any(w => w.Id == id)), Name = name, Description = string.IsNullOrWhiteSpace(description) ? null : description, Category = string.IsNullOrWhiteSpace(category) ? null : category, CreatedAt = DateTime.UtcNow };
         _s.Workspaces.Add(w);
         return w;
+    }
+
+    /// <summary>Direct-edit save from the details screen: replaces name, description and category with the edited values.
+    /// Empty description/category mean none/default. Items are not touched.</summary>
+    public Workspace UpdateWorkspace(string id, string name, string? description, string? category)
+    {
+        ValidateWorkspaceFields(name, description, category);
+        var w = Ws(id);
+        w.Name = name; w.Description = string.IsNullOrWhiteSpace(description) ? null : description; w.Category = string.IsNullOrWhiteSpace(category) ? null : category;
+        return w;
+    }
+
+    /// <summary>Records a real open (שגר) of the workspace for the card's "last opened" display.</summary>
+    public void TouchLastOpened(string workspaceId) => Ws(workspaceId).LastOpenedAt = DateTime.UtcNow;
+
+    private static void ValidateWorkspaceFields(string name, string? description, string? category)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("workspace name is required");
+        var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
     }
 
     private Workspace Ws(string id) => _s.Workspaces.FirstOrDefault(w => w.Id == id) ?? throw new KeyNotFoundException(id);
@@ -176,6 +205,8 @@ public sealed class Catalog
         foreach (var w in _s.Workspaces)
         {
             if (w.Category is not null && string.IsNullOrWhiteSpace(w.Category)) errs.Add($"{w.Id}: category is empty");
+            if (string.IsNullOrWhiteSpace(w.Name)) errs.Add($"{w.Id}: workspace name is required");
+            if (ValidateDescription(w.Description) is { } wde) errs.Add($"{w.Id}: {wde}");
             if (w.Items.Any(m => m.Id is null)) errs.Add($"{w.Id}: instance without an id");
             if (w.Items.Where(m => m.Id is not null).GroupBy(m => m.Id).Any(g => g.Count() > 1)) errs.Add($"{w.Id}: duplicate instance id");
             foreach (var m in w.Items)
