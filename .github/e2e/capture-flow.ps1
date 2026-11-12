@@ -68,6 +68,7 @@ function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).C
 function AnyByName($name) { $e = (CurWin).FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
 function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
 
+function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::NameProperty, 'Capture target workspace'))))); if ($null -eq $tw) { return '<no header element>' }; try { return $tw.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange.GetText(-1).Trim() } catch { return "<unreadable: $($_.Exception.GetType().Name)>" } }
 function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
@@ -149,7 +150,7 @@ try {
   Start-Sleep -Milliseconds 600
   Shot 'pick-workspace-search'
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B' ($c -eq 'ok') $c
-  Assert 'side by side: target workspace named' (WaitText 'Cap B' 5) ''
+  Assert 'side by side: target workspace named' ((CaptureTargetText) -eq 'Cap B') (CaptureTargetText)
   Assert 'add button reads הוסף הכל while nothing is ticked' ($null -ne (Btn 'הוסף הכל')) ''
   $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row'); Start-Sleep -Milliseconds 500
   Assert 'add button becomes הוסף נבחרים when a row is ticked' ($null -ne (Btn 'הוסף נבחרים')) ''
@@ -200,7 +201,7 @@ try {
   while ($swS.Elapsed.TotalMilliseconds -lt 2000) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
   Info 'scanning state observed (details entry)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
   Assert 'rescan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'target workspace is Cap A' (@(Texts) -contains 'Cap A') ((Texts) -join ' | ')
+  Assert 'target workspace is Cap A' ((CaptureTargetText) -eq 'Cap A') (CaptureTargetText)
   $names2 = CheckNames; Info 'detected rows (after closing Notepad)' ($names2 -join ' | ')
   Assert 'REAL rescan: the closed Notepad is gone from the new scan' ($null -eq (CheckByLike '*Notepad*')) ($names2 -join ' | ')
   Assert 'REAL rescan: the Explorer folder is still listed' ($null -ne (CheckByLike '*capfolder*')) ($names2 -join ' | ')
