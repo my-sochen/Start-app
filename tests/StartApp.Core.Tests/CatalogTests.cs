@@ -194,4 +194,46 @@ public class UpdateInstanceTests
         Assert.Null(saved.Name); Assert.Null(saved.Description);
         Assert.Throws<KeyNotFoundException>(() => c.UpdateInstance(w.Id, "mi_missing", "x", null));
     }
+
+    [Fact] public void SetLaunch_saves_per_instance_and_validates()
+    {
+        var c = NewCatalog();
+        var link = c.GetOrAddItem(ItemType.Link, "a.example", "https://a.example/");
+        var file = c.GetOrAddItem(ItemType.File, "a.txt", "C:\\a.txt");
+        var w = c.CreateWorkspace("w", null);
+        var m1 = c.AddToWorkspace(w.Id, link.Id, name: "one");
+        var m2 = c.AddToWorkspace(w.Id, link.Id, name: "two"); // second instance of the same address
+        c.SetLaunch(w.Id, m1.Id!, new LaunchConfig(Browser: "C:\\Browsers\\other.exe"));
+        Assert.Equal("C:\\Browsers\\other.exe", c.Store.Workspaces.Single().Items.Single(m => m.Id == m1.Id).Launch?.Browser);
+        Assert.Null(c.Store.Workspaces.Single().Items.Single(m => m.Id == m2.Id).Launch); // per instance, never per address
+        Assert.Throws<ArgumentException>(() => c.SetLaunch(w.Id, m1.Id!, new LaunchConfig(OpenWith: "C:\\x.exe"))); // openWith not allowed for a link
+        var mf = c.AddToWorkspace(w.Id, file.Id, name: "doc");
+        Assert.Throws<ArgumentException>(() => c.SetLaunch(w.Id, mf.Id!, new LaunchConfig(Browser: "C:\\b.exe"))); // browser only for links
+        Assert.Throws<ArgumentException>(() => c.SetLaunch(w.Id, mf.Id!, new LaunchConfig(OpenWith: "notepad"))); // not an absolute path
+        c.SetLaunch(w.Id, m1.Id!, null); // clearing returns to the Windows default
+        Assert.Null(c.Store.Workspaces.Single().Items.Single(m => m.Id == m1.Id).Launch);
+        Assert.Throws<KeyNotFoundException>(() => c.SetLaunch(w.Id, "mi_missing", null));
+    }
+
+    [Fact] public void MoveInstance_swaps_within_the_display_group_only()
+    {
+        var c = NewCatalog();
+        var f1 = c.GetOrAddItem(ItemType.File, "f1", "C:\\f1");
+        var f2 = c.GetOrAddItem(ItemType.File, "f2", "C:\\f2");
+        var p1 = c.GetOrAddItem(ItemType.Program, "p1", "C:\\p1.exe"); // files and programs share one display group
+        var l1 = c.GetOrAddItem(ItemType.Link, "l1", "https://a.example/");
+        var w = c.CreateWorkspace("w", null);
+        var mf1 = c.AddToWorkspace(w.Id, f1.Id); var ml1 = c.AddToWorkspace(w.Id, l1.Id);
+        var mf2 = c.AddToWorkspace(w.Id, f2.Id); var mp1 = c.AddToWorkspace(w.Id, p1.Id);
+        string[] Order() => c.Store.Workspaces.Single().Items.Select(m => m.ItemId).ToArray();
+        c.MoveInstance(w.Id, mf2.Id!, -1); // f2 swaps with f1, skipping the link that sits between them in the list
+        Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
+        c.MoveInstance(w.Id, ml1.Id!, 1); // the link is alone in its group: no-op
+        Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
+        c.MoveInstance(w.Id, mf2.Id!, -1); // already first in its group: no-op
+        Assert.Equal(new[] { f2.Id, l1.Id, f1.Id, p1.Id }, Order());
+        c.MoveInstance(w.Id, mf1.Id!, 1); // file swaps with the program: same display group
+        Assert.Equal(new[] { f2.Id, l1.Id, p1.Id, f1.Id }, Order());
+        Assert.Throws<KeyNotFoundException>(() => c.MoveInstance(w.Id, "mi_missing", 1));
+    }
 }
