@@ -58,7 +58,7 @@
                                     </MultiBinding>
                                 </Border.Background>
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="⋯" Padding="8,2" Margin="4,0,0,0"
+                                <Button DockPanel.Dock="Right" Content="⋯" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
                                         AutomationProperties.Name="Workspace actions" Click="CardActions_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                                     <Button.ContextMenu>
                                         <ContextMenu>
@@ -70,9 +70,10 @@
                                         </ContextMenu>
                                     </Button.ContextMenu>
                                 </Button>
-                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0"
+                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
                                         Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                 <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                        Background="Transparent" BorderThickness="0"
                                         HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
