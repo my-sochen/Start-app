@@ -237,3 +237,35 @@ public class UpdateInstanceTests
         Assert.Throws<KeyNotFoundException>(() => c.MoveInstance(w.Id, "mi_missing", 1));
     }
 }
+
+public class CaptureRulesTests
+{
+    [Fact] public void File_url_becomes_a_windows_path_and_non_file_urls_are_rejected()
+    {
+        Assert.Equal("C:\\Users\\a b", CaptureRules.FileUrlToPath("file:///C:/Users/a%20b"));
+        Assert.Null(CaptureRules.FileUrlToPath("https://example.com/"));
+        Assert.Null(CaptureRules.FileUrlToPath(""));
+        Assert.Null(CaptureRules.FileUrlToPath(null));
+    }
+    [Fact] public void Address_bar_text_is_a_site_only_when_it_is_a_single_http_url_token()
+    {
+        Assert.Equal("https://example.com/page", CaptureRules.SiteFromAddressText("example.com/page"));
+        Assert.Equal("http://example.com/", CaptureRules.SiteFromAddressText("http://example.com/"));
+        Assert.Null(CaptureRules.SiteFromAddressText("some search words"));
+        Assert.Null(CaptureRules.SiteFromAddressText("edge://settings"));
+        Assert.Null(CaptureRules.SiteFromAddressText("localhost"));
+        Assert.Null(CaptureRules.SiteFromAddressText(""));
+    }
+    [Fact] public void Dedupe_keeps_one_row_per_exact_target()
+    {
+        var l = CaptureRules.Dedupe(new[] { new CapturedItem(ItemType.Program, "A", "C:\\a.exe"), new CapturedItem(ItemType.Program, "A again", "C:\\a.exe"), new CapturedItem(ItemType.Folder, "f", "C:\\a.exe") });
+        Assert.Equal(2, l.Count); Assert.Equal("A", l[0].Name);
+    }
+    private sealed class Boom : IOpenItemCapturer { public CaptureScan Scan() => throw new InvalidOperationException("x"); }
+    private sealed class One : IOpenItemCapturer { public CaptureScan Scan() => new(new[] { new CapturedItem(ItemType.Link, "e", "https://e.example/") }, new[] { "n" }); }
+    [Fact] public void A_failing_source_is_reported_and_does_not_hide_the_others()
+    {
+        var r = new CompositeCapturer(new Boom(), new One()).Scan();
+        Assert.Single(r.Items); Assert.Contains(r.Notes, n => n.Contains("Boom failed")); Assert.Contains("n", r.Notes);
+    }
+}
