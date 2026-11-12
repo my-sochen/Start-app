@@ -38,7 +38,8 @@ public class ItemRowActionsTests
         var call = Assert.Single(launcher.Calls);
         Assert.Equal("C:\\a.txt", call.Item.Target);
         Assert.Equal("first: open request sent (not proof it loaded)", vm.Status);
-        Assert.NotNull(repo.Load().Workspaces.Single(w => w.Id == wsId).LastOpenedAt);
+        // פתיחה אחרונה is the workspace's last launch (שגר); a single-item open does not stamp it.
+        Assert.Null(repo.Load().Workspaces.Single(w => w.Id == wsId).LastOpenedAt);
     }
 
     [Fact] public async Task A_failed_single_open_is_reported_honestly()
@@ -80,6 +81,32 @@ public class ItemRowActionsTests
         var edited = saved.Items.Single(m => m.Name == "renamed");
         Assert.Equal("only mine", edited.Description);
         Assert.DoesNotContain(saved.Items, m => m.Id != edited.Id && m.Name == "renamed");
+    }
+
+    [Fact] public void The_edit_form_also_edits_the_address_locally()
+    {
+        using var repo = new JsonStore(Tmp());
+        var vm = VmWithItem(repo, new RecordingLauncher(), out var wsId);
+        // the same item in a second workspace must keep its own address
+        vm.NewName = "w2"; vm.CreateWorkspaceCommand.Execute(null);
+        var otherWs = vm.Selected!.Id;
+        vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.AddItemCommand.Execute(null);
+        var w1 = vm.Workspaces.Single(w => w.Id == wsId);
+        vm.Selected = w1;
+        var row = vm.Items.Single();
+        var instanceId = row.InstanceId;
+        vm.EditItemCommand.Execute(row);
+        Assert.Equal("C:\\a.txt", vm.EditItemTarget);
+        vm.EditItemTarget = "C:\\b.txt";
+        Assert.True(vm.ItemEditDirty);
+        vm.SaveItemEditCommand.Execute(null);
+        Assert.Equal("Item saved", vm.Status);
+        var store = repo.Load();
+        var edited = store.Workspaces.Single(w => w.Id == wsId).Items.Single();
+        Assert.Equal(instanceId, edited.Id); // id stable across the address change
+        Assert.Equal("C:\\b.txt", store.Items[edited.ItemId].Target);
+        var other = store.Workspaces.Single(w => w.Id == otherWs).Items.Single();
+        Assert.Equal("C:\\a.txt", store.Items[other.ItemId].Target); // other workspace untouched
     }
 
     [Fact] public void Dirty_cancel_asks_via_the_unsaved_dialog_and_save_and_exit_applies()
