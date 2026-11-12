@@ -25,6 +25,10 @@ public sealed class Workspace
     public string? Description { get; set; }
     /// <summary>User-chosen category; null or empty means the built-in default.</summary>
     public string? Category { get; set; }
+    /// <summary>Creation time (UTC), set when the workspace is created. Null in files written before this field existed.</summary>
+    public DateTime? CreatedAt { get; set; }
+    /// <summary>Last time open requests were actually sent for this workspace (שגר). Null = never opened.</summary>
+    public DateTime? LastOpenedAt { get; set; }
     public string EffectiveCategory => string.IsNullOrWhiteSpace(Category) ? DefaultCategory : Category;
     public List<Membership> Items { get; set; } = new();
 }
