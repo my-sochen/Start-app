@@ -73,6 +73,8 @@ function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::Con
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
 function StagedNames() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))) | ForEach-Object { ValOf $_ }) }
+function StagedAddrs() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))) | ForEach-Object { ValOf $_ }) }
+function StagedActionBtns() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Staged item actions')))))) }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
   $c = ClickBtn 'Capture' 900; if ($c -ne 'ok') { return $c }
@@ -165,9 +167,11 @@ try {
   # 2b. settled rule: a staged item offers the FULL item action set, staged until Save, the source list unchanged
   $rowCount = (Checks).Count
   $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row untick'); Start-Sleep -Milliseconds 400
-  $termRow = CheckByLike '*Terminal*'; Assert 'a second scannable row (Windows Terminal Host) is present' ($null -ne $termRow) ((CheckNames) -join ' | ')
+  $npRow = CheckByLike '*Notepad*'; Assert 'Notepad row present for a two-program staging' ($null -ne $npRow) ((CheckNames) -join ' | ')
+  [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400
+  $termRow = CheckByLike '*Terminal*'; Assert 'Windows Terminal Host row present' ($null -ne $termRow) ((CheckNames) -join ' | ')
   [void](ToggleEl $termRow 'terminal row'); Start-Sleep -Milliseconds 500
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'second staged row added' ($c -eq 'ok' -and @(StagedNames).Count -eq 2) $c
+  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'two programs staged beside the folder' ($c -eq 'ok' -and @(StagedNames).Count -eq 3) $c
   $c = ClickBtn 'Staged item actions' 900; Assert 'staged item actions menu opened' ($c -eq 'ok') $c
   $sfound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'staged menu shows the six settled entries' (@($sfound).Count -eq 6) ("found: $($sfound -join ', ')")
@@ -176,15 +180,36 @@ try {
   $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
   Assert 'שיתוף לסביבה אחרת visible but disabled (action undefined) with another workspace present' ($null -ne $shareMi -and -not $shareMi.Current.IsOffscreen -and -not $shareMi.Current.IsEnabled) ("found=$($null -ne $shareMi) enabled=$(if ($shareMi) { $shareMi.Current.IsEnabled } else { 'n/a' })")
   Shot 'side-by-side-staged-menu'
-  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'staged move down'); Start-Sleep -Milliseconds 700
-  $names = @(StagedNames)
-  Assert 'הזז למטה reorders the staged list' ($names.Count -eq 2 -and $names[0] -like '*Terminal*' -and $names[1] -eq 'my capture folder') ($names -join ' | ')
-  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for copy' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'folder at its group edge'); Start-Sleep -Milliseconds 600
+  Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
+  $before = @(StagedNames)
+  $btns = @(StagedActionBtns); Assert 'three staged action buttons' ($btns.Count -eq 3) "$($btns.Count)"
+  [void](InvokeEl $btns[1] 'first program actions'); Start-Sleep -Milliseconds 800
+  Assert 'פתח באמצעות hidden on a program item (it is the program)' ($null -eq (MenuItemByName 'פתח באמצעות')) ''
+  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'program move down'); Start-Sleep -Milliseconds 700
+  $after = @(StagedNames)
+  Assert 'הזז למטה swaps within the Programs group only' ($after.Count -eq 3 -and $after[0] -eq $before[0] -and $after[1] -eq $before[2] -and $after[2] -eq $before[1]) ($after -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](InvokeEl $btns[2] 'moved program actions'); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'עריכת כתובת'; [void](InvokeEl $mi 'staged address edit entry'); Start-Sleep -Milliseconds 800
+  $addr = NamedEdit 'Full address'; $rowAddr = @(StagedAddrs)[2]
+  Assert 'address popup opened on the staged row with its full address' ($null -ne $addr -and (ValOf $addr) -eq $rowAddr) ("popup=$(ValOf $addr) row=$rowAddr")
+  Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
+  SetText $addr 'C:\Windows\System32\notepad.exe'
+  $c = ClickBtn 'שמור' 900; Assert 'address saved on the staged row' ($c -eq 'ok') $c
+  Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](InvokeEl $btns[2] 'moved program actions for copy'); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
   Assert 'העתק כתובת on a staged row reports the copy' (WaitText 'Address copied' 5) ((Texts) -join ' | ')
-  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for delete' ($c -eq 'ok') $c
-  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete'); Start-Sleep -Milliseconds 700
-  Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 1 -and (StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](InvokeEl $btns[2] 'moved program actions for delete'); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
+  Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 2) ((StagedNames) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](InvokeEl $btns[1] 'other program actions for delete'); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete other program'); Start-Sleep -Milliseconds 700
+  Assert 'second delete leaves the folder row only' (@(StagedNames).Count -eq 1 -and @(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for open-with' ($c -eq 'ok') $c
   $mi = MenuItemByName 'פתח באמצעות'; [void](InvokeEl $mi 'staged open-with entry'); Start-Sleep -Milliseconds 800
   $prog = NamedEdit 'Program path'; Assert 'open-with popup opened on a staged row' ($null -ne $prog) ''
