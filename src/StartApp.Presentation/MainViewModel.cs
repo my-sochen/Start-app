@@ -406,11 +406,13 @@ public sealed class MainViewModel : ObservableBase
     {
         var cats = new Catalog(_current).AllCategories();
         CategoryRows.Clear(); foreach (var c in cats) CategoryRows.Add(new CategoryRow(c, Catalog.IsBuiltInCategory(c)));
-        // Rebuilding CategoryChoices wipes each bound ComboBox selection, and the TwoWay SelectedItem binding
-        // pushes null back into the view model. Capture and restore so an unrelated catalog change (for example
-        // adding an item) never blanks the create/details category or marks the details form dirty.
+        // Rebuilding CategoryChoices with Clear() raises Reset, which wipes each bound ComboBox selection, and the
+        // TwoWay SelectedItem binding pushes null back into the view model; restoring while the list is momentarily
+        // empty leaves the combo visibly blank (seen on the create form). Rebuild diff-wise instead so an unchanged
+        // selection never gets a Reset, and still capture/restore for the removed-item (rename/delete) case.
         var keepNew = _newWsCat; var keepEdit = _editCategory;
-        CategoryChoices.Clear(); foreach (var c in cats) CategoryChoices.Add(c);
+        for (var i = CategoryChoices.Count - 1; i >= 0; i--) if (!cats.Contains(CategoryChoices[i])) CategoryChoices.RemoveAt(i);
+        foreach (var c in cats) if (!CategoryChoices.Contains(c)) CategoryChoices.Add(c);
         _newWsCat = keepNew; Raise(nameof(NewWorkspaceCategory)); Raise(nameof(CreateDirty));
         _editCategory = keepEdit; Raise(nameof(EditCategory)); RaiseDirty();
         var w = _current.Workspaces.FirstOrDefault(x => x.Id == _categoryWsId);
