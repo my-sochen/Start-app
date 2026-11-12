@@ -103,6 +103,10 @@
                             <TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
                             <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
                         </DockPanel>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="Address" Width="80" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
+                        </DockPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="Save" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
                                     Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
@@ -154,7 +158,7 @@
                                     <ColumnDefinition Width="140"/>
                                     <ColumnDefinition Width="60"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Button Grid.Column="0" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
                                         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" HorizontalAlignment="Left" Cursor="Hand"
@@ -163,15 +167,23 @@
                                 </Button>
                                 <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <Button Grid.Row="0" Grid.Column="3" Content="⋯" AutomationProperties.Name="Item actions" Click="CardActions_Click" Padding="6,0">
-                                    <Button.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="עריכה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="מחיקה" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="העתק כתובת" Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                        </ContextMenu>
-                                    </Button.ContextMenu>
-                                </Button>
+                                <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
+                                    <Button Content="עריכה" AutomationProperties.Name="Edit item" Padding="6,0" Margin="0,0,4,0"
+                                            Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                    <Button Content="⋯" AutomationProperties.Name="Item actions" Click="CardActions_Click" Padding="6,0">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="מחיקה" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="העתק כתובת" Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <!-- settled but not yet implemented this cycle; enabled as their popups/logic land -->
+                                                <MenuItem Header="עריכת כתובת" IsEnabled="False"/>
+                                                <MenuItem Header="פתח באמצעות" IsEnabled="False"/>
+                                                <MenuItem Header="הזז למעלה" IsEnabled="False"/>
+                                                <MenuItem Header="הזז למטה" IsEnabled="False"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </StackPanel>
                                 <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
                                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                         <DataTrigger Binding="{Binding Description}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
