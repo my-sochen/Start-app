@@ -52,6 +52,20 @@ function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.G
 function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
+function InvokeMenuItem($btnName, $itemName, $what) {
+  # UIA popup menus can throw a transient 'Unrecognized error' on Invoke when the popup is mid-teardown; retry with a fresh menu, then fail for real.
+  $err = 'menu item not found'
+  for ($t = 0; $t -lt 3; $t++) {
+    $mi = MenuItemByName $itemName
+    if ($null -ne $mi) {
+      try { $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { $err = "$_" }
+      Start-Sleep -Milliseconds 400
+    } else {
+      [void](ClickBtn $btnName 900)
+    }
+  }
+  Assert "$what invokable" $false $err; return $false
+}
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
 function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
@@ -180,7 +194,7 @@ try {
   $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
   Assert 'שיתוף לסביבה אחרת visible but disabled (action undefined) with another workspace present' ($null -ne $shareMi -and -not $shareMi.Current.IsOffscreen -and -not $shareMi.Current.IsEnabled) ("found=$($null -ne $shareMi) enabled=$(if ($shareMi) { $shareMi.Current.IsEnabled } else { 'n/a' })")
   Shot 'side-by-side-staged-menu'
-  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'folder at its group edge'); Start-Sleep -Milliseconds 600
+  [void](InvokeMenuItem 'Staged item actions' 'הזז למטה' 'folder at its group edge'); Start-Sleep -Milliseconds 600
   Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $before = @(StagedNames)
   $btns = @(StagedActionBtns); Assert 'three staged action buttons' ($btns.Count -eq 3) "$($btns.Count)"
