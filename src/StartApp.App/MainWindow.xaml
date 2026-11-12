@@ -175,21 +175,39 @@
                                             <ContextMenu>
                                                 <MenuItem Header="מחיקה" Command="{Binding DataContext.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                                 <MenuItem Header="העתק כתובת" Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <!-- settled but not yet implemented this cycle; enabled as their popups/logic land -->
-                                                <MenuItem Header="עריכת כתובת" IsEnabled="False"/>
-                                                <MenuItem Header="פתח באמצעות" IsEnabled="False"/>
-                                                <MenuItem Header="הזז למעלה" IsEnabled="False"/>
-                                                <MenuItem Header="הזז למטה" IsEnabled="False"/>
+                                                <MenuItem Header="עריכת כתובת" Command="{Binding DataContext.EditAddressCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="פתח באמצעות" Command="{Binding DataContext.OpenWithCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
+                                                    <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
+                                                        <!-- a program item IS the program; open-with does not apply to it -->
+                                                        <DataTrigger Binding="{Binding Type}" Value="Program"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    </Style.Triggers></Style></MenuItem.Style>
+                                                </MenuItem>
+                                                <MenuItem Header="הזז למעלה" Command="{Binding DataContext.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="הזז למטה" Command="{Binding DataContext.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
+                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False"
+                                                          Visibility="{Binding DataContext.HasOtherWorkspaces, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource B2V}}"/>
+                                                <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>
                                 </StackPanel>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
-                                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
-                                        <DataTrigger Binding="{Binding Description}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        <DataTrigger Binding="{Binding Description}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                    </Style.Triggers></Style></TextBlock.Style>
-                                </TextBlock>
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
+                                    <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי) -->
+                                    <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}">
+                                        <Run Text="Opens with: "/><Run Text="{Binding Program}"/>
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
+                                            <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
+                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Description}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -222,6 +240,42 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="עבור לפרטי הסביבה" Command="{Binding GoToDetailsCommand}" Padding="12,2"/>
                         <Button Content="Close" Command="{Binding CloseEmptyWorkspaceCommand}" Padding="12,2" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ address popup (פופאפ עריכת כתובת) ============ -->
+        <Grid Visibility="{Binding AddressEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
+            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseAddressEditCommand}" Padding="6,0" AutomationProperties.Name="Close address edit" ToolTip="Close"/>
+                        <TextBlock Text="עריכת כתובת" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBox Text="{Binding EditAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Full address"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="העתק" Command="{Binding CopyFullAddressCommand}" Padding="12,2" AutomationProperties.Name="Copy full address"/>
+                        <Button Content="שמור" Command="{Binding SaveAddressCommand}" Padding="12,2" Margin="8,0,0,0"
+                                Visibility="{Binding AddressEditDirty, Converter={StaticResource B2V}}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ open-with popup (פופאפ פתח באמצעות) ============ -->
+        <Grid Visibility="{Binding OpenWithOpen, Converter={StaticResource B2V}}" Background="#66000000">
+            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Padding="6,0" AutomationProperties.Name="Close open with" ToolTip="Close"/>
+                        <TextBlock Text="פתח באמצעות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                    <TextBox Text="{Binding OpenWithProgram, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Program path"/>
+                    <CheckBox Content="הגדר כברירת מחדל" IsChecked="{Binding OpenWithSetDefault}" Margin="0,6,0,0" AutomationProperties.Name="Set as default"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Padding="12,2" AutomationProperties.Name="Open with chosen program"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
