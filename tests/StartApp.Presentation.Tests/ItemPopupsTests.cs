@@ -168,17 +168,39 @@ public class ItemPopupsTests
         AddLink(vm, "https://a.example/", "site");
         var f3 = vm.Items.Single(r => r.Name == "f3");
         vm.MoveItemUpCommand.Execute(f3);
-        Assert.Equal(new[] { "f1", "f3", "f2" }, vm.Items.Where(r => r.Group == "Files & Programs").Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "f1", "f3", "f2" }, vm.Items.Where(r => r.Group == "Files").Select(r => r.Name).ToArray());
         // persisted
         var saved = repo.Load().Workspaces.Single();
         Assert.Equal(new[] { "f1", "f3", "f2" }, saved.Items.Where(m => repo.Load().Items[m.ItemId].Type == ItemType.File).Select(m => m.Name).ToArray());
         // first in the group cannot move further up: a no-op
         vm.MoveItemUpCommand.Execute(vm.Items.Single(r => r.Name == "f1"));
-        Assert.Equal(new[] { "f1", "f3", "f2" }, vm.Items.Where(r => r.Group == "Files & Programs").Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "f1", "f3", "f2" }, vm.Items.Where(r => r.Group == "Files").Select(r => r.Name).ToArray());
         // the site group is untouched by file moves, and the site cannot move into the files group
         var site = vm.Items.Single(r => r.Name == "site");
         vm.MoveItemDownCommand.Execute(site);
         Assert.Equal("site", vm.Items.Single(r => r.Group == "Sites").Name);
+    }
+
+    [Fact] public void Display_groups_split_files_and_programs_like_sites_and_folders()
+    {
+        // settled Nov 12: files and programs display separately, the way sites and folders already did
+        Assert.Equal("Sites", MainViewModel.GroupOf(ItemType.Link));
+        Assert.Equal("Folders", MainViewModel.GroupOf(ItemType.Folder));
+        Assert.Equal("Files", MainViewModel.GroupOf(ItemType.File));
+        Assert.Equal("Programs", MainViewModel.GroupOf(ItemType.Program));
+    }
+
+    [Fact] public void Move_cannot_cross_the_file_program_group_boundary()
+    {
+        using var repo = new JsonStore(Tmp());
+        var vm = Vm(repo, new RecordingLauncher());
+        vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\f.txt"; vm.NewItemName = "afile"; vm.AddItemCommand.Execute(null);
+        vm.NewItemType = ItemType.Program; vm.NewTarget = "C:\\tool.exe"; vm.NewItemName = "aprog"; vm.AddItemCommand.Execute(null);
+        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
+        vm.MoveItemUpCommand.Execute(vm.Items.Single(r => r.Name == "aprog")); // first in its group: no-op, stays out of Files
+        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
+        vm.MoveItemDownCommand.Execute(vm.Items.Single(r => r.Name == "afile")); // last in its group: no-op, stays out of Programs
+        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
     }
 
     [Fact] public void Share_entry_display_condition_follows_workspace_count()
