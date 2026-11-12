@@ -73,7 +73,7 @@
                                 <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0"
                                         Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                 <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
-                                        HorizontalContentAlignment="Left" Padding="6,2">
+                                        HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
                                         <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/>
