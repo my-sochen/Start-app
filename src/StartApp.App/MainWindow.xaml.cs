@@ -44,23 +44,27 @@ public partial class MainWindow : Window
     }
     // Drag from the capture list onto the workspace side. Each drop is one item and goes through the per-drag duplicate warning in the view model.
     private Point _dragStart;
+    private bool _captureDragActive;
     private void CaptureList_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _dragStart = e.GetPosition(null);
     private void CaptureList_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        // DoDragDrop pumps mouse messages in its modal loop, so PreviewMouseMove re-enters while a drag
+        // is active; without the guard a single physical drag starts a second session whose extra Drop
+        // stages the item and then flags it as its own duplicate (CI v37/v38 evidence).
+        if (_captureDragActive) return;
         if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
         var pos = e.GetPosition(null);
         if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         if (e.OriginalSource is DependencyObject src && ItemsControl.ContainerFromElement(CaptureList, src) is ListBoxItem { DataContext: MainViewModel.CaptureRow row })
         {
-            MainViewModel.CiDropLog($"DRAGSTART {row.Name}");
-            DragDrop.DoDragDrop(CaptureList, new DataObject(typeof(MainViewModel.CaptureRow), row), DragDropEffects.Copy);
-            MainViewModel.CiDropLog($"DRAGEND {row.Name}");
+            _captureDragActive = true;
+            try { DragDrop.DoDragDrop(CaptureList, new DataObject(typeof(MainViewModel.CaptureRow), row), DragDropEffects.Copy); }
+            finally { _captureDragActive = false; }
         }
     }
     private void CaptureDropZone_DragOver(object sender, DragEventArgs e) { e.Effects = e.Data.GetDataPresent(typeof(MainViewModel.CaptureRow)) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     private void CaptureDropZone_Drop(object sender, DragEventArgs e)
     {
-        MainViewModel.CiDropLog("DROP-EVENT");
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
