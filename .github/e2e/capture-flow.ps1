@@ -53,6 +53,19 @@ function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
+function EdgeSelectedTabIndex() {
+  # Index of the selected tab in the Edge window we opened (all three test pages share the title 'Example Domain', so the index is the discriminator).
+  $ws = @()
+  if ($edge -and -not $edge.HasExited) { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edge.Id)))) }
+  if ($ws.Count -eq 0) { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ClassNameProperty, 'Chrome_WidgetWin_1')))) }
+  foreach ($w0 in $ws) {
+    try {
+      $tabs = $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
+      for ($i = 0; $i -lt $tabs.Count; $i++) { try { $sip = $tabs[$i].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern); if ($sip.Current.IsSelected) { return $i } } catch { } }
+    } catch { }
+  }
+  return -1
+}
 function DragRowToStage($like, $label) {
   # Real pointer drag: press on the source row, move in steps over the drop zone, release. Same path a user's mouse takes.
   $row = CheckByLike $like
@@ -107,8 +120,9 @@ try {
   # Real things to detect: a Notepad window, a File Explorer window on a known folder, and (best effort, reported as info only) an Edge window.
   $np = Start-Process notepad.exe -PassThru
   Start-Process explorer.exe -ArgumentList "`"$capdir`""
-  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://example.com/' -PassThru } catch { Info 'edge start' "$_" }
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge start' "$_" }
   Start-Sleep -Seconds 8
+  $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }; Info 'edge active tab index before scans' "$edgeTabBefore"
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -137,9 +151,15 @@ try {
   $npRow = CheckByLike '*Notepad*'; $folderRow = CheckByLike '*capfolder*'
   Assert 'REAL scan: the open Notepad window is listed as a program' ($null -ne $npRow) ($names -join ' | ')
   Assert 'REAL scan: the open Explorer window on the test folder is listed as a folder' ($null -ne $folderRow) ($names -join ' | ')
+  Assert 'ALL TABS: the active tab site example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($names -join ' | ')
+  Assert 'ALL TABS: background tab example.org is listed' ($null -ne (CheckByLike '*example.org*')) ($names -join ' | ')
+  Assert 'ALL TABS: background tab example.net is listed' ($null -ne (CheckByLike '*example.net*')) ($names -join ' | ')
+  $edgeTabAfter = EdgeSelectedTabIndex
+  Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter")
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
+  Assert 'sites note states every tab is detected' (WaitText 'every tab of each open' 3) ((Texts) -join ' | ')
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
   if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
@@ -404,8 +424,9 @@ try {
   $names2 = CheckNames; Info 'detected rows (after closing Notepad)' ($names2 -join ' | ')
   Assert 'REAL rescan: the closed Notepad is gone from the new scan' ($null -eq (CheckByLike '*Notepad*')) ($names2 -join ' | ')
   Assert 'REAL rescan: the Explorer folder is still listed' ($null -ne (CheckByLike '*capfolder*')) ($names2 -join ' | ')
+  Assert 'ALL TABS (details rescan): background tab example.org still listed' ($null -ne (CheckByLike '*example.org*')) ($names2 -join ' | ')
   $edgeRows = @($names2 | Where-Object { $_ -like '*example*' })
-  Info 'PARTIAL site detection (active tab of Edge/Chrome via address bar)' $(if ($edgeRows.Count -gt 0) { "detected: $($edgeRows -join ', ')" } else { 'no site row detected in this run' })
+  Info 'ALL TABS site detection (every Edge tab via address bar)' $(if ($edgeRows.Count -gt 0) { "detected: $($edgeRows -join ', ')" } else { 'no site row detected in this run' })
   Shot 'add-from-open-details-entry'
   $c = ClickBtn 'Capture back' 900; Assert 'back from details entry goes to the workspace search' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
   $c = ClickBtn 'Close capture' 900; Assert 'closed' ($c -eq 'ok') $c
