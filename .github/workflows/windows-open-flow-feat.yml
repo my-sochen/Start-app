@@ -98,6 +98,20 @@ jobs:
     - uses: actions/upload-artifact@v7.0.2
       if: always()
       with:
+        name: shot-cap-side-by-side-drag-staged
+        path: out-images/cap-side-by-side-drag-staged.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-drag-duplicate-warning
+        path: out-images/cap-drag-duplicate-warning.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
         name: shot-cap-duplicate-dialog
         path: out-images/cap-duplicate-dialog.png
         if-no-files-found: warn
