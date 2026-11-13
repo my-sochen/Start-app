@@ -1,0 +1,23 @@
+name: session-spike-feat
+on:
+  push:
+    branches: [feat/per-instance-items]
+    paths: [spike-trigger-feat.txt]
+jobs:
+  spike:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: run session-file spike
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force spike-out | Out-Null
+          pwsh -File .github/e2e/session-spike.ps1 -OutDir spike-out
+          Get-Content spike-out/spike-log.txt
+      - name: upload spike artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-spike-${{ github.sha }}
+          path: spike-out/
