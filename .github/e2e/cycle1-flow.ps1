@@ -471,6 +471,340 @@ try {
   Assert 'app survived a missing image path' (-not $p.HasExited) ''
   Assert 'missing image path persisted as a reference' ((StoreJson) -like '*no-such-image.png*') (StoreJson)
   Shot 'card-with-missing-image'
+  # 9b. native picker SUCCESSFUL acceptance + saved-card image/frame + remove-image + explicit no-image background.
+  # Closes the audit-flagged proof gaps on the same bounded design flow: until here every run CANCELLED the picker
+  # and the only real image reached the preview through a TYPED path; the saved card never carried an uploaded
+  # image. This block accepts a real temp PNG through the native picker (MainWindow.xaml.cs OnPickImageRequested),
+  # saves it, measures the SAVED card's frame against the agreed rule (with image: the color is a frame - thick
+  # top, thin other sides INCLUDING the bottom; without image: the color is the background), then removes the
+  # image and proves the explicit no-image background. v3 addresses authoritative CR 5cea20f9 closeout:
+  # bottom narrowness enforced vs top/sides; tint is a DECLARED frame-blend predicate (channel ordering + blue
+  # dominance of #BFDBFE, blends toward white/image only) applied at every anchor; picker filename identity is
+  # verified unique (named combo / AutomationId 1148 / LabeledBy) with count==1 + enabled + visible + identity
+  # logged; Open likewise unique+enabled+visible; the Open invoke is WITHHELD unless the filename readback
+  # verified (asserts record AND gate, never just log, before the irreversible click); failure cleanup closes
+  # every owned picker HWND (PID-scoped FindPickers only - never unrelated windows) before throwing; an invalid
+  # crop rect throws before CopyFromScreen; the no-image poll re-acquires and re-validates the SAME card every
+  # iteration; all five candidate columns are measured and reported, no first-winner short-circuit.
+  $probeImg = "$env:RUNNER_TEMP\picker-accept-probe.png"
+  $pb = New-Object System.Drawing.Bitmap 48, 48; $pg = [System.Drawing.Graphics]::FromImage($pb); $pg.Clear([System.Drawing.Color]::FromArgb(30, 60, 220)); $pg.Dispose(); $pb.Save($probeImg, [System.Drawing.Imaging.ImageFormat]::Png); $pb.Dispose()
+  Assert 'picker-accept probe image written to disk' ((Test-Path $probeImg) -and ((Get-Item $probeImg).Length -gt 0)) $probeImg
+  # explicit present + read-success edit readback (the serializer omits null, so a fail-open '' masks failures)
+  function Read-EditValue { param($edit, [ref]$val)
+    $val.Value = ''
+    if ($null -eq $edit) { return $false }
+    try { $val.Value = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value; return $true } catch { return $false }
+  }
+  # failure cleanup: close every picker HWND owned by THIS app process (FindPickers is PID-scoped) and wait for
+  # each to disappear; never touches unrelated windows.
+  function Close-OwnedPickers { param([string]$why)
+    $owned = @(FindPickers)
+    foreach ($h in $owned) { try { [void][WinN]::PostMessage($h, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { } }
+    foreach ($h in $owned) { for ($t = 0; $t -lt 15 -and [WinN]::IsWindow($h); $t++) { Start-Sleep -Milliseconds 200 } }
+    $leftOpen = @(FindPickers).Count
+    Info 'owned picker cleanup' ("$why; closed=$($owned.Count) remaining=$leftOpen")
+    Assert 'owned picker cleanup left no picker open' ($leftOpen -eq 0) ("$why; remaining=$leftOpen windows: $(AppWindowDump)")
+    return $leftOpen
+  }
+  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for picker-accept upload' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry for picker-accept'); Start-Sleep -Milliseconds 900
+  Assert 'design popup reopened for picker-accept upload' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
+  $colEditAcc = NamedEdit 'Card color'; Assert 'card color editor present before accept' ($null -ne $colEditAcc) ''
+  $colPre = ''; $colPreOk = (Read-EditValue $colEditAcc ([ref]$colPre))
+  Assert 'card color readback succeeded and shows the persisted color before accept' ($colPreOk -and $colPre -eq '#BFDBFE') ("read=$colPreOk value='$colPre'")
+  $preAcc = @(FindPickers)
+  if ($preAcc.Count -gt 0) { Assert 'no picker already open before the accept click' $false (AppWindowDump); Close-OwnedPickers 'pre-existing picker before accept click'; Shot 'picker-failure'; throw 'a picker dialog was already open before the accept click' }
+  $upBtnAcc = Btn 'Upload card image'; Assert 'upload image button present for the accept flow' ($null -ne $upBtnAcc) ''
+  $invokedAcc = @(InvokeEl $upBtnAcc 'upload image button (accept flow)')[-1]
+  if (-not $invokedAcc) { Close-OwnedPickers 'upload button invocation failed'; Shot 'picker-failure'; throw 'upload image button invocation failed (accept flow)' }
+  $dlgAcc = [IntPtr]::Zero; $openedAcc = $false; $multiAcc = $false
+  for ($t = 0; $t -lt 20 -and -not $openedAcc -and -not $multiAcc; $t++) { Start-Sleep -Milliseconds 200; $hitsAcc = @(FindPickers); if ($hitsAcc.Count -gt 1) { $multiAcc = $true } elseif ($hitsAcc.Count -eq 1) { $dlgAcc = $hitsAcc[0]; $openedAcc = $true } }
+  Assert 'exactly one native picker opened for the accept flow' ($openedAcc -and -not $multiAcc) (AppWindowDump)
+  if ($multiAcc) { Close-OwnedPickers 'multiple pickers after one upload click'; Shot 'picker-failure'; throw 'more than one owned picker after a single upload click' }
+  if (-not $openedAcc) { Close-OwnedPickers 'picker open detection timed out'; Shot 'picker-failure'; throw 'picker open detection failed (accept flow)' }
+  # Drive the dialog with VERIFIED identity only. Filename edit resolved by up to three INDEPENDENT strategies:
+  # (a) the ComboBox named exactly 'File name:'/'שם הקובץ:' with EXACTLY ONE child Edit, (b) the Edit with
+  # AutomationId 1148 (comdlg32 filename control id), (c) the Edit whose LabeledByElement carries the label.
+  # Any internal ambiguity (count > 1 inside a strategy) or any DISAGREEMENT between strategies is a conflict:
+  # refuse to drive with a full diagnostic - never silently fall through to another identity. Open: exactly one
+  # enabled + visible button named 'Open'/'פתיחה' or AutomationId 1, identity logged. The invoke executes ONLY
+  # when the filename readback verified AND the Open identity verified - asserts gate the irreversible click,
+  # they do not merely log.
+  $driveNote = ''
+  try {
+    $dlgEl = [System.Windows.Automation.AutomationElement]::FromHandle($dlgAcc)
+    $idResults = @(); $idConflicts = @()
+    $comboName = New-Object System.Windows.Automation.OrCondition((New-Object $PC($A::NameProperty, 'File name:')), (New-Object $PC($A::NameProperty, 'שם הקובץ:')))
+    $namedCombo = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), $comboName))))
+    if ($namedCombo.Count -gt 1) { $idConflicts += "named-combo ambiguous: $($namedCombo.Count) filename combos" }
+    elseif ($namedCombo.Count -eq 1) {
+      $childEdits = @($namedCombo[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
+      if ($childEdits.Count -eq 1) { $idResults += [ordered]@{ el = $childEdits[0]; id = "named-combo:'$($namedCombo[0].Current.Name)'" } }
+      elseif ($childEdits.Count -gt 1) { $idConflicts += "named-combo has $($childEdits.Count) child edits" }
+    }
+    $byId = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::AutomationIdProperty, '1148'))))))
+    if ($byId.Count -gt 1) { $idConflicts += "automationid-1148 ambiguous: $($byId.Count) edits" }
+    elseif ($byId.Count -eq 1) { $idResults += [ordered]@{ el = $byId[0]; id = 'automationid:1148' } }
+    $byLabel = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { try { $lb = $_.Current.LabeledBy; ($null -ne $lb) -and ($lb.Current.Name -eq 'File name:' -or $lb.Current.Name -eq 'שם הקובץ:') } catch { $false } })
+    if ($byLabel.Count -gt 1) { $idConflicts += "labeledby ambiguous: $($byLabel.Count) edits" }
+    elseif ($byLabel.Count -eq 1) { $idResults += [ordered]@{ el = $byLabel[0]; id = 'labeledby:filename-label' } }
+    $distinct = @()
+    foreach ($idr in $idResults) { $foundDup = $false; foreach ($d in $distinct) { if ($d.el.Equals($idr.el)) { $foundDup = $true } }; if (-not $foundDup) { $distinct += $idr } }
+    $idNames = (($idResults | ForEach-Object { $_.id }) -join ' | ')
+    $fileEdit = $null; $editIdentity = 'none'
+    if ($idConflicts.Count -gt 0 -or $distinct.Count -ne 1) {
+      Assert 'exactly one unambiguous filename edit identity in the picker' $false ("conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames]")
+      $driveNote = "Open invoke WITHHELD: filename identity not uniquely verified (conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames])"
+    } else {
+      $fileEdit = $distinct[0].el; $editIdentity = "$($distinct[0].id) strategies=[$idNames]"
+      $editVis = $false; $editEn = $false; $editAid = ''; $editName = ''
+      try { $editVis = -not $fileEdit.Current.IsOffscreen; $editEn = $fileEdit.Current.IsEnabled; $editAid = "$($fileEdit.Current.AutomationId)"; $editName = "$($fileEdit.Current.Name)" } catch { }
+      $editVerified = $editVis -and $editEn
+      Assert 'verified filename edit is enabled and visible' $editVerified ("identity=$editIdentity name='$editName' aid='$editAid' visible=$editVis enabled=$editEn")
+      $readbackOk = $false
+      if ($editVerified) {
+        $fileEdit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($probeImg)
+        Start-Sleep -Milliseconds 400
+        $fbVal = ''; $fbOk = (Read-EditValue $fileEdit ([ref]$fbVal))
+        $readbackOk = ($fbOk -and $fbVal -eq $probeImg)
+        Assert 'picker filename readback succeeded and equals the probe path' $readbackOk ("read=$fbOk combo='$fbVal' probe='$probeImg'")
+        $openCands = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { try { ($_.Current.Name -eq 'Open' -or $_.Current.Name -eq 'פתיחה' -or $_.Current.AutomationId -eq '1') -and (-not $_.Current.IsOffscreen) -and $_.Current.IsEnabled } catch { $false } })
+        $openInfo = (($openCands | ForEach-Object { "name='$($_.Current.Name)' aid='$($_.Current.AutomationId)' rect=$($_.Current.BoundingRectangle)" }) -join ' | ')
+        Assert 'exactly one enabled visible Open button in the picker' ($openCands.Count -eq 1) ("count=$($openCands.Count) $openInfo")
+        if ($readbackOk -and $openCands.Count -eq 1) {
+          $openCands[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+          $driveNote = "verified filename ($editIdentity) + readback + unique enabled Open invoked"
+        } else { $driveNote = "Open invoke WITHHELD: readbackOk=$readbackOk openCount=$($openCands.Count)" }
+      } else { $driveNote = "Open invoke WITHHELD: filename edit not enabled/visible (identity=$editIdentity)" }
+    }
+  } catch { $driveNote = "dialog drive exception: $($_.Exception.Message)" }
+  Info 'native picker accept drive path' $driveNote
+  $closedAcc = $false; for ($t = 0; $t -lt 20 -and -not $closedAcc; $t++) { Start-Sleep -Milliseconds 200; $closedAcc = -not [WinN]::IsWindow($dlgAcc) }
+  if (-not $closedAcc) { Close-OwnedPickers 'accept attempt did not close the dialog'; Shot 'picker-failure'; Assert 'native picker closed after the accept attempt' $false ("driveNote=$driveNote; windows: $(AppWindowDump)"); throw 'native picker did not close after the accept attempt' }
+  $imgEditAcc = NamedEdit 'Card image path'; Assert 'card image path editor present for accept readback' ($null -ne $imgEditAcc) ''
+  $accPath = ''; $accReadOk = (Read-EditValue $imgEditAcc ([ref]$accPath))
+  Assert 'card image path readback succeeded after the accept (no fail-open empty)' $accReadOk ''
+  Assert 'card image path filled by the ACCEPTED native picker (code-behind result, not typed)' ($accReadOk -and $accPath -eq $probeImg) ("edit='$accPath' probe='$probeImg' drive=$driveNote")
+  $okPrevAcc = $false; $seenPrevAcc = ''
+  for ($i = 0; $i -lt 20 -and -not $okPrevAcc; $i++) {
+    $prevAcc = AnyByName 'Card design preview'; if ($prevAcc) { $rAcc = $prevAcc.Current.BoundingRectangle
+      if ($rAcc.Width -gt 0 -and $rAcc.Height -gt 0) {
+        $bmp1 = New-Object System.Drawing.Bitmap 1, 1; $g1 = [System.Drawing.Graphics]::FromImage($bmp1); $g1.CopyFromScreen([int]($rAcc.Left + $rAcc.Width / 2), [int]($rAcc.Top + $rAcc.Height / 2), 0, 0, $bmp1.Size)
+        $px1 = $bmp1.GetPixel(0, 0); $g1.Dispose(); $bmp1.Dispose()
+        $seenPrevAcc = "rgb($($px1.R),$($px1.G),$($px1.B))"
+        $okPrevAcc = ([math]::Abs($px1.R - 30) -le 25 -and [math]::Abs($px1.G - 60) -le 25 -and [math]::Abs($px1.B - 220) -le 25)
+      } }
+    if (-not $okPrevAcc) { Start-Sleep -Milliseconds 300 }
+  }
+  Assert 'preview shows the picker-accepted image before save' $okPrevAcc ("center=$seenPrevAcc expected~rgb(30,60,220)")
+  $c = ClickBtn 'Save card design' 1500; Assert 'design saved after picker accept' ($c -eq 'ok') $c
+  Assert 'design popup closed after accept-save' (-not (WaitText 'תמונת רקע' 2)) ''
+  $oAcc = StoreObj; $wsAcc = @($oAcc.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+  Assert 'after accept-save: persisted design is exactly the picker-accepted image + kept color' ($wsAcc.imagePath -eq $probeImg -and $wsAcc.color -eq '#BFDBFE') ("color='$($wsAcc.color)' imagePath='$($wsAcc.imagePath)'")
+  # MEASURE-FN-BEGIN
+  # Pure frame-measurement logic, exercised verbatim by the local fixture probes (extracted between the
+  # MEASURE-FN markers; the probes run the SHIPPED logic, never a copy). Every edge anchors at the PAINTED
+  # pixel bounds of the crop (never the ListItem rect, never skip-scanning to the first frame pixel).
+  # MATHEMATICAL ACCEPTANCE SET for a tinted edge pixel: Euclidean distance <= TOL to one of the two DECLARED
+  # blend segments of the frame color F=(191,219,254) - F->white (outer antialias) or F->image I=(30,60,220)
+  # (inner antialias) - with blend alpha <= 0.8 (pure white background and pure image are NOT frame). This is a
+  # segment-distance test, not a fitted box: grey, purple and off-segment blends fail regardless of channel
+  # ranges. The AGREED rule is enforced per clean measured column, in full: image visible, thick top, thin
+  # sides AND thin bottom (bottom compared against top AND sides on EVERY column), pure image interior, top
+  # consistent across ALL clean columns, bottom re-confirmed at five self-anchored columns. ALL candidate
+  # columns are read and reported; at least three must be clean image columns and EVERY clean column must
+  # pass the full contract - no first-winner short-circuit.
+  function Measure-CardFrame {
+    param($crop, [int]$cw, [int]$ch, $isFrame, $isImg, [int[]]$candX, [int]$rowMid, [double]$scaleY)
+    $frameC = @(191.0, 219.0, 254.0); $whiteC = @(255.0, 255.0, 255.0); $imgC = @(30.0, 60.0, 220.0)
+    $TOL = 16.0; $maxAlpha = 0.8
+    $distSeg = { param($px, $a, $bcol)
+      $dx = $bcol[0] - $a[0]; $dy = $bcol[1] - $a[1]; $dz = $bcol[2] - $a[2]
+      $len2 = $dx * $dx + $dy * $dy + $dz * $dz
+      $t = 0.0
+      if ($len2 -gt 0) { $t = (($px.R - $a[0]) * $dx + ($px.G - $a[1]) * $dy + ($px.B - $a[2]) * $dz) / $len2 }
+      $tc = $t; if ($tc -lt 0) { $tc = 0 }; if ($tc -gt 1) { $tc = 1 }
+      $ex = $a[0] + $tc * $dx; $ey = $a[1] + $tc * $dy; $ez = $a[2] + $tc * $dz
+      $d = [math]::Sqrt(($px.R - $ex) * ($px.R - $ex) + ($px.G - $ey) * ($px.G - $ey) + ($px.B - $ez) * ($px.B - $ez))
+      return @($d, $tc)
+    }
+    $isTint = { param($px)
+      $r1 = & $distSeg $px $frameC $whiteC; if (($r1[0] -le $TOL) -and ($r1[1] -le $maxAlpha)) { return $true }
+      $r2 = & $distSeg $px $frameC $imgC; if (($r2[0] -le $TOL) -and ($r2[1] -le $maxAlpha)) { return $true }
+      return $false
+    }
+    $isFrameish = { param($px) ((& $isFrame $px) -or (& $isTint $px)) }
+    $isPainted = { param($px) ((& $isFrame $px) -or (& $isImg $px) -or (& $isTint $px)) }
+    $res = [ordered]@{ ok = $false; reason = ''; col = -1; mid = ''; yTop = -1; yBot = -1; xLeft = -1; xRight = -1; top = 0; bot = 0; left = 0; right = 0; botSig = $false; interior = $false; topConsistent = $false; belowTop = ''; rightOfLeft = ''; botDetail = ''; colsClean = 0; colsPass = 0; colsDetail = '' }
+    if ($cw -le 40 -or $ch -le 20) { $res.reason = "invalid rect ${cw}x${ch}"; return $res }
+    $measureCol = {
+      param($cxm)
+      $m = [ordered]@{ ok = $false; reason = ''; yTop = -1; yBot = -1; top = 0; bot = 0; belowTop = ''; botSig = $false; interior = $false }
+      $yT = 0; while ($yT -lt $ch -and -not (& $isPainted ($crop.GetPixel($cxm, $yT)))) { $yT++ }
+      $yB = $ch - 1; while ($yB -ge 0 -and -not (& $isPainted ($crop.GetPixel($cxm, $yB)))) { $yB-- }
+      if ($yT -ge $yB) { $m.reason = "no painted vertical span (yT=$yT yB=$yB)"; return $m }
+      $m.yTop = $yT; $m.yBot = $yB
+      if (-not (& $isFrameish ($crop.GetPixel($cxm, $yT)))) { $m.reason = "painted top edge is not frame at y=$yT"; return $m }
+      $yy = $yT; while ($yy -le $yB -and (& $isFrameish ($crop.GetPixel($cxm, $yy)))) { $m.top++; $yy++ }
+      if ($yy -gt $yB) { $m.reason = 'entire column is frame-colored (no image interior)'; return $m }
+      $p1 = $crop.GetPixel($cxm, $yy); $m.belowTop = "rgb($($p1.R),$($p1.G),$($p1.B))"
+      if (-not (& $isImg $p1)) { $m.reason = "transition below top frame is not image ($($m.belowTop))"; return $m }
+      $yb2 = $yB; while ($yb2 -ge $yy -and (& $isFrameish ($crop.GetPixel($cxm, $yb2)))) { $m.bot++; $yb2-- }
+      if ($m.bot -eq 0) {
+        $lcC = $crop.GetPixel($cxm, $yB); $scC = $crop.GetPixel($cxm, [math]::Max($yy, $yB - 1))
+        $m.botSig = ((& $isTint $lcC) -and (& $isImg $scC))
+      } else { $m.botSig = $true }
+      if (-not $m.botSig) { $m.reason = "bottom edge missing at the painted bottom (anchor y$yB)"; return $m }
+      $botEdgeStart = $yB - [math]::Max($m.bot, 1)
+      if ($m.bot -eq 0) { $botEdgeStart = $yB - 1 }
+      $badRow = -1
+      for ($yi = $yy; $yi -lt $botEdgeStart; $yi++) { if (-not (& $isImg ($crop.GetPixel($cxm, $yi)))) { $badRow = $yi; break } }
+      if ($badRow -ge 0) { $m.reason = "interior non-image stripe at y=$badRow"; return $m }
+      $m.interior = $true
+      $m.ok = $true
+      return $m
+    }
+    # ALL candidate columns read and reported (tagged img/not-img); >= 3 clean required
+    $readings = @(); $clean = @()
+    foreach ($cx in $candX) { $pm = $crop.GetPixel($cx, $rowMid); $tag = "x${cx}:rgb($($pm.R),$($pm.G),$($pm.B))"; if (& $isImg $pm) { $clean += $cx; $tag += ':img' } else { $tag += ':not-img' }; $readings += $tag }
+    $res.mid = ($readings -join ' ')
+    $res.colsClean = $clean.Count
+    if ($clean.Count -lt 3) { $res.reason = "only $($clean.Count) of $($candX.Count) candidate columns are clean image ($($res.mid))"; return $res }
+    # sides at the mid row (card-wide, anchored at the painted horizontal bounds)
+    $xL = 0; while ($xL -lt $cw -and -not (& $isPainted ($crop.GetPixel($xL, $rowMid)))) { $xL++ }
+    $xR = $cw - 1; while ($xR -ge 0 -and -not (& $isPainted ($crop.GetPixel($xR, $rowMid)))) { $xR-- }
+    if ($xL -ge $xR) { $res.reason = "no painted horizontal span (xL=$xL xR=$xR)"; return $res }
+    $res.xLeft = $xL; $res.xRight = $xR
+    $xx = $xL; while ($xx -le $xR -and (& $isFrameish ($crop.GetPixel($xx, $rowMid)))) { $res.left++; $xx++ }
+    if ($xx -le $xR) { $p2 = $crop.GetPixel($xx, $rowMid); $res.rightOfLeft = "rgb($($p2.R),$($p2.G),$($p2.B))"; if (-not (& $isImg $p2)) { $res.reason = "transition right of left frame is not image ($($res.rightOfLeft))"; return $res } }
+    while ($xR -ge $xx -and (& $isFrameish ($crop.GetPixel($xR, $rowMid)))) { $res.right++; $xR-- }
+    if ($res.left -lt 1 -or $res.right -lt 1) { $res.reason = "side frame run missing at mid row (left=$($res.left) right=$($res.right))"; return $res }
+    # FULL contract per clean column: vertical measurement + thickness vs sides, every column reported
+    $sideTol = [math]::Max(1, [math]::Round($scaleY))
+    $thickGap = [math]::Max(2, [math]::Round(2 * $scaleY))
+    $colDetails = @(); $firstFail = ''
+    foreach ($cxm in $clean) {
+      $cm = & $measureCol $cxm
+      if ($cm.ok) {
+        if ($cm.bot -gt ([math]::Max($res.left, $res.right) + $sideTol)) { $cm.ok = $false; $cm.reason = "bottom thicker than the sides (bot=$($cm.bot) left=$($res.left) right=$($res.right) tol=$sideTol)" }
+        elseif (($cm.top - $res.left) -lt $thickGap -or ($cm.top - $res.right) -lt $thickGap -or (($cm.top - $cm.bot) -lt $thickGap)) { $cm.ok = $false; $cm.reason = "top not clearly thickest (top=$($cm.top) left=$($res.left) right=$($res.right) bot=$($cm.bot) gap=$thickGap)" }
+      }
+      $colDetails += "x${cxm}:top=$($cm.top),bot=$($cm.bot),yT=$($cm.yTop),yB=$($cm.yBot),ok=$($cm.ok)$(if ($cm.reason) { ' ' + $cm.reason })"
+      if ($cm.ok) { $res.colsPass++ } elseif (-not $firstFail) { $firstFail = "x${cxm}: $($cm.reason)" }
+      if ($res.col -lt 0) { $res.col = $cxm; $res.yTop = $cm.yTop; $res.yBot = $cm.yBot; $res.top = $cm.top; $res.bot = $cm.bot; $res.belowTop = $cm.belowTop; $res.botSig = $cm.botSig; $res.interior = $cm.interior }
+    }
+    $res.colsDetail = ($colDetails -join ' | ')
+    if ($firstFail) { $res.reason = "per-column contract failed ($firstFail)"; return $res }
+    # top consistency across ALL clean columns (same painted top, run within 1px)
+    $topConsistent = $true
+    foreach ($cxm in $clean) {
+      $cm2 = & $measureCol $cxm
+      if ($cm2.yTop -ne $res.yTop -or [math]::Abs($cm2.top - $res.top) -gt 1) { $topConsistent = $false }
+    }
+    $res.topConsistent = $topConsistent
+    if (-not $topConsistent) { $res.reason = "top frame not consistent across clean columns (anchor yT=$($res.yTop) run=$($res.top); $($res.colsDetail))"; return $res }
+    # bottom edge re-confirmed at FIVE columns, each anchored at its own painted bottom
+    $bcA = 20; $bcB = [int]($cw / 4); $bcC = [int]($cw / 2); $bcD = [int](3 * $cw / 4); $bcE = $cw - 21
+    $botCols = @($bcA, $bcB, $bcC, $bcD, $bcE); $det = @(); $allSig = $true
+    foreach ($bcx in $botCols) {
+      $yb3 = $ch - 1; while ($yb3 -ge 1 -and -not (& $isPainted ($crop.GetPixel($bcx, $yb3)))) { $yb3-- }
+      $lcC = $crop.GetPixel($bcx, $yb3); $scC = $crop.GetPixel($bcx, [math]::Max(0, $yb3 - 1))
+      $colOk = (((& $isFrameish $lcC)) -and ((& $isImg $scC) -or (& $isFrameish $scC)))
+      if (-not $colOk) { $allSig = $false }
+      $det += "c${bcx}:y=$yb3 last=rgb($($lcC.R),$($lcC.G),$($lcC.B)) 2nd=rgb($($scC.R),$($scC.G),$($scC.B))"
+    }
+    $res.botDetail = ($det -join ' ')
+    if (-not $allSig) { $res.reason = 'bottom edge signature failed on at least one of five anchored columns'; return $res }
+    $res.ok = $true
+    return $res
+  }
+  # MEASURE-FN-END
+
+  # SAVED card face (overview): the card Border is a plain Border with the same converters, NOT the popup's
+  # PreviewBorder - this is the measurement the audit flagged as missing. Resolve the card's ListItem from its
+  # named button, re-acquire FRESH rects right before the capture, validate (positive, inside the app window
+  # and the virtual screen; an invalid rect THROWS before any CopyFromScreen), crop, measure painted-anchored.
+  $tw2 = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $cardBtn2 = $null; $li2 = $null
+  for ($t = 0; $t -lt 15 -and $null -eq $li2; $t++) {
+    Start-Sleep -Milliseconds 300
+    $cardBtn2 = Btn 'E2E ws renamed'
+    if ($cardBtn2) { $li2 = $cardBtn2; while ($li2 -and $li2.Current.ControlType -ne $CT::ListItem) { $li2 = $tw2.GetParent($li2) } }
+  }
+  Assert 'saved card list item resolved from its named button' ($null -ne $li2) ((ListLines) -join ' || ')
+  if ($null -eq $li2) { throw 'saved card list item not resolvable; refusing to crop' }
+  $cr = $li2.Current.BoundingRectangle; $wr2 = $win.Current.BoundingRectangle
+  $vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  $rectOk = ($cr.Width -gt 40 -and $cr.Height -gt 20 -and $cr.Left -ge $vs.Left -and $cr.Top -ge $vs.Top -and $cr.Right -le $vs.Right -and $cr.Bottom -le $vs.Bottom -and $cr.Left -ge ($wr2.Left - 2) -and $cr.Top -ge ($wr2.Top - 2) -and $cr.Right -le ($wr2.Right + 2) -and $cr.Bottom -le ($wr2.Bottom + 2))
+  Assert 'saved card crop rect positive and contained in the app window and screen' $rectOk ("card=L$($cr.Left),T$($cr.Top),R$($cr.Right),B$($cr.Bottom) size=$($cr.Width)x$($cr.Height) win=$($wr2.Left),$($wr2.Top),$($wr2.Right),$($wr2.Bottom) screen=$($vs.Left),$($vs.Top),$($vs.Right),$($vs.Bottom)")
+  if (-not $rectOk) { throw "saved card crop rect invalid; refusing CopyFromScreen (card=$($cr.Left),$($cr.Top),$($cr.Right),$($cr.Bottom))" }
+  $cw = [int]$cr.Width; $ch = [int]$cr.Height
+  $gDpi2 = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $dpiX2 = $gDpi2.DpiX; $dpiY2 = $gDpi2.DpiY; $gDpi2.Dispose()
+  $scaleY2 = $dpiY2 / 96.0
+  $isFrame2 = { param($px) ([math]::Abs($px.R - 191) -le 12 -and [math]::Abs($px.G - 219) -le 12 -and [math]::Abs($px.B - 254) -le 12) }
+  $isImg2 = { param($px) ([math]::Abs($px.R - 30) -le 25 -and [math]::Abs($px.G - 60) -le 25 -and [math]::Abs($px.B - 220) -le 25) }
+  $crop2 = New-Object System.Drawing.Bitmap $cw, $ch; $cg2 = [System.Drawing.Graphics]::FromImage($crop2); $cg2.CopyFromScreen([int]$cr.Left, [int]$cr.Top, 0, 0, $crop2.Size); $cg2.Dispose()
+  $crop2.Save("$PWD/out-images/feat-saved-card-frame-crop.png")
+  $cx1 = [int]($cw * 0.4); $cx2 = [int]($cw * 0.5); $cx3 = [int]($cw * 0.6); $cx4 = [int]($cw * 0.3); $cx5 = [int]($cw * 0.7)
+  $candX = @($cx1, $cx2, $cx3, $cx4, $cx5)
+  $rowMid = [int]($ch / 2)
+  $mres = Measure-CardFrame $crop2 $cw $ch $isFrame2 $isImg2 $candX $rowMid $scaleY2
+  $crop2.Dispose()
+  Info 'saved card frame measured px vs preview px (all candidate columns reported)' ("cols clean=$($mres.colsClean) pass=$($mres.colsPass) readings: $($mres.mid) | card: top=$($mres.top) left=$($mres.left) right=$($mres.right) bottomRun=$($mres.bot) anchor=y$($mres.yBot) | preview(9a): top=$topBand left=$leftBand right=$rightBand | dpiX=$dpiX2 dpiY=$dpiY2 bounds=T$($mres.yTop),B$($mres.yBot),L$($mres.xLeft),R$($mres.xRight) transitions(belowTop=$($mres.belowTop) rightOfLeft=$($mres.rightOfLeft))")
+  Assert 'saved card face renders the picker-uploaded image (at least 3 clean candidate columns, all measured and reported)' ($mres.colsClean -ge 3) ("readings: $($mres.mid) crop=${cw}x${ch}")
+  Assert 'saved card frame matches the AGREED rule with a real uploaded image: image visible, thick top, thin visible sides AND thin bottom, pure image interior, every clean column passing (painted-bounds anchored; measured px reported, not assumed thickness)' $mres.ok ("reason='$($mres.reason)' measured px: top=$($mres.top) left=$($mres.left) right=$($mres.right) bot=$($mres.bot) botSig=$($mres.botSig) interior=$($mres.interior) topConsistent=$($mres.topConsistent) colsClean=$($mres.colsClean) colsPass=$($mres.colsPass) | $($mres.botDetail) | dpi=$dpiX2,$dpiY2 | crop=out-images/feat-saved-card-frame-crop.png ${cw}x${ch}")
+  Shot 'card-with-picker-image'
+  # remove image (הסר תמונה) + explicit NO-IMAGE background on the saved card (image property cleared, not a
+  # missing file): the audit gap was that only the missing-path fallback was ever exercised.
+  $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for remove image' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry for remove image'); Start-Sleep -Milliseconds 900
+  Assert 'design popup reopened for remove image' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
+  $imgEditRm = NamedEdit 'Card image path'; Assert 'card image path editor present before remove' ($null -ne $imgEditRm) ''
+  $rmPre = ''; $rmPreOk = (Read-EditValue $imgEditRm ([ref]$rmPre))
+  Assert 'readback shows the picker-accepted image path before remove' ($rmPreOk -and $rmPre -eq $probeImg) ("read=$rmPreOk value='$rmPre'")
+  $rmBtn = Btn 'Remove card image'; Assert 'remove card image button present' ($null -ne $rmBtn) ''
+  $rmInvoked = @(InvokeEl $rmBtn 'remove card image')[-1]
+  if (-not $rmInvoked) { Shot 'picker-failure'; throw 'remove card image invocation failed' }
+  Start-Sleep -Milliseconds 500
+  $rmPost = ''; $rmPostOk = (Read-EditValue (NamedEdit 'Card image path') ([ref]$rmPost))
+  Assert 'remove image clears the unsaved design path (editor present, read succeeded, value empty)' ($rmPostOk -and $rmPost -eq '') ("read=$rmPostOk value='$rmPost'")
+  $okNoImgPrev = $false; $seenNoImg = ''
+  for ($i = 0; $i -lt 20 -and -not $okNoImgPrev; $i++) {
+    $prevN = AnyByName 'Card design preview'; if ($prevN) { $rN = $prevN.Current.BoundingRectangle
+      if ($rN.Width -gt 0 -and $rN.Height -gt 0) {
+        $bmp2 = New-Object System.Drawing.Bitmap 1, 1; $g2 = [System.Drawing.Graphics]::FromImage($bmp2); $g2.CopyFromScreen([int]($rN.Left + $rN.Width / 2), [int]($rN.Top + $rN.Height / 2), 0, 0, $bmp2.Size)
+        $px2 = $bmp2.GetPixel(0, 0); $g2.Dispose(); $bmp2.Dispose()
+        $seenNoImg = "rgb($($px2.R),$($px2.G),$($px2.B))"
+        $okNoImgPrev = ([math]::Abs($px2.R - 191) -le 8 -and [math]::Abs($px2.G - 219) -le 8 -and [math]::Abs($px2.B - 254) -le 8)
+      } }
+    if (-not $okNoImgPrev) { Start-Sleep -Milliseconds 300 }
+  }
+  Assert 'preview falls back to the color after remove image (before save)' $okNoImgPrev ("center=$seenNoImg expected~rgb(191,219,254)")
+  $c = ClickBtn 'Save card design' 1500; Assert 'design saved after remove image' ($c -eq 'ok') $c
+  $oRm = StoreObj; $wsRm = @($oRm.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+  $hasImgPropRm = ($null -ne $wsRm) -and ($wsRm.PSObject.Properties.Name -contains 'imagePath')
+  $imgRm = if ($hasImgPropRm) { "$($wsRm.imagePath)" } else { '' }
+  Assert 'after remove-save: persisted image cleared (explicit no-image), color kept' (($imgRm -eq '') -and $wsRm.color -eq '#BFDBFE') ("imagePathProp=$hasImgPropRm imagePath='$imgRm' color='$($wsRm.color)'")
+  # no-image background on the SAVED card: re-acquire the SAME card and re-validate containment on EVERY poll
+  # iteration (a cached rect from before a re-render is not evidence).
+  $okCardBg = $false; $seenCardBg = ''
+  for ($i = 0; $i -lt 20 -and -not $okCardBg; $i++) {
+    Start-Sleep -Milliseconds 300
+    $cardBtn3 = Btn 'E2E ws renamed'; $li3 = $null
+    if ($cardBtn3) { $li3 = $cardBtn3; while ($li3 -and $li3.Current.ControlType -ne $CT::ListItem) { $li3 = $tw2.GetParent($li3) } }
+    if ($li3) {
+      $r3 = $li3.Current.BoundingRectangle; $wr3 = $win.Current.BoundingRectangle; $vs3 = [System.Windows.Forms.SystemInformation]::VirtualScreen
+      $r3Ok = ($r3.Width -gt 40 -and $r3.Height -gt 20 -and $r3.Left -ge $vs3.Left -and $r3.Top -ge $vs3.Top -and $r3.Right -le $vs3.Right -and $r3.Bottom -le $vs3.Bottom -and $r3.Left -ge ($wr3.Left - 2) -and $r3.Top -ge ($wr3.Top - 2) -and $r3.Right -le ($wr3.Right + 2) -and $r3.Bottom -le ($wr3.Bottom + 2))
+      if ($r3Ok) {
+        $bmp3 = New-Object System.Drawing.Bitmap 1, 1; $g3 = [System.Drawing.Graphics]::FromImage($bmp3); $g3.CopyFromScreen([int]($r3.Left + $r3.Width / 2), [int]($r3.Top + $r3.Height / 2), 0, 0, $bmp3.Size)
+        $px3 = $bmp3.GetPixel(0, 0); $g3.Dispose(); $bmp3.Dispose()
+        $seenCardBg = "rgb($($px3.R),$($px3.G),$($px3.B)) at L$($r3.Left),T$($r3.Top) $($r3.Width)x$($r3.Height)"
+        $okCardBg = ([math]::Abs($px3.R - 191) -le 8 -and [math]::Abs($px3.G - 219) -le 8 -and [math]::Abs($px3.B - 254) -le 8)
+      } else { $seenCardBg = "rect invalid this poll: $($r3.Left),$($r3.Top),$($r3.Right),$($r3.Bottom)" }
+    }
+  }
+  Assert 'saved card shows the color as background with NO image (explicit empty, not missing file; same card re-acquired and validated per poll)' $okCardBg ("center=$seenCardBg expected~rgb(191,219,254)")
+  Shot 'card-no-image-background'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
   Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
