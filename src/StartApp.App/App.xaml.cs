@@ -50,6 +50,18 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 var edit = w.FindFirst(System.Windows.Automation.TreeScope.Descendants, new System.Windows.Automation.AndCondition(
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.Edit),
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.NameProperty, "Address and search bar")));
+                if (edit is null)
+                {
+                    // Locale-independent fallback: the omnibox class name (OmniboxViewViews, BraveOmniboxViewViews) stays the
+                    // same in every UI language; the accessible Name ("Address and search bar") is localized (IDS_ACCNAME_LOCATION).
+                    var edits = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
+                        new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.Edit));
+                    foreach (System.Windows.Automation.AutomationElement e in edits)
+                    {
+                        try { if ((e.Current.ClassName ?? "").EndsWith("OmniboxViewViews", StringComparison.Ordinal)) { edit = e; break; } }
+                        catch (Exception ex) when (ex is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+                    }
+                }
                 if (edit is null) continue;
                 var value = (System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
