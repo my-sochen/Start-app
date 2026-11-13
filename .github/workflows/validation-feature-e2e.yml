@@ -222,3 +222,5 @@ jobs:
           retention-days: 5
           if-no-files-found: error
           path: cand/*
+
+# Revalidate preview accessibility after exposing its real UIA peer.
