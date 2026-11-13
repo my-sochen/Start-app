@@ -1,1 +1,1 @@
-ext spike v2 csc discovery 2026-11-13T14:15 IST
+ext spike v3 path-fix (work under PWD) 2026-11-13T14:19 IST
