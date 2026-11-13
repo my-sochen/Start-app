@@ -503,18 +503,18 @@
                         <TextBlock Text="עיצוב כרטיס" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <!-- preview: same color/frame rule as the card, bound to the unsaved values -->
-                    <Border Height="90" CornerRadius="4" Margin="0,0,0,8" BorderBrush="{Binding DesignColor, Converter={StaticResource ColorBrush}}"
+                    <local:PreviewBorder Height="90" CornerRadius="4" Margin="0,0,0,8" BorderBrush="{Binding DesignColor, Converter={StaticResource ColorBrush}}"
                             AutomationProperties.Name="Card design preview">
-                        <Border.BorderThickness>
+                        <local:PreviewBorder.BorderThickness>
                             <Binding Path="DesignImagePath" Converter="{StaticResource FrameThickness}"/>
-                        </Border.BorderThickness>
-                        <Border.Background>
+                        </local:PreviewBorder.BorderThickness>
+                        <local:PreviewBorder.Background>
                             <MultiBinding Converter="{StaticResource CardBrush}">
                                 <Binding Path="DesignColor"/>
                                 <Binding Path="DesignImagePath"/>
                             </MultiBinding>
-                        </Border.Background>
-                    </Border>
+                        </local:PreviewBorder.Background>
+                    </local:PreviewBorder>
                     <TextBlock Text="צבע" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <TextBox Text="{Binding DesignColor, UpdateSourceTrigger=PropertyChanged}" Width="90" AutomationProperties.Name="Card color" ToolTip="#RRGGBB"/>
