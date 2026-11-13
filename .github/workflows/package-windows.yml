@@ -48,6 +48,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
         }
         if (Test-Path diag/errors.txt) { exit 1 }
+    # Notice content is source-fixed only (status + commit/branch): run id, attempt and
+    # time stay in BUILDINFO.txt outside the ZIP, so the shipped payload remains what a
+    # same-source rebuild can reproduce. Identical notice goes into BOTH payloads BEFORE
+    # comparison, so the compared payload is exactly the shipped payload.
+    - name: Stamp identical prototype notice into both payloads (before comparison)
+      shell: pwsh
+      run: |
+        $notice = @(
+          'PROTOTYPE / אב-טיפוס'
+          'This package is a PROTOTYPE build for evaluation only - not a stable or final distribution.'
+          'חבילה זו היא אב-טיפוס לצורכי הערכה בלבד - זו אינה הפצה יציבה או סופית.'
+          "commit: ${{ github.sha }} (branch: ${{ github.ref_name }})"
+        )
+        foreach ($out in 'pkg-a','pkg-b') { $notice | Out-File -Encoding utf8 "$out\PROTOTYPE-NOTICE.txt" }
     - name: Compare the two payloads byte-for-byte
       shell: pwsh
       run: |
@@ -87,6 +101,7 @@ jobs:
         @(
           "commit: ${{ github.sha }}"
           "run: ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+          "distribution: PROTOTYPE (evaluation only - not a stable or final distribution)"
           "sdk: $(dotnet --version)"
           "built-utc: $([DateTime]::UtcNow.ToString('o'))"
           Get-Content diag/reproducibility.txt
@@ -107,7 +122,7 @@ jobs:
       # Same public-visibility guard on the upload itself (defense in depth).
       if: success() && github.event.repository.private == false
       with:
-        name: StartApp-win-x64
+        name: StartApp-win-x64-PROTOTYPE
         retention-days: 5
         if-no-files-found: warn
         path: |
