@@ -224,10 +224,115 @@ try {
   Assert 'design popup opened' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
         Shot 'design-popup-open'
   $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
+  # design preview baseline: persisted design BEFORE any edits (autosave would otherwise fake a green unchanged-check)
+  $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id; $col0 = $wsD0.color; $img0 = $wsD0.imagePath
+  Info 'design persisted state before preview edits' ("ws=$wsDId color='$col0' imagePath='$img0'")
   if ($colorBox) { SetText $colorBox '#BFDBFE' }
+  # 9a. design preview reflects UNSAVED values (preview border bound to DesignColor/DesignImagePath via the same converters as the card; save only persists them)
+  $prevEl = AnyByName 'Card design preview'; Assert 'design preview element present' ($null -ne $prevEl) ''
+  if ($prevEl) {
+    $gDpi = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $dpiX = $gDpi.DpiX; $dpiY = $gDpi.DpiY; $gDpi.Dispose()
+    $scaleX = $dpiX / 96.0; $scaleY = $dpiY / 96.0
+    $oD = StoreObj; $wsD = @($oD.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+    Assert 'persisted design unchanged after typing the color (preview is unsaved)' ($wsD.color -eq $col0 -and $wsD.imagePath -eq $img0) ("color='$($wsD.color)' imagePath='$($wsD.imagePath)'")
+    $pr = $null; $okPix = $false; $seen = ''
+    for ($i = 0; $i -lt 20 -and -not $okPix; $i++) {
+      $prevEl = AnyByName 'Card design preview'; if ($prevEl) { $pr = $prevEl.Current.BoundingRectangle }
+      if ($pr -and $pr.Width -gt 0 -and $pr.Height -gt 0 -and -not $prevEl.Current.IsOffscreen) {
+        $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]($pr.Left + $pr.Width / 2), [int]($pr.Top + $pr.Height / 2), 0, 0, $bmp.Size)
+        $px = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose()
+        $seen = "rgb($($px.R),$($px.G),$($px.B))"
+        $okPix = ([math]::Abs($px.R - 191) -le 8 -and [math]::Abs($px.G - 219) -le 8 -and [math]::Abs($px.B - 254) -le 8)
+      }
+      if (-not $okPix) { Start-Sleep -Milliseconds 300 }
+    }
+    Assert 'preview shows the UNSAVED color before save (fresh element rect each poll)' $okPix ("center=$seen expected~rgb(191,219,254) rect=$($pr.Width)x$($pr.Height)")
+    $imgPath = "$env:RUNNER_TEMP\preview-probe.png"
+    $tb = New-Object System.Drawing.Bitmap 32, 32; $tg = [System.Drawing.Graphics]::FromImage($tb); $tg.Clear([System.Drawing.Color]::FromArgb(220, 30, 30)); $tg.Dispose(); $tb.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png); $tb.Dispose()
+    SetText (NamedEdit 'Card image path') $imgPath
+    $oD = StoreObj; $wsD = @($oD.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+    Assert 'persisted design unchanged after typing the probe image path' ($wsD.color -eq $col0 -and $wsD.imagePath -eq $img0) ("color='$($wsD.color)' imagePath='$($wsD.imagePath)'")
+    $isFrame = { param($px) ([math]::Abs($px.R - 191) -le 12 -and [math]::Abs($px.G - 219) -le 12 -and [math]::Abs($px.B - 254) -le 12) }
+    $isImg = { param($px) ([math]::Abs($px.R - 220) -le 12 -and $px.G -le 60 -and $px.B -le 60) }
+    $pw = [int]$pr.Width; $ph = [int]$pr.Height
+    $okImg = $false; $topBand = 0; $botBand = 0; $leftBand = 0; $rightBand = 0; $seenC = ''; $belowTop = ''; $rightOfLeft = ''
+    for ($i = 0; $i -lt 20 -and -not $okImg; $i++) {
+      $prevEl = AnyByName 'Card design preview'; if ($prevEl) { $pr = $prevEl.Current.BoundingRectangle; $pw = [int]$pr.Width; $ph = [int]$pr.Height }
+      if ($pw -le 0 -or $ph -le 0) { Start-Sleep -Milliseconds 300; continue }
+      $crop = New-Object System.Drawing.Bitmap $pw, $ph; $cg = [System.Drawing.Graphics]::FromImage($crop); $cg.CopyFromScreen([int]$pr.Left, [int]$pr.Top, 0, 0, $crop.Size); $cg.Dispose()
+      $colX = [int]($pw / 2); $rowY = [int]($ph / 2)
+      $pxc = $crop.GetPixel($colX, $rowY); $seenC = "rgb($($pxc.R),$($pxc.G),$($pxc.B))"
+      $okImg = (& $isImg $pxc)
+      if ($okImg) {
+        $crop.Save("$PWD/out-images/feat-preview-frame-crop.png")
+        $topBand = 0; for ($y = 0; $y -lt $ph; $y++) { if (& $isFrame ($crop.GetPixel($colX, $y))) { $topBand++ } else { break } }
+        $botBand = 0; for ($y = $ph - 1; $y -ge 0; $y--) { if (& $isFrame ($crop.GetPixel($colX, $y))) { $botBand++ } else { break } }
+        $leftBand = 0; for ($x = 0; $x -lt $pw; $x++) { if (& $isFrame ($crop.GetPixel($x, $rowY))) { $leftBand++ } else { break } }
+        $rightBand = 0; for ($x = $pw - 1; $x -ge 0; $x--) { if (& $isFrame ($crop.GetPixel($x, $rowY))) { $rightBand++ } else { break } }
+        $p1 = $crop.GetPixel($colX, [math]::Min($ph - 1, $topBand + 1)); $belowTop = "rgb($($p1.R),$($p1.G),$($p1.B))"
+        $p2 = $crop.GetPixel([math]::Min($pw - 1, $leftBand + 1), $rowY); $rightOfLeft = "rgb($($p2.R),$($p2.G),$($p2.B))"
+        # capture the bottom-edge pixels INSIDE the crop lifetime (it is disposed at loop end);
+        # System.Drawing.Color is a value type, so the stored structs stay usable after Dispose.
+        # PowerShell parses a bare trailing arithmetic expression in a multi-element comma list as
+        # applying to the whole array (Object[] op_Subtraction runtime error, gate run 43461297010);
+        # precompute the columns as scalars instead - do NOT inline arithmetic here.
+        $bc1 = 20; $bc2 = [int]($pw / 4); $bc3 = [int]($pw / 2); $bc4 = [int](3 * $pw / 4); $bc5 = $pw - 21
+        $botCols = @($bc1, $bc2, $bc3, $bc4, $bc5)
+        $botLast = @(); $botSec = @()
+        foreach ($cx in $botCols) { $botLast += ,$crop.GetPixel($cx, $ph - 1); $botSec += ,$crop.GetPixel($cx, $ph - 2) }
+        $okImg = (& $isImg $p1) -and (& $isImg $p2)
+        if (-not $okImg) { $seenC += " transitions-not-red-yet(belowTop=$belowTop rightOfLeft=$rightOfLeft)" }
+      }
+      $crop.Dispose()
+      if (-not $okImg) { Start-Sleep -Milliseconds 300 }
+    }
+    Assert 'preview shows the UNSAVED image before save, frame-to-image transitions verified red' $okImg ("center=$seenC")
+    $expTop = 8 * $scaleY; $expSide = [math]::Max(1, [math]::Round($scaleX))
+    # Bottom-edge VISIBLE SIGNATURE, bounded to the observed red-image scenario of the controlled
+    # same-layout comparison (frame-oracle-diagnostic, run 43458843646: 32 cases, A=1,8,1,1 vs
+    # B=1,8,1,0, red image/solid controls, sampled origins, 96 DPI). WITH the bottom frame the
+    # last interior row was frame-tinted (observed B 199..255, R 191..223, B-R -11..48) over
+    # red-dominant content (observed second-to-last R-B 79..195); WITHOUT it the last row was
+    # red or red-white (observed B<=142); an unpainted bottom is white (R=255, rejected).
+    # Scope limits: this is a visible-edge signature in the red-image scenario, NOT a 1-DIP
+    # thickness proof and NOT border-ownership proof - a synthetic one-pixel blue strip over red
+    # content would pass it too - and it is calibrated to the observed sampled origins at 96 DPI,
+    # not to arbitrary DPI. The frame==background-color ambiguity (no-image case) is out of
+    # scope: the frame only exists when an image exists.
+    $botOk = ($null -ne $botLast -and $botLast.Count -eq 5); $botDetail = @()
+    if ($null -ne $botLast -and $botLast.Count -eq 5) {
+      for ($i = 0; $i -lt 5; $i++) {
+        $lc = $botLast[$i]; $sc = $botSec[$i]
+        $lastTinted = ($lc.B -ge 180 -and $lc.R -le 240 -and ($lc.B - $lc.R) -ge -30)
+        $secondRed = (($sc.R - $sc.B) -ge 60)
+        if (-not ($lastTinted -and $secondRed)) { $botOk = $false }
+        $botDetail += "c$($botCols[$i]):last=rgb($($lc.R),$($lc.G),$($lc.B)),2nd=rgb($($sc.R),$($sc.G),$($sc.B))"
+      }
+    }
+    $bandsOk = ($topBand -ge ($expTop - 2) -and $topBand -le ($expTop + 3) -and $leftBand -ge 1 -and $leftBand -le ($expSide + 2) -and $rightBand -ge 1 -and $rightBand -le ($expSide + 2) -and $botOk -and $topBand -ge ($leftBand + [math]::Round(4 * $scaleY)))
+    Assert 'frame bands match FrameThickness 1,8,1,1 scaled by DPI: thick top, thin sides, bottom edge shows the frame-tinted-over-red visible signature (bounded to the observed red-image scenario, 96 DPI), top clearly thickest' $bandsOk ("measured px: top=$topBand left=$leftBand right=$rightBand bottomSolid=$botBand | $($botDetail -join ' ') | dpiX=$dpiX dpiY=$dpiY expected top~$([math]::Round($expTop,1)) side~$expSide | crop=out-images/feat-preview-frame-crop.png ${pw}x${ph}")
+    Shot 'design-preview-unsaved'
+    $missingPath = "$env:RUNNER_TEMP\missing-preview-probe.png"
+    if (Test-Path $missingPath) { Remove-Item $missingPath -Force }
+    Assert 'missing preview probe file is actually absent' (-not (Test-Path $missingPath)) $missingPath
+    SetText (NamedEdit 'Card image path') $missingPath
+    $oD = StoreObj; $wsD = @($oD.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+    Assert 'persisted design unchanged after typing the missing image path' ($wsD.color -eq $col0 -and $wsD.imagePath -eq $img0) ("color='$($wsD.color)' imagePath='$($wsD.imagePath)'")
+    $okBack = $false; $seenBack = ''
+    for ($i = 0; $i -lt 20 -and -not $okBack; $i++) {
+      $bmp = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]($pr.Left + $pr.Width / 2), [int]($pr.Top + $pr.Height / 2), 0, 0, $bmp.Size)
+      $px = $bmp.GetPixel(0, 0); $g.Dispose(); $bmp.Dispose()
+      $seenBack = "rgb($($px.R),$($px.G),$($px.B))"
+      $okBack = ([math]::Abs($px.R - 191) -le 8 -and [math]::Abs($px.G - 219) -le 8 -and [math]::Abs($px.B - 254) -le 8)
+      if (-not $okBack) { Start-Sleep -Milliseconds 300 }
+    }
+    Assert 'preview falls back to the color for a missing image path, before save' $okBack ("center=$seenBack expected~rgb(191,219,254)")
+  }
   $c = ClickBtn 'Save card design' 1500; Assert 'design saved from the popup' ($c -eq 'ok') $c
   Assert 'design popup closed after save' (-not (WaitText 'תמונת רקע' 2)) ''
   Assert 'design persisted to the store' ((StoreJson) -like '*#BFDBFE*') (StoreJson)
+  $oD = StoreObj; $wsD = @($oD.workspaces | Where-Object { $_.id -eq $wsDId })[0]
+  Assert 'after save: persisted design is exactly the new color + missing image path' ($wsD.color -eq '#BFDBFE' -and $wsD.imagePath -eq "$env:RUNNER_TEMP\missing-preview-probe.png") ("color='$($wsD.color)' imagePath='$($wsD.imagePath)'")
   Shot 'card-design-saved'
   # missing/moved source image: the path is a reference, so a missing file must fall back to the color without breaking the card
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for missing-image check' ($c -eq 'ok') $c
@@ -287,6 +392,48 @@ try {
   Assert 'four group headers shown: Sites, Folders, Files, Programs' (($groups4 -contains 'Sites') -and ($groups4 -contains 'Folders') -and ($groups4 -contains 'Files') -and ($groups4 -contains 'Programs')) ("groups: $($groups4 -join ', ')")
   Assert 'four rows listed, one per type' ((@(Texts) | Where-Object { $_ -eq 'https://four.example/' -or $_ -like '*ok.txt' -or $_ -like '*notepad.exe' -or $_ -eq "$root" }).Count -ge 4) ((Texts) -join ' | ')
   Shot 'four-groups'
+  # 13. saved-item delete (מחיקה): removes exactly one membership by id; canonical full-field snapshots prove the rest untouched
+  $snapWs = { param($o, $wsId) $w = @($o.workspaces | Where-Object { $_.id -eq $wsId })[0]; (@($w.items | ForEach-Object { $m = $_; $t = ($o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $m.itemId } | Select-Object -First 1).target; "$($m.id)|$($m.itemId)|$t|$($m.name)|$($m.description)|$($m.launch.openWith)|$($m.launch.browser)" }) | Sort-Object) -join ';' }
+  $o = StoreObj
+  $okTargets = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq "$root\ok.txt" })
+  Assert 'shared fixture: exactly one catalog item for ok.txt' (@($okTargets).Count -eq 1) ("count=$(@($okTargets).Count)")
+  $okItemId = $okTargets[0].id
+  $catBefore = $okTargets[0]; $catSnapBefore = "$($catBefore.id)|$($catBefore.type)|$($catBefore.name)|$($catBefore.target)|$($catBefore.description)"
+  $ws1Id = $o.workspaces[0].id; $ws4Id = (@($o.workspaces | Where-Object { $_.name -eq 'E2E four groups' })[0]).id
+  $ws1m = @($o.workspaces[0].items | Where-Object { $_.itemId -eq $okItemId })
+  $ws4m = @((@($o.workspaces | Where-Object { $_.id -eq $ws4Id })[0]).items | Where-Object { $_.itemId -eq $okItemId })
+  Assert 'shared fixture: both workspaces hold a membership of the SAME itemId' ($ws1m.Count -ge 1 -and $ws4m.Count -eq 1) ("ws1=$($ws1m.Count) ws4=$($ws4m.Count) itemId=$okItemId")
+  $delId = $ws4m[0].id
+  $ws1SnapBefore = & $snapWs $o $ws1Id
+  $ws4SnapBefore = & $snapWs $o $ws4Id
+  $tw = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $okTexts = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))) | Where-Object { try { $_.Current.Name -eq "$root\ok.txt" } catch { $false } })
+  Assert 'exactly one ok.txt target text in the four-group view' ($okTexts.Count -eq 1) ("count=$($okTexts.Count)")
+  $li = $okTexts[0]; while ($li -and $li.Current.ControlType -ne $CT::ListItem) { $li = $tw.GetParent($li) }
+  $rowBtn = $null
+  if ($li) { $rb = @($li.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions')))))); if ($rb.Count -eq 1) { $rowBtn = $rb[0] } }
+  if (-not $rowBtn) {
+    $rcy = $okTexts[0].Current.BoundingRectangle.Top + $okTexts[0].Current.BoundingRectangle.Height / 2
+    $rb = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions'))))) | Where-Object { $b = $_.Current.BoundingRectangle; $rcy -ge $b.Top -and $rcy -le $b.Bottom })
+    Assert 'unique same-row Item actions button by strict Y containment (fallback)' ($rb.Count -eq 1) ("count=$($rb.Count) rowCenterY=$rcy")
+    if ($rb.Count -eq 1) { $rowBtn = $rb[0] }
+  }
+  Assert 'Item actions button resolved inside the ok.txt row' ($null -ne $rowBtn) ''
+  [void](InvokeEl $rowBtn 'ok.txt row item actions'); Start-Sleep -Milliseconds 900
+  $delMi = MenuItemByName 'מחיקה'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
+  [void](InvokeEl $delMi 'מחיקה')
+  $gone = $false; $swD = [Diagnostics.Stopwatch]::StartNew(); while ($swD.Elapsed.TotalSeconds -lt 10) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like '*ok.txt*' })) { $gone = $true; break }; Start-Sleep -Milliseconds 300 }
+  Assert 'deleted row gone from the list (bounded local disappear check)' $gone ((Texts) -join ' | ')
+  Shot 'saved-item-deleted'
+  $o = StoreObj
+  $ws1SnapAfter = & $snapWs $o $ws1Id
+  Assert 'store: other workspace canonical snapshot identical (ids, itemIds, targets, names, descriptions, launch prefs)' ($ws1SnapAfter -eq $ws1SnapBefore) ("before=$ws1SnapBefore after=$ws1SnapAfter")
+  $ws4SnapAfter = & $snapWs $o $ws4Id
+  $ws4Expected = (@(($ws4SnapBefore -split ';') | Where-Object { $_ -notlike "$delId|*" }) | Sort-Object) -join ';'
+  Assert 'store: four-group workspace = before minus exactly the deleted membership, survivors field-identical' ($ws4SnapAfter -eq $ws4Expected) ("expected=$ws4Expected after=$ws4SnapAfter deleted=$delId")
+  $catAfter = $o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $okItemId } | Select-Object -First 1
+  $catSnapAfter = "$($catAfter.id)|$($catAfter.type)|$($catAfter.name)|$($catAfter.target)|$($catAfter.description)"
+  Assert 'store: shared catalog item survives with identical identity and target' ($null -ne $catAfter -and $catSnapAfter -eq $catSnapBefore) ("before=$catSnapBefore after=$catSnapAfter")
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
