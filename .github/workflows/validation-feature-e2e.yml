@@ -223,4 +223,4 @@ jobs:
           if-no-files-found: error
           path: cand/*
 
-# Revalidate the frame-band assert with the oracle-bounded bottom-edge visible signature.
+# Rerun the gate after the comma-list parse fix in the bottom-edge pixel capture.
