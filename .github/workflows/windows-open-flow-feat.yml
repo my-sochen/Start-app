@@ -1,0 +1,325 @@
+name: windows-open-flow-feat
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  evidence:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-dotnet@v6.1.0
+      with:
+        dotnet-version: 10.0.x
+    - name: Parse-check E2E scripts (real PowerShell parser, before any UI run)
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force diag, out-images | Out-Null
+        $bad = $false
+        foreach ($f in '.github/e2e/cycle1-flow.ps1', '.github/e2e/capture-flow.ps1') {
+          $tokens = $null; $errs = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$tokens, [ref]$errs)
+          if ($errs -and $errs.Count -gt 0) {
+            $bad = $true
+            "PARSE ERRORS in ${f}:" | Tee-Object -Append diag/errors.txt
+            $errs | ForEach-Object { "  line $($_.Extent.StartLineNumber): $($_.Message)" | Tee-Object -Append diag/errors.txt }
+          } else { "parse OK: $f" }
+        }
+        if ($bad) { exit 1 }
+    - name: Build normal App
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force diag, out-images | Out-Null
+        dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+    - name: All unit tests (Windows, whole solution)
+      shell: pwsh
+      run: |
+        dotnet test StartApp.slnx --configuration Release 2>&1 | Tee-Object diag/test-all.txt | Select-String 'Passed!|Failed!|error|Failed |Error Message|Stack Trace' | ForEach-Object { $_.Line }
+        if ($LASTEXITCODE -ne 0) { 'SOLUTION TESTS FAILED' | Out-File -Append diag/errors.txt }
+    - name: Cycle-1 flow UI run (create, details, add, duplicates, edit guard, empty dialog, open)
+      shell: pwsh
+      run: pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
+      continue-on-error: true
+    - name: Capture flow UI run (real scan of Notepad/Explorer windows, new + existing workspace, staging, duplicates, guards, rescan)
+      shell: pwsh
+      run: pwsh -NoProfile -File .github/e2e/capture-flow.ps1
+      continue-on-error: true
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-new-form-with-scan
+        path: out-images/cap-new-form-with-scan.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-DESKTOP-no-capture-screen
+        path: out-images/cap-DESKTOP-no-capture-screen.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-created-from-capture-details
+        path: out-images/cap-created-from-capture-details.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-pick-workspace-search
+        path: out-images/cap-pick-workspace-search.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-side-by-side-staged
+        path: out-images/cap-side-by-side-staged.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-side-by-side-staged-menu
+        path: out-images/cap-side-by-side-staged-menu.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-side-by-side-after-save
+        path: out-images/cap-side-by-side-after-save.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-side-by-side-drag-staged
+        path: out-images/cap-side-by-side-drag-staged.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-drag-duplicate-warning
+        path: out-images/cap-drag-duplicate-warning.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-save-and-exit-back-at-search
+        path: out-images/cap-save-and-exit-back-at-search.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-add-all-grouped-dialog
+        path: out-images/cap-add-all-grouped-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-duplicate-dialog
+        path: out-images/cap-duplicate-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-back-unsaved-dialog
+        path: out-images/cap-back-unsaved-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-add-from-open-details-entry
+        path: out-images/cap-add-from-open-details-entry.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-cap-4c-after-drag-cap-a
+        path: out-images/cap-4c-after-drag-cap-a.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-01-details-after-create-empty
+        path: out-images/feat-01-details-after-create-empty.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-02-details-items-added
+        path: out-images/feat-02-details-items-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-03-duplicate-warning
+        path: out-images/feat-03-duplicate-warning.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-04-duplicate-added
+        path: out-images/feat-04-duplicate-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-05-open-with-saved
+        path: out-images/feat-05-open-with-saved.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-06-details-after-save
+        path: out-images/feat-06-details-after-save.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-07-unsaved-dialog
+        path: out-images/feat-07-unsaved-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-08-overview-after-guard
+        path: out-images/feat-08-overview-after-guard.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-09-decision-panel
+        path: out-images/feat-09-decision-panel.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-10-after-open-anyway
+        path: out-images/feat-10-after-open-anyway.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-11-empty-workspace-dialog
+        path: out-images/feat-11-empty-workspace-dialog.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-12-card-actions-menu
+        path: out-images/feat-12-card-actions-menu.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-13-design-popup-open
+        path: out-images/feat-13-design-popup-open.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-14-card-design-saved
+        path: out-images/feat-14-card-design-saved.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-15-card-with-missing-image
+        path: out-images/feat-15-card-with-missing-image.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-16-category-popup-custom-added
+        path: out-images/feat-16-category-popup-custom-added.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-17-resource-picker
+        path: out-images/feat-17-resource-picker.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-18-item-actions-menu-bottom-row
+        path: out-images/feat-18-item-actions-menu-bottom-row.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: shot-feat-19-four-groups
+        path: out-images/feat-19-four-groups.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: diagnostics-open-flow-feat-${{ github.run_id }}-${{ github.run_attempt }}
+        path: diag/
+        if-no-files-found: warn
+    - name: Fail the job if anything failed
+      if: always()
+      shell: pwsh
+      run: |
+        if (-not (Test-Path diag/assertions.json)) { 'E2E step never produced assertions.json - it failed before completing; its step log has the cause' | Out-File -Append diag/errors.txt }
+        else {
+          $a = Get-Content diag/assertions.json | ConvertFrom-Json
+          if (-not $a) { 'assertions.json is empty - E2E ran no checks' | Out-File -Append diag/errors.txt }
+          else {
+            if (@($a | Where-Object { $_.PSObject.Properties['ok'] -and -not $_.ok }).Count -gt 0) { 'assertions.json contains FAIL asserts' | Out-File -Append diag/errors.txt }
+            $last = @($a)[-1]
+            if ($last.name -ne 'FLOW-COMPLETE' -or -not $last.ok) { 'E2E flow stopped before its end-of-flow completion marker - partial run treated as failure' | Out-File -Append diag/errors.txt }
+            elseif ($last.detail -ne '${{ github.sha }}') { "completion marker commit $($last.detail) does not match run commit ${{ github.sha }}" | Out-File -Append diag/errors.txt }
+          }
+        }
+        if (-not (Test-Path diag/capture-assertions.json)) { 'Capture step never produced capture-assertions.json - it failed before completing; its step log has the cause' | Out-File -Append diag/errors.txt }
+        else {
+          $ca = Get-Content diag/capture-assertions.json | ConvertFrom-Json
+          if (-not $ca) { 'capture-assertions.json is empty - capture flow ran no checks' | Out-File -Append diag/errors.txt }
+          else {
+            if (@($ca | Where-Object { $_.PSObject.Properties['ok'] -and -not $_.ok }).Count -gt 0) { 'capture-assertions.json contains FAIL asserts' | Out-File -Append diag/errors.txt }
+            $clast = @($ca)[-1]
+            if ($clast.name -ne 'FLOW-COMPLETE' -or -not $clast.ok) { 'capture flow stopped before its completion marker - partial run treated as failure' | Out-File -Append diag/errors.txt }
+            elseif ($clast.detail -ne '${{ github.sha }}') { "capture completion marker commit $($clast.detail) does not match run commit ${{ github.sha }}" | Out-File -Append diag/errors.txt }
+          }
+        }
+        if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
+'on':
+  push:
+    branches:
+    - feat/per-instance-items
+    paths:
+    - ci-trigger-feat.txt

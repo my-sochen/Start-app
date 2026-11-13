@@ -39,3 +39,56 @@ public sealed class WindowsLauncher(IProcessStarter starter) : IItemLauncher
         { return new(LaunchStatus.Failed, Detail: e.GetType().Name + ": " + e.Message); }
     }
 }
+
+/// <summary>Real detection of open programs (any process with a visible main window, by its exe path) and open folders (File Explorer windows, by their location).
+/// It cannot see documents opened inside programs (Windows has no general way to ask) and says so in a note; sites come from a separate browser source.</summary>
+public sealed class WindowsOpenItemCapturer : IOpenItemCapturer
+{
+    public CaptureScan Scan()
+    {
+        var items = new List<CapturedItem>(); var notes = new List<string>();
+        try
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.MainWindowHandle == IntPtr.Zero || string.IsNullOrWhiteSpace(p.MainWindowTitle)) continue;
+                    if (CaptureRules.NonProgramProcesses.Contains(p.ProcessName)) continue;
+                    var path = p.MainModule?.FileName;
+                    if (string.IsNullOrEmpty(path) || !Catalog.IsAbsoluteWindowsPath(path)) continue;
+                    var desc = p.MainModule?.FileVersionInfo.FileDescription;
+                    items.Add(new CapturedItem(ItemType.Program, string.IsNullOrWhiteSpace(desc) ? Path.GetFileNameWithoutExtension(path) : desc!, path));
+                }
+                catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException) { /* protected or exited process: not listed */ }
+                finally { p.Dispose(); }
+            }
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { notes.Add("Programs: could not read the process list (" + e.GetType().Name + ")"); }
+        try
+        {
+            var t = Type.GetTypeFromProgID("Shell.Application");
+            if (t is null) notes.Add("Folders: File Explorer windows could not be read on this system");
+            else
+            {
+                dynamic shell = Activator.CreateInstance(t)!;
+                foreach (dynamic w in shell.Windows())
+                {
+                    try
+                    {
+                        string full = w.FullName ?? "";
+                        if (!full.EndsWith("explorer.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                        var path = CaptureRules.FileUrlToPath((string?)w.LocationURL);
+                        if (path is null) continue;
+                        var name = Path.GetFileName(path.TrimEnd('\\'));
+                        items.Add(new CapturedItem(ItemType.Folder, string.IsNullOrEmpty(name) ? path : name, path));
+                    }
+                    catch (Exception e) when (e is System.Runtime.InteropServices.COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+                }
+            }
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or PlatformNotSupportedException or NotSupportedException) { notes.Add("Folders: could not read File Explorer windows (" + e.GetType().Name + ")"); }
+        notes.Add("Files: documents open inside programs are not detected by the current version");
+        return new(CaptureRules.Dedupe(items), notes);
+    }
+}

@@ -1,0 +1,136 @@
+name: package-windows
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+on:
+  push:
+    branches:
+    - feat/per-instance-items
+    paths:
+    - ci-trigger-package.txt
+    - .github/workflows/package-windows.yml
+    - .github/e2e/smoke-package.ps1
+jobs:
+  package:
+    # Code-level guard: run only while the repository is public (push events carry
+    # repository.private). If the repo ever becomes private, nothing runs.
+    if: github.event.repository.private == false
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7.0.1
+    # SDK pin scoped to THIS job only (exact version via setup-dotnet input):
+    # setup-dotnet installs 10.0.404 and puts it on PATH/DOTNET_ROOT for this job,
+    # so no root global.json is added and existing workflows are untouched.
+    - uses: actions/setup-dotnet@v6.1.0
+      with:
+        dotnet-version: '10.0.404'
+    - name: Parse-check the smoke script (fail fast, before any publish)
+      shell: pwsh
+      run: |
+        $tokens = $null; $errs = $null
+        [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/e2e/smoke-package.ps1').Path, [ref]$tokens, [ref]$errs)
+        if ($errs -and $errs.Count -gt 0) { $errs | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }; exit 1 }
+        'parse OK: smoke-package.ps1'
+    # Reproducibility requires IDENTICAL build paths: the PDB/debug records embed the
+    # absolute obj/pdb path, so per-publish artifacts dirs made the payloads differ (v1
+    # finding, reproduced and fixed locally). Same --artifacts-path + clean between = two
+    # full cold rebuilds under identical paths on this runner image.
+    - name: Publish twice from the same commit (same build path, cleaned between)
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
+        foreach ($out in 'pkg-a','pkg-b') {
+          if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
+          dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+          if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
+        }
+        if (Test-Path diag/errors.txt) { exit 1 }
+    # Notice content is source-fixed only (status + commit/branch): run id, attempt and
+    # time stay in BUILDINFO.txt outside the ZIP, so the shipped payload remains what a
+    # same-source rebuild can reproduce. Identical notice goes into BOTH payloads BEFORE
+    # comparison, so the compared payload is exactly the shipped payload.
+    - name: Stamp identical prototype notice into both payloads (before comparison)
+      shell: pwsh
+      run: |
+        $notice = @(
+          'PROTOTYPE / אב-טיפוס'
+          'This package is a PROTOTYPE build for evaluation only - not a stable or final distribution.'
+          'חבילה זו היא אב-טיפוס לצורכי הערכה בלבד - זו אינה הפצה יציבה או סופית.'
+          "commit: ${{ github.sha }} (branch: ${{ github.ref_name }})"
+        )
+        foreach ($out in 'pkg-a','pkg-b') { $notice | Out-File -Encoding utf8 "$out\PROTOTYPE-NOTICE.txt" }
+    - name: Compare the two payloads byte-for-byte
+      shell: pwsh
+      run: |
+        function PayloadHashes($dir) {
+          $root = (Resolve-Path $dir).Path
+          Get-ChildItem -Recurse -File $dir | Sort-Object FullName | ForEach-Object {
+            $_.FullName.Substring($root.Length) + ':' + (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+          }
+        }
+        $diff = Compare-Object (PayloadHashes 'pkg-a') (PayloadHashes 'pkg-b')
+        if ($diff) {
+          'REPRODUCIBLE=no - two same-commit cold rebuilds under identical paths on this runner differ (see diag/reproducibility-diff.txt); byte-reproducibility NOT achieved; package still ships with its own per-run checksum' | Tee-Object diag/reproducibility.txt
+          $diff | Format-Table | Out-String | Tee-Object diag/reproducibility-diff.txt
+        } else {
+          'REPRODUCIBLE=yes (scoped) - two same-commit cold rebuilds under identical paths on this runner image produced byte-identical payloads; not a cross-run or cross-image guarantee' | Tee-Object diag/reproducibility.txt
+        }
+    - name: Build the ZIP with normalized entry timestamps
+      shell: pwsh
+      run: |
+        Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+        $zipPath = "$PWD\StartApp-win-x64.zip"
+        if (Test-Path $zipPath) { Remove-Item $zipPath }
+        $fs = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::CreateNew)
+        $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
+        $epoch = [DateTimeOffset]::new(2026,1,1,0,0,0,[TimeSpan]::Zero)
+        $rootA = (Resolve-Path pkg-a).Path
+        Get-ChildItem -Recurse -File pkg-a | ForEach-Object {
+          $rel = $_.FullName.Substring($rootA.Length + 1).Replace('\','/')
+          $entry = $zip.CreateEntry($rel)
+          $entry.LastWriteTime = $epoch
+          $es = $entry.Open(); $src = [System.IO.File]::OpenRead($_.FullName)
+          $src.CopyTo($es); $src.Dispose(); $es.Dispose()
+        }
+        $zip.Dispose(); $fs.Dispose()
+        $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+        "$hash  StartApp-win-x64.zip" | Out-File -Encoding ascii StartApp-win-x64.zip.sha256
+        @(
+          "commit: ${{ github.sha }}"
+          "run: ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+          "distribution: PROTOTYPE (evaluation only - not a stable or final distribution)"
+          "sdk: $(dotnet --version)"
+          "built-utc: $([DateTime]::UtcNow.ToString('o'))"
+          Get-Content diag/reproducibility.txt
+          "sha256: $hash"
+        ) | Out-File -Encoding utf8 diag/BUILDINFO.txt
+    - name: Extract the shipped ZIP and smoke-run its contents (verifies what ships, not the pre-ZIP payload)
+      shell: pwsh
+      run: |
+        Expand-Archive -Path StartApp-win-x64.zip -DestinationPath verify-ship -Force
+        pwsh -NoProfile -File .github/e2e/smoke-package.ps1 -ExePath 'verify-ship\StartApp.App.exe'
+    - name: Fail the job on any recorded error
+      if: always()
+      shell: pwsh
+      run: |
+        if (Test-Path diag/errors.txt) { Get-Content diag/errors.txt; exit 1 }
+        if (-not (Test-Path StartApp-win-x64.zip)) { 'ZIP was not produced' ; exit 1 }
+    - uses: actions/upload-artifact@v7.0.2
+      # Same public-visibility guard on the upload itself (defense in depth).
+      if: success() && github.event.repository.private == false
+      with:
+        name: StartApp-win-x64-PROTOTYPE
+        retention-days: 5
+        if-no-files-found: warn
+        path: |
+          StartApp-win-x64.zip
+          StartApp-win-x64.zip.sha256
+          diag/BUILDINFO.txt
+          diag/reproducibility.txt
+          diag/reproducibility-diff.txt
+          diag/publish-pkg-a.txt
+          diag/publish-pkg-b.txt
+          out-images/shipped-smoke-main-window.png
