@@ -291,8 +291,11 @@ try {
   SetText (NamedEdit 'Capture workspace search') 'Cap B'
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for save-and-exit' ($c -eq 'ok') $c
+  foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick all before save-and-exit'); Start-Sleep -Milliseconds 200 }
+  Assert 'nothing ticked before save-and-exit (tick state does not leak between sections)' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
   $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'Add again: *')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
   Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'Unsaved changes' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
   $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
