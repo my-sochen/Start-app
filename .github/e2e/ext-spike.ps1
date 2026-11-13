@@ -91,8 +91,10 @@ class H {
 }
 '@
 $cs | Out-File -Encoding utf8 "$work/Host.cs"
-$csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $csc /nologo /out:"$work/host.exe" "$work/Host.cs" | Out-Null
+$csc = @('C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe', 'C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $csc) { $csc = (Get-ChildItem 'C:\Windows\Microsoft.NET' -Recurse -Filter csc.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+L "csc found: $csc"
+if ($csc) { $cout = & $csc /nologo /out:"$work/host.exe" "$work/Host.cs" 2>&1; L "csc output: $($cout -join ' | ')" }
 L "host compiled: $(Test-Path "$work/host.exe")"
 
 $hostManifestPath = "$work/host-manifest.json"
