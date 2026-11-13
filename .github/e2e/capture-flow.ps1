@@ -58,18 +58,69 @@ function NamedEdit($name) { (CurWin).FindFirst($TS::Descendants, (New-Object Sys
 function NamedCombo($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
 function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
 function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
+function BrowserWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+function OmniboxHost($raw) { $v = ($raw -replace '^\s+', '') -replace '\s+$', ''; if ($v -match '^(?:[a-zA-Z][a-zA-Z0-9+.\-]*://)?([^/?#]+)') { return $Matches[1].ToLowerInvariant() }; return '' }
 function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
+function EdgeFixturePids() { if (-not $edgeProfile) { return @() }; @((Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($edgeProfile) }).ProcessId) }
+$script:edgeHwnd = 0   # the ONE verified fixture browser window, captured once at readiness
 function EdgeWindow() {
-  # The ONE browser window this test drives: the launched Edge process's own UIA window. No class-name
-  # fallback - a fallback can bind a different browser window and make the setup/before/after reads disagree.
-  if ($edge -and -not $edge.HasExited) {
-    $cand = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edge.Id))) | Where-Object { try { $_.Current.ControlType -eq $CT::Window } catch { $false } })
-    if ($cand.Count -gt 0) { return $cand[0] }
+  # The ONE browser window this test drives. Before readiness: the tab-richest real window among THIS
+  # fixture profile's own msedge processes (profile-command-line identity survives a possible
+  # launcher->browser PID handoff; run 43490152034 bound only the launcher PID and read before=-1 while
+  # the fixture tabs existed - handoff vs welcome-surface overlay not conclusively distinguished).
+  # After readiness: re-binds ONLY the captured HWND, revalidated to still exist and still belong to a
+  # fixture-profile process; if the verified window is gone or replaced this returns null and the caller
+  # fails - setup, middle selection and the before/after restore can never silently drift to another
+  # window. No class-name fallback - a fallback can bind a different browser window and make the
+  # setup/before/after reads disagree.
+  $fp = @(EdgeFixturePids)
+  if ($fp.Count -eq 0) { return $null }
+  $cand = @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fp -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } })
+  if ($script:edgeHwnd -ne 0) {
+    $bound = @($cand | Where-Object { try { $_.Current.NativeWindowHandle -eq $script:edgeHwnd } catch { $false } })
+    if ($bound.Count -gt 0) { return $bound[0] }
+    return $null
   }
+  if ($cand.Count -gt 0) { return ($cand | Sort-Object { try { $_.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))).Count } catch { 0 } } -Descending | Select-Object -First 1) }
   return $null
+}
+function EdgeTabExpectHost($w, $t, $expectedHost, $sliceDeadline) {
+  # Expected-host proof for THIS tab: it must be selected and the omnibox authority must read as two
+  # consecutive EQUAL occurrences of the expected host while it stays selected, re-confirming the
+  # selection AFTER the second read (same discipline as ChromeTabExpectHost). A stable WRONG host keeps
+  # waiting - the expected host may still settle within the slice - and a lost selection resets the proof.
+  try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } catch { return $false }
+  $stable = ''
+  while ((Get-Date) -lt $sliceDeadline) {
+    $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+    if (-not $sel) { $stable = ''; Start-Sleep -Milliseconds 150; continue }
+    $h = OmniboxHost (BrowserWinUrl $w)
+    if ($h -ne $expectedHost) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
+    if ($stable -eq $h) {
+      $stillSel = $false; try { $stillSel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+      if ($stillSel) { return $true }
+      $stable = ''
+    } else { $stable = $h; Start-Sleep -Milliseconds 200 }
+  }
+  return $false
+}
+function EdgeTabUrlRaw($w, $t) {
+  # Diagnostic-only single read. UNPROVEN by design (no stable re-read, no post-read selection check):
+  # used only for failure logging, never as readiness or restoration evidence.
+  try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return BrowserWinUrl $w } catch { return '' }
+}
+function EdgeSetupShot($state) {
+  # Setup-time evidence shot of the EDGE window region (the app process does not exist yet, so Shot/CurWin are unusable here).
+  try {
+    $wE = EdgeWindow; if ($null -eq $wE) { "no edge window for $state" | Tee-Object -Append diag/errors.txt; return }
+    $br = $wE.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
+    if ($w -le 0 -or $h -le 0) { "no edge rect for $state" | Tee-Object -Append diag/errors.txt; return }
+    $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size)
+    $f = "out-images/cap-$state.png"; $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  } catch { "edge setup shot failed: $_" | Tee-Object -Append diag/errors.txt }
 }
 function EdgeSelectedTabIndex() {
   # Index of the selected tab in the one bound Edge window (all three test pages share the title 'Example Domain', so the index is the discriminator).
@@ -155,24 +206,73 @@ try {
   # Real things to detect: a Notepad window, a File Explorer window on a known folder, and (best effort, reported as info only) an Edge window.
   $np = Start-Process notepad.exe -PassThru
   Start-Process explorer.exe -ArgumentList "`"$capdir`""
-  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge start' "$_" }
-  Start-Sleep -Seconds 8
+  $edgeProfile = Join-Path $env:RUNNER_TEMP ('edge-fixture-' + [Guid]::NewGuid().ToString('N'))
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$edgeProfile", 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge start' "$_" }
+  # Fixture readiness under ONE shared 25s setup deadline: exactly the three fixture tabs, each proven by a
+  # selected+stable omnibox read at its launched host IN LAUNCH ORDER, then the verified window's HWND is
+  # captured once. Nothing is dismissed or closed: an unexpected surface simply keeps readiness unmet and
+  # the setup fails with precise diagnostics (v10 review: no guessed Close* on an unidentified first-run UI).
+  $edgeHosts = @('example.com', 'example.org', 'example.net')
+  $edgeReady = $false; $edgeDiag = ''; $edgeInitial = ''
+  $deadlineE = (Get-Date).AddSeconds(25)
+  while ((Get-Date) -lt $deadlineE -and -not $edgeReady) {
+    $wE = EdgeWindow
+    if ($null -eq $wE) { Start-Sleep -Milliseconds 400; continue }
+    if (-not $edgeInitial) {
+      # Non-mutating snapshot of the first candidate window BEFORE the first readiness Select (names and
+      # selected flags exactly as found), so setup evidence predates every mutation, success or failure.
+      $tabsI = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      $edgeInitial = "hwnd=0x$('{0:X}' -f $wE.Current.NativeWindowHandle) title='$($wE.Current.Name)' tabs=$($tabsI.Count) [" + ((@(for ($i = 0; $i -lt $tabsI.Count; $i++) { $t = $tabsI[$i]; $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }; $nm = ''; try { $nm = $t.Current.Name } catch { }; "t$i sel=$sel name='$nm'" })) -join ' | ') + ']'
+      Info 'edge fixture initial state (before any selection)' $edgeInitial
+    }
+    $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+    if ($tabsE.Count -ne 3) { Start-Sleep -Milliseconds 400; continue }
+    $hosts = @('', '', '')
+    for ($i = 0; $i -lt 3; $i++) {
+      if ((Get-Date) -ge $deadlineE) { break }
+      $sliceE = (Get-Date).AddSeconds(4); if ($sliceE -gt $deadlineE) { $sliceE = $deadlineE }
+      if (EdgeTabExpectHost $wE $tabsE[$i] $edgeHosts[$i] $sliceE) { $hosts[$i] = $edgeHosts[$i] }
+    }
+    if ($hosts[0] -eq $edgeHosts[0] -and $hosts[1] -eq $edgeHosts[1] -and $hosts[2] -eq $edgeHosts[2]) {
+      $script:edgeHwnd = $wE.Current.NativeWindowHandle
+      $edgeReady = $true
+      Info 'edge fixture ready: three tabs at their launched hosts, verified window captured' "hwnd=0x$('{0:X}' -f $script:edgeHwnd) title='$($wE.Current.Name)' hosts='$($hosts -join ',')'"
+      break
+    }
+    Start-Sleep -Milliseconds 400
+  }
+  if (-not $edgeReady) {
+    # Non-mutating as-found snapshot FIRST (tab count/names/selection exactly as found); only then bounded
+    # selected+stable URL reads as diagnostics - the log order is the mutation order.
+    $wE = EdgeWindow
+    if ($null -ne $wE) {
+      $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      $asFound = (@(for ($i = 0; $i -lt $tabsE.Count; $i++) { $t = $tabsE[$i]; $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }; $nm = ''; try { $nm = $t.Current.Name } catch { }; "t$i sel=$sel name='$nm'" }) -join ' | ')
+      $diagDeadline = (Get-Date).AddSeconds(12)
+      $reads = (@(for ($i = 0; $i -lt $tabsE.Count; $i++) { if ((Get-Date) -ge $diagDeadline) { break }; $sliceD = (Get-Date).AddSeconds(3); if ($sliceD -gt $diagDeadline) { $sliceD = $diagDeadline }; "t$i rawUnproven='$(EdgeTabUrlRaw $wE $tabsE[$i])'" }) -join ' | ')
+      $edgeDiag = "launchPid=$(if ($edge) { $edge.Id } else { 'none' }) launchExited=$(if ($edge) { $edge.HasExited } else { '-' }) fixturePids=[$(@(EdgeFixturePids | ForEach-Object { "pid=$_" }) -join ',')] hwnd=0x$('{0:X}' -f $wE.Current.NativeWindowHandle) title='$($wE.Current.Name)' tabs=$($tabsE.Count) asFound=[$asFound] reads=[$reads] initial=[$edgeInitial]"
+    } else {
+      $edgeDiag = "launchPid=$(if ($edge) { $edge.Id } else { 'none' }) launchExited=$(if ($edge) { $edge.HasExited } else { '-' }) fixturePids=[$(@(EdgeFixturePids | ForEach-Object { "pid=$_" }) -join ',')] hwnd=none (no profile-bound window)"
+    }
+    EdgeSetupShot 'edge-setup-timeout'
+  }
   $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }; Info 'edge active tab index before scans' "$edgeTabBefore"
   # Regression (PR19 review): restore must also work when the user's tab is NOT first in UIA enumeration -
-  # the old code discovered the original tab inside the mutating loop and lost it. Move the one bound Edge
-  # window to its middle tab (index 1 of the three example.* tabs) before the app starts; setup, before and
-  # after all read the SAME window, and the post-scan assert below proves restore for the active-middle case.
+  # the old code discovered the original tab inside the mutating loop and lost it. Move the ONE verified
+  # fixture window (same captured HWND) to its middle tab (index 1 of the three example.* tabs) before the
+  # app starts; setup, before and after all read THAT window, and the post-scan assert below proves
+  # restore for the active-middle case.
   $moved = $false
   $wE = EdgeWindow
-  if ($null -ne $wE) {
+  if ($edgeReady -and $null -ne $wE) {
     try {
-      $tabsE = $wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
-      if ($tabsE.Count -ge 3) { $tabsE[1].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $moved = $true }
+      $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      if ($tabsE.Count -eq 3) { $tabsE[1].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $moved = $true }
     } catch { }
   }
   Start-Sleep -Milliseconds 800
   $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }
-  Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($moved -and $edgeTabBefore -eq 1) ("moved=$moved before=$edgeTabBefore")
+  Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($edgeReady -and $moved -and $edgeTabBefore -eq 1) ("ready=$edgeReady moved=$moved before=$edgeTabBefore hwnd=0x$('{0:X}' -f $script:edgeHwnd) $edgeDiag")
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -211,9 +311,10 @@ try {
   Assert 'ALL TABS: background tab example.org is listed' ($null -ne (CheckByLike '*example.org*')) ($names -join ' | ')
   Assert 'ALL TABS: background tab example.net is listed' ($null -ne (CheckByLike '*example.net*')) ($names -join ' | ')
   $edgeTabAfter = EdgeSelectedTabIndex
-  Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter")
+  $sameWin = ($null -ne (EdgeWindow))
+  Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabBefore -ge 0 -and $sameWin -and $edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter hwnd=0x$('{0:X}' -f $script:edgeHwnd) sameWindow=$sameWin")
   $fgPid = [uint32]0; [void][W]::GetWindowThreadProcessId([W]::GetForegroundWindow(), [ref]$fgPid)
-  Info 'foreground window after the all-tabs scan' $(if ($fgPid -eq $p.Id) { 'app (scan did not raise the browser)' } elseif ($edge -and -not $edge.HasExited -and $fgPid -eq $edge.Id) { 'edge - the scan raises the scanned browser window' } else { "another window (pid $fgPid)" })
+  Info 'foreground window after the all-tabs scan' $(if ($fgPid -eq $p.Id) { 'app (scan did not raise the browser)' } elseif (@(EdgeFixturePids) -contains $fgPid) { 'edge - the scan raises the scanned browser window' } else { "another window (pid $fgPid)" })
   ShotRaw 'post-scan-before-raise'
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
@@ -592,21 +693,26 @@ try {
     function ChromeFixturePids() { @((Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($chromeProfile) }).ProcessId) }
     function ChromeFixtureWin() { $fpids = @(ChromeFixturePids); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fpids -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } } | Select-Object -First 1) }
     function ChromeWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
-    function OmniboxHost($raw) { $v = ($raw -replace '^\s+', '') -replace '\s+$', ''; if ($v -match '^(?:[a-zA-Z][a-zA-Z0-9+.\-]*://)?([^/?#]+)') { return $Matches[1].ToLowerInvariant() }; return '' }
-    # Per-tab EXPECTED-host proof: the fixture is controlled - exactly two tabs in launched URL order, so tab0
-    # must settle on host www.iana.org and tab1 on www.rfc-editor.org. A stale omnibox value from the other
-    # tab can never match this tab's expected host. A host counts only after two consecutive matching reads
-    # with the tab selected, re-confirming the selection at accept time.
-    function ChromeTabExpectHost($w, $t, $expectedHost, $tabIndex, $deadline) {
+    # Per-tab EXPECTED-authority proof: the fixture is controlled - exactly two tabs in launched URL order.
+    # Chrome's omnibox may hide the trivial www subdomain (Chromium url_display_guidelines), so each tab
+    # accepts exactly its own fixture authority PAIR by exact equality - never substring, never a generic
+    # www-strip: a stale omnibox value from the other tab (or any foreign host) is never in this tab's set.
+    # A host counts only after two consecutive EQUAL reads taken while this same tab stays selected,
+    # re-confirming the selection at accept time. A visit never proves from another visit's reads: $stable
+    # is local, so switching away and back restarts the two-read proof for this tab.
+    function ChromeTabExpectHost($w, $t, $allowedHosts, $tabIndex, $sliceDeadline) {
       try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } catch { return $false }
       $stable = ''
-      while ((Get-Date) -lt $deadline) {
+      while ((Get-Date) -lt $sliceDeadline) {
         $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
         if (-not $sel) { $stable = ''; Start-Sleep -Milliseconds 150; continue }
-        $h = OmniboxHost (ChromeWinUrl $w)
+        $raw = ChromeWinUrl $w
+        $script:tabLastRaw[$tabIndex] = $raw
+        $h = OmniboxHost $raw
         $script:tabLastHosts[$tabIndex] = $h
-        if ($h -ne $expectedHost) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
-        if ($stable -eq $expectedHost) {
+        $script:tabReads[$tabIndex]++
+        if ($allowedHosts -notcontains $h) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
+        if ($stable -eq $h) {
           $stillSel = $false; try { $stillSel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
           if ($stillSel) { return $true }
           $stable = ''
@@ -620,8 +726,9 @@ try {
       Assert 'CROSS-BROWSER: chrome launch' $false "Start-Process $chromeExe failed: $chromeLaunchErr"
     } else {
       Info 'chrome fixture launched' "exe=$chromeExe pid=$($chrome.Id) profile=$chromeProfile"
-      $expectedHosts = @('www.iana.org', 'www.rfc-editor.org')   # launched URL order => tab strip order
+      $expectedHosts = @(@('iana.org', 'www.iana.org'), @('rfc-editor.org', 'www.rfc-editor.org'))   # launched URL order => tab strip order; per-tab exact authority pairs (the omnibox may hide www)
       $script:tabLastHosts = @('', '')
+      $script:tabLastRaw = @('', ''); $script:tabReads = @(0, 0); $tabAttempts = @(0, 0)
       $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
       $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
       while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
@@ -636,13 +743,22 @@ try {
             $origTab = $null
             foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $origTab = $t } } catch { } }
             try {
-              $ok0 = ChromeTabExpectHost $w $tabs[0] $expectedHosts[0] 0 $deadlineC
-              $ok1 = ChromeTabExpectHost $w $tabs[1] $expectedHosts[1] 1 $deadlineC
+              # Round-robin short per-tab slices under the one shared 20s deadline: a mismatching tab can no
+              # longer consume the whole budget before the other tab is ever read (run 43490152034 starved tab1).
+              $ok = @($false, $false)
+              while ((Get-Date) -lt $deadlineC -and -not ($ok[0] -and $ok[1])) {
+                foreach ($ti in 0..1) {
+                  if ($ok[$ti] -or (Get-Date) -ge $deadlineC) { continue }
+                  $tabAttempts[$ti]++
+                  $slice = (Get-Date).AddSeconds(3); if ($slice -gt $deadlineC) { $slice = $deadlineC }
+                  $ok[$ti] = ChromeTabExpectHost $w $tabs[$ti] $expectedHosts[$ti] $ti $slice
+                }
+              }
             } finally {
               try { if ($origTab) { $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } } catch { }
             }
-            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1])"
-            if ($ok0 -and $ok1) { $cw = $w; break }
+            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1]) attempts=$($tabAttempts[0])/$($tabAttempts[1]) reads=$($script:tabReads[0])/$($script:tabReads[1]) raw0='$($script:tabLastRaw[0])' raw1='$($script:tabLastRaw[1])'"
+            if ($ok[0] -and $ok[1]) { $cw = $w; break }
           }
         }
         Start-Sleep -Milliseconds 400
@@ -731,7 +847,8 @@ catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumbe
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  if ($edge -and -not $edge.HasExited) { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+  foreach ($pidF in @(EdgeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }   # fixture-profile-scoped cleanup, independent of the launcher process state (it may have handed off)
+  if ($edgeProfile) { Remove-Item $edgeProfile -Recurse -Force -ErrorAction SilentlyContinue }
   if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
 }
 if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'CAPTURE UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt; exit 1 }
