@@ -101,7 +101,7 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
                 catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
         }
-        notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified on Edge with a single window so far - Chrome, Brave, multiple windows and discarded tabs are not verified");
+        notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified in hosted-runner scenarios on Edge and Chrome with a single window, including Edge with a Hebrew UI - Brave, multiple windows and discarded tabs are not verified");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }
