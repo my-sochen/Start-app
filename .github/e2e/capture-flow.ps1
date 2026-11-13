@@ -122,8 +122,8 @@ function StagedAddrsDeep() {
   # The staged list is virtualized: UIA only returns rendered rows. Wheel through the panel and union what renders.
   # Distinct addresses only (enough for the sections that stage each row once).
   $seen = @{}; $ordered = New-Object System.Collections.ArrayList
-  foreach ($a in (StagedAddrs)) { if ($a -and -not $seen.ContainsKey($a)) { $seen[$a] = 1; [void]$ordered.Add($a) } }
-  for ($i = 0; $i -lt 20; $i++) { ScrollStaged -360; foreach ($a in (StagedAddrs)) { if ($a -and -not $seen.ContainsKey($a)) { $seen[$a] = 1; [void]$ordered.Add($a) } } }
+  foreach ($addr in (StagedAddrs)) { if ($addr -and -not $seen.ContainsKey($addr)) { $seen[$addr] = 1; [void]$ordered.Add($addr) } }
+  for ($i = 0; $i -lt 20; $i++) { ScrollStaged -360; foreach ($addr in (StagedAddrs)) { if ($addr -and -not $seen.ContainsKey($addr)) { $seen[$addr] = 1; [void]$ordered.Add($addr) } } }
   for ($i = 0; $i -lt 20; $i++) { ScrollStaged 360 }
   return $ordered
 }
