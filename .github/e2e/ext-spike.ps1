@@ -8,7 +8,7 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 $log = "$OutDir/ext-spike-log.txt"
 function L($m) { $l = "[{0:HH:mm:ss.fff}] {1}" -f (Get-Date), $m; $l; $l | Out-File -Append $log }
 
-$work = Join-Path $env:TEMP 'ext-spike'
+$work = Join-Path $PWD 'ext-spike-work'
 Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force "$work/ext" | Out-Null
 
@@ -94,7 +94,8 @@ $cs | Out-File -Encoding utf8 "$work/Host.cs"
 $csc = @('C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe', 'C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $csc) { $csc = (Get-ChildItem 'C:\Windows\Microsoft.NET' -Recurse -Filter csc.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
 L "csc found: $csc"
-if ($csc) { $cout = & $csc /nologo /out:"$work/host.exe" "$work/Host.cs" 2>&1; L "csc output: $($cout -join ' | ')" }
+L "Host.cs exists: $(Test-Path "$work/Host.cs") path=$work"
+if ($csc) { $cout = & $csc /nologo /out:"$work\host.exe" "$work\Host.cs" 2>&1; L "csc output: $($cout -join ' | ')" }
 L "host compiled: $(Test-Path "$work/host.exe")"
 
 $hostManifestPath = "$work/host-manifest.json"
