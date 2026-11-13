@@ -1,1 +1,1 @@
-v41 all-tabs flow-shape fix 2026-11-13T13:38 IST
+v42 out-of-viewport coverage 2026-11-13T13:49 IST
