@@ -335,13 +335,17 @@ try {
   $stagedAddrsNow = @($addrEdits | ForEach-Object { ValOf $_ })
   Assert 'the ticked duplicate staged, the unticked duplicate did not' ($fidx -ge 0 -and -not @($stagedAddrsNow | Where-Object { $_ -like '*notepad.exe' })) ($stagedAddrsNow -join ' | ')
   Assert 'the approved duplicate staged with the capture default name, not a local one' ((ValOf $nameEdits[$fidx]) -eq 'capfolder') (ValOf $nameEdits[$fidx])
-  SetText $nameEdits[$fidx] 'capfolder second'
+  foreach ($sn in @(StagedNames | Where-Object { $_ -ne 'capfolder' })) { $c = ClickBtn "Remove added $sn" 800; Assert "remove non-folder staged $sn before the selective save" ($c -eq 'ok') $c }
+  Assert 'only the folder remains staged for the selective save' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  SetText (NamedEdit 'Added item name') 'capfolder second'
   $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
+  Assert 'the selective save saved exactly one row' (WaitText 'Saved 1 item' 3) ((Texts) -join ' | ')
   $o = StoreObj
   $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
   $bFolderNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
   Assert 'the approved duplicate saved as an independent second instance (own name, first untouched)' ($bFolderNames.Count -eq 2 -and $bFolderNames -contains 'my capture folder' -and $bFolderNames -contains 'capfolder second') ($bFolderNames -join ' | ')
+  Assert 'Cap B holds exactly the folder twice plus Notepad (no extra rows saved)' (@($wsB.items).Count -eq 3) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
 
   # 4c. between workspaces: no false warning when the address lives only elsewhere, both keep it, list identical across switches, exit-without-save keeps every save, re-add gets capture defaults
   $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the selective save' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
@@ -352,7 +356,6 @@ try {
   DragRowToStage '*capfolder*' 'folder row into Cap A'
   Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
   Shot '4c-after-drag-cap-a'
-  try { Copy-Item (Join-Path $env:LOCALAPPDATA 'StartApp/drop-log.txt') 'diag/drop-log.txt' -Force } catch {}
   Assert 'the dragged folder staged in Cap A with the capture default name' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
   $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
   $o = StoreObj
