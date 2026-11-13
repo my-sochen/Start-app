@@ -160,6 +160,12 @@ try {
   Assert 'app window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
+  $vsB = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  Info 'virtual screen bounds (measured)' "left=$($vsB.Left) top=$($vsB.Top) right=$($vsB.Right) bottom=$($vsB.Bottom) ($($vsB.Width)x$($vsB.Height))"
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, $vsB.Left, $vsB.Top, 0, 0, 0x0001)
+  Start-Sleep -Milliseconds 600
+  $wr0 = (CurWin).Current.BoundingRectangle
+  Assert 'app window fully inside the virtual screen' ($wr0.Left -ge $vsB.Left -and $wr0.Top -ge $vsB.Top -and $wr0.Right -le $vsB.Right -and $wr0.Bottom -le $vsB.Bottom) ("window=$([int]$wr0.Left),$([int]$wr0.Top)-$([int]$wr0.Right),$([int]$wr0.Bottom) screen=$($vsB.Left),$($vsB.Top)-$($vsB.Right),$($vsB.Bottom)")
   Assert 'overview shown' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
   Assert 'capture button is on the overview page' ($null -ne (Btn 'Capture')) ''
   foreach ($n in 'Cap A', 'Cap B') { SetText (NamedEdit 'Workspace name') $n; $c = ClickBtn 'Create workspace' 900; Assert "create $n" ($c -eq 'ok') $c; $c = ClickBtn 'Back' 900; Assert "back after $n" ($c -eq 'ok') $c }
@@ -191,7 +197,7 @@ try {
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
-  Assert 'sites note states every tab is detected' (WaitText 'every tab of each open' 3) ((Texts) -join ' | ')
+  Assert 'sites note separates verified Edge scope from unverified browsers' (WaitText 'verified on Edge with a single window' 3) ((Texts) -join ' | ')
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
   if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
@@ -547,6 +553,22 @@ try {
   $bNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
   Assert 'editing the instance in Cap A changed only Cap A' (($aNames -contains 'folder in A') -and $bNames.Count -eq 2 -and ($bNames -contains 'my capture folder') -and ($bNames -contains 'capfolder second')) ("A: $($aNames -join '|') B: $($bNames -join '|')")
   $c = ClickBtn 'Back' 900; Assert 'back to overview from Cap A' ($c -eq 'ok') $c
+  # 7. cross-browser engineering check: Chrome tabs detected by the same UIA scan (user asked for all browsers; free verification)
+  $chrome = $null; try { $chrome = Start-Process chrome -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { Info 'chrome start' "$_" }
+  if ($chrome) {
+    Start-Sleep -Seconds 6
+    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
+    Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+    Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+    $cnames = CheckNames
+    Info 'detected rows (chrome check)' ($cnames -join ' | ')
+    Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($cnames -join ' | ')
+    Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed' ($null -ne (CheckByLike '*rfc-editor.org*')) ($cnames -join ' | ')
+    Shot 'chrome-check-scan'
+    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  } else {
+    Info 'CROSS-BROWSER: chrome not available on this runner' 'skipped'
+  }
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
