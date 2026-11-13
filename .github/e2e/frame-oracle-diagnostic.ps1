@@ -317,7 +317,7 @@ public static class OracleHarness
 }
 '@
 
-Add-Type -TypeDefinition $cs -ReferencedAssemblies PresentationFramework, PresentationCore, WindowsBase, UIAutomationClient, UIAutomationTypes, System.Drawing
+Add-Type -TypeDefinition $cs -ReferencedAssemblies PresentationFramework, PresentationCore, WindowsBase, System.Xaml, UIAutomationClient, UIAutomationTypes, System.Drawing
 $result = [OracleHarness]::Run((Resolve-Path $OutDir).Path, $probe)
 Get-Content (Join-Path $OutDir 'oracle-report.txt') -ErrorAction SilentlyContinue
 $result
