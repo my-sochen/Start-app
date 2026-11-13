@@ -506,6 +506,95 @@ try {
     Assert 'owned picker cleanup left no picker open' ($leftOpen -eq 0) ("$why; remaining=$leftOpen windows: $(AppWindowDump)")
     return $leftOpen
   }
+  # v5diag-r2: diagnostic-only OBSERVATION helpers after CR. They never drive input, never throw into the flow
+  # (every read best-effort with its own try), are budgeted in every loop, and stay inside the OWNED dialog
+  # subtree - no desktop/shell/content crawl. Escaping uses the existing WinN.Esc (control + bidi format marks).
+  Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public static class DlgEnum {
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc cb, IntPtr lparam);
+  delegate bool EnumProc(IntPtr h, IntPtr lp);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr h, StringBuilder text, int count);
+  [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsWindowEnabled(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  static string EscS(string s) { return s.Replace("|", "/").Replace("\r", " ").Replace("\n", " "); }
+  public static string Dump(IntPtr root, int cap) {
+    var rows = new List<string>();
+    bool hitCap = false;
+    EnumProc cb = delegate(IntPtr h, IntPtr lp) {
+      if (rows.Count >= cap) { hitCap = true; return false; }
+      var sb = new StringBuilder(256); GetClassNameW(h, sb, 256);
+      uint pid; GetWindowThreadProcessId(h, out pid);
+      rows.Add(string.Format("hwnd=0x{0:X} parent=0x{1:X} ctrlId={2} cls='{3}' pid={4} vis={5} en={6}", h.ToInt64(), GetAncestor(h, 1).ToInt64(), GetDlgCtrlID(h), EscS(sb.ToString()), pid, IsWindowVisible(h), IsWindowEnabled(h)));
+      return true;
+    };
+    bool enumRet = EnumChildWindows(root, cb, IntPtr.Zero);
+    return "native-children=" + rows.Count + " cap=" + cap + " truncated=" + hitCap + " enumCompleted=" + (enumRet && !hitCap) + " | " + string.Join(" || ", rows);
+  }
+}
+'@
+  # RAWDUMP-FN-BEGIN
+  function Dialog-RawTreeDump { param([System.Windows.Automation.AutomationElement]$root, [int]$maxNodes = 200, [int]$maxDepth = 12, [int]$maxSiblingsPerNode = 100, [int]$maxSibCalls = 2000)
+    if ($null -eq $root) { return 'rawtree: root binding failed (null root)' }
+    $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+    $count = 0; $sibCalls = 0; $truncated = $false; $depthCapped = $false; $readErrors = 0; $lines = @()
+    $stack = New-Object System.Collections.Stack
+    $stack.Push(@($root, 0, '0'))
+    while ($stack.Count -gt 0) {
+      if ($count -ge $maxNodes -or $sibCalls -ge $maxSibCalls) { $truncated = $true; break }
+      $it = $stack.Pop(); $el = $it[0]; $depth = $it[1]; $path = $it[2]
+      $ct = ''; $aid = ''; $nm = ''; $cls = ''; $hw = 0; $pidN = 0; $en = '?'; $off = '?'; $rect = '?'; $rtid = ''; $lb = 'none'; $pats = '?'
+      try { $ct = $el.Current.ControlType.ProgrammaticName } catch { $ct = 'ERR'; $readErrors++ }
+      try { $aid = [WinN]::Esc("$($el.Current.AutomationId)") } catch { $aid = 'ERR' }
+      try { $nm = [WinN]::Esc("$($el.Current.Name)") } catch { $nm = 'ERR' }
+      try { $cls = [WinN]::Esc("$($el.Current.ClassName)") } catch { $cls = 'ERR' }
+      try { $hw = $el.Current.NativeWindowHandle } catch { }
+      try { $pidN = $el.Current.ProcessId } catch { }
+      try { $en = "$($el.Current.IsEnabled)" } catch { }
+      try { $off = "$($el.Current.IsOffscreen)" } catch { }
+      try { $br = $el.Current.BoundingRectangle; $rect = "{0},{1} {2}x{3}" -f [int]$br.Left, [int]$br.Top, [int]$br.Width, [int]$br.Height } catch { }
+      try { $rtid = (($el.GetRuntimeId()) -join '-') } catch { }
+      try { $lbe = $el.Current.LabeledBy; if ($null -ne $lbe) { $lb = "$($lbe.Current.ControlType.ProgrammaticName)/aid='$([WinN]::Esc("$($lbe.Current.AutomationId)"))'/name='$([WinN]::Esc("$($lbe.Current.Name)"))'" } } catch { $lb = 'ERR' }
+      try { $sp = @($el.GetSupportedPatterns()); $pats = "value=$($sp -contains [System.Windows.Automation.ValuePattern]::Pattern) invoke=$($sp -contains [System.Windows.Automation.InvokePattern]::Pattern) window=$($sp -contains [System.Windows.Automation.WindowPattern]::Pattern)" } catch { $pats = 'ERR' }
+      $nmLen = $nm.Length; if ($nmLen -gt 80) { $nm = $nm.Substring(0, 80) + "..(truncated from $nmLen)" }
+      $lines += ("#{0} depth={1} path={2} ct={3} aid='{4}' name='{5}' cls='{6}' hwnd=0x{7:X} pid={8} en={9} off={10} rect={11} rtid={12} labelledby={13} pats[{14}]" -f $count, $depth, $path, $ct, $aid, $nm, $cls, $hw, $pidN, $en, $off, $rect, $rtid, $lb, $pats)
+      $count++
+      if ($depth -ge $maxDepth) { $depthCapped = $true; $truncated = $true; continue }
+      $pushed = 0; $sibTrunc = $false; $childErr = ''
+      try {
+        $kid = $walker.GetFirstChild($el)
+        while ($null -ne $kid) {
+          if ($pushed -ge $maxSiblingsPerNode) { $sibTrunc = $true; break }
+          if (($count + $stack.Count) -ge $maxNodes) { $sibTrunc = $true; break }
+          if ($sibCalls -ge $maxSibCalls) { $sibTrunc = $true; break }
+          $stack.Push(@($kid, ($depth + 1), "$path.$pushed")); $pushed++
+          $kid = $walker.GetNextSibling($kid); $sibCalls++
+        }
+      } catch { $readErrors++; $childErr = "$($_.Exception.Message)" }
+      if ($sibTrunc) { $truncated = $true; $lines += "#sibling-cap at path=$path pushed=$pushed maxSiblingsPerNode=$maxSiblingsPerNode" }
+      if ($childErr) { $lines += "#children-read-error at path=$path : $([WinN]::Esc($childErr))" }
+    }
+    $unvisited = $stack.Count
+    return "rawtree nodes=$count truncated=$truncated depthCapped=$depthCapped readErrors=$readErrors sibCalls=$sibCalls unvisited=$unvisited budgets[nodes=$maxNodes depth=$maxDepth sibPerNode=$maxSiblingsPerNode sibCalls=$maxSibCalls] | " + ($lines -join ' || ')
+  }
+  # RAWDUMP-FN-END
+  function Shot-OwnedDialog { param([string]$state, [IntPtr]$hwnd)
+    try {
+      if (-not [WinN]::IsWindow($hwnd)) { return "scoped shot '$state' skipped: dialog gone" }
+      if (@(FindPickers) -notcontains $hwnd) { return "scoped shot '$state' skipped: hwnd no longer an owned picker" }
+      $r = New-Object W+R; [void][W]::GetWindowRect($hwnd, [ref]$r); $w = $r.Rt - $r.L; $h = $r.B - $r.T
+      if ($w -le 0 -or $h -le 0) { return "scoped shot '$state' skipped: invalid rect" }
+      $script:shot++; $f = "out-images/feat-{0:00}-$state.png" -f $script:shot
+      $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $g.Dispose(); $bmp.Save("$PWD/$f"); $bmp.Dispose()
+      return "scoped shot $f ${w}x${h}"
+    } catch { return "scoped shot '$state' failed: $($_.Exception.Message)" }
+  }
+  function Format-AttemptSummary { param($attempt, $attemptErr)
+    return (($attempt.Keys | ForEach-Object { $k = $_; "$k=$($attempt[$k])$(if ($attemptErr[$k]) { ' err=' + [WinN]::Esc("$($attemptErr[$k])") })" }) -join ' | ')
+  }
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for picker-accept upload' ($c -eq 'ok') $c
   $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry for picker-accept'); Start-Sleep -Milliseconds 900
   Assert 'design popup reopened for picker-accept upload' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
@@ -530,31 +619,59 @@ try {
   # enabled + visible button named 'Open'/'פתיחה' or AutomationId 1, identity logged. The invoke executes ONLY
   # when the filename readback verified AND the Open identity verified - asserts gate the irreversible click,
   # they do not merely log.
-  $driveNote = ''
+  $driveNote = ''; $rawDump = 'rawtree: not captured'; $nativeDump = 'native: not captured'; $totalsNote = 'totals: not read'
+  $attempt = [ordered]@{ 'named-combo' = 'not-attempted'; 'automationid-1148' = 'not-attempted'; 'labeledby' = 'not-attempted' }
+  $attemptErr = [ordered]@{ 'named-combo' = ''; 'automationid-1148' = ''; 'labeledby' = '' }
   try {
-    $dlgEl = [System.Windows.Automation.AutomationElement]::FromHandle($dlgAcc)
+    $dlgAlive = [WinN]::IsWindow($dlgAcc)
+    $stillOwned = $dlgAlive -and (@(FindPickers) -contains $dlgAcc)
+    $dlgEl = $null
+    if ($stillOwned) { try { $dlgEl = [System.Windows.Automation.AutomationElement]::FromHandle($dlgAcc) } catch { $driveNote = "fromHandle failed: $($_.Exception.Message)" } }
+    Info 'owned picker revalidated before any drive' ("alive=$dlgAlive stillOwned=$stillOwned fromHandle=$(if ($null -ne $dlgEl) { 'ok' } else { 'failed' })")
+    if ($null -eq $dlgEl) { throw "owned dialog unavailable for identity resolution (alive=$dlgAlive owned=$stillOwned)" }
+    try { $nativeDump = [DlgEnum]::Dump($dlgAcc, 120) } catch { $nativeDump = "native enum error: $($_.Exception.Message)" }
+    Info 'owned picker dialog native child windows (bounded, before UIA walk)' $nativeDump
+    try { $rawDump = Dialog-RawTreeDump $dlgEl 200 12 100 2000 } catch { $rawDump = "rawtree error: $($_.Exception.Message)" }
+    Info 'owned picker dialog UIA raw tree (bounded, dialog-only)' $rawDump
     $idResults = @(); $idConflicts = @()
-    $comboName = New-Object System.Windows.Automation.OrCondition((New-Object $PC($A::NameProperty, 'File name:')), (New-Object $PC($A::NameProperty, 'שם הקובץ:')))
-    $namedCombo = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), $comboName))))
-    if ($namedCombo.Count -gt 1) { $idConflicts += "named-combo ambiguous: $($namedCombo.Count) filename combos" }
-    elseif ($namedCombo.Count -eq 1) {
-      $childEdits = @($namedCombo[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
-      if ($childEdits.Count -eq 1) { $idResults += [ordered]@{ el = $childEdits[0]; id = "named-combo:'$($namedCombo[0].Current.Name)'" } }
-      elseif ($childEdits.Count -gt 1) { $idConflicts += "named-combo has $($childEdits.Count) child edits" }
-    }
-    $byId = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::AutomationIdProperty, '1148'))))))
-    if ($byId.Count -gt 1) { $idConflicts += "automationid-1148 ambiguous: $($byId.Count) edits" }
-    elseif ($byId.Count -eq 1) { $idResults += [ordered]@{ el = $byId[0]; id = 'automationid:1148' } }
-    $byLabel = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { try { $lb = $_.Current.LabeledBy; ($null -ne $lb) -and ($lb.Current.Name -eq 'File name:' -or $lb.Current.Name -eq 'שם הקובץ:') } catch { $false } })
-    if ($byLabel.Count -gt 1) { $idConflicts += "labeledby ambiguous: $($byLabel.Count) edits" }
-    elseif ($byLabel.Count -eq 1) { $idResults += [ordered]@{ el = $byLabel[0]; id = 'labeledby:filename-label' } }
+    try {
+      $comboName = New-Object System.Windows.Automation.OrCondition((New-Object $PC($A::NameProperty, 'File name:')), (New-Object $PC($A::NameProperty, 'שם הקובץ:')))
+      $namedCombo = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), $comboName))))
+      if ($namedCombo.Count -gt 1) { $idConflicts += "named-combo ambiguous: $($namedCombo.Count) filename combos"; $attempt['named-combo'] = "combos=$($namedCombo.Count) -> ambiguous" }
+      elseif ($namedCombo.Count -eq 1) {
+        $childEdits = @($namedCombo[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
+        if ($childEdits.Count -eq 1) { $idResults += [ordered]@{ el = $childEdits[0]; id = "named-combo:'$($namedCombo[0].Current.Name)'" } }
+        elseif ($childEdits.Count -gt 1) { $idConflicts += "named-combo has $($childEdits.Count) child edits" }
+        $attempt['named-combo'] = "combos=1 childEdits=$($childEdits.Count)"
+      } else { $attempt['named-combo'] = 'combos=0' }
+    } catch { $attemptErr['named-combo'] = "$($_.Exception.Message)"; $idConflicts += "named-combo query raised (fail-closed): $($_.Exception.Message)" }
+    try {
+      $byId = @($dlgEl.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::AutomationIdProperty, '1148'))))))
+      if ($byId.Count -gt 1) { $idConflicts += "automationid-1148 ambiguous: $($byId.Count) edits" }
+      elseif ($byId.Count -eq 1) { $idResults += [ordered]@{ el = $byId[0]; id = 'automationid:1148' } }
+      $attempt['automationid-1148'] = "edits=$($byId.Count)"
+    } catch { $attemptErr['automationid-1148'] = "$($_.Exception.Message)"; $idConflicts += "automationid-1148 query raised (fail-closed): $($_.Exception.Message)" }
+    try {
+      $byLabel = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { try { $lb = $_.Current.LabeledBy; ($null -ne $lb) -and ($lb.Current.Name -eq 'File name:' -or $lb.Current.Name -eq 'שם הקובץ:') } catch { $false } })
+      if ($byLabel.Count -gt 1) { $idConflicts += "labeledby ambiguous: $($byLabel.Count) edits" }
+      elseif ($byLabel.Count -eq 1) { $idResults += [ordered]@{ el = $byLabel[0]; id = 'labeledby:filename-label' } }
+      $attempt['labeledby'] = "edits=$($byLabel.Count)"
+    } catch { $attemptErr['labeledby'] = "$($_.Exception.Message)"; $idConflicts += "labeledby query raised (fail-closed): $($_.Exception.Message)" }
+    try {
+      $allEditsN = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit)))).Count
+      $allCombos = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ComboBox))))
+      $allTexts = @($dlgEl.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Text))))
+      $comboNames = (($allCombos | ForEach-Object { $cn = [WinN]::Esc("$($_.Current.Name)"); if ($cn.Length -gt 40) { $cn.Substring(0, 40) + "..(truncated from $($cn.Length))" } else { $cn } }) -join ',')
+      $labelNames = (($allTexts | ForEach-Object { $tn = [WinN]::Esc("$($_.Current.Name)"); if ($tn.Length -gt 40) { $tn.Substring(0, 40) + "..(truncated from $($tn.Length))" } else { $tn } } | Select-Object -First 25) -join ',')
+      $totalsNote = "totals: edits=$allEditsN combos=$($allCombos.Count) texts=$($allTexts.Count) comboNames=[$comboNames] labels=[$labelNames]"
+    } catch { $totalsNote = "totals read raised (diagnostic-only, drive unaffected): $($_.Exception.Message)" }
     $distinct = @()
     foreach ($idr in $idResults) { $foundDup = $false; foreach ($d in $distinct) { if ($d.el.Equals($idr.el)) { $foundDup = $true } }; if (-not $foundDup) { $distinct += $idr } }
     $idNames = (($idResults | ForEach-Object { $_.id }) -join ' | ')
     $fileEdit = $null; $editIdentity = 'none'
     if ($idConflicts.Count -gt 0 -or $distinct.Count -ne 1) {
-      Assert 'exactly one unambiguous filename edit identity in the picker' $false ("conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames]")
-      $driveNote = "Open invoke WITHHELD: filename identity not uniquely verified (conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames])"
+      Assert 'exactly one unambiguous filename edit identity in the picker' $false ("conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames] attempts=[$(Format-AttemptSummary $attempt $attemptErr)]")
+      $driveNote = "Open invoke WITHHELD: filename identity not uniquely verified (conflicts=[$($idConflicts -join '; ')] distinct=$($distinct.Count) strategies=[$idNames] attempts=[$(Format-AttemptSummary $attempt $attemptErr)])"
     } else {
       $fileEdit = $distinct[0].el; $editIdentity = "$($distinct[0].id) strategies=[$idNames]"
       $editVis = $false; $editEn = $false; $editAid = ''; $editName = ''
@@ -578,9 +695,17 @@ try {
       } else { $driveNote = "Open invoke WITHHELD: filename edit not enabled/visible (identity=$editIdentity)" }
     }
   } catch { $driveNote = "dialog drive exception: $($_.Exception.Message)" }
+  $skippedStrats = @($attempt.Keys | Where-Object { $attempt[$_] -eq 'not-attempted' })
+  Info 'picker identity strategy attempts (always logged)' ("$(Format-AttemptSummary $attempt $attemptErr) | $totalsNote$(if ($skippedStrats.Count -gt 0) { ' | not-attempted: ' + ($skippedStrats -join ',') + ' (drive aborted before them; fail-closed)' })")
   Info 'native picker accept drive path' $driveNote
   $closedAcc = $false; for ($t = 0; $t -lt 20 -and -not $closedAcc; $t++) { Start-Sleep -Milliseconds 200; $closedAcc = -not [WinN]::IsWindow($dlgAcc) }
-  if (-not $closedAcc) { Close-OwnedPickers 'accept attempt did not close the dialog'; Shot 'picker-failure'; Assert 'native picker closed after the accept attempt' $false ("driveNote=$driveNote; windows: $(AppWindowDump)"); throw 'native picker did not close after the accept attempt' }
+  if (-not $closedAcc) {
+    $preCleanupShot = Shot-OwnedDialog 'picker-identity-failure' $dlgAcc
+    Close-OwnedPickers 'accept attempt did not close the dialog'
+    Shot 'picker-failure'
+    Assert 'native picker closed after the accept attempt' $false ("driveNote=$driveNote; preCleanup=[$preCleanupShot]; windows: $(AppWindowDump)")
+    throw 'native picker did not close after the accept attempt'
+  }
   $imgEditAcc = NamedEdit 'Card image path'; Assert 'card image path editor present for accept readback' ($null -ne $imgEditAcc) ''
   $accPath = ''; $accReadOk = (Read-EditValue $imgEditAcc ([ref]$accPath))
   Assert 'card image path readback succeeded after the accept (no fail-open empty)' $accReadOk ''
