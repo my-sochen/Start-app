@@ -176,6 +176,13 @@ try {
   Shot 'created-from-capture-details'
   $c = ClickBtn 'Back' 900; Assert 'back to overview' ($c -eq 'ok') $c
 
+  # all-tabs evidence is captured; collapse Edge to the single-active-tab shape so the
+  # existing-workspace flows below stage exactly the row set their exact-count asserts were built for
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', 'https://example.com/' -PassThru } catch { Info 'edge relaunch (single tab)' "$_" }
+  Start-Sleep -Seconds 4
+  Assert 'edge relaunched with a single tab for the workspace flows' ($null -ne (Get-Process msedge -ErrorAction SilentlyContinue)) ''
+
   # 2. dropdown -> existing workspace: search, side by side, staged until Save
   $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> סביבה קיימת' ($c -eq 'ok') $c
   Assert 'workspace search shown' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
@@ -411,6 +418,11 @@ try {
   Assert 'capture screen closed' (-not (WaitText 'Open now' 2)) ''
   Assert 'capture list was cleared on close' ((Checks).Count -eq 0) ''
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  # back to three tabs so the details rescan re-proves background-tab detection
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge relaunch (three tabs)' "$_" }
+  Start-Sleep -Seconds 4
+  Assert 'edge relaunched with three tabs for the details rescan' ($null -ne (Get-Process msedge -ErrorAction SilentlyContinue)) ''
   # entry from the workspace details screen
   $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details' ($c -eq 'ok') $c
   Assert 'details screen shown' (WaitText 'Created:' 10) ''
