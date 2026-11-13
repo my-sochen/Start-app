@@ -128,6 +128,7 @@ function StagedAddrsDeep() {
   return $ordered
 }
 function WsCountByTarget($ws, $o, $like) { $ids = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like $like } | ForEach-Object { $_.id }); return @($ws.items | Where-Object { $ids -contains $_.itemId }).Count }
+function EffectiveNames($ws, $o) { @($ws.items | ForEach-Object { $m = $_; if (-not [string]::IsNullOrWhiteSpace($m.name)) { $m.name } else { $it = @($o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $m.itemId })[0]; if ($it) { $it.name } else { '' } } }) }
 function StagedActionBtns() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Staged item actions')))))) }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
@@ -497,7 +498,7 @@ try {
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   foreach ($e in $expectDeep) { Assert "deep staging: $e saved exactly once to Cap B" ((WsCountByTarget $wsB $o $e) -eq 1) "count=$(WsCountByTarget $wsB $o $e)" }
-  Assert 'deep staging: every saved instance has a non-empty name' (@($wsB.items | Where-Object { [string]::IsNullOrWhiteSpace($_.name) }).Count -eq 0) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep staging: every saved instance has a non-empty effective name (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep save' ($c -eq 'ok') $c
 
   # 5c. below-viewport removal: restage five duplicate rows, wheel to a row the panel does not render, remove it, save the rest
@@ -529,7 +530,7 @@ try {
   Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
   foreach ($e in @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
   Assert 'deep removal: the folder stayed at its two instances' ((WsCountByTarget $wsB $o '*capfolder*') -eq 2) "count=$(WsCountByTarget $wsB $o '*capfolder*')"
-  Assert 'deep removal: every instance name still non-empty' (@($wsB.items | Where-Object { [string]::IsNullOrWhiteSpace($_.name) }).Count -eq 0) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep removal: every instance effective name still non-empty (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
 
   # 6. instance independence across workspaces: renaming Cap A's instance never touches Cap B's
