@@ -565,9 +565,32 @@ try {
     Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($cnames -join ' | ')
     Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed' ($null -ne (CheckByLike '*rfc-editor.org*')) ($cnames -join ' | ')
     Shot 'chrome-check-scan'
+    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after chrome check' ($c -eq 'ok') $c
+    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (chrome check)' ($c -eq 'ok') $c }
     Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   } else {
     Info 'CROSS-BROWSER: chrome not available on this runner' 'skipped'
+  }
+
+  # 8. localized browser UI: Edge with Hebrew UI must still be detected (locale-independent omnibox lookup; the accessible Name is localized, the class name is not)
+  $edgeHe = $null; try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $edgeHe = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--lang=he', 'https://example.com/' -PassThru } catch { Info 'edge-he start' "$_" }
+  if ($edgeHe) {
+    Start-Sleep -Seconds 7
+    try {
+      $heWin = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edgeHe.Id)))
+      if ($heWin) { $heEdits = @($heWin.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | ForEach-Object { $_.Current.Name + ' [' + $_.Current.ClassName + ']' }); Info 'edge-he edit controls (proves whether the UI localized)' ($heEdits -join ' | ') }
+    } catch { Info 'edge-he UIA read' "$_" }
+    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (locale check)' ($c -eq 'ok') $c
+    Assert 'capture screen shown (locale check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+    Assert 'locale-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+    $lnames = CheckNames
+    Info 'detected rows (locale check)' ($lnames -join ' | ')
+    Assert 'LOCALE: Hebrew-UI Edge tab example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($lnames -join ' | ')
+    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after locale check' ($c -eq 'ok') $c
+    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (locale check)' ($c -eq 'ok') $c }
+    Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  } else {
+    Info 'LOCALE: edge-he could not start' 'skipped'
   }
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
