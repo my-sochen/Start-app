@@ -1,0 +1,113 @@
+name: frame-oracle-diagnostic
+# DIAGNOSTIC ONLY - this workflow is not the validation gate and changes no gate
+# behavior. windows-open-flow-feat.yml keeps its strict frame-band assert.
+# Job 1 (frame-oracle): controlled WPF comparison of BorderThickness 1,8,1,1 vs
+#   1,8,1,0 in a SIMPLIFIED replica (not the exact product layout - see the harness
+#   header for fidelity labels), sampling four requested Y offsets and reporting
+#   separation across the observed sampled origins only - no product-oracle transfer
+#   or phase-independence conclusion follows.
+#   Controls: redimage (32x32 probe, ImageBrush UniformToFill, live default cache),
+#   redsolid, bluebg/whitebg (brush controls that RETAIN the border - NOT the product
+#   no-image Thickness-0 scenario; bluebg documents the frame==bg ambiguity).
+#   Records fractional UIA origins, both integer crop mappings, DPI and per-column
+#   pixel rows. Advisory verdicts only, never a pass/fail gate or product proof.
+# Job 2 (flow-diagnostic): runs cycle1-flow.diag-rename.ps1 (gate cycle1 + ONLY the
+#   $pc->$pxc rename) to exercise the remaining cycle1 flow at runtime. The job PASSES
+#   only when FLOW-COMPLETE matches the head sha, the sole failed assert is exactly
+#   the known frame-band assert, AND diag/errors.txt holds exactly the script's own
+#   'UI ASSERTIONS FAILED' terminal summary; any other failure or error line fails it.
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+on:
+  push:
+    branches:
+    - test/feature-e2e-validation
+    paths:
+    - .github/workflows/frame-oracle-diagnostic.yml
+    - .github/e2e/frame-oracle-diagnostic.ps1
+    - .github/e2e/cycle1-flow.diag-rename.ps1
+jobs:
+  frame-oracle:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - name: Controlled border comparison (A 1,8,1,1 vs B 1,8,1,0, fixed layout, recorded origins)
+      shell: powershell
+      run: powershell -NoProfile -STA -File .github/e2e/frame-oracle-diagnostic.ps1 -OutDir oracle-out
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: frame-oracle-${{ github.run_id }}-${{ github.run_attempt }}
+        path: oracle-out/
+        if-no-files-found: warn
+        retention-days: 7
+  flow-diagnostic:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-dotnet@v6.1.0
+      with:
+        dotnet-version: 10.0.x
+    - name: Parse-check the diagnostic script (real PowerShell parser, before any UI run)
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force diag, out-images | Out-Null
+        $tokens = $null; $errs = $null
+        [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/e2e/cycle1-flow.diag-rename.ps1').Path, [ref]$tokens, [ref]$errs)
+        if ($errs -and $errs.Count -gt 0) {
+          $errs | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }
+          exit 1
+        }
+        'parse OK: cycle1-flow.diag-rename.ps1'
+    - name: Build normal App
+      shell: pwsh
+      run: dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+    - name: Cycle-1 rename-only diagnostic UI run
+      shell: pwsh
+      run: pwsh -NoProfile -File .github/e2e/cycle1-flow.diag-rename.ps1
+      continue-on-error: true
+    - name: Diagnostic verdict (honest coverage, not a gate)
+      if: always()
+      shell: pwsh
+      run: |
+        # The original diag/errors.txt is PRESERVED untouched (it uploads before this step).
+        # Expected terminal state: assertions.json holds exactly ONE failed assert - the exact
+        # frame-band assert - plus FLOW-COMPLETE==head sha, and diag/errors.txt holds EXACTLY the
+        # script's own terminal summary line 'UI ASSERTIONS FAILED' (written because that one
+        # assert failed). Any other errors.txt line (script error / harness setup error /
+        # no window rect / extras), a different sole fail, or a missing completion marker fails
+        # this diagnostic. Verdict failures go to diag/diagnostic-verdict.txt, never errors.txt.
+        $vfail = { param($msg) $msg | Tee-Object -Append diag/diagnostic-verdict.txt }
+        if (-not (Test-Path diag/assertions.json)) { & $vfail 'diagnostic run produced no assertions.json - it failed before completing' }
+        else {
+          $a = Get-Content diag/assertions.json | ConvertFrom-Json
+          $fails = @($a | Where-Object { $_.PSObject.Properties['ok'] -and -not $_.ok })
+          $last = @($a)[-1]
+          "asserts: $(@($a).Count), fails: $($fails.Count)"
+          $fails | ForEach-Object { "FAIL: $($_.name) | $($_.detail)" }
+          $onlyFrame = ($fails.Count -eq 1 -and $fails[0].name -eq 'frame bands match FrameThickness 1,8,1,1 scaled by DPI: thick top, thin sides/bottom, top clearly thickest')
+          $complete = ($last.name -eq 'FLOW-COMPLETE' -and $last.ok -and $last.detail -eq '${{ github.sha }}')
+          $errLines = @()
+          if (Test-Path diag/errors.txt) { $errLines = @(Get-Content diag/errors.txt | Where-Object { $_.Trim() -ne '' }) }
+          $errExpected = ($errLines.Count -eq 1 -and $errLines[0] -ceq 'UI ASSERTIONS FAILED')
+          "FLOW-COMPLETE at head sha: $complete ; sole-fail-is-exact-frame-band-assert: $onlyFrame ; errors.txt-is-exact-terminal-summary: $errExpected"
+          if (-not $complete) { & $vfail 'remaining flow did NOT reach FLOW-COMPLETE at head sha - inspect artifacts' }
+          if (-not $onlyFrame) { & $vfail 'failures other than the exact frame-band assert present - inspect artifacts' }
+          if (-not $errExpected) { & $vfail ("diag/errors.txt holds unexpected content (" + $errLines.Count + " non-empty lines; expected exactly 'UI ASSERTIONS FAILED'): " + ($errLines -join ' | ')) }
+        }
+        if (Test-Path diag/diagnostic-verdict.txt) { Get-Content diag/diagnostic-verdict.txt; exit 1 }
+        'DIAGNOSTIC OK: remaining cycle1 flow exercised end-to-end; sole honest failure = frame-band assert (oracle replacement pending). NOT a gate pass.'
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: flow-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          diag/
+          out-images/
+        if-no-files-found: warn
+        retention-days: 7
