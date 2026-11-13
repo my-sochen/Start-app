@@ -1,6 +1,6 @@
 # Session-file feasibility spike v2 (bounded experiment, disposable CI profile).
 # v1 found: plain Session_ file is 0 bytes + locked; Sessions_Encrypted exists (format v5 era).
-# v2: share-mode read test, full inventory of both folders, magic bytes, graceful-close re-read.
+# v3: fixed error capture, alternate readers, Defender status, magic bytes, graceful-close re-read.
 # BOUNDARY: no decryption. Encrypted content is reported as metadata only.
 param([string]$OutDir = "spike-out")
 $ErrorActionPreference = 'Continue'
@@ -31,8 +31,9 @@ function Try-ReadLocked([string]$path) {
         $r.error = $null
         return $r
       } finally { $fs.Dispose() }
-    } catch { $r.error = "share=$([int]$share): $($_.Exception.InnerException.Message)" }
+    } catch { $r.error = "share=$([int]$share): $($_.Exception.Message)" }
   }
+  try { $dst = Join-Path $env:TEMP ('readtest-' + [IO.Path]::GetFileName($path)); Copy-Item $path $dst -Force -ErrorAction Stop; $alt = (Get-Item $dst).Length; $r.error += " | CopyItem OK len=$alt"; if (-not $r.ok) { $b = [IO.File]::ReadAllBytes($dst); $r.ok=$true; $r.len=$b.Length; $r.magic=(($b[0..([math]::Min(7,$b.Length-1))] | ForEach-Object { $_.ToString('x2') }) -join ' '); $r.error += ' (parsed from copy)' }; Remove-Item $dst -Force -ErrorAction SilentlyContinue } catch { $r.error += " | CopyItem: $($_.Exception.Message)" }
   return $r
 }
 
@@ -78,6 +79,10 @@ function Parse-SnssPlain([string]$path) {
   return $r
 }
 
+try {
+  $mp = Get-MpComputerStatus
+  L "defender: RTP=$($mp.RealTimeProtectionEnabled) ASRcount=$(@($mp.AttackSurfaceReductionRules_Ids).Count) CFA=$($mp.EnableControlledFolderAccess)"
+} catch { L "defender status read failed: $($_.Exception.Message)" }
 L "launching edge: $edgeExe profile=$prof"
 $edge = Start-Process -FilePath $edgeExe -ArgumentList (@("--user-data-dir=$prof",'--no-first-run','--no-default-browser-check','--disable-session-crashed-bubble') + $urls) -PassThru
 Start-Sleep -Seconds 15
