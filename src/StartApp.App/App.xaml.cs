@@ -26,7 +26,7 @@ public partial class App : Application
 
 /// <summary>Site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab
 /// in turn (then restoring the tab the user was on) so every tab's address is captured, not just the active one. A browser extension
-/// (not built, not decided) would avoid the visible tab switching.</summary>
+/// (prototype bridge proven on Edge only, not decided) would avoid the visible tab switching.</summary>
 public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
 {
     private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase) { "chrome", "msedge", "brave" };
@@ -89,7 +89,7 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
                 catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
         }
-        notes.Add("Sites: every tab of each open Chrome/Edge/Brave window is detected; during the scan each tab is briefly selected to read its address");
+        notes.Add("Sites: every tab of each open Chrome/Edge/Brave window is detected (verified on Edge so far); during the scan each tab is briefly selected to read its address");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }
