@@ -1,6 +1,6 @@
 try {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
-Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
 $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
 function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
@@ -53,6 +53,19 @@ function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
+function DragRowToStage($like, $label) {
+  # Real pointer drag: press on the source row, move in steps over the drop zone, release. Same path a user's mouse takes.
+  $row = CheckByLike $like
+  if ($null -eq $row) { Assert "$label found for drag" $false 'row not found'; return }
+  $rr = $row.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle
+  $sx = [int]($rr.X + $rr.Width * 0.65); $sy = [int]($rr.Y + $rr.Height / 2)
+  $tx = [int]($wr.X + $wr.Width * 0.25); $ty = [int]($wr.Y + $wr.Height * 0.55)
+  [void][W]::SetCursorPos($sx, $sy); Start-Sleep -Milliseconds 250
+  [W]::mouse_event(0x02, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 250
+  for ($i = 1; $i -le 12; $i++) { [void][W]::SetCursorPos([int]($sx + ($tx - $sx) * $i / 12), [int]($sy + ($ty - $sy) * $i / 12)); Start-Sleep -Milliseconds 60 }
+  Start-Sleep -Milliseconds 350
+  [W]::mouse_event(0x04, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 700
+}
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
 function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
 function SetType($typeName) {
@@ -235,6 +248,24 @@ try {
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
   Assert 'staged area is empty again after Save' ($null -eq (NamedEdit 'Added item name')) ''
   Shot 'side-by-side-after-save'
+
+  # 2c. REAL pointer drag/drop: stage by dragging from the capture list; the per-drag duplicate warning fires per drag
+  $storeBeforeDrag = StoreJson
+  DragRowToStage '*example.com*' 'site row'
+  Assert 'real drag stages the site with its default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
+  Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
+  $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
+  Shot 'side-by-side-drag-staged'
+  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  DragRowToStage '*capfolder*' 'saved folder row'
+  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  Shot 'drag-duplicate-warning'
+  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  DragRowToStage '*capfolder*' 'saved folder row again'
+  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a second instance' ($c -eq 'ok' -and (ValOf (NamedEdit 'Added item name')) -eq 'capfolder') $c
+  Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
