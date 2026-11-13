@@ -51,11 +51,16 @@ public partial class MainWindow : Window
         var pos = e.GetPosition(null);
         if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         if (e.OriginalSource is DependencyObject src && ItemsControl.ContainerFromElement(CaptureList, src) is ListBoxItem { DataContext: MainViewModel.CaptureRow row })
+        {
+            MainViewModel.CiDropLog($"DRAGSTART {row.Name}");
             DragDrop.DoDragDrop(CaptureList, new DataObject(typeof(MainViewModel.CaptureRow), row), DragDropEffects.Copy);
+            MainViewModel.CiDropLog($"DRAGEND {row.Name}");
+        }
     }
     private void CaptureDropZone_DragOver(object sender, DragEventArgs e) { e.Effects = e.Data.GetDataPresent(typeof(MainViewModel.CaptureRow)) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     private void CaptureDropZone_Drop(object sender, DragEventArgs e)
     {
+        MainViewModel.CiDropLog("DROP-EVENT");
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
