@@ -1,7 +1,9 @@
 # Validation-only artifact pipeline for feature -> dev -> test. Never runs on main.
 # Every push to the three named branches is checked, not only workflow edits.
-# PROPOSED ROUTE: branch test does not exist yet; confirm the permanent test route
-# before adopting this proposal. This file does not create a branch or deployment.
+# PERMANENT ROUTE: the test-stage branch is test/validation. A literal 'test' branch
+# cannot be created while test/* refs exist (Git ref namespace: no ref as both parent
+# and child), so the durable stage branch lives under the existing namespace.
+# This file does not create a branch or deployment.
 # Add this workflow only after all reviewed dependencies are committed and verified.
 # No release/tag/pointer/publish jobs, repository variables or Environments.
 # contents:read only. Failed UI may still produce an inspection artifact labeled
@@ -12,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/per-instance-items, dev, test]
+    branches: [feat/per-instance-items, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
