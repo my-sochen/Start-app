@@ -1,0 +1,22 @@
+{
+  "inspected_at": "2026-11-13T16:03:00+02:00",
+  "repository": "https://github.com/my-sochen/Start-app",
+  "main": "9a2189f64d4f620e70dbeec07ee97ed4a09c06d8",
+  "dev": "c222330672fe1c9862220d2f7ab799ff6ff10d6c",
+  "pr19": "9e681f1b00724dd668e17308050bdbb6979323fd",
+  "archived_artifact_head_not_selected": "163f439",
+  "website_destination": "my-sochen/Start-app:website/",
+  "remote_branch": "not created or pushed",
+  "hosting": "not selected",
+  "download": "disabled, no artifact URL",
+  "sources": [
+    "https://github.com/my-sochen/Start-app/pull/19",
+    "https://trello.com/c/6i7jkHNm",
+    "https://trello.com/c/3jCYB98F",
+    "https://trello.com/c/X0JG9VXo"
+  ],
+  "base_branch": "dev",
+  "change_branch": "feat/website-docs-review",
+  "pull_request": "not requested or created",
+  "pr19_status": "draft, unmerged into dev; application documentation is scoped to this inspected head"
+}
