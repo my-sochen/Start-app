@@ -197,7 +197,7 @@ try {
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
-  Assert 'sites note separates verified Edge scope from unverified browsers' (WaitText 'verified on Edge with a single window' 3) ((Texts) -join ' | ')
+  Assert 'sites note states the verified scope (hosted-runner: Edge+Chrome single window, Hebrew UI) and the remaining limits' ((WaitText 'verified in hosted-runner scenarios on Edge and Chrome with a single window' 3) -and (WaitText 'Brave, multiple windows and discarded tabs are not verified' 3)) ((Texts) -join ' | ')
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
   if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
@@ -592,6 +592,40 @@ try {
   } else {
     Info 'LOCALE: edge-he could not start' 'skipped'
   }
+  # 9. multi-window scan (settled spec: סריקה של מה שפתוח - אין הגבלה לחלון אחד; EnumWindows path in product code).
+  # Sequential: window A fully ready (its own fixture URL visible in ITS omnibox) before B launches on the same profile (avoids the profile lock race).
+  # Missing/duplicate window is a HARD failure, not a skip. Readiness via bounded condition loops only.
+  try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 } catch { Info 'multi-window pre-clean' "$_" }
+  function EdgeWins() { $pids = @((Get-Process msedge -ErrorAction SilentlyContinue).Id); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $pids -contains $_.Current.ProcessId -and $_.Current.ClassName -like 'Chrome_WidgetWin*' -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 } catch { $false } }) }
+  function WinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+  try { $null = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\edge-mw-profile", 'https://example.com/' } catch { Info 'multi-window start A' "$_" }
+  $wA = $null; $urlA = ''; $swA = [Diagnostics.Stopwatch]::StartNew()
+  while ($swA.Elapsed.TotalSeconds -lt 20 -and $null -eq $wA) { foreach ($w in @(EdgeWins)) { $u = WinUrl $w; if ($u -like '*example.com*') { $wA = $w; $urlA = $u; break } }; if ($null -eq $wA) { Start-Sleep -Milliseconds 500 } }
+  Assert 'MULTI-WINDOW: window A present showing its own fixture URL' ($null -ne $wA) ("urlA='$urlA' after $($swA.Elapsed.TotalSeconds.ToString('0.0'))s")
+  $wB = $null; $urlB = ''; $hA = 0
+  if ($wA) {
+    $hA = $wA.Current.NativeWindowHandle
+    try { $null = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\edge-mw-profile", 'https://www.iana.org/help/example-domains' } catch { Info 'multi-window start B' "$_" }
+    $swB = [Diagnostics.Stopwatch]::StartNew()
+    while ($swB.Elapsed.TotalSeconds -lt 20 -and $null -eq $wB) { foreach ($w in @(EdgeWins)) { if ($w.Current.NativeWindowHandle -ne $hA) { $u = WinUrl $w; if ($u -like '*iana.org*') { $wB = $w; $urlB = $u; break } } }; if ($null -eq $wB) { Start-Sleep -Milliseconds 500 } }
+    Assert 'MULTI-WINDOW: second DISTINCT window present showing its own fixture URL (hard gate)' ($null -ne $wB) ("urlB='$urlB' after $($swB.Elapsed.TotalSeconds.ToString('0.0'))s")
+  }
+  if ($wA -and $wB) {
+    $hB = $wB.Current.NativeWindowHandle
+    Assert 'MULTI-WINDOW: distinct window runtime handles' ($hA -ne 0 -and $hB -ne 0 -and $hA -ne $hB) ("hA=$hA hB=$hB")
+    Info 'MULTI-WINDOW: per-window fixture URLs' ("hA=$hA url='$urlA' | hB=$hB url='$urlB'")
+    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (multi-window)' ($c -eq 'ok') $c
+    Assert 'capture screen shown (multi-window)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+    Assert 'multi-window scan finished' (WaitGone 'סורק' 40) ((Texts) -join ' | ')
+    $mnames = CheckNames
+    Info 'detected rows (multi-window)' ($mnames -join ' | ')
+    Assert 'MULTI-WINDOW: window-A tab example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($mnames -join ' | ')
+    Assert 'MULTI-WINDOW: window-B tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($mnames -join ' | ')
+    Shot 'multi-window-scan'
+    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after multi-window' ($c -eq 'ok') $c
+    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (multi-window)' ($c -eq 'ok') $c }
+  }
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
