@@ -261,8 +261,8 @@ try {
       if ($pw -le 0 -or $ph -le 0) { Start-Sleep -Milliseconds 300; continue }
       $crop = New-Object System.Drawing.Bitmap $pw, $ph; $cg = [System.Drawing.Graphics]::FromImage($crop); $cg.CopyFromScreen([int]$pr.Left, [int]$pr.Top, 0, 0, $crop.Size); $cg.Dispose()
       $colX = [int]($pw / 2); $rowY = [int]($ph / 2)
-      $pc = $crop.GetPixel($colX, $rowY); $seenC = "rgb($($pc.R),$($pc.G),$($pc.B))"
-      $okImg = (& $isImg $pc)
+      $pxc = $crop.GetPixel($colX, $rowY); $seenC = "rgb($($pxc.R),$($pxc.G),$($pxc.B))"
+      $okImg = (& $isImg $pxc)
       if ($okImg) {
         $crop.Save("$PWD/out-images/feat-preview-frame-crop.png")
         $topBand = 0; for ($y = 0; $y -lt $ph; $y++) { if (& $isFrame ($crop.GetPixel($colX, $y))) { $topBand++ } else { break } }
@@ -271,6 +271,11 @@ try {
         $rightBand = 0; for ($x = $pw - 1; $x -ge 0; $x--) { if (& $isFrame ($crop.GetPixel($x, $rowY))) { $rightBand++ } else { break } }
         $p1 = $crop.GetPixel($colX, [math]::Min($ph - 1, $topBand + 1)); $belowTop = "rgb($($p1.R),$($p1.G),$($p1.B))"
         $p2 = $crop.GetPixel([math]::Min($pw - 1, $leftBand + 1), $rowY); $rightOfLeft = "rgb($($p2.R),$($p2.G),$($p2.B))"
+        # capture the bottom-edge pixels INSIDE the crop lifetime (it is disposed at loop end);
+        # System.Drawing.Color is a value type, so the stored structs stay usable after Dispose.
+        $botCols = @(20, [int]($pw/4), [int]($pw/2), [int](3*$pw/4), $pw-21)
+        $botLast = @(); $botSec = @()
+        foreach ($cx in $botCols) { $botLast += ,$crop.GetPixel($cx, $ph - 1); $botSec += ,$crop.GetPixel($cx, $ph - 2) }
         $okImg = (& $isImg $p1) -and (& $isImg $p2)
         if (-not $okImg) { $seenC += " transitions-not-red-yet(belowTop=$belowTop rightOfLeft=$rightOfLeft)" }
       }
@@ -278,9 +283,30 @@ try {
       if (-not $okImg) { Start-Sleep -Milliseconds 300 }
     }
     Assert 'preview shows the UNSAVED image before save, frame-to-image transitions verified red' $okImg ("center=$seenC")
-    $expTop = 8 * $scaleY; $expSide = [math]::Max(1, [math]::Round($scaleX)); $expBot = [math]::Max(1, [math]::Round($scaleY))
-    $bandsOk = ($topBand -ge ($expTop - 2) -and $topBand -le ($expTop + 3) -and $leftBand -ge 1 -and $leftBand -le ($expSide + 2) -and $rightBand -ge 1 -and $rightBand -le ($expSide + 2) -and $botBand -ge 1 -and $botBand -le ($expBot + 2) -and $topBand -ge ($leftBand + [math]::Round(4 * $scaleY)))
-    Assert 'frame bands match FrameThickness 1,8,1,1 scaled by DPI: thick top, thin sides/bottom, top clearly thickest' $bandsOk ("measured px: top=$topBand left=$leftBand right=$rightBand bottom=$botBand | dpiX=$dpiX dpiY=$dpiY expected top~$([math]::Round($expTop,1)) side~$expSide bottom~$expBot | crop=out-images/feat-preview-frame-crop.png ${pw}x${ph}")
+    $expTop = 8 * $scaleY; $expSide = [math]::Max(1, [math]::Round($scaleX))
+    # Bottom-edge VISIBLE SIGNATURE, bounded to the observed red-image scenario of the controlled
+    # same-layout comparison (frame-oracle-diagnostic, run 43458843646: 32 cases, A=1,8,1,1 vs
+    # B=1,8,1,0, red image/solid controls, sampled origins, 96 DPI). WITH the bottom frame the
+    # last interior row was frame-tinted (observed B 199..255, R 191..223, B-R -11..48) over
+    # red-dominant content (observed second-to-last R-B 79..195); WITHOUT it the last row was
+    # red or red-white (observed B<=142); an unpainted bottom is white (R=255, rejected).
+    # Scope limits: this is a visible-edge signature in the red-image scenario, NOT a 1-DIP
+    # thickness proof and NOT border-ownership proof - a synthetic one-pixel blue strip over red
+    # content would pass it too - and it is calibrated to the observed sampled origins at 96 DPI,
+    # not to arbitrary DPI. The frame==background-color ambiguity (no-image case) is out of
+    # scope: the frame only exists when an image exists.
+    $botOk = ($null -ne $botLast -and $botLast.Count -eq 5); $botDetail = @()
+    if ($null -ne $botLast -and $botLast.Count -eq 5) {
+      for ($i = 0; $i -lt 5; $i++) {
+        $lc = $botLast[$i]; $sc = $botSec[$i]
+        $lastTinted = ($lc.B -ge 180 -and $lc.R -le 240 -and ($lc.B - $lc.R) -ge -30)
+        $secondRed = (($sc.R - $sc.B) -ge 60)
+        if (-not ($lastTinted -and $secondRed)) { $botOk = $false }
+        $botDetail += "c$($botCols[$i]):last=rgb($($lc.R),$($lc.G),$($lc.B)),2nd=rgb($($sc.R),$($sc.G),$($sc.B))"
+      }
+    }
+    $bandsOk = ($topBand -ge ($expTop - 2) -and $topBand -le ($expTop + 3) -and $leftBand -ge 1 -and $leftBand -le ($expSide + 2) -and $rightBand -ge 1 -and $rightBand -le ($expSide + 2) -and $botOk -and $topBand -ge ($leftBand + [math]::Round(4 * $scaleY)))
+    Assert 'frame bands match FrameThickness 1,8,1,1 scaled by DPI: thick top, thin sides, bottom edge shows the frame-tinted-over-red visible signature (bounded to the observed red-image scenario, 96 DPI), top clearly thickest' $bandsOk ("measured px: top=$topBand left=$leftBand right=$rightBand bottomSolid=$botBand | $($botDetail -join ' ') | dpiX=$dpiX dpiY=$dpiY expected top~$([math]::Round($expTop,1)) side~$expSide | crop=out-images/feat-preview-frame-crop.png ${pw}x${ph}")
     Shot 'design-preview-unsaved'
     $missingPath = "$env:RUNNER_TEMP\missing-preview-probe.png"
     if (Test-Path $missingPath) { Remove-Item $missingPath -Force }
