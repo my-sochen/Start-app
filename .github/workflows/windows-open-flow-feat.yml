@@ -84,6 +84,13 @@ jobs:
     - uses: actions/upload-artifact@v7.0.2
       if: always()
       with:
+        name: shot-cap-side-by-side-staged-menu
+        path: out-images/cap-side-by-side-staged-menu.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
         name: shot-cap-side-by-side-after-save
         path: out-images/cap-side-by-side-after-save.png
         if-no-files-found: warn
