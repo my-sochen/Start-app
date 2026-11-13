@@ -287,6 +287,97 @@ try {
   Assert 'back at the workspace search with the capture list still there' ($null -ne (NamedEdit 'Capture workspace search') -and (Checks).Count -gt 0) ''
   Assert 'the discarded duplicate was not saved (only the first save exists)' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
 
+  # 4a. שמור וצא: the unsaved guard's save path persists the staged row and returns to the search
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for save-and-exit' ($c -eq 'ok') $c
+  $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
+  Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'Unsaved changes' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
+  $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
+  Assert 'save-and-exit returns to the workspace search' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
+  $o = StoreObj
+  $npId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*notepad.exe' } | Select-Object -First 1).id
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'save-and-exit persisted the staged row to Cap B' (@($wsB.items | Where-Object { $_.itemId -eq $npId }).Count -eq 1) (StoreJson)
+  Shot 'save-and-exit-back-at-search'
+
+  # 4b. הוסף הכל for real: non-duplicates stage at once, ALL duplicates gather in ONE grouped dialog, nothing saved before the choice
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for add-all' ($c -eq 'ok') $c
+  foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick before add-all'); Start-Sleep -Milliseconds 200 }
+  Assert 'nothing ticked before add-all' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
+  $storeBeforeAll = StoreJson
+  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked' ($c -eq 'ok') $c
+  $stagedAll = @(StagedNames)
+  Assert 'add-all staged the non-duplicate terminal at once' ($stagedAll -contains 'Windows Terminal Host') ($stagedAll -join ' | ')
+  Assert 'duplicates not staged before the dialog choice' (($stagedAll -notcontains 'capfolder') -and ($stagedAll -notcontains 'Notepad')) ($stagedAll -join ' | ')
+  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'Add again: capfolder*')) -and ($null -ne (CheckByLike 'Add again: Notepad*'))) ((CheckNames) -join ' | ')
+  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'Add again: *Terminal*')) ((CheckNames) -join ' | ')
+  Assert 'add-all changed nothing in the store' ((StoreJson) -eq $storeBeforeAll) ''
+  Shot 'add-all-grouped-dialog'
+  $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip both duplicates' ($c -eq 'ok') $c
+  Assert 'non-duplicates stay staged after skipping' (@(StagedNames) -contains 'Windows Terminal Host') ((StagedNames) -join ' | ')
+  foreach ($sn in @(StagedNames)) { $c = ClickBtn "Remove added $sn" 800; Assert "remove staged $sn before the selective pass" ($c -eq 'ok') $c }
+  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
+  Assert 'grouped dialog again for the selective pass' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+  $dupF = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
+  $nameEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
+  $addrEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))))
+  $fidx = -1; for ($i = 0; $i -lt $addrEdits.Count; $i++) { if ((ValOf $addrEdits[$i]) -like '*capfolder*') { $fidx = $i; break } }
+  $stagedAddrsNow = @($addrEdits | ForEach-Object { ValOf $_ })
+  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($fidx -ge 0 -and -not @($stagedAddrsNow | Where-Object { $_ -like '*notepad.exe' })) ($stagedAddrsNow -join ' | ')
+  Assert 'the approved duplicate staged with the capture default name, not a local one' ((ValOf $nameEdits[$fidx]) -eq 'capfolder') (ValOf $nameEdits[$fidx])
+  SetText $nameEdits[$fidx] 'capfolder second'
+  $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
+  $o = StoreObj
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $bFolderNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  Assert 'the approved duplicate saved as an independent second instance (own name, first untouched)' ($bFolderNames.Count -eq 2 -and $bFolderNames -contains 'my capture folder' -and $bFolderNames -contains 'capfolder second') ($bFolderNames -join ' | ')
+
+  # 4c. between workspaces: no false warning when the address lives only elsewhere, both keep it, list identical across switches, exit-without-save keeps every save, re-add gets capture defaults
+  $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the selective save' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
+  SetText (NamedEdit 'Capture workspace search') 'Cap A'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap A' 1000; Assert 'picked Cap A' ($c -eq 'ok') $c
+  $namesBeforeSwitch = @(CheckNames)
+  DragRowToStage '*capfolder*' 'folder row into Cap A'
+  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
+  Assert 'the dragged folder staged in Cap A with the capture default name' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
+  $o = StoreObj
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $wsA = @($o.workspaces | Where-Object { $_.name -eq 'Cap A' })[0]
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'both workspaces now hold the captured folder as separate instances' ((@($wsA.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 1 -and (@($wsB.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 2) (StoreJson)
+  $storeBeforeDiscard = StoreJson
+  $npTick2 = CheckByLike '*Notepad*'; [void](ToggleEl $npTick2 'notepad tick for the discard test'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged in Cap A for the discard test' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  $c = ClickBtn 'Capture back' 1000; Assert 'back with the staged notepad' ($c -eq 'ok') $c
+  $c = ClickBtn 'צא בלי לשמור' 1000; Assert 'exit without saving from Cap A' ($c -eq 'ok') $c
+  Assert 'exit without saving changed nothing: every earlier save in both workspaces intact' ((StoreJson) -eq $storeBeforeDiscard) (StoreJson)
+  $npUntick = CheckByLike '*Notepad*'; if ($npUntick -and (IsOn $npUntick)) { [void](ToggleEl $npUntick 'notepad untick after discard'); Start-Sleep -Milliseconds 300 }
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B again' ($c -eq 'ok') $c
+  Assert 'the capture list is identical after switching workspaces' ((@(CheckNames) -join '|') -eq ($namesBeforeSwitch -join '|')) ((CheckNames) -join ' | ')
+  $folderTick = CheckByLike '*capfolder*'; [void](ToggleEl $folderTick 'folder tick for re-add'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'הוסף נבחרים' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
+  Assert 'duplicate dialog for the re-add' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+  $dupR = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
+  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $folderUntick = CheckByLike '*capfolder*'; if ($folderUntick -and (IsOn $folderUntick)) { [void](ToggleEl $folderUntick 'folder untick after re-add'); Start-Sleep -Milliseconds 300 }
+  $c = ClickBtn 'Capture back' 1000
+  if (WaitText 'Unsaved changes' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }
+  Assert 'back at the search for the reset flow' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
+
   # 5. X resets; a new scan reflects what is open at that moment (Notepad closed first)
   $c = ClickBtn 'Close capture' 900; Assert 'X clicked' ($c -eq 'ok') $c
   Assert 'capture screen closed' (-not (WaitText 'Open now' 2)) ''
@@ -310,6 +401,20 @@ try {
   Shot 'add-from-open-details-entry'
   $c = ClickBtn 'Capture back' 900; Assert 'back from details entry goes to the workspace search' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
   $c = ClickBtn 'Close capture' 900; Assert 'closed' ($c -eq 'ok') $c
+  # 6. instance independence across workspaces: renaming Cap A's instance never touches Cap B's
+  if (-not (WaitText 'Created:' 2)) { $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details (independence)' ($c -eq 'ok') $c; Assert 'Cap A details shown' (WaitText 'Created:' 10) '' }
+  $c = ClickBtn 'Edit item' 900; Assert 'edit Cap A folder instance' ($c -eq 'ok') $c
+  SetText (NamedEdit 'Edit item name') 'folder in A'
+  $c = ClickBtn 'Save item edit' 900; Assert 'Cap A instance rename saved' ($c -eq 'ok') $c
+  Assert 'renamed instance visible in Cap A' (WaitText 'folder in A' 10) ((Texts) -join ' | ')
+  $o = StoreObj
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $wsA = @($o.workspaces | Where-Object { $_.name -eq 'Cap A' })[0]
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  $aNames = @($wsA.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  $bNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  Assert 'editing the instance in Cap A changed only Cap A' (($aNames -contains 'folder in A') -and $bNames.Count -eq 2 -and ($bNames -contains 'my capture folder') -and ($bNames -contains 'capfolder second')) ("A: $($aNames -join '|') B: $($bNames -join '|')")
+  $c = ClickBtn 'Back' 900; Assert 'back to overview from Cap A' ($c -eq 'ok') $c
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
