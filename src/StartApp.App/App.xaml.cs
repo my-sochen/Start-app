@@ -89,7 +89,7 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
                 catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
         }
-        notes.Add("Sites: every tab of each open Chrome/Edge/Brave window is detected (verified on Edge so far); during the scan each tab is briefly selected to read its address");
+        notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified on Edge with a single window so far - Chrome, Brave, multiple windows and discarded tabs are not verified");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }
