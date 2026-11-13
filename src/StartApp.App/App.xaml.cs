@@ -76,12 +76,24 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 Collect(); // the tab the user is looking at
                 var tabs = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.TabItem));
+                // Snapshot the user's active tab BEFORE any Select(): the first Select below deselects it,
+                // so discovering it inside the scan loop misses it whenever it is not first in UIA
+                // enumeration, and the restore at the end would strand the user on the last tab.
+                foreach (System.Windows.Automation.AutomationElement t in tabs)
+                {
+                    try
+                    {
+                        if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is System.Windows.Automation.SelectionItemPattern pre && pre.Current.IsSelected)
+                        { originallySelected = t; break; }
+                    }
+                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+                }
                 foreach (System.Windows.Automation.AutomationElement t in tabs)
                 {
                     try
                     {
                         if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern sip) continue;
-                        if (sip.Current.IsSelected) { originallySelected ??= t; continue; }
+                        if (sip.Current.IsSelected) continue; // the active tab was already captured by the first Collect()
                         var before = value.Current.Value;
                         sip.Select();
                         var until = DateTime.UtcNow.AddMilliseconds(400);
@@ -96,10 +108,14 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 }
             }
             catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
-            // Leave the user's browser exactly as found: re-select the tab that was active before the scan.
-            if (originallySelected != null)
-                try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
-                catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+            finally
+            {
+                // Leave the user's browser exactly as found: re-select the tab that was active before the
+                // scan, even when the scan throws (an unexpected exception type still restores, then escapes).
+                if (originallySelected != null)
+                    try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
+                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+            }
         }
         notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified in hosted-runner scenarios on Edge and Chrome with a single window, including Edge with a Hebrew UI - Brave, multiple windows and discarded tabs are not verified");
         return new(CaptureRules.Dedupe(items), notes);

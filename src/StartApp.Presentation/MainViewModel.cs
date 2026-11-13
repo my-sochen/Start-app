@@ -141,17 +141,20 @@ public sealed class MainViewModel : ObservableBase
     }
     private void SaveAndExit()
     {
-        if (UnsavedForCapture) { if (!CaptureGuardSave()) return; }
-        else if (UnsavedForItemEdit) { if (!SaveItemEdit()) return; }
-        else if (UnsavedForAddress) { if (!SaveAddress()) return; }
-        else if (UnsavedForDesign) { if (!SaveDesign()) return; }
-        else if (UnsavedForCreate)
+        // Save EVERY open dirty form, innermost first, so "save and exit" never approves the close while
+        // another pending edit is silently dropped (PR19 review: details + inline item edit together saved
+        // only the details and lost the item change). A failed save keeps the dialog open for fixing.
+        if (ItemEditDirty) { if (!SaveItemEdit()) return; }
+        if (AddressEditDirty) { if (!SaveAddress()) return; }
+        if (UnsavedForCapture && CaptureDirty) { if (!CaptureGuardSave()) return; }
+        if (UnsavedForDesign && DesignDirty) { if (!SaveDesign()) return; }
+        if (UnsavedForCreate && CreateDirty)
         {
             if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
             Create();
             if (CreateDirty) { UnsavedOpen = false; _exitAction = () => { }; return; } // creation failed; keep editing
         }
-        else if (!SaveDetails()) return;
+        if (DetailsDirty) { if (!SaveDetails()) return; }
         UnsavedOpen = false; var a = _exitAction; _exitAction = () => { }; a();
     }
     /// <summary>Fired when the user chose שמור וצא or צא בלי לשמור for a window close.</summary>
@@ -187,10 +190,10 @@ public sealed class MainViewModel : ObservableBase
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
         CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
-        EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
         CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
-        EditAddressCommand = Cmd(p => BeginAddressEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        EditAddressCommand = Cmd(p => BeginAddressEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
         CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
         CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
@@ -220,7 +223,24 @@ public sealed class MainViewModel : ObservableBase
         ShowCategoryDeleteListCommand = Cmd(_ => CategoryDeleteListShown = true, _ => CategoryDeletePending && !CategoryDeleteListShown);
         ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !ReadOnly);
         CancelCategoryDeleteCommand = Cmd(_ => CancelCategoryDelete("Category deletion cancelled, nothing was changed"), _ => CategoryDeletePending);
-        RemoveItemCommand = Cmd(p => Apply(c => c.RemoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId)), p => !ReadOnly && Selected != null && p is ItemRow);
+        RemoveItemCommand = Cmd(p =>
+        {
+            var row = (ItemRow)p!;
+            // Deleting the very row whose inline editor is open: a dirty editor wins - the delete is refused
+            // with a clear status instead of stranding the edit on a missing instance (PR19 review). A clean
+            // editor just closes before the delete.
+            if (ItemEditOpen && row.InstanceId == _editItemId)
+            {
+                if (ItemEditDirty) { Status = "Not deleted: save or cancel the open edit of this item first"; return; }
+                ItemEditOpen = false;
+            }
+            if (AddressEditOpen && row.InstanceId == _addressInstId)
+            {
+                if (AddressEditDirty) { Status = "Not deleted: save or cancel the open address edit of this item first"; return; }
+                AddressEditOpen = false;
+            }
+            Apply(c => c.RemoveInstance(Selected!.Id, row.InstanceId));
+        }, p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
         ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
         CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
@@ -234,7 +254,12 @@ public sealed class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
+    // unsaved item/address edit (PR19 review: edits disappeared on unrelated mutations). A dirty form stays
+    // open with its fields. Safety does not rest on the selection staying put: saves validate the
+    // workspace+instance captured when the form opened, and dirty forms block workspace switches and row
+    // deletion, so a preserved form can neither crash nor silently retarget.
     public string Status { get => _status; private set => Set(ref _status, value); }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
@@ -273,19 +298,32 @@ public sealed class MainViewModel : ObservableBase
     private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false) { UnsavedForCapture = forCapture; UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
-    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); if (!value) { _addressStaged = null; _addressInstId = ""; } RaiseCommands(); } }
+    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); if (!value) { _addressStaged = null; _addressInstId = ""; _addressWsId = ""; } RaiseCommands(); } }
     private bool _addressEditOpen;
-    private string _addressInstId = "";
+    private string _addressInstId = "", _addressWsId = "";
     public string EditAddress { get => _editAddress; set { Set(ref _editAddress, value ?? ""); Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
     private string _editAddress = "";
     private string _origAddress = "";
     /// <summary>Any change in the address popup shows its Save button (same rule as the other edit screens).</summary>
     public bool AddressEditDirty => AddressEditOpen && EditAddress != _origAddress;
     private StagedRow? _addressStaged;
-    private void BeginAddressEdit(ItemRow row) { _addressStaged = null; _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    // At most one item/address editor is active at a time. Opening another editor while one is dirty is
+    // refused with a clear status, so a pending draft is never silently replaced (PR19 review: clicking a
+    // second row's Edit dropped the first draft; an explicitly saved popup address was later overwritten by
+    // the still-open stale inline draft on save-and-exit). A clean editor closes silently, matching how
+    // navigation and deletion already treat clean editors. Commands stay executable so a refused open can
+    // report why; the button state mirrors this through CanExecute.
+    private bool TryOpenEditorForm()
+    {
+        if (ItemEditDirty) { Status = "Save or cancel the open item edit first"; return false; }
+        if (AddressEditDirty) { Status = "Save or cancel the open address edit first"; return false; }
+        ItemEditOpen = false; AddressEditOpen = false;
+        return true;
+    }
+    private void BeginAddressEdit(ItemRow row) { if (!TryOpenEditorForm()) return; _addressStaged = null; _addressWsId = Selected?.Id ?? ""; _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
     /// <summary>עריכת כתובת on a staged row: the same address popup a saved item gets, but שמור writes the staged row's
     /// address (staged until the capture's own שמור) instead of the store.</summary>
-    private void BeginAddressEditStaged(StagedRow row) { _addressInstId = ""; _addressStaged = row; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    private void BeginAddressEditStaged(StagedRow row) { if (!TryOpenEditorForm()) return; _addressInstId = ""; _addressWsId = ""; _addressStaged = row; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
     private bool SaveAddress()
     {
         if (_addressStaged is { } sa)
@@ -295,13 +333,24 @@ public sealed class MainViewModel : ObservableBase
             sa.Target = EditAddress; Status = "Address updated on the staged item (saved to the workspace on שמור)"; AddressEditOpen = false;
             return true;
         }
-        var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
-        if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing"; return false; }
+        // Same binding rule as the item editor: validate the workspace+instance captured when the popup
+        // opened, never the current selection; a missing record keeps the typed address in the form.
+        var wsA = _current.Workspaces.FirstOrDefault(w => w.Id == _addressWsId);
+        var m = wsA?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
+        if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing; your address is still in the form"; return false; }
         var err = Catalog.ValidateTarget(it.Type, EditAddress);
         if (err != null) { Status = "Not saved: " + err; return false; }
-        // The change applies to the current workspace only, for every type including sites: ReplaceTargetLocal re-points this one
+        // The change applies to the captured workspace only, for every type including sites: ReplaceTargetLocal re-points this one
         // instance at the new address; the same item in other workspaces and other instances here keep their own address.
-        var ok = Apply(c => c.ReplaceTargetLocal(Selected!.Id, _addressInstId, EditAddress));
+        var ok = Apply(c =>
+        {
+            // Same inside-the-mutation validation as the item editor: Mutate reloads disk state, so the
+            // precheck snapshot can be stale; a missing captured record aborts with a handled ArgumentException.
+            var wsNow = c.Store.Workspaces.FirstOrDefault(w => w.Id == _addressWsId);
+            var mNow = wsNow?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
+            if (mNow is null || !c.Store.Items.ContainsKey(mNow.ItemId)) throw new ArgumentException("the item no longer exists in the saved data; your address is still in the form");
+            c.ReplaceTargetLocal(_addressWsId, _addressInstId, EditAddress);
+        });
         if (ok) { Status = "Address saved"; AddressEditOpen = false; }
         return ok;
     }
@@ -528,7 +577,7 @@ public sealed class MainViewModel : ObservableBase
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
     public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); RaiseCommands(); } }
     private bool _itemEditOpen;
-    private string _editItemId = "";
+    private string _editItemId = "", _editItemWsId = "";
     public string EditItemName { get => _editItemName; set { Set(ref _editItemName, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
     private string _editItemName = "";
     public string EditItemDescription { get => _editItemDesc; set { Set(ref _editItemDesc, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
@@ -541,20 +590,35 @@ public sealed class MainViewModel : ObservableBase
     public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget);
     private void BeginItemEdit(ItemRow row)
     {
-        _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
+        if (!TryOpenEditorForm()) return;
+        _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true;
     }
     private bool SaveItemEdit()
     {
         if (string.IsNullOrWhiteSpace(EditItemName)) { Status = "Not saved: item name is required"; return false; }
+        // Validate against the workspace+instance captured when the editor opened, never the current
+        // selection (PR19 review: the row can be deleted or the view switched while the editor is open).
+        // A missing target never throws and never silently retargets: the typed changes stay in the form
+        // so the user decides (cancel, or re-add the item).
+        var ws = _current.Workspaces.FirstOrDefault(w => w.Id == _editItemWsId);
+        if (ws is null || !ws.Items.Any(x => (x.Id ?? x.ItemId) == _editItemId))
+        { Status = "Not saved: this item was removed; your changes are still in the form - cancel the edit or add the item again"; return false; }
         var targetChanged = EditItemTarget != _origItemTarget;
         var ok = Apply(c =>
         {
+            // Validate again inside the mutation: Mutate reloads the current disk state, so the snapshot
+            // precheck above can be stale (the record removed outside this VM without a reload). A missing
+            // captured target aborts the mutation with an ArgumentException, which Apply handles as
+            // "Save failed, nothing was changed" - no partial write, no throw, the draft stays in the form.
+            var wsNow = c.Store.Workspaces.FirstOrDefault(w => w.Id == _editItemWsId);
+            var mNow = wsNow?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _editItemId);
+            if (mNow is null || !c.Store.Items.ContainsKey(mNow.ItemId)) throw new ArgumentException("the edited item no longer exists in the saved data; your changes are still in the form");
             // A target change is a local edit: only this instance points at the new address (Catalog.ReplaceTargetLocal);
             // the same item in other workspaces keeps its address, and the instance id stays stable.
-            if (targetChanged) c.ReplaceTargetLocal(Selected!.Id, _editItemId, EditItemTarget);
-            c.UpdateInstance(Selected!.Id, _editItemId, EditItemName, EditItemDescription);
+            if (targetChanged) c.ReplaceTargetLocal(_editItemWsId, _editItemId, EditItemTarget);
+            c.UpdateInstance(_editItemWsId, _editItemId, EditItemName, EditItemDescription);
         });
         if (ok) { Status = "Item saved"; ItemEditOpen = false; }
         return ok;
@@ -610,8 +674,8 @@ public sealed class MainViewModel : ObservableBase
     public string EditDescription { get => _editDescription; set { Set(ref _editDescription, value ?? ""); RaiseDirty(); } }
     private string _editDescription = "";
     private bool _detailsDirtyBypass;
-    /// <summary>Any change on the details screen shows the Save button (spec: כל שינוי מציג כפתור שמירה).</summary>
-    public bool DetailsDirty => !_detailsDirtyBypass && Selected != null && (EditName != Selected.Name || EditCategory != Selected.EffectiveCategory || EditDescription != (Selected.Description ?? ""));
+    /// <summary>Any change on the details screen shows the Save button (spec: כל שינוי מציג כפתור שמירה). Scoped to an open details session: before the fields load (overview/startup) the blank edit boxes must not read as "changed" (PR19 review: a freshly started app with a saved workspace looked dirty and prompted on close).</summary>
+    public bool DetailsDirty => !_detailsDirtyBypass && InDetails && Selected != null && (EditName != Selected.Name || EditCategory != Selected.EffectiveCategory || EditDescription != (Selected.Description ?? ""));
     public string CreatedAtText => Selected?.CreatedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "unknown";
     /// <summary>Card display: last time the workspace was really opened, or never.</summary>
     public static string LastOpenedTextOf(Workspace w) => w.LastOpenedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "never";
@@ -622,7 +686,15 @@ public sealed class MainViewModel : ObservableBase
         _editName = Selected.Name; _editCategory = Selected.EffectiveCategory; _editDescription = Selected.Description ?? "";
         Raise(nameof(EditName)); Raise(nameof(EditCategory)); Raise(nameof(EditDescription)); RaiseDirty(); Raise(nameof(CreatedAtText));
     }
-    private void OpenDetails(Workspace w) { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; Selected = w; LoadDetails(); InDetails = true; }
+    private void OpenDetails(Workspace w)
+    {
+        ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
+        // Resolve an open inline edit before switching workspace: a dirty one blocks the navigation with a
+        // clear status (its edits stay bound to the workspace they started in - PR19 review); clean ones close.
+        if (ItemEditDirty || AddressEditDirty) { Status = "Save or cancel the open item edit before switching workspaces"; return; }
+        ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false;
+        Selected = w; LoadDetails(); InDetails = true;
+    }
     private void Back()
     {
         ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
@@ -1015,7 +1087,7 @@ public sealed class MainViewModel : ObservableBase
         // enforced inside MoveStaged as a no-op, not by disabling the entry.
         StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
-        StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly);
+        StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly && !ItemEditDirty && !AddressEditDirty);
         StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);

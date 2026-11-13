@@ -9,10 +9,14 @@ public sealed class Catalog
     public Catalog(Store s, Func<string>? randomPart = null)
     {
         _s = s; _rand = randomPart ?? (() => Guid.NewGuid().ToString("N")[..8]);
-        // Instances in older files have no id yet: assign one in memory. It persists only if a later save happens (the normal upgrade path).
+        // Instances in older files have no id yet: derive a STABLE one from the workspace+item identity.
+        // A fresh random per load made the id shown after Load differ from the id the first Mutate computed
+        // after re-reading the file, so the first edit/remove/reorder on legacy data threw
+        // KeyNotFoundException (PR19 review). The derived id is identical on every load of the same file;
+        // it persists on the next save (the normal upgrade path).
         foreach (var w in _s.Workspaces)
             for (var i = 0; i < w.Items.Count; i++)
-                if (w.Items[i].Id is null) w.Items[i] = w.Items[i] with { Id = NewId("mi_", id => _s.Workspaces.SelectMany(x => x.Items).Any(m => m.Id == id)) };
+                if (w.Items[i].Id is null) w.Items[i] = w.Items[i] with { Id = LegacyMembershipId(w.Id, w.Items[i].ItemId) };
         // Schema-2 legacy: a shared description on the item. Move it onto the existing instances that have none, then clear it from the
         // item, so it can never leak into a NEW instance or reappear after an instance description is explicitly cleared.
         foreach (var w in _s.Workspaces)
@@ -23,6 +27,17 @@ public sealed class Catalog
             if (_s.Items.TryGetValue(id, out var it) && it.Description is not null)
                 _s.Items[id] = it with { Description = null };
     }
+    // Stable id for a legacy membership: SHA-256 of workspace id + item id, truncated like the random ids.
+    // The no-duplicate-membership invariant keeps (workspace, item) pairs unique, so only a collision with a
+    // persisted id can reach the deterministic suffix. Never random: randomness here is what broke identity.
+    private string LegacyMembershipId(string workspaceId, string itemId)
+    {
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(workspaceId + "\u0000" + itemId)))[..8].ToLowerInvariant();
+        var id = "mi_" + hash;
+        for (var n = 2; _s.Workspaces.SelectMany(x => x.Items).Any(m => m.Id == id); n++) id = "mi_" + hash + "_" + n;
+        return id;
+    }
+
     public Store Store => _s;
 
     // Identity key: type + exact target. No trim, case folding, slash rewriting or URL normalization, so distinct

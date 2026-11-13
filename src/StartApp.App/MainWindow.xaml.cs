@@ -7,25 +7,45 @@ namespace StartApp.App;
 public partial class MainWindow : Window
 {
     private bool _closeApproved;
+    private MainViewModel? _hooked;
     public MainWindow()
     {
         InitializeComponent();
         DataContextChanged += (_, _) => Hook();
         Loaded += (_, _) => Hook();
+        Closed += (_, _) => Detach();
     }
+    // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
+    // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
+    // made one upload click queue two sequential OpenFileDialogs).
     private void Hook()
     {
-        if (DataContext is MainViewModel vm)
-        {
-            vm.FocusAddRequested += () => TargetBox.Focus();
-            vm.CopyAddressRequested += a => Clipboard.SetText(a);
-            vm.AppCloseApproved += () => { _closeApproved = true; Close(); };
-            vm.PickImageRequested += () =>
-            {
-                var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
-                if (dlg.ShowDialog(this) == true) vm.DesignImagePath = dlg.FileName;
-            };
-        }
+        var vm = DataContext as MainViewModel;
+        if (ReferenceEquals(vm, _hooked)) return;
+        Detach();
+        if (vm is null) return;
+        vm.FocusAddRequested += OnFocusAddRequested;
+        vm.CopyAddressRequested += OnCopyAddressRequested;
+        vm.AppCloseApproved += OnAppCloseApproved;
+        vm.PickImageRequested += OnPickImageRequested;
+        _hooked = vm;
+    }
+    private void Detach()
+    {
+        if (_hooked is null) return;
+        _hooked.FocusAddRequested -= OnFocusAddRequested;
+        _hooked.CopyAddressRequested -= OnCopyAddressRequested;
+        _hooked.AppCloseApproved -= OnAppCloseApproved;
+        _hooked.PickImageRequested -= OnPickImageRequested;
+        _hooked = null;
+    }
+    private void OnFocusAddRequested() => TargetBox.Focus();
+    private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
+    private void OnAppCloseApproved() { _closeApproved = true; Close(); }
+    private void OnPickImageRequested()
+    {
+        var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
+        if (dlg.ShowDialog(this) == true && DataContext is MainViewModel vm) vm.DesignImagePath = dlg.FileName;
     }
     protected override void OnClosing(CancelEventArgs e)
     {

@@ -62,17 +62,23 @@ function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
-function EdgeSelectedTabIndex() {
-  # Index of the selected tab in the Edge window we opened (all three test pages share the title 'Example Domain', so the index is the discriminator).
-  $ws = @()
-  if ($edge -and -not $edge.HasExited) { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edge.Id)))) }
-  if ($ws.Count -eq 0) { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ClassNameProperty, 'Chrome_WidgetWin_1')))) }
-  foreach ($w0 in $ws) {
-    try {
-      $tabs = $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
-      for ($i = 0; $i -lt $tabs.Count; $i++) { try { $sip = $tabs[$i].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern); if ($sip.Current.IsSelected) { return $i } } catch { } }
-    } catch { }
+function EdgeWindow() {
+  # The ONE browser window this test drives: the launched Edge process's own UIA window. No class-name
+  # fallback - a fallback can bind a different browser window and make the setup/before/after reads disagree.
+  if ($edge -and -not $edge.HasExited) {
+    $cand = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edge.Id))) | Where-Object { try { $_.Current.ControlType -eq $CT::Window } catch { $false } })
+    if ($cand.Count -gt 0) { return $cand[0] }
   }
+  return $null
+}
+function EdgeSelectedTabIndex() {
+  # Index of the selected tab in the one bound Edge window (all three test pages share the title 'Example Domain', so the index is the discriminator).
+  $w0 = EdgeWindow
+  if ($null -eq $w0) { return -1 }
+  try {
+    $tabs = $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
+    for ($i = 0; $i -lt $tabs.Count; $i++) { try { $sip = $tabs[$i].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern); if ($sip.Current.IsSelected) { return $i } } catch { } }
+  } catch { }
   return -1
 }
 function DragRowToStage($like, $label) {
@@ -152,6 +158,21 @@ try {
   $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge start' "$_" }
   Start-Sleep -Seconds 8
   $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }; Info 'edge active tab index before scans' "$edgeTabBefore"
+  # Regression (PR19 review): restore must also work when the user's tab is NOT first in UIA enumeration -
+  # the old code discovered the original tab inside the mutating loop and lost it. Move the one bound Edge
+  # window to its middle tab (index 1 of the three example.* tabs) before the app starts; setup, before and
+  # after all read the SAME window, and the post-scan assert below proves restore for the active-middle case.
+  $moved = $false
+  $wE = EdgeWindow
+  if ($null -ne $wE) {
+    try {
+      $tabsE = $wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
+      if ($tabsE.Count -ge 3) { $tabsE[1].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $moved = $true }
+    } catch { }
+  }
+  Start-Sleep -Milliseconds 800
+  $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }
+  Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($moved -and $edgeTabBefore -eq 1) ("moved=$moved before=$edgeTabBefore")
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -554,22 +575,100 @@ try {
   Assert 'editing the instance in Cap A changed only Cap A' (($aNames -contains 'folder in A') -and $bNames.Count -eq 2 -and ($bNames -contains 'my capture folder') -and ($bNames -contains 'capfolder second')) ("A: $($aNames -join '|') B: $($bNames -join '|')")
   $c = ClickBtn 'Back' 900; Assert 'back to overview from Cap A' ($c -eq 'ok') $c
   # 7. cross-browser engineering check: Chrome tabs detected by the same UIA scan (user asked for all browsers; free verification)
-  $chrome = $null; try { $chrome = Start-Process chrome -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { Info 'chrome start' "$_" }
-  if ($chrome) {
-    Start-Sleep -Seconds 6
-    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
-    Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
-    Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-    $cnames = CheckNames
-    Info 'detected rows (chrome check)' ($cnames -join ' | ')
-    Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($cnames -join ' | ')
-    Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed' ($null -ne (CheckByLike '*rfc-editor.org*')) ($cnames -join ' | ')
-    Shot 'chrome-check-scan'
-    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after chrome check' ($c -eq 'ok') $c
-    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (chrome check)' ($c -eq 'ok') $c }
-    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  # Hardened fixture (PR19 CI run 43472682415: after the old fixed 6s wait the scan listed no Chrome rows;
+  # the preserved evidence does not say why): resolved executable + dedicated disposable profile; the window
+  # we wait for is identity-bound to THIS launch through the unique profile path in the process command line,
+  # which survives a launcher->browser process handoff. Readiness is polled and bounded, and requires BOTH
+  # fixture tabs with their actual URLs (each tab selected and read, then the original tab restored), so a
+  # failure here is capture evidence, not ambiguous fixture initialization. A missing executable or a timeout
+  # is a hard failure with process/window diagnostics, never a skip and never an Edge substitute.
+  $chromeExe = $null
+  foreach ($cand in @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")) { if (-not $chromeExe -and (Test-Path $cand)) { $chromeExe = $cand } }
+  if (-not $chromeExe) { $gcm = Get-Command chrome.exe -ErrorAction SilentlyContinue; if ($gcm) { $chromeExe = $gcm.Source } }
+  if (-not $chromeExe) {
+    Assert 'CROSS-BROWSER: chrome executable resolved' $false 'chrome.exe not found in the standard install paths or on PATH; this gate requires Chrome (no skip, no Edge substitute)'
   } else {
-    Info 'CROSS-BROWSER: chrome not available on this runner' 'skipped'
+    $chromeProfile = Join-Path $env:RUNNER_TEMP ('chrome-fixture-' + [Guid]::NewGuid().ToString('N'))
+    function ChromeFixturePids() { @((Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($chromeProfile) }).ProcessId) }
+    function ChromeFixtureWin() { $fpids = @(ChromeFixturePids); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fpids -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } } | Select-Object -First 1) }
+    function ChromeWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+    function OmniboxHost($raw) { $v = ($raw -replace '^\s+', '') -replace '\s+$', ''; if ($v -match '^(?:[a-zA-Z][a-zA-Z0-9+.\-]*://)?([^/?#]+)') { return $Matches[1].ToLowerInvariant() }; return '' }
+    # Per-tab EXPECTED-host proof: the fixture is controlled - exactly two tabs in launched URL order, so tab0
+    # must settle on host www.iana.org and tab1 on www.rfc-editor.org. A stale omnibox value from the other
+    # tab can never match this tab's expected host. A host counts only after two consecutive matching reads
+    # with the tab selected, re-confirming the selection at accept time.
+    function ChromeTabExpectHost($w, $t, $expectedHost, $tabIndex, $deadline) {
+      try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } catch { return $false }
+      $stable = ''
+      while ((Get-Date) -lt $deadline) {
+        $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+        if (-not $sel) { $stable = ''; Start-Sleep -Milliseconds 150; continue }
+        $h = OmniboxHost (ChromeWinUrl $w)
+        $script:tabLastHosts[$tabIndex] = $h
+        if ($h -ne $expectedHost) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
+        if ($stable -eq $expectedHost) {
+          $stillSel = $false; try { $stillSel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+          if ($stillSel) { return $true }
+          $stable = ''
+        } else { $stable = $h; Start-Sleep -Milliseconds 200 }
+      }
+      return $false
+    }
+    $chrome = $null; $chromeLaunchErr = ''
+    try { $chrome = Start-Process $chromeExe -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$chromeProfile", 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { $chromeLaunchErr = "$_" }
+    if (-not $chrome) {
+      Assert 'CROSS-BROWSER: chrome launch' $false "Start-Process $chromeExe failed: $chromeLaunchErr"
+    } else {
+      Info 'chrome fixture launched' "exe=$chromeExe pid=$($chrome.Id) profile=$chromeProfile"
+      $expectedHosts = @('www.iana.org', 'www.rfc-editor.org')   # launched URL order => tab strip order
+      $script:tabLastHosts = @('', '')
+      $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
+      $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
+      while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
+        $w = ChromeFixtureWin
+        if ($w) {
+          $csawWin = $true
+          $tabs = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+          if ($tabs.Count -gt $csawTabs) { $csawTabs = $tabs.Count }
+          $tabTitles = (@($tabs | ForEach-Object { try { $_.Current.Name } catch { '?' } }) -join ' | ')
+          if ($tabs.Count -gt 2) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
+          if ($tabs.Count -eq 2) {
+            $origTab = $null
+            foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $origTab = $t } } catch { } }
+            try {
+              $ok0 = ChromeTabExpectHost $w $tabs[0] $expectedHosts[0] 0 $deadlineC
+              $ok1 = ChromeTabExpectHost $w $tabs[1] $expectedHosts[1] 1 $deadlineC
+            } finally {
+              try { if ($origTab) { $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } } catch { }
+            }
+            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1])"
+            if ($ok0 -and $ok1) { $cw = $w; break }
+          }
+        }
+        Start-Sleep -Milliseconds 400
+      }
+      if ($tooMany) {
+        Assert 'CROSS-BROWSER: exactly the two launched fixture tabs in launch order' $false "found $csawTabs tabs: $tabTitles"
+      } elseif (-not $cw) {
+        $procDiag = (@(ChromeFixturePids | ForEach-Object { "pid=$_" }) -join ',')
+        $launchState = ''; try { $launchState = "launchedHasExited=$($chrome.HasExited)"; if ($chrome.HasExited) { $launchState += " exitCode=$($chrome.ExitCode)" } } catch { $launchState = "launchedStateError=$_" }
+        Assert 'CROSS-BROWSER: chrome window with both fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
+      } else {
+        Assert 'CROSS-BROWSER: chrome window with both fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
+        $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
+        Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+        Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+        $cnames = CheckNames
+        Info 'detected rows (chrome check)' ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed' ($null -ne (CheckByLike '*rfc-editor.org*')) ($cnames -join ' | ')
+        Shot 'chrome-check-scan'
+        $c = ClickBtn 'Close capture' 900; Assert 'capture closed after chrome check' ($c -eq 'ok') $c
+        if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (chrome check)' ($c -eq 'ok') $c }
+      }
+      foreach ($pidF in @(ChromeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }
+      Remove-Item $chromeProfile -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 
   # 8. localized browser UI: Edge with Hebrew UI must still be detected (locale-independent omnibox lookup; the accessible Name is localized, the class name is not)

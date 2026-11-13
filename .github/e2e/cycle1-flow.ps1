@@ -227,6 +227,27 @@ try {
   # design preview baseline: persisted design BEFORE any edits (autosave would otherwise fake a green unchanged-check)
   $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id; $col0 = $wsD0.color; $img0 = $wsD0.imagePath
   Info 'design persisted state before preview edits' ("ws=$wsDId color='$col0' imagePath='$img0'")
+  # Regression (PR19 review): one click on 'Upload card image' must open exactly ONE native picker - the
+  # window used to subscribe the VM events twice (DataContextChanged + Loaded), queuing a second
+  # OpenFileDialog behind the first. Close the dialog via its WindowPattern; a duplicate reappears within 2s.
+  $upBtn = Btn 'Upload card image'; Assert 'upload image button present in the design popup' ($null -ne $upBtn) ''
+  if ($upBtn) {
+    [void](InvokeEl $upBtn 'upload image button')
+    # Match the picker by the APP process + window control type + the explicit Hebrew title set in code
+    # (locale-independent). Close it, require it gone, then keep polling 3s: a duplicate subscription
+    # queues a second dialog behind the first and any appearance inside the poll fails the test.
+    $findDlg = { @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id))) | Where-Object { try { $_.Current.ControlType -eq $CT::Window -and $_.Current.Name -eq 'העלה תמונה' } catch { $false } }) }
+    $dlg = $null; for ($t = 0; $t -lt 25 -and $null -eq $dlg; $t++) { Start-Sleep -Milliseconds 200; $hit = @(& $findDlg); if ($hit.Count -gt 0) { $dlg = $hit[0] } }
+    Assert 'native picker opened on upload click' ($null -ne $dlg) ''
+    if ($dlg) {
+      try { $dlg.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close() } catch { }
+      $gone = $false; for ($t = 0; $t -lt 15 -and -not $gone; $t++) { Start-Sleep -Milliseconds 200; $gone = (@(& $findDlg).Count -eq 0) }
+      Assert 'first native picker actually closed before the duplicate check' $gone ''
+      $dup = $false; for ($t = 0; $t -lt 15 -and -not $dup; $t++) { Start-Sleep -Milliseconds 200; $again = @(& $findDlg); if ($again.Count -gt 0) { $dup = $true; try { $again[0].GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close() } catch { } } }
+      Assert 'no second native picker within 3s after the first closed (single VM subscription)' (-not $dup) ''
+      Assert 'image path unchanged after the cancelled picker' ((ValOf (NamedEdit 'Card image path')) -eq $img0) ("box='$(ValOf (NamedEdit 'Card image path'))' img0='$img0'")
+    }
+  }
   if ($colorBox) { SetText $colorBox '#BFDBFE' }
   # 9a. design preview reflects UNSAVED values (preview border bound to DesignColor/DesignImagePath via the same converters as the card; save only persists them)
   $prevEl = AnyByName 'Card design preview'; Assert 'design preview element present' ($null -ne $prevEl) ''
