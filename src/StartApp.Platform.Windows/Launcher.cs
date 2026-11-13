@@ -88,7 +88,7 @@ public sealed class WindowsOpenItemCapturer : IOpenItemCapturer
             }
         }
         catch (Exception e) when (e is System.Runtime.InteropServices.COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or PlatformNotSupportedException or NotSupportedException) { notes.Add("Folders: could not read File Explorer windows (" + e.GetType().Name + ")"); }
-        notes.Add("Files: documents open inside programs are not detected (Windows gives no general way to ask a program which file it has open)");
+        notes.Add("Files: documents open inside programs are not detected by the current version");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }
