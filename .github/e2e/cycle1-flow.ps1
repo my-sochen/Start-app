@@ -1,6 +1,47 @@
 try {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
+# Native top-level window toolkit for owner-aware dialog discovery. A modal common-item dialog is an OWNED
+# top-level HWND. The first live run (43479971420) left the visibly open picker undetected by a
+# desktop-children UIA search; the exact topology cause is unproven, so discovery here does not depend on
+# the UIA tree at all: it enumerates real native windows of the app process and binds them to the main
+# window through the Win32 owner chain.
+Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class WinN {
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr lparam);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr w, IntPtr l);
+  delegate bool EnumProc(IntPtr hWnd, IntPtr lparam);
+  public const uint WM_CLOSE = 0x0010;
+  public static string Esc(string s) {
+    var b = new StringBuilder();
+    foreach (var ch in s) {
+      int c = ch;
+      if (c < 0x20 || c == 0x7F || char.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.Format) b.Append(string.Format("\\u{0:X4}", c));
+      else b.Append(ch);
+    }
+    return b.ToString();
+  }
+  public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  public static IntPtr OwnerOf(IntPtr h) { return GetWindow(h, 4); } // GW_OWNER
+  public static string TitleOf(IntPtr h) { var sb = new StringBuilder(512); GetWindowTextW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static string ClassOf(IntPtr h) { var sb = new StringBuilder(256); GetClassNameW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static List<IntPtr> TopLevelOfPid(uint pid) {
+    var found = new List<IntPtr>();
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) found.Add(h); return true; }, IntPtr.Zero);
+    return found;
+  }
+}
+'@
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
 $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
 function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
@@ -33,6 +74,34 @@ function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (Ne
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = $win.Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
 function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
+function OwnerChainOf($hwnd) { $chain = @(); $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -ne [IntPtr]::Zero) { $chain += ("0x{0:X}" -f $h.ToInt64()) } } return ($chain -join '>') }
+function OwnerChainHas($hwnd, $ancestor) { $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -eq $ancestor) { return $true } } return $false }
+function PickerEligible($h) {
+  # Eligible native picker: a visible top-level window of the app process, not the main window, owned
+  # (directly or through its owner chain) by the main app window, and either a native dialog class or
+  # carrying the hardcoded picker title. Title alone is NOT required: a queued duplicate must be caught
+  # even if its title were to differ unexpectedly.
+  if ($h -eq $script:mainHwnd) { return $false }
+  if (-not [WinN]::IsWindowVisible($h)) { return $false }
+  if (-not (OwnerChainHas $h $script:mainHwnd)) { return $false }
+  $cls = [WinN]::ClassOf($h); $title = [WinN]::TitleOf($h)
+  return ($cls -eq '#32770' -or $title -like '*העלה תמונה*')
+}
+function AppWindowDump() {
+  # Raw per-window diagnostics for EVERY top-level window of the app process, eligible or not: native
+  # HWND/PID/class/owner-chain/visibility/title, the eligibility verdict, and the UIA view (native handle,
+  # Name with invisible format marks escaped as \uXXXX, ControlType, WindowPattern IsModal). Logged on
+  # success and failure alike so any detection miss - including a visible app-owned window with an
+  # unexpected class and title - is classifiable from the artifact.
+  $lines = @()
+  foreach ($h in [WinN]::TopLevelOfPid([uint32]$p.Id)) {
+    $t = [WinN]::TitleOf($h); $c = [WinN]::ClassOf($h); $vis = [WinN]::IsWindowVisible($h); $elig = PickerEligible $h
+    $uia = ''; try { $el = [System.Windows.Automation.AutomationElement]::FromHandle($h); $modal = 'n/a'; try { $modal = "$($el.GetCurrentPropertyValue([System.Windows.Automation.WindowPattern]::IsModalProperty))" } catch { }; $uia = ("uiaHandle=0x{0:X} uiaName='{1}' uiaCT={2} uiaModal={3}" -f $el.Current.NativeWindowHandle, [WinN]::Esc($el.Current.Name), $el.Current.ControlType.ProgrammaticName, $modal) } catch { $uia = ("uiaErr='{0}'" -f $_.Exception.Message) }
+    $lines += ("hwnd=0x{0:X} pid={1} cls='{2}' ownerChain=[{3}] vis={4} eligible={5} nativeTitle='{6}' {7}" -f $h.ToInt64(), [WinN]::PidOf($h), $c, (OwnerChainOf $h), $vis, $elig, [WinN]::Esc($t), $uia)
+  }
+  return ($lines -join ' || ')
+}
+function FindPickers() { @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { PickerEligible $_ }) }
 function SetType($typeName) {
   $combo = NamedCombo 'Item type'
   if (-not $combo) { return 'item type combo not found' }
@@ -59,6 +128,8 @@ try {
   Assert 'app window opened with no store' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
+  $script:mainHwnd = $p.MainWindowHandle
+  Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
   Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
   $wsNameBox = NamedEdit 'Workspace name'; $wsDescBox = NamedEdit 'Workspace description'
@@ -229,24 +300,40 @@ try {
   Info 'design persisted state before preview edits' ("ws=$wsDId color='$col0' imagePath='$img0'")
   # Regression (PR19 review): one click on 'Upload card image' must open exactly ONE native picker - the
   # window used to subscribe the VM events twice (DataContextChanged + Loaded), queuing a second
-  # OpenFileDialog behind the first. Close the dialog via its WindowPattern; a duplicate reappears within 2s.
+  # OpenFileDialog behind the first. Discovery is native and owner-aware (see WinN/PickerEligible above):
+  # the first live run's desktop-children UIA search failed to find the visibly open owned dialog (topology
+  # cause unproven), so discovery here does not depend on the UIA tree shape. Detection, close,
+  # disappearance and duplicate checks all bind to the same native HWND; diagnostics are logged on success
+  # too. Any failure snapshots the screen and throws: the outer catch writes errors/assertions and the
+  # finally kills the fixture, so the flow never continues to unrelated pixel asserts behind a modal.
   $upBtn = Btn 'Upload card image'; Assert 'upload image button present in the design popup' ($null -ne $upBtn) ''
   if ($upBtn) {
-    [void](InvokeEl $upBtn 'upload image button')
-    # Match the picker by the APP process + window control type + the explicit Hebrew title set in code
-    # (locale-independent). Close it, require it gone, then keep polling 3s: a duplicate subscription
-    # queues a second dialog behind the first and any appearance inside the poll fails the test.
-    $findDlg = { @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id))) | Where-Object { try { $_.Current.ControlType -eq $CT::Window -and $_.Current.Name -eq 'העלה תמונה' } catch { $false } }) }
-    $dlg = $null; for ($t = 0; $t -lt 25 -and $null -eq $dlg; $t++) { Start-Sleep -Milliseconds 200; $hit = @(& $findDlg); if ($hit.Count -gt 0) { $dlg = $hit[0] } }
-    Assert 'native picker opened on upload click' ($null -ne $dlg) ''
-    if ($dlg) {
-      try { $dlg.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close() } catch { }
-      $gone = $false; for ($t = 0; $t -lt 15 -and -not $gone; $t++) { Start-Sleep -Milliseconds 200; $gone = (@(& $findDlg).Count -eq 0) }
-      Assert 'first native picker actually closed before the duplicate check' $gone ''
-      $dup = $false; for ($t = 0; $t -lt 15 -and -not $dup; $t++) { Start-Sleep -Milliseconds 200; $again = @(& $findDlg); if ($again.Count -gt 0) { $dup = $true; try { $again[0].GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close() } catch { } } }
-      Assert 'no second native picker within 3s after the first closed (single VM subscription)' (-not $dup) ''
-      Assert 'image path unchanged after the cancelled picker' ((ValOf (NamedEdit 'Card image path')) -eq $img0) ("box='$(ValOf (NamedEdit 'Card image path'))' img0='$img0'")
-    }
+    $pre = @(FindPickers)
+    Info 'eligible app-owned dialogs before upload click' ("count=$($pre.Count) windows: $(AppWindowDump)")
+    if ($pre.Count -gt 0) { Assert 'no picker already open before the upload click' $false (AppWindowDump); Shot 'picker-failure'; throw 'a picker dialog was already open before the upload click' }
+    # InvokeEl writes Assert's result line to the output stream before returning $false, so a plain
+    # assignment captures a 2-element array (truthy) - take the LAST element to get the exact boolean.
+    $invoked = @(InvokeEl $upBtn 'upload image button')[-1]
+    if (-not $invoked) { Shot 'picker-failure'; throw 'upload image button invocation failed' }
+    $dlgHwnd = [IntPtr]::Zero; $extra = 0; $hits = @()
+    for ($t = 0; $t -lt 25 -and $dlgHwnd -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $hits = @(FindPickers); if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 } }
+    $opened = $dlgHwnd -ne [IntPtr]::Zero
+    Assert 'native picker opened on upload click' $opened (AppWindowDump)
+    if (-not $opened) { Shot 'picker-failure'; throw 'picker open detection failed after one upload click' }
+    Info 'picker discovered' ("hwnd=0x{0:X} extraEligible={1} windows: {2}" -f $dlgHwnd.ToInt64(), $extra, (AppWindowDump))
+    Assert 'exactly one eligible app-owned picker after one upload click' ($extra -eq 0) (AppWindowDump)
+    if ($extra -gt 0) { foreach ($x in $hits) { if ($x -ne $dlgHwnd) { try { [void][WinN]::PostMessage($x, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { } } }; Shot 'picker-failure'; throw 'more than one eligible app-owned picker after a single upload click' }
+    # Close THAT specific handle with a bounded native PostMessage WM_CLOSE (UIA WindowPattern.Close and
+    # SendMessage can both block on modal message processing). Only the disappearance of the same HWND
+    # proves the close.
+    [void][WinN]::PostMessage($dlgHwnd, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
+    $gone = $false; for ($t = 0; $t -lt 15 -and -not $gone; $t++) { Start-Sleep -Milliseconds 200; $gone = -not [WinN]::IsWindow($dlgHwnd) }
+    Assert 'first native picker actually closed before the duplicate check' $gone ("hwnd=0x{0:X} stillAlive={1} windows: {2}" -f $dlgHwnd.ToInt64(), ([WinN]::IsWindow($dlgHwnd)), (AppWindowDump))
+    if (-not $gone) { Shot 'picker-failure'; throw 'picker HWND still alive after close' }
+    $dup = [IntPtr]::Zero; for ($t = 0; $t -lt 15 -and $dup -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $again = @(FindPickers); if ($again.Count -gt 0) { $dup = $again[0] } }
+    Assert 'no second native picker within 3s after the first closed (single VM subscription)' ($dup -eq [IntPtr]::Zero) (AppWindowDump)
+    if ($dup -ne [IntPtr]::Zero) { try { [void][WinN]::PostMessage($dup, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { }; Shot 'picker-failure'; throw 'duplicate picker queued behind the first (double VM subscription regression)' }
+    Assert 'image path unchanged after the cancelled picker' ((ValOf (NamedEdit 'Card image path')) -eq $img0) ("box='$(ValOf (NamedEdit 'Card image path'))' img0='$img0'")
   }
   if ($colorBox) { SetText $colorBox '#BFDBFE' }
   # 9a. design preview reflects UNSAVED values (preview border bound to DesignColor/DesignImagePath via the same converters as the card; save only persists them)
