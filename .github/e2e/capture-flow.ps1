@@ -573,7 +573,7 @@ try {
   }
 
   # 8. localized browser UI: Edge with Hebrew UI must still be detected (locale-independent omnibox lookup; the accessible Name is localized, the class name is not)
-  $edgeHe = $null; try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $edgeHe = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--lang=he', 'https://example.com/' -PassThru } catch { Info 'edge-he start' "$_" }
+  $edgeHe = $null; try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $edgeHe = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--lang=he', "--user-data-dir=$env:RUNNER_TEMP\edge-he-profile", 'https://example.com/' -PassThru } catch { Info 'edge-he start' "$_" }
   if ($edgeHe) {
     Start-Sleep -Seconds 7
     try {
