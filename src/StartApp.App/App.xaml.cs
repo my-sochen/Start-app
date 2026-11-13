@@ -24,8 +24,9 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e) { _store?.Dispose(); base.OnExit(e); }
 }
 
-/// <summary>PARTIAL site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation. It sees only the ACTIVE tab of each window
-/// (not background tabs), and only browsers whose address bar is named "Address and search bar". Other tabs need a browser extension (not built, not decided).</summary>
+/// <summary>Site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab
+/// in turn (then restoring the tab the user was on) so every tab's address is captured, not just the active one. A browser extension
+/// (not built, not decided) would avoid the visible tab switching.</summary>
 public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
 {
     private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase) { "chrome", "msedge", "brave" };
@@ -42,6 +43,7 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
         // Only browser windows are touched through UI Automation (never this app's own window, which would deadlock on the UI thread).
         foreach (var hwnd in handles)
         {
+            System.Windows.Automation.AutomationElement? originallySelected = null;
             try
             {
                 var w = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
@@ -49,15 +51,45 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.Edit),
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.NameProperty, "Address and search bar")));
                 if (edit is null) continue;
-                var v = ((System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern)).Current.Value;
-                var site = CaptureRules.SiteFromAddressText(v);
-                if (site is null) continue;
-                var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
-                items.Add(new CapturedItem(ItemType.Link, host, site));
+                var value = (System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                // The address bar always shows the ACTIVE tab's address, so each read below follows a real tab selection.
+                void Collect()
+                {
+                    var site = CaptureRules.SiteFromAddressText(value.Current.Value);
+                    if (site is null || !seen.Add(site)) return;
+                    var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
+                    items.Add(new CapturedItem(ItemType.Link, host, site));
+                }
+                Collect(); // the tab the user is looking at
+                var tabs = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
+                    new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.TabItem));
+                foreach (System.Windows.Automation.AutomationElement t in tabs)
+                {
+                    try
+                    {
+                        if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern sip) continue;
+                        if (sip.Current.IsSelected) { originallySelected ??= t; continue; }
+                        var before = value.Current.Value;
+                        sip.Select();
+                        var until = DateTime.UtcNow.AddMilliseconds(400);
+                        while (DateTime.UtcNow < until)
+                        {
+                            System.Threading.Thread.Sleep(50);
+                            try { if (value.Current.Value != before) break; } catch (System.Windows.Automation.ElementNotAvailableException) { break; }
+                        }
+                        Collect();
+                    }
+                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+                }
             }
             catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+            // Leave the user's browser exactly as found: re-select the tab that was active before the scan.
+            if (originallySelected != null)
+                try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
+                catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
         }
-        notes.Add("Sites: only the active tab of each open Chrome/Edge/Brave window is detected, not other tabs");
+        notes.Add("Sites: every tab of each open Chrome/Edge/Brave window is detected; during the scan each tab is briefly selected to read its address");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }
