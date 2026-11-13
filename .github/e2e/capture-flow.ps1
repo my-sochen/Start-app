@@ -1,6 +1,6 @@
 try {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
-Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
 $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
 function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
@@ -26,7 +26,7 @@ function DumpState($why) {
   } catch { "DUMP failed: $_" | Tee-Object -Append diag/errors.txt }
 }
 function Shot($state) {
-  [void][W]::SetCursorPos(5, 5); if ($p.MainWindowHandle -ne 0) { [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x27) }; Start-Sleep -Milliseconds 400
+  [void][W]::SetCursorPos(5, 5); if ($p.MainWindowHandle -ne 0) { [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) }; Start-Sleep -Milliseconds 400
   $f = "out-images/cap-$state.png"
   $w0 = CurWin; if ($null -eq $w0) { "no app window for $state" | Tee-Object -Append diag/errors.txt; return }
   $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
@@ -100,6 +100,25 @@ function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
 function StagedNames() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))) | ForEach-Object { ValOf $_ }) }
 function StagedAddrs() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))) | ForEach-Object { ValOf $_ }) }
+function ScrollStaged([int]$delta) {
+  # Real mouse wheel over the staged panel: scrolls the innermost scrollable under the cursor, like a user's wheel.
+  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address')))))
+  if ($null -eq $anchor) { return }
+  $r = $anchor.Current.BoundingRectangle; if ($r.Width -le 0) { return }
+  [void][W]::SetCursorPos([int]($r.X + [Math]::Min(200, $r.Width / 2)), [int]($r.Y + $r.Height / 2)); Start-Sleep -Milliseconds 150
+  $d = if ($delta -lt 0) { [uint32](4294967296 + $delta) } else { [uint32]$delta }
+  [W]::mouse_event(0x0800, 0, 0, $d, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 450
+}
+function StagedAddrsDeep() {
+  # The staged list is virtualized: UIA only returns rendered rows. Wheel through the panel and union what renders.
+  # Distinct addresses only (enough for the sections that stage each row once).
+  $seen = @{}; $ordered = New-Object System.Collections.ArrayList
+  foreach ($a in (StagedAddrs)) { if ($a -and -not $seen.ContainsKey($a)) { $seen[$a] = 1; [void]$ordered.Add($a) } }
+  for ($i = 0; $i -lt 20; $i++) { ScrollStaged -360; foreach ($a in (StagedAddrs)) { if ($a -and -not $seen.ContainsKey($a)) { $seen[$a] = 1; [void]$ordered.Add($a) } } }
+  for ($i = 0; $i -lt 20; $i++) { ScrollStaged 360 }
+  return $ordered
+}
+function WsCountByTarget($ws, $o, $like) { $ids = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like $like } | ForEach-Object { $_.id }); return @($ws.items | Where-Object { $ids -contains $_.itemId }).Count }
 function StagedActionBtns() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Staged item actions')))))) }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
@@ -156,6 +175,8 @@ try {
   Assert 'ALL TABS: background tab example.net is listed' ($null -ne (CheckByLike '*example.net*')) ($names -join ' | ')
   $edgeTabAfter = EdgeSelectedTabIndex
   Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter")
+  $fgPid = [uint32]0; [void][W]::GetWindowThreadProcessId([W]::GetForegroundWindow(), [ref]$fgPid)
+  Info 'foreground window after the all-tabs scan' $(if ($fgPid -eq $p.Id) { 'app (scan did not raise the browser)' } elseif ($edge -and -not $edge.HasExited -and $fgPid -eq $edge.Id) { 'edge - the scan raises the scanned browser window' } else { "another window (pid $fgPid)" })
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
@@ -442,6 +463,65 @@ try {
   Shot 'add-from-open-details-entry'
   $c = ClickBtn 'Capture back' 900; Assert 'back from details entry goes to the workspace search' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
   $c = ClickBtn 'Close capture' 900; Assert 'closed' ($c -eq 'ok') $c
+  # 5b. out-of-viewport staging: multi-tab capture stages more rows than the panel renders.
+  # Staged set, save and below-viewport removal are verified against the store, not the rendered rows.
+  $c = ClickBtn 'Back' 900; Assert 'back to overview for deep staging' ($c -eq 'ok') $c
+  $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep staging)' ($c -eq 'ok') $c
+  Assert 'capture screen shown (deep staging)' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'deep staging scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep staging' ($c -eq 'ok') $c
+  $storeBeforeDeep = StoreJson
+  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
+  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'Already in this workspace' 5) -and $null -ne (CheckByLike 'Add again: capfolder*') -and $null -eq (CheckByLike 'Add again: *example*')) ((CheckNames) -join ' | ')
+  $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
+  $deepStaged = @(StagedAddrsDeep)
+  $expectDeep = @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*', '*example.net*')
+  $missingDeep = @(); foreach ($e in $expectDeep) { if (@($deepStaged | Where-Object { $_ -like $e }).Count -eq 0) { $missingDeep += $e } }
+  Assert 'deep staging: exactly the 5 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 5) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: nothing saved before the choice' ((StoreJson) -eq $storeBeforeDeep) ''
+  Shot 'deep-staging-staged'
+  $c = ClickBtn 'Capture save' 1500; Assert 'deep staging save clicked' ($c -eq 'ok') $c
+  Assert 'deep staging: app reports saving all 5 rows' (WaitText 'Saved 5 items' 3) ((Texts) -join ' | ')
+  $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  foreach ($e in $expectDeep) { Assert "deep staging: $e saved exactly once to Cap B" ((WsCountByTarget $wsB $o $e) -eq 1) "count=$(WsCountByTarget $wsB $o $e)" }
+  Assert 'deep staging: every saved instance has a non-empty name' (@($wsB.items | Where-Object { [string]::IsNullOrWhiteSpace($_.name) }).Count -eq 0) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep save' ($c -eq 'ok') $c
+
+  # 5c. below-viewport removal: restage five duplicate rows, wheel to a row the panel does not render, remove it, save the rest
+  $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep removal)' ($c -eq 'ok') $c
+  Assert 'capture screen shown (deep removal)' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'deep removal scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
+  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
+  Assert 'deep removal: grouped dialog for every row now that all six are duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'Add again:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the five ticked duplicates (deep removal)' ($c -eq 'ok') $c
+  $deep2 = @(StagedAddrsDeep)
+  Assert 'deep removal: five duplicate rows staged beyond the viewport' (($deep2.Count -eq 5) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
+  $removedNet = $false
+  for ($i = 0; $i -lt 20 -and -not $removedNet; $i++) {
+    $rb = Btn 'Remove added example.net'
+    if ($rb) { try { $rb.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); $removedNet = $true } catch { }; Start-Sleep -Milliseconds 600; break }
+    ScrollStaged -360
+  }
+  Assert 'below-viewport staged row example.net realized and removed' $removedNet ''
+  $deep3 = @(StagedAddrsDeep)
+  Assert 'deep removal: staged set is the four kept rows' (($deep3.Count -eq 4) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
+  $c = ClickBtn 'Capture save' 1500; Assert 'deep removal save clicked' ($c -eq 'ok') $c
+  Assert 'deep removal: app reports saving the 4 kept rows' (WaitText 'Saved 4 items' 3) ((Texts) -join ' | ')
+  $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'deep removal: Cap B holds exactly 12 rows after the kept four saved' (@($wsB.items).Count -eq 12) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
+  foreach ($e in @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
+  Assert 'deep removal: the folder stayed at its two instances' ((WsCountByTarget $wsB $o '*capfolder*') -eq 2) "count=$(WsCountByTarget $wsB $o '*capfolder*')"
+  Assert 'deep removal: every instance name still non-empty' (@($wsB.items | Where-Object { [string]::IsNullOrWhiteSpace($_.name) }).Count -eq 0) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
+
   # 6. instance independence across workspaces: renaming Cap A's instance never touches Cap B's
   if (-not (WaitText 'Created:' 2)) { $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details (independence)' ($c -eq 'ok') $c; Assert 'Cap A details shown' (WaitText 'Created:' 10) '' }
   $c = ClickBtn 'Edit item' 900; Assert 'edit Cap A folder instance' ($c -eq 'ok') $c
