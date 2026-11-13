@@ -33,6 +33,15 @@ function Shot($state) {
   if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
   $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
 }
+function ShotRaw($state) {
+  # Evidence shot with NO window-raise: captures whatever is actually on screen over the app region.
+  [void][W]::SetCursorPos(5, 5)
+  $f = "out-images/cap-$state.png"
+  $w0 = CurWin; if ($null -eq $w0) { "no app window for $state" | Tee-Object -Append diag/errors.txt; return }
+  $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
+  if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+  $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+}
 function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { $w0 = CurWin; if ($null -eq $w0) { if ($t -eq 2) { "UIA window gone for pid $($p.Id): appHasExited=$($p.HasExited) mainWindowHandle=$($p.MainWindowHandle)" | Out-File -Append diag/uia-liveness.txt; return @() }; Start-Sleep -Milliseconds 400; continue }; try { return $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $ct))) } catch { if ($t -eq 2) { "UIA read failed after retries: $($_.Exception.Message) | appHasExited=$(if ($p) { $p.HasExited } else { "no-process" }) mainWindowHandle=$(if ($p) { $p.MainWindowHandle } else { "-" })" | Out-File -Append diag/uia-liveness.txt; throw }; Start-Sleep -Milliseconds 400 } } }
 function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
@@ -177,6 +186,7 @@ try {
   Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter")
   $fgPid = [uint32]0; [void][W]::GetWindowThreadProcessId([W]::GetForegroundWindow(), [ref]$fgPid)
   Info 'foreground window after the all-tabs scan' $(if ($fgPid -eq $p.Id) { 'app (scan did not raise the browser)' } elseif ($edge -and -not $edge.HasExited -and $fgPid -eq $edge.Id) { 'edge - the scan raises the scanned browser window' } else { "another window (pid $fgPid)" })
+  ShotRaw 'post-scan-before-raise'
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
