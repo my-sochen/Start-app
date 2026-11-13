@@ -297,6 +297,9 @@ try {
   $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
   # design preview baseline: persisted design BEFORE any edits (autosave would otherwise fake a green unchanged-check)
   $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id; $col0 = $wsD0.color; $img0 = $wsD0.imagePath
+  # The 'unchanged' proof later compares against $img0: the baseline object must CARRY the property (null
+  # allowed) - a missing field must not be silently treated as a known no-image state.
+  Assert 'baseline design object carries an imagePath property (null allowed)' ($null -ne $wsD0 -and $wsD0.PSObject.Properties.Name -contains 'imagePath') ("props=$(if ($null -ne $wsD0) { ($wsD0.PSObject.Properties.Name) -join ',' } else { 'no-workspace' })")
   Info 'design persisted state before preview edits' ("ws=$wsDId color='$col0' imagePath='$img0'")
   # Regression (PR19 review): one click on 'Upload card image' must open exactly ONE native picker - the
   # window used to subscribe the VM events twice (DataContextChanged + Loaded), queuing a second
@@ -333,7 +336,18 @@ try {
     $dup = [IntPtr]::Zero; for ($t = 0; $t -lt 15 -and $dup -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $again = @(FindPickers); if ($again.Count -gt 0) { $dup = $again[0] } }
     Assert 'no second native picker within 3s after the first closed (single VM subscription)' ($dup -eq [IntPtr]::Zero) (AppWindowDump)
     if ($dup -ne [IntPtr]::Zero) { try { [void][WinN]::PostMessage($dup, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { }; Shot 'picker-failure'; throw 'duplicate picker queued behind the first (double VM subscription regression)' }
-    Assert 'image path unchanged after the cancelled picker' ((ValOf (NamedEdit 'Card image path')) -eq $img0) ("box='$(ValOf (NamedEdit 'Card image path'))' img0='$img0'")
+    # 'unchanged image path' proof without ValOf's silent '': the editor must EXIST, its ValuePattern read
+    # must SUCCEED, and the value is captured once. A fresh workspace persists imagePath as JSON null while
+    # the edit Value is '' - interpolation normalizes that to the same 'no image' state without masking a
+    # missing editor or failed read, which would otherwise pass a bare '' -eq '' comparison.
+    $imgEdit = NamedEdit 'Card image path'
+    Assert 'card image path editor present after the cancelled picker' ($null -ne $imgEdit) ''
+    if ($null -eq $imgEdit) { Shot 'picker-failure'; throw 'card image path editor not found after the cancelled picker' }
+    $imgRead = $false; $imgNow = ''
+    try { $imgNow = $imgEdit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value; $imgRead = $true } catch { }
+    Assert 'card image path value readable after the cancelled picker' $imgRead ''
+    if (-not $imgRead) { Shot 'picker-failure'; throw 'card image path ValuePattern read failed after the cancelled picker' }
+    Assert 'image path unchanged after the cancelled picker' (("$imgNow") -eq ("$img0")) ("box='$imgNow' img0='$img0'")
   }
   if ($colorBox) { SetText $colorBox '#BFDBFE' }
   # 9a. design preview reflects UNSAVED values (preview border bound to DesignColor/DesignImagePath via the same converters as the card; save only persists them)
