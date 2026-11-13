@@ -994,17 +994,6 @@ public sealed class MainViewModel : ObservableBase
     public ICommand ConfirmCaptureDupGroupCommand { get; private set; } = null!;
     public ICommand CancelCaptureDupGroupCommand { get; private set; } = null!;
     private bool CaptureIdle => !_dupGroup && _dupSingle == null;
-    // TEMP CI diagnostics (v38): trace drag/drop duplication. Remove after the false-warning investigation.
-    public static void CiDropLog(string msg)
-    {
-        try
-        {
-            var d = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp");
-            System.IO.Directory.CreateDirectory(d);
-            System.IO.File.AppendAllText(System.IO.Path.Combine(d, "drop-log.txt"), $"{DateTime.Now:HH:mm:ss.fff} {msg}\r\n");
-        }
-        catch { }
-    }
     private void InitCaptureCommands()
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview);
@@ -1108,11 +1097,8 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>One item dragged (or dropped by the view) onto the workspace side: a duplicate gets its own warning for that one drag.</summary>
     public void DropCaptured(CaptureRow r)
     {
-        CiDropLog($"VM-DROP {r.Name} ws={_capWsId} side={IsCaptureSide} idle={CaptureIdle} staged={StagedRows.Count}");
         if (!IsCaptureSide || !CaptureIdle) return;
-        var dup = IsCaptureDuplicate(r);
-        CiDropLog($"VM-DUPCHECK {r.Name} dup={dup}");
-        if (dup)
+        if (IsCaptureDuplicate(r))
         {
             _dupSingle = r; CaptureDupSingleMessage = $"'{r.Name}' is already in this workspace (or already added here). Add it again as a separate instance?";
             Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); return;
