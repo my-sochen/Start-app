@@ -273,7 +273,11 @@ try {
         $p2 = $crop.GetPixel([math]::Min($pw - 1, $leftBand + 1), $rowY); $rightOfLeft = "rgb($($p2.R),$($p2.G),$($p2.B))"
         # capture the bottom-edge pixels INSIDE the crop lifetime (it is disposed at loop end);
         # System.Drawing.Color is a value type, so the stored structs stay usable after Dispose.
-        $botCols = @(20, [int]($pw/4), [int]($pw/2), [int](3*$pw/4), $pw-21)
+        # PowerShell parses a bare trailing arithmetic expression in a multi-element comma list as
+        # applying to the whole array (Object[] op_Subtraction runtime error, gate run 43461297010);
+        # precompute the columns as scalars instead - do NOT inline arithmetic here.
+        $bc1 = 20; $bc2 = [int]($pw / 4); $bc3 = [int]($pw / 2); $bc4 = [int](3 * $pw / 4); $bc5 = $pw - 21
+        $botCols = @($bc1, $bc2, $bc3, $bc4, $bc5)
         $botLast = @(); $botSec = @()
         foreach ($cx in $botCols) { $botLast += ,$crop.GetPixel($cx, $ph - 1); $botSec += ,$crop.GetPixel($cx, $ph - 2) }
         $okImg = (& $isImg $p1) -and (& $isImg $p2)
