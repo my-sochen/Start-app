@@ -147,6 +147,13 @@ jobs:
     - uses: actions/upload-artifact@v7.0.2
       if: always()
       with:
+        name: shot-cap-4c-after-drag-cap-a
+        path: out-images/cap-4c-after-drag-cap-a.png
+        if-no-files-found: warn
+        archive: false
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
         name: shot-feat-01-details-after-create-empty
         path: out-images/feat-01-details-after-create-empty.png
         if-no-files-found: warn
