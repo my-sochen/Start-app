@@ -296,10 +296,16 @@ try {
         Shot 'design-popup-open'
   $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
   # design preview baseline: persisted design BEFORE any edits (autosave would otherwise fake a green unchanged-check)
-  $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id; $col0 = $wsD0.color; $img0 = $wsD0.imagePath
-  # The 'unchanged' proof later compares against $img0: the baseline object must CARRY the property (null
-  # allowed) - a missing field must not be silently treated as a known no-image state.
-  Assert 'baseline design object carries an imagePath property (null allowed)' ($null -ne $wsD0 -and $wsD0.PSObject.Properties.Name -contains 'imagePath') ("props=$(if ($null -ne $wsD0) { ($wsD0.PSObject.Properties.Name) -join ',' } else { 'no-workspace' })")
+  $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id
+  # Design fields are nullable and the store OMITS nulls by contract (JsonStore.cs: DefaultIgnoreCondition
+  # = WhenWritingNull; Model.cs: string? Color / string? ImagePath), so a fresh workspace's JSON has NO
+  # color/imagePath properties at all. Absent therefore means the product-defined default (null), not an
+  # unknown state. Presence is recorded as evidence below; the values are read defensively either way.
+  Assert 'baseline design object present and carries its identity' ($null -ne $wsD0 -and -not [string]::IsNullOrEmpty($wsDId)) ("props=$(if ($null -ne $wsD0) { ($wsD0.PSObject.Properties.Name) -join ',' } else { 'no-workspace' })")
+  $hasColProp = ($null -ne $wsD0) -and ($wsD0.PSObject.Properties.Name -contains 'color')
+  $hasImgProp = ($null -ne $wsD0) -and ($wsD0.PSObject.Properties.Name -contains 'imagePath')
+  $col0 = if ($hasColProp) { $wsD0.color } else { $null }; $img0 = if ($hasImgProp) { $wsD0.imagePath } else { $null }
+  Info 'baseline design property presence (store contract: absent means null)' ("colorProp=$hasColProp imagePathProp=$hasImgProp col0='$col0' img0='$img0'")
   Info 'design persisted state before preview edits' ("ws=$wsDId color='$col0' imagePath='$img0'")
   # Regression (PR19 review): one click on 'Upload card image' must open exactly ONE native picker - the
   # window used to subscribe the VM events twice (DataContextChanged + Loaded), queuing a second
