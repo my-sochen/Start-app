@@ -1410,6 +1410,902 @@ public static class DlgDrive {
   }
   # DIAG-FN-END
 
+  # PWCAP-DIAG-START (r8 candidate): saved-card PrintWindow-capture diagnostic oracle - ADDITIVE
+  # diagnostic only (same discipline as DIAG-FN above): no assertion, threshold, oracle, mask, capture
+  # or drive changes to the existing native flow; the original measurements/captures/assertions above
+  # still run and still gate, byte-for-byte unchanged. One complete self-contained section: new Win32
+  # bindings (WinCap), the reviewed structure helper (MEASURE-V4/ORACLE-STRUCTURE-V4), the reviewed
+  # adapter (ADAPTER-V4), pure capture helpers (HARNESS-PURE), the real one-shot PrintWindow capture
+  # callback, the Read-ValidatedRoot boundary validator (fresh checked Win32 handle/PID/rect/DPI at
+  # EVERY root read, incl. the last provider boundary), and the Invoke-PrintWindowDiag driver bound to
+  # the landed symbols ($p, $win,
+  # $script:mainHwnd, Btn, $tw2). Invoked at TWO additive sites, once per saved-card state
+  # ('with-image' and 'no-image'), each immediately after the landed Log-SavedCardDiag call.
+  # ----- Win32 capture bindings (new type; no collision with landed W / WinN / DlgDrive) ----------
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class WinCap {
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  // GetWindowThreadProcessId returns the THREAD id; 0 means the call failed. The landed WinN.PidOf
+  // discards that return code, so the boundary check below uses this explicit-failure variant
+  // (reviewer 04:10:41: refuse failed return codes, never rely on zero-filled out params).
+  public static bool TryPidOf(IntPtr h, out uint pid) { uint p; uint tid = GetWindowThreadProcessId(h, out p); pid = p; return tid != 0; }
+}
+'@
+
+  # HARNESS-PURE-BEGIN
+  function Copy-LockedBitsRows([IntPtr]$scan0, [int]$strideSigned, [int]$w, [int]$h) {
+    # Row-by-row copy with REAL signed-stride address arithmetic: row y starts at scan0 + y*stride.
+    # strideSigned < 0 (bottom-up surface) is handled by the same arithmetic; scan0 must point at the
+    # first IMAGE row (as LockBits guarantees). Returns the raw strided buffer (Abs(stride)*h bytes).
+    $strideAbs = [Math]::Abs($strideSigned)
+    if ($strideAbs -lt ($w * 3)) { throw "stride $strideAbs < width*3 $($w*3)" }
+    $raw = New-Object byte[] ($strideAbs * $h)
+    for ($y = 0; $y -lt $h; $y++) {
+      $src = [IntPtr]($scan0.ToInt64() + [long]$y * $strideSigned)
+      [System.Runtime.InteropServices.Marshal]::Copy($src, $raw, $y * $strideAbs, $strideAbs)
+    }
+    return ,$raw
+  }
+  function Test-CanonicalNotBlank([byte[]]$canon) {
+    foreach ($bb in $canon) { if ($bb -ne 0) { return $true } }
+    return $false
+  }
+  function Compare-HwndGeometry([int]$w32L, [int]$w32T, [int]$w32R, [int]$w32B, [int]$w32Pid, $uiaRect, [int]$uiaPid) {
+    # Exact-int consistency between the Win32 handle view and the UIA view (96-DPI scope): the
+    # required HWND/PID/rect validation AT the last provider boundary, no fallback, no retry.
+    if ($w32Pid -ne $uiaPid) { return "pid mismatch (win32=$w32Pid uia=$uiaPid)" }
+    if ([int]$uiaRect.Left -ne $w32L -or [int]$uiaRect.Top -ne $w32T -or [int]$uiaRect.Right -ne $w32R -or [int]$uiaRect.Bottom -ne $w32B) {
+      return "rect mismatch (win32=$w32L,$w32T,$w32R,$w32B uia=$([int]$uiaRect.Left),$([int]$uiaRect.Top),$([int]$uiaRect.Right),$([int]$uiaRect.Bottom))"
+    }
+    return 'ok'
+  }
+  # HARNESS-PURE-END
+
+  function Read-ValidatedRoot($winEl, $appPid, $mainHwnd, $fnIsWindow, $fnTryPidOf, $fnGetWindowRect, $fnGetDpiForWindow) {
+    # THE checked Win32 handle/PID/rect/DPI validation, performed FRESH at EVERY root read (reviewer
+    # 04:18:27: an early-only check before pass 1 left the boundary read reusing cached hwnd/dpi).
+    # The helper invokes rootReader at structure start AND at the LAST PROVIDER BOUNDARY (after the
+    # second finder/ascent, BEFORE the final member walk), so a mutation at the second-finder
+    # boundary is caught HERE even when both UIA root snapshots stay consistent. No Win32/UTA
+    # validation exists after pass 2; the residual post-boundary TOCTOU window is declared, not
+    # hidden. Win32 access goes through the injected lambdas (production: WinN/WinCap/W) so this
+    # exact composition is fixture-tested offline (eval RB3/RB4).
+    $nd = Read-DiagNode $winEl $appPid   # production-shaped: {rid,rect,ct,name,off,el}, NO pid
+    if ($null -eq $nd) { throw 'root unread at boundary read (outside app process)' }
+    $hwndNow = [IntPtr][int64]($winEl.Current.NativeWindowHandle)
+    if ($hwndNow -eq [IntPtr]::Zero) { throw 'boundary handle validation: UIA NativeWindowHandle is zero' }
+    if ($hwndNow -ne $mainHwnd) { throw ("boundary handle validation: current UIA handle 0x{0:X} != launched main window handle 0x{1:X}" -f $hwndNow.ToInt64(), ([IntPtr]$mainHwnd).ToInt64()) }
+    if (-not (& $fnIsWindow $hwndNow)) { throw 'boundary handle validation: handle is not a live window' }
+    $wpid = [uint32]0
+    if (-not (& $fnTryPidOf $hwndNow ([ref]$wpid))) { throw 'boundary handle validation: GetWindowThreadProcessId failed (zero thread id)' }
+    $wrC = & $fnGetWindowRect $hwndNow
+    if ($null -eq $wrC) { throw 'boundary handle validation: GetWindowRect returned false' }
+    $geo = Compare-HwndGeometry ([int]$wrC.L) ([int]$wrC.T) ([int]$wrC.Rt) ([int]$wrC.B) ([int]$wpid) $nd.rect $appPid
+    if ($geo -ne 'ok') { throw "boundary handle/geometry validation: $geo" }
+    $dpiNow = [uint32](& $fnGetDpiForWindow $hwndNow)
+    if ($dpiNow -eq 0) { throw 'boundary handle validation: GetDpiForWindow failed (zero)' }
+    if ($dpiNow -ne 96) { throw "boundary handle validation: non-96 DPI at boundary read (dpi=$dpiNow); validated scope is 96 DPI only" }
+    # root-only fields attached EXPLICITLY after the production-shaped node read (reviewer 04:10:41)
+    [pscustomobject]@{ rid = $nd.rid; rect = $nd.rect; rootPid = $appPid; hwnd = [int64]$hwndNow; dpiScale = 1.0 }
+  }
+
+  # ----- real one-shot capture callback (adapter RGB-payload contract) -----------------------------
+  function Invoke-RealWindowCaptureV1($ctx) {
+    # ctx: ONE-SNAPSHOT capture boundary ctx from Get-SavedCardStructureV4:
+    #   union, contentRects, liRect, winRect, hwnd, winPid, winRid, dpiScale (copied at the boundary).
+    $t0 = [DateTime]::UtcNow
+    if ($null -eq $ctx.hwnd -or [int64]$ctx.hwnd -eq 0) { throw 'capture ctx carries no validated hwnd' }
+    if ($null -eq $ctx.dpiScale -or [double]$ctx.dpiScale -ne 1.0) { throw "non-96 DPI (scale=$($ctx.dpiScale)); validated scope is 96 DPI only" }
+    $w = [int]$ctx.winRect.Width; $h = [int]$ctx.winRect.Height
+    if ($w -le 0 -or $h -le 0) { throw "validated window rect has non-positive extent ($w x $h)" }
+    $bmp = $null; $g = $null; $data = $null; $locked = $false
+    try {
+      $bmp = New-Object System.Drawing.Bitmap($w, $h, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+      $g = [System.Drawing.Graphics]::FromImage($bmp)
+      $hdc = $g.GetHdc()
+      try {
+        $okPrint = [WinCap]::PrintWindow([IntPtr][int64]$ctx.hwnd, $hdc, 2)  # PW_RENDERFULLCONTENT; ONE call, no retry
+      } finally { $g.ReleaseHdc($hdc) }
+      # Graphics disposed AFTER ReleaseHdc and BEFORE LockBits (a live Graphics makes LockBits throw ObjectBusy)
+      $g.Dispose(); $g = $null
+      if (-not $okPrint) { throw 'PrintWindow returned false (one-shot capture failed; no fallback, no retry)' }
+      $rect = New-Object System.Drawing.Rectangle(0, 0, $w, $h)
+      $data = $bmp.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::ReadOnly, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+      $locked = $true
+      $stride = [int]$data.Stride  # signed; Copy-LockedBitsRows owns the address arithmetic
+      $raw = Copy-LockedBitsRows $data.Scan0 $stride $w $h
+      $bmp.UnlockBits($data); $locked = $false
+      # canonicalize ONCE at the source: de-stride + BGR -> packed RGB
+      $canon = ConvertTo-CanonicalRgb $raw $w $h ([Math]::Abs($stride)) 'BGR'
+      $t1 = [DateTime]::UtcNow
+      # blank/black surface (known WPF PrintWindow failure mode): FLAG, do NOT throw - the pixels are
+      # retained and the adapter classifies this as CAPTURE-TRANSPORT, not a render observation.
+      $blank = -not (Test-CanonicalNotBlank $canon)
+      return [pscustomobject]@{
+        rgb = $canon; width = $w; height = $h; stride = ($w * 3); channelOrder = 'RGB'
+        sha256 = (Get-BytesSha256 $canon)
+        captureStartedUtc = $t0; captureEndedUtc = $t1   # typed UTC DateTimes (Kind=Utc)
+        pid = $ctx.winPid; winRid = [string]$ctx.winRid
+        originL = [int]$ctx.winRect.Left; originT = [int]$ctx.winRect.Top
+        blank = $blank
+        bitmap = $null  # no live object leaves the callback
+      }
+    } finally {
+      # consolidated, flag-guarded, exactly-once cleanup (no catch/finally double-dispose)
+      if ($locked -and $null -ne $bmp -and $null -ne $data) { try { $bmp.UnlockBits($data) } catch {}; $locked = $false }
+      if ($null -ne $g)   { try { $g.Dispose() } catch {}; $g = $null }
+      if ($null -ne $bmp) { try { $bmp.Dispose() } catch {}; $bmp = $null }
+    }
+  }
+
+  # ----- additive diagnostic driver: boundary validation -> structure -> capture -> oracle ---------
+  function Invoke-PrintWindowDiag([string]$tag) {
+    # DIAGNOSTIC ONLY (same discipline as landed Log-SavedCardDiag): never asserts, never changes the
+    # existing flow; every refusal is logged via Info. Uses ONLY landed symbols ($p, $win,
+    # $script:mainHwnd, Btn, $tw2 ControlViewWalker, RawViewWalker, Read-DiagNode, Walk-DiagAscent,
+    # Test-DiagRectFinitePositive, Compare-DiagIdentity, RectUnion, Rect-OutsideCount, Info) plus the
+    # new WinCap type and the reviewed oracle functions above. No undefined external assumptions.
+    $sum = New-Object System.Collections.Generic.List[string]
+    $outcome = 'started'
+    try {
+      # EXPLICIT root pid binding (reviewer 04:10:41): landed Read-DiagNode returns
+      # {rid,rect,ct,name,off,el} with NO pid field; the pid comes ONLY from the UIA root itself.
+      $appPid = 0; try { $appPid = [int]($win.Current.ProcessId) } catch { $appPid = 0 }
+      if ($appPid -le 0) { $outcome = 'refused: UIA root pid unreadable'; return }
+      if ($appPid -ne [int]$p.Id) { $outcome = "refused: UIA root pid $appPid != launched process pid $($p.Id)"; return }
+      # provider bindings over LANDED functions only; oracle providers are SINGLE-SHOT (no retry).
+      $P = @{
+        btnFinder = { param($n) Btn $n }.GetNewClosure()
+        getParent = { param($e) $tw2.GetParent($e) }.GetNewClosure()
+        getFC     = { param($e) [System.Windows.Automation.TreeWalker]::RawViewWalker.GetFirstChild($e) }.GetNewClosure()
+        getNS     = { param($e) [System.Windows.Automation.TreeWalker]::RawViewWalker.GetNextSibling($e) }.GetNewClosure()
+        readNode  = { param($e) Read-DiagNode $e $appPid }.GetNewClosure()
+      }
+      # production Win32 validation lambdas for Read-ValidatedRoot
+      $fnIsWindow = { param($h) [WinN]::IsWindow($h) }.GetNewClosure()
+      $fnTryPid   = { param($h, [ref]$po) [WinCap]::TryPidOf($h, $po) }.GetNewClosure()
+      $fnGetRect  = { param($h) $r = New-Object W+R; if (-not [W]::GetWindowRect($h, [ref]$r)) { return $null }; return $r }.GetNewClosure()
+      $fnGetDpi   = { param($h) [WinCap]::GetDpiForWindow($h) }.GetNewClosure()
+      # rootReader: the helper invokes this at structure start AND at the LAST PROVIDER BOUNDARY
+      # (after the second finder/ascent, BEFORE the final member walk). EACH invocation runs the full
+      # checked Win32 handle/PID/rect/DPI validation FRESH inside Read-ValidatedRoot - nothing cached
+      # (reviewer 04:18:27). Any mismatch THROWS (no fallback, no retry) and surfaces as a named
+      # structure refusal.
+      $P.rootReader = { Read-ValidatedRoot $win $appPid $script:mainHwnd $fnIsWindow $fnTryPid $fnGetRect $fnGetDpi }.GetNewClosure()
+      # landed source constants: Border Padding=4; FrameThicknessConverter (1,8,1,1) with image else 0.
+      $pad = 4
+      $isFrameP = { param($px) ([math]::Abs([int]$px.R - 191) -le 12 -and [math]::Abs([int]$px.G - 219) -le 12 -and [math]::Abs([int]$px.B - 254) -le 12) }
+      $isWhite  = { param($px) ([int]$px.R -ge 247 -and [int]$px.G -ge 247 -and [int]$px.B -ge 247) }
+      if ($tag -eq 'with-image') {
+        $frameExp = [ordered]@{ l = 1; t = 8; r = 1; b = 1 }
+        $isInterior = { param($px) ([math]::Abs([int]$px.R - 30) -le 25 -and [math]::Abs([int]$px.G - 60) -le 25 -and [math]::Abs([int]$px.B - 220) -le 25) }  # same acceptance set as landed $isImg2
+      } else {
+        $frameExp = [ordered]@{ l = 0; t = 0; r = 0; b = 0 }
+        $isInterior = { param($px) ([math]::Abs([int]$px.R - 191) -le 8 -and [math]::Abs([int]$px.G - 219) -le 8 -and [math]::Abs([int]$px.B - 254) -le 8) }  # same acceptance set as landed no-image center predicate
+      }
+      $pred = @{ isFrame = $isFrameP; isInterior = $isInterior; isBackground = $isWhite }
+      # VERIFIED artifact sink (reviewer 04:10:41): PER-STATE distinct paths (no with-image/no-image
+      # overwrite) and read-back SHA256 compared to the expected hash, $true only on equality.
+      $sink = { param($name, [byte[]]$bytes)
+        $path = Join-Path "$PWD/out-images" "diag-pw-$tag-$name"
+        [System.IO.File]::WriteAllBytes($path, $bytes)
+        $back = [System.IO.File]::ReadAllBytes($path)
+        if ((Get-BytesSha256 $back) -ne (Get-BytesSha256 $bytes)) { throw "artifact read-back SHA256 mismatch for $path" }
+        return $true
+      }.GetNewClosure()
+      # bounded minimums (explicit): minFreePixels 400, minRegionPixels 40, minHaloPixels 200.
+      # dpi-scale argument 1.0 is justified: EVERY root read refuses non-96 DPI inside
+      # Read-ValidatedRoot, and the capture ctx dpiScale is boundary-fresh; the adapter's
+      # measure-scale guard remains as defense in depth.
+      $oracle = Invoke-SavedCardOracleV4 'E2E ws renamed' $P { param($ctx) Invoke-RealWindowCaptureV1 $ctx } $pred $frameExp $pad 1.0 400 40 200 $sink
+      # OLD-vs-NEW (both preserved and inspectable; old assertions UNCHANGED above and still gating):
+      $oldState = ''
+      if ($tag -eq 'with-image') {
+        try { $oldState = "OLD(with-image, landed assertions above UNCHANGED): mres.ok=$($script:mres.ok) reason='$($script:mres.reason)' top=$($script:mres.top) left=$($script:mres.left) right=$($script:mres.right) bot=$($script:mres.bot) colsClean=$($script:mres.colsClean) colsPass=$($script:mres.colsPass)" } catch { $oldState = 'OLD(with-image): mres unreadable' }
+      } else {
+        try { $oldState = "OLD(no-image, landed assertion above UNCHANGED): okCardBg=$($script:okCardBg) seen='$($script:seenCardBg)'" } catch { $oldState = 'OLD(no-image): okCardBg unreadable' }
+      }
+      $prov = if ($null -ne $oracle.provenance) { "$($oracle.provenance.verification)" } else { 'none' }
+      $outcome = "oracle ok=$($oracle.ok) structure=$($oracle.structureOk) capture=$($oracle.captureOk) measure=$($oracle.measureOk) evidence=$($oracle.evidenceOk) transport=$($oracle.captureTransportIssue) reason=$($oracle.reason) prov=$prov artifacts=$(@($oracle.artifacts).Count) warnings=$(@($oracle.cleanupWarnings) -join '; ') | $oldState"
+    } catch { $outcome = "threw: $($_.Exception.Message)" }
+    finally {
+      try { Info "saved-card PrintWindow diag ($tag): $outcome (diagnostic only; original assertions/captures unchanged)" ($sum -join ' | ') } catch { }
+    }
+  }
+
+  # MEASURE-V4-BEGIN (r8 domain correction, THIRD cut - offline evaluator canonical source; NOT landed):
+  # saved-card oracle anchored at VERIFIED STRUCTURE (two-pass member+parent topology snapshot, exact
+  # every-field compare immediately before immutable capture) with a GROUNDED TOPOLOGY CONTRACT (parent
+  # RID bindings, identities grounded in the observed fixture, all-field finite + integral rects).
+  # EDGE ELIGIBILITY IS STRUCTURALLY PREDECLARED: per scanline the predicted frame band must be
+  # mask-free (computed from member rects alone, BEFORE any pixel read); a mask collision makes the
+  # line non-covering (counted) and per-edge coverage below half fails ('required edge hidden by
+  # mask'). Defects in unmasked band pixels always count; exclusion is never pixel-run dependent.
+  # Frame relations are the LANDED r7f relations at 96 DPI (sideTol=1, thickGap=2): left>=1, right>=1,
+  # bot>=1, bot<=max(left,right)+1, top-left>=2, top-right>=2, top-bot>=2; measurement caps 12/6 are
+  # bounded 96-DPI choices. OUTSIDE GUARD is bounded: the 1px STRAIGHT-EDGE halo (6px corner squares
+  # excluded) must match the observed runner background (white, per-channel >= 247, bounded tolerance
+  # choice) - it is NOT a general paint-free proof and cannot see disconnected paint beyond the halo.
+  # Validated scope: 96 DPI, integral member rects (fractional refused), straight edges. All content
+  # exclusions structural + predeclared (member rects +1px guard; CornerRadius=4 AA 6px corners).
+  # Reviewer counterexamples on prior cuts (outermost-row overwrite; erased top-frame segment between
+  # sampled columns; go-button member drift between structure and capture; purple halo paint) are
+  # permanent offline evaluator fixtures.
+  function Get-PaintedRect($union, $frameExp, $pad) {
+    if ($null -eq $union) { return $null }
+    return [ordered]@{ L = ($union.L - $pad - $frameExp.l); T = ($union.T - $pad - $frameExp.t); R = ($union.R + $pad + $frameExp.r); B = ($union.B + $pad + $frameExp.b) }
+  }
+  function Test-RectContains($r, $x, $y, $guard) {
+    return ($x -ge ($r.L - $guard) -and $x -le ($r.R + $guard) -and $y -ge ($r.T - $guard) -and $y -le ($r.B + $guard))
+  }
+  function Test-RectFullyFinite($r) {
+    # EVERY numeric field finite (reviewer: V4 topology checked only Left/Top). Reuses the landed r7f
+    # finite-positive helper first, then validates all six fields explicitly.
+    if ($null -eq $r) { return $false }
+    if (-not (Test-DiagRectFinitePositive $r)) { return $false }
+    foreach ($f in 'Left', 'Top', 'Right', 'Bottom', 'Width', 'Height') {
+      $v = [double]$r.$f
+      if ([double]::IsNaN($v) -or [double]::IsInfinity($v)) { return $false }
+    }
+    return $true
+  }
+  function Test-RectIntegral($r) {
+    # 96-DPI straight-edge domain: member rects must be integral so pixel masks need NO rounding.
+    foreach ($f in 'Left', 'Top', 'Right', 'Bottom') { if ([math]::Abs([double]$r.$f - [math]::Round([double]$r.$f)) -gt 1e-6) { return $false } }
+    return $true
+  }
+  function Test-SavedCardTopologyV4($nodes, $anchorName, $itemRid) {
+    # Grounded accepted topology (observed both r7f states), now with PARENT-RID BINDINGS: exactly 3
+    # direct (depth-1) Buttons parented to the item - the named anchor (title), 'Workspace actions',
+    # and one other (go) - and exactly 5 depth-2 Texts bound by parentRid: title (== anchor name),
+    # category, 'Last opened: *' parented to the anchor; the ellipsis label parented to the actions
+    # button; go-label (== go button name) parented to the go button. Every node is a depth-1 Button
+    # or a depth-2 Text; anything else refuses (unknown coverage). ALL rect fields finite-positive AND
+    # integral (96-DPI straight-edge domain); all RIDs unique and readable; geometric containment kept
+    # in ADDITION to parent binding. Masks = ALL node rects (buttons cover their texts).
+    $res = [ordered]@{ ok = $false; reason = ''; maskRects = $null }
+    if ($null -eq $nodes -or $nodes.Count -eq 0) { $res.reason = 'no nodes'; return $res }
+    $ridSeen = @{}
+    foreach ($n in $nodes) {
+      $r = $n.rect
+      if (-not (Test-RectFullyFinite $r)) { $res.reason = "node '$($n.name)' rect not finite-positive (all fields)"; return $res }
+      if ($r.Width -le 0 -or $r.Height -le 0) { $res.reason = "node '$($n.name)' rect not positive"; return $res }
+      if (-not (Test-RectIntegral $r)) { $res.reason = "node '$($n.name)' rect fractional (outside the 96-DPI integral domain)"; return $res }
+      $rk = ($n.rid -join ',')
+      if ([string]::IsNullOrEmpty($rk) -or $rk -eq 'rid-error') { $res.reason = "node '$($n.name)' rid unreadable"; return $res }
+      if ($ridSeen.ContainsKey($rk)) { $res.reason = "duplicate runtime id '$rk'"; return $res }
+      $ridSeen[$rk] = $true
+      if ($null -eq $n.parentRid -or [string]::IsNullOrEmpty(($n.parentRid -join ','))) { $res.reason = "node '$($n.name)' has no parent rid (structure walk must record parentage)"; return $res }
+      $isBtn = ($n.ct -eq 'ControlType.Button' -and $n.depth -eq 1)
+      $isTxt = ($n.ct -eq 'ControlType.Text' -and $n.depth -eq 2)
+      if (-not ($isBtn -or $isTxt)) { $res.reason = "unexpected node type/depth '$($n.ct)' depth=$($n.depth) name='$($n.name)' (unknown coverage)"; return $res }
+    }
+    $btns = @($nodes | Where-Object { $_.ct -eq 'ControlType.Button' })
+    $txts = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' })
+    if ($btns.Count -ne 3) { $res.reason = "expected exactly 3 direct buttons, got $($btns.Count)"; return $res }
+    if ($txts.Count -ne 5) { $res.reason = "expected exactly 5 text nodes, got $($txts.Count)"; return $res }
+    $itemRidK = ($itemRid -join ',')
+    foreach ($b in $btns) { if (-not [string]::Equals(($b.parentRid -join ','), $itemRidK, [StringComparison]::Ordinal)) { $res.reason = "button '$($b.name)' not parented to the list item"; return $res } }
+    $anchor = @($btns | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($anchor.Count -ne 1) { $res.reason = "anchor button '$anchorName' count=$($anchor.Count)"; return $res }
+    $actions = @($btns | Where-Object { [string]::Equals([string]$_.name, 'Workspace actions', [StringComparison]::Ordinal) }); if ($actions.Count -ne 1) { $res.reason = "actions button count=$($actions.Count)"; return $res }
+    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and $_.rid -ne $actions[0].rid })
+    if ($go.Count -ne 1) { $res.reason = 'go button not uniquely identified'; return $res }
+    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ','); $xK = ($actions[0].rid -join ',')
+    $titleT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
+    $openedT = @($txts | Where-Object { $_.name -like 'Last opened:*' }); if ($openedT.Count -ne 1) { $res.reason = "'Last opened' text count=$($openedT.Count)"; return $res }
+    $goT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
+    $dotsT = @($txts | Where-Object { [string]::Equals([string]$_.name, "`u{2026}", [StringComparison]::Ordinal) }); if ($dotsT.Count -ne 1) { $res.reason = "actions-label text count=$($dotsT.Count)"; return $res }
+    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid -and $_.rid -ne $dotsT[0].rid })
+    if ($catT.Count -ne 1) { $res.reason = "category text not uniquely identified ($($catT.Count))"; return $res }
+    # parent bindings: each text bound to its GROUNDED parent button (not geometric containment alone)
+    foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not [string]::Equals(($t.parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "anchor text '$($t.name)' parent rid is not the anchor button"; return $res } }
+    if (-not [string]::Equals(($goT[0].parentRid -join ','), $gK, [StringComparison]::Ordinal)) { $res.reason = 'go-label text parent rid is not the go button'; return $res }
+    if (-not [string]::Equals(($dotsT[0].parentRid -join ','), $xK, [StringComparison]::Ordinal)) { $res.reason = 'actions-label text parent rid is not the actions button'; return $res }
+    $inside = { param($ir, $or2) ($ir.Left -ge $or2.Left -and $ir.Top -ge $or2.Top -and $ir.Right -le $or2.Right -and $ir.Bottom -le $or2.Bottom) }
+    foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not (& $inside $t.rect $anchor[0].rect)) { $res.reason = "anchor text '$($t.name)' not inside the anchor button"; return $res } }
+    if (-not (& $inside $goT[0].rect $go[0].rect)) { $res.reason = 'go-label text not inside the go button'; return $res }
+    if (-not (& $inside $dotsT[0].rect $actions[0].rect)) { $res.reason = 'actions-label text not inside the actions button'; return $res }
+    $masks = New-Object System.Collections.Generic.List[object]
+    foreach ($n in $nodes) { $masks.Add([ordered]@{ L = [int]$n.rect.Left; T = [int]$n.rect.Top; R = [int]$n.rect.Right; B = [int]$n.rect.Bottom }) }  # exact: integrality verified above
+    $res.maskRects = $masks; $res.ok = $true
+    return $res
+  }
+  function Measure-SavedCardFrameV4($bmp, $pRel, $contentRects, $isFrame, $isInterior, $isBackground, $frameExp, $scale, $minFreePixels, $minRegionPixels, $minHaloPixels) {
+    $res = [ordered]@{ ok = $false; reason = ''; frameOk = $false; imgOk = $false; haloOk = $false; top = 0; left = 0; right = 0; bot = 0; freePx = 0; matchPx = 0; mismatch = ''; topCols = ''; botCols = ''; sideRowsL = ''; sideRowsR = ''; covTop = 0; covBot = 0; covL = 0; covR = 0; regionTop = 0; regionBottom = 0; regionLeft = 0; regionRight = 0; regionMid = 0; haloPx = 0 }
+    if ($null -eq $bmp -or $null -eq $pRel) { $res.reason = 'null bitmap or painted rect'; return $res }
+    if ([math]::Abs([double]$scale - 1.0) -gt 0.01) { $res.reason = "non-96 DPI (scale=$scale); validated scope is 96 DPI only"; return $res }
+    $bw = $bmp.Width; $bh = $bmp.Height
+    if (-not ($pRel.L -ge 1 -and $pRel.T -ge 1 -and $pRel.R -le ($bw - 1) -and $pRel.B -le ($bh - 1) -and ($pRel.R - $pRel.L) -ge 20 -and ($pRel.B - $pRel.T) -ge 10)) { $res.reason = "painted rect invalid/outside bitmap/touching edge - halo not verifiable (L$($pRel.L),T$($pRel.T),R$($pRel.R),B$($pRel.B) bmp ${bw}x${bh})"; return $res }
+    if ($null -eq $contentRects -or $contentRects.Count -eq 0) { $res.reason = 'no content-exclusion rects (unknown coverage)'; return $res }
+    $corner = 6; $guard = 1
+    $noFrame = ($frameExp.l -eq 0 -and $frameExp.t -eq 0 -and $frameExp.r -eq 0 -and $frameExp.b -eq 0)
+    # STRUCTURAL MASK HELPERS - computed from member rects ALONE, before/independent of any pixel read.
+    $colMasked = { param($cx, $y0, $y1) foreach ($cr2 in $contentRects) { if (($cx -ge ($cr2.L - $guard)) -and ($cx -lt ($cr2.R + $guard)) -and (($cr2.B + $guard) -gt $y0) -and (($cr2.T - $guard) -lt $y1)) { return $true } } return $false }
+    $rowMasked = { param($ry, $x0, $x1) foreach ($cr2 in $contentRects) { if (($ry -ge ($cr2.T - $guard)) -and ($ry -lt ($cr2.B + $guard)) -and (($cr2.R + $guard) -gt $x0) -and (($cr2.L - $guard) -lt $x1)) { return $true } } return $false }
+    $pxMasked = { param($x, $y) foreach ($cr3 in $contentRects) { if (Test-RectContains $cr3 $x $y $guard) { return $true } } return $false }
+    if (-not $noFrame) {
+      $maxTop = 12; $maxSide = 6   # bounded 96-DPI measurement caps (model 8/1/1/1; scale refusal above)
+      # TOP EDGE: predicted band [T, T+t). A column is COVERING iff its predicted band is mask-free
+      # (structural, predeclared). Non-covering columns are counted, never silently skipped; per-edge
+      # coverage below half fails. The run below can only stop at a non-frame pixel (defect, counted)
+      # or at content BELOW the predicted band (allowed terminator).
+      # a run terminated by the MASK is a LOWER BOUND (content hides the rest); a run terminated by a
+      # non-frame pixel is EXACT. Consistency/relations use exact runs only; lower bounds must confirm.
+      $topExact = @(); $topLB = @(); $topTotal = 0
+      for ($cx = $pRel.L + $corner; $cx -lt $pRel.R - $corner; $cx++) {
+        $topTotal++
+        if (& $colMasked $cx $pRel.T ($pRel.T + $frameExp.t)) { continue }
+        $res.covTop++
+        $c = 0; $y = $pRel.T; $term = 'pixel'
+        while ($c -le $maxTop -and $y -lt $pRel.B) {
+          if (& $pxMasked $cx $y) { $term = 'mask'; break }
+          $px = $bmp.GetPixel($cx, $y)
+          if (-not (& $isFrame $px)) { break }
+          $c++; $y++
+        }
+        if ($term -eq 'mask') { $topLB += $c } else { $topExact += $c }
+      }
+      if ($res.covTop -lt 2 -or $res.covTop -lt [int]($topTotal / 2)) { $res.reason = "required top edge hidden by mask ($($res.covTop) covering of $topTotal columns)"; return $res }
+      if ($topExact.Count -lt 2) { $res.reason = "top edge thickness not exactly verifiable (mask terminates $($topLB.Count) of $($res.covTop) covering columns; the predicted band itself IS fully verified in every covering column)"; return $res }
+      $tMin = ($topExact | Measure-Object -Minimum).Minimum; $tMax = ($topExact | Measure-Object -Maximum).Maximum
+      $res.topCols = "covering=$($res.covTop)/$topTotal exact=$($topExact.Count) lb=$($topLB.Count) min=$tMin max=$tMax"
+      if ($tMax - $tMin -gt 1) { $res.reason = "top frame inconsistent across full-width covering columns (min=$tMin max=$tMax)"; return $res }
+      foreach ($lb in $topLB) { if ($lb -lt ($tMin - 1)) { $res.reason = "top frame defect above content (visible run $lb < measured $tMin)"; return $res } }
+      if ($tMin -gt $maxTop) { $res.reason = "top frame exceeds the model bound ($tMin > $maxTop)"; return $res }
+      $res.top = $tMin
+      # BOTTOM EDGE: predicted band [B-b, B), scanned upward.
+      $botExact = @(); $botLB = @(); $botTotal = 0
+      for ($cx = $pRel.L + $corner; $cx -lt $pRel.R - $corner; $cx++) {
+        $botTotal++
+        if (& $colMasked $cx ($pRel.B - $frameExp.b) $pRel.B) { continue }
+        $res.covBot++
+        $c = 0; $y = $pRel.B - 1; $term = 'pixel'
+        while ($c -le $maxSide -and $y -ge $pRel.T) {
+          if (& $pxMasked $cx $y) { $term = 'mask'; break }
+          $px = $bmp.GetPixel($cx, $y)
+          if (-not (& $isFrame $px)) { break }
+          $c++; $y--
+        }
+        if ($term -eq 'mask') { $botLB += $c } else { $botExact += $c }
+      }
+      if ($res.covBot -lt 2 -or $res.covBot -lt [int]($botTotal / 2)) { $res.reason = "required bottom edge hidden by mask ($($res.covBot) covering of $botTotal columns)"; return $res }
+      if ($botExact.Count -lt 2) { $res.reason = "bottom edge thickness not exactly verifiable (mask terminates $($botLB.Count) of $($res.covBot) covering columns; the predicted band itself IS fully verified in every covering column)"; return $res }
+      $bMin = ($botExact | Measure-Object -Minimum).Minimum; $bMax = ($botExact | Measure-Object -Maximum).Maximum
+      $res.botCols = "covering=$($res.covBot)/$botTotal exact=$($botExact.Count) lb=$($botLB.Count) min=$bMin max=$bMax"
+      if ($bMax - $bMin -gt 1) { $res.reason = "bottom frame inconsistent across full-width covering columns (min=$bMin max=$bMax)"; return $res }
+      foreach ($lb in $botLB) { if ($lb -lt ($bMin - 1)) { $res.reason = "bottom frame defect above content (visible run $lb < measured $bMin)"; return $res } }
+      if ($bMin -gt $maxSide) { $res.reason = "bottom frame exceeds the model bound ($bMin > $maxSide)"; return $res }
+      $res.bot = $bMin
+      # SIDE EDGES: interior rows clear of top/bottom/corner zones; predicted bands [L, L+l) / [R-r, R).
+      $rowA = $pRel.T + [math]::Max($res.top, $corner) + $guard; $rowB = $pRel.B - [math]::Max($res.bot, $corner) - $guard
+      if (($rowB - $rowA) -lt 2) { $res.reason = "no interior rows after top/bottom/corner inset (rows $rowA..$rowB)"; return $res }
+      $leftExact = @(); $leftLB = @(); $rightExact = @(); $rightLB = @(); $sideTotal = 0
+      for ($ry = $rowA; $ry -lt $rowB; $ry++) {
+        $sideTotal++
+        if (-not (& $rowMasked $ry $pRel.L ($pRel.L + $frameExp.l))) {
+          $res.covL++
+          $c = 0; $x = $pRel.L; $term = 'pixel'
+          while ($c -le $maxSide -and $x -lt $pRel.R) {
+            if (& $pxMasked $x $ry) { $term = 'mask'; break }
+            $px = $bmp.GetPixel($x, $ry)
+            if (-not (& $isFrame $px)) { break }
+            $c++; $x++
+          }
+          if ($term -eq 'mask') { $leftLB += $c } else { $leftExact += $c }
+        }
+        if (-not (& $rowMasked $ry ($pRel.R - $frameExp.r) $pRel.R)) {
+          $res.covR++
+          $c = 0; $x = $pRel.R - 1; $term = 'pixel'
+          while ($c -le $maxSide -and $x -ge $pRel.L) {
+            if (& $pxMasked $x $ry) { $term = 'mask'; break }
+            $px = $bmp.GetPixel($x, $ry)
+            if (-not (& $isFrame $px)) { break }
+            $c++; $x--
+          }
+          if ($term -eq 'mask') { $rightLB += $c } else { $rightExact += $c }
+        }
+      }
+      if ($res.covL -lt 2 -or $res.covL -lt [int]($sideTotal / 2)) { $res.reason = "required left edge hidden by mask ($($res.covL) covering of $sideTotal rows)"; return $res }
+      if ($res.covR -lt 2 -or $res.covR -lt [int]($sideTotal / 2)) { $res.reason = "required right edge hidden by mask ($($res.covR) covering of $sideTotal rows)"; return $res }
+      if ($leftExact.Count -lt 2) { $res.reason = "left edge thickness not exactly verifiable (mask terminates $($leftLB.Count) of $($res.covL) covering rows; the predicted band itself IS fully verified in every covering row)"; return $res }
+      if ($rightExact.Count -lt 2) { $res.reason = "right edge thickness not exactly verifiable (mask terminates $($rightLB.Count) of $($res.covR) covering rows; the predicted band itself IS fully verified in every covering row)"; return $res }
+      $lMin = ($leftExact | Measure-Object -Minimum).Minimum; $lMax = ($leftExact | Measure-Object -Maximum).Maximum
+      $rMin = ($rightExact | Measure-Object -Minimum).Minimum; $rMax = ($rightExact | Measure-Object -Maximum).Maximum
+      $res.sideRowsL = "covering=$($res.covL)/$sideTotal exact=$($leftExact.Count) lb=$($leftLB.Count) min=$lMin max=$lMax"; $res.sideRowsR = "covering=$($res.covR)/$sideTotal exact=$($rightExact.Count) lb=$($rightLB.Count) min=$rMin max=$rMax"
+      if ($lMax - $lMin -gt 1) { $res.reason = "left frame inconsistent across rows (min=$lMin max=$lMax)"; return $res }
+      if ($rMax - $rMin -gt 1) { $res.reason = "right frame inconsistent across rows (min=$rMin max=$rMax)"; return $res }
+      foreach ($lb in $leftLB) { if ($lb -lt ($lMin - 1)) { $res.reason = "left frame defect beside content (visible run $lb < measured $lMin)"; return $res } }
+      foreach ($lb in $rightLB) { if ($lb -lt ($rMin - 1)) { $res.reason = "right frame defect beside content (visible run $lb < measured $rMin)"; return $res } }
+      if ($lMin -gt $maxSide -or $rMin -gt $maxSide) { $res.reason = "side frame exceeds the model bound (left=$lMin right=$rMin max=$maxSide)"; return $res }
+      $res.left = $lMin; $res.right = $rMin
+      # LANDED r7f relations at 96 DPI: sideTol = max(1,round(scaleY)) = 1; thickGap = max(2,round(2*scaleY)) = 2.
+      $sideTol = 1; $thickGap = 2
+      if ($res.left -lt 1 -or $res.right -lt 1) { $res.reason = "side frame not visible (left=$($res.left) right=$($res.right))"; return $res }
+      if ($res.bot -lt 1) { $res.reason = 'bottom frame not visible'; return $res }
+      if ($res.bot -gt ([math]::Max($res.left, $res.right) + $sideTol)) { $res.reason = "bottom thicker than the sides (bot=$($res.bot) left=$($res.left) right=$($res.right) tol=$sideTol; landed r7f relation)"; return $res }
+      if (($res.top - $res.left) -lt $thickGap -or ($res.top - $res.right) -lt $thickGap -or (($res.top - $res.bot) -lt $thickGap)) { $res.reason = "top not clearly thickest (top=$($res.top) left=$($res.left) right=$($res.right) bot=$($res.bot) gap=$thickGap; landed r7f relation)"; return $res }
+      $res.frameOk = $true
+    } else {
+      # no-image: FrameThicknessConverter returns 0, so there is no distinguishable frame band (the frame
+      # IS the card color). Frame absence is enforced indirectly: EVERY occlusion-free pixel of the
+      # painted face, edges included, must match the background predicate below.
+      $res.frameOk = $true
+    }
+    # interior purity: no-frame mode measures the painted face EDGES INCLUDED (inset 0); framed mode
+    # insets by measured frame + guard. Corner AA squares (CornerRadius=4 -> 6px) excluded structurally.
+    $inL = $(if ($noFrame) { 0 } else { $res.left + $guard }); $inR = $(if ($noFrame) { 0 } else { $res.right + $guard })
+    $inT = $(if ($noFrame) { 0 } else { $res.top + $guard }); $inB = $(if ($noFrame) { 0 } else { $res.bot + $guard })
+    $iL = $pRel.L + $inL; $iR = $pRel.R - $inR; $iT = $pRel.T + $inT; $iB = $pRel.B - $inB
+    if (($iR - $iL) -lt 5 -or ($iB - $iT) -lt 5) { $res.reason = "no interior region after frame inset (x $iL..$iR y $iT..$iB)"; return $res }
+    $cL = 2147483647; $cT = 2147483647; $cR = -1; $cB = -1
+    foreach ($cr4 in $contentRects) { if ($cr4.L -lt $cL) { $cL = $cr4.L }; if ($cr4.T -lt $cT) { $cT = $cr4.T }; if ($cr4.R -gt $cR) { $cR = $cr4.R }; if ($cr4.B -gt $cB) { $cB = $cr4.B } }
+    $free = 0; $match = 0; $mm = @()
+    for ($y = $iT; $y -lt $iB; $y++) {
+      for ($x = $iL; $x -lt $iR; $x++) {
+        $dxC = [math]::Min($x - $pRel.L, $pRel.R - 1 - $x); $dyC = [math]::Min($y - $pRel.T, $pRel.B - 1 - $y)
+        if ($dxC -lt $corner -and $dyC -lt $corner) { continue }
+        if (& $pxMasked $x $y) { continue }
+        $free++
+        $hit = (& $isInterior ($bmp.GetPixel($x, $y)))
+        if ($hit) { $match++ } else { if ($mm.Count -lt 3) { $px2 = $bmp.GetPixel($x, $y); $mm += "($x,$y)=rgb($($px2.R),$($px2.G),$($px2.B))" } }
+        if ($y -lt $cT) { $res.regionTop++ } elseif ($y -ge $cB) { $res.regionBottom++ } elseif ($x -lt $cL) { $res.regionLeft++ } elseif ($x -ge $cR) { $res.regionRight++ } else { $res.regionMid++ }
+      }
+    }
+    $res.freePx = $free; $res.matchPx = $match; $res.mismatch = ($mm -join ' ')
+    if ($free -lt $minFreePixels) { $res.reason = "insufficient occlusion-free interior pixels ($free < $minFreePixels; explicit bounded minimum)"; return $res }
+    if ($res.regionTop -lt $minRegionPixels -or $res.regionBottom -lt $minRegionPixels -or $res.regionLeft -lt $minRegionPixels -or $res.regionRight -lt $minRegionPixels) { $res.reason = "per-region coverage below minimum (top=$($res.regionTop) bottom=$($res.regionBottom) left=$($res.regionLeft) right=$($res.regionRight) min=$minRegionPixels; explicit bounded minimum)"; return $res }
+    if ($match -ne $free) { $res.reason = "interior not pure: $($free - $match) of $free occlusion-free pixels off-predicate (e.g. $($res.mismatch))"; return $res }
+    $res.imgOk = $true
+    # OUTSIDE HALO (BOUNDED CLAIM): the 1px straight-edge band around the predicted painted rect must
+    # match the OBSERVED RUNNER BACKGROUND (white within bounded tolerance, predicate injected). 6px
+    # corner squares excluded. This is NOT a general paint-free proof: it sees only the 1px halo and
+    # only on straight edges; disconnected paint beyond the halo is out of domain.
+    $halo = 0; $haloBad = @()
+    for ($x = $pRel.L + $corner; $x -lt $pRel.R - $corner; $x++) {
+      foreach ($ey in @(($pRel.T - 1), $pRel.B)) {
+        $px3 = $bmp.GetPixel($x, $ey)
+        if (-not (& $isBackground $px3)) { if ($haloBad.Count -lt 3) { $haloBad += "($x,$ey)=rgb($($px3.R),$($px3.G),$($px3.B))" } }
+        $halo++
+      }
+    }
+    for ($y = $pRel.T + $corner; $y -lt $pRel.B - $corner; $y++) {
+      foreach ($ex in @(($pRel.L - 1), $pRel.R)) {
+        $px4 = $bmp.GetPixel($ex, $y)
+        if (-not (& $isBackground $px4)) { if ($haloBad.Count -lt 3) { $haloBad += "($ex,$y)=rgb($($px4.R),$($px4.G),$($px4.B))" } }
+        $halo++
+      }
+    }
+    $res.haloPx = $halo
+    if ($halo -lt $minHaloPixels) { $res.reason = "insufficient 1px halo coverage ($halo < $minHaloPixels; explicit bounded minimum)"; return $res }
+    if ($haloBad.Count -gt 0) { $res.reason = "non-background paint in the 1px straight-edge halo (bounded 96-DPI guard, e.g. $($haloBad -join ' '))"; return $res }
+    $res.haloOk = $true
+    $res.ok = ($res.frameOk -and $res.imgOk -and $res.haloOk)
+    return $res
+  }
+  # MEASURE-V4-END
+  # ORACLE-STRUCTURE-V4-BEGIN: fail-closed structural anchor with a GROUNDED TOPOLOGY CONTRACT. Fully
+  # injectable (btnFinder/getParent/getFC/getNS/readNode/rootReader lambdas + capture callback) so the
+  # composition itself is fixture-tested offline. ORDER: pass-1 walk -> provider boundary (second
+  # named-finder/ascent/root/identity) -> pass-2 walk (final provider reads) -> snapshot compare ->
+  # topology/masks -> injected immutable capture. No provider calls after pass 2 (fixture-verified). Reuses r7f-reviewed Walk-DiagAscent/Test-DiagAscentClean/Read-DiagNode/
+  # RectUnion/Rect-OutsideCount/Test-DiagRectFinitePositive/Compare-DiagIdentity; the structured
+  # descendant walk below adds the same budget discipline returning structured nodes for topology.
+  function Walk-CardStructure($root, $rootRid, $getFC, $getNS, $readNode, $maxNodes, $maxDepth, $maxCalls) {
+    $visited = @{}
+    $nodes = New-Object System.Collections.Generic.List[object]
+    $queue = New-Object System.Collections.Generic.Queue[object]
+    $errs = 0; $foreign = 0; $trunc = $false; $count = 0; $depthSkipped = 0; $calls = 0; $offs = 0
+    # cap checked BEFORE every provider enumeration call; a skipped read marks truncated.
+    $ch = $null
+    if ($calls -lt $maxCalls) { try { $calls++; $ch = & $getFC $root } catch { $errs++ } } else { $trunc = $true }
+    while ($ch) {
+      $queue.Enqueue([pscustomobject]@{ el = $ch; depth = 1; parentRid = $rootRid })
+      if ($calls -ge $maxCalls) { $trunc = $true; break }
+      try { $calls++; $ch = & $getNS $ch } catch { $errs++; $ch = $null }
+    }
+    while ($queue.Count -gt 0) {
+      if ($count -ge $maxNodes) { $trunc = $true; break }
+      $qit = $queue.Dequeue()
+      if ($qit.depth -gt $maxDepth) { $depthSkipped++; $trunc = $true; continue }
+      $count++
+      $nd = $null
+      try { $nd = & $readNode $qit.el } catch { $errs++; continue }
+      if ($null -eq $nd) { $foreign++; continue }
+      if ($nd.rid -ne '' -and $nd.rid -ne 'rid-error') { if ($visited.ContainsKey($nd.rid)) { continue }; $visited[$nd.rid] = $true }
+      if ($nd.off) { $offs++ }
+      $nodes.Add([ordered]@{ ct = $nd.ct; name = $nd.name; rid = $nd.rid; parentRid = $qit.parentRid; rect = $nd.rect; depth = $qit.depth; off = $nd.off })
+      $ch2 = $null
+      if ($calls -lt $maxCalls) { try { $calls++; $ch2 = & $getFC $qit.el } catch { $errs++ } } else { $trunc = $true }
+      while ($ch2) {
+        $queue.Enqueue([pscustomobject]@{ el = $ch2; depth = ($qit.depth + 1); parentRid = $nd.rid })
+        if ($calls -ge $maxCalls) { $trunc = $true; break }
+        try { $calls++; $ch2 = & $getNS $ch2 } catch { $errs++; $ch2 = $null }
+      }
+    }
+    if ($queue.Count -gt 0) { $trunc = $true }
+    return [ordered]@{ nodes = $nodes; errs = $errs; foreign = $foreign; depthSkipped = $depthSkipped; truncated = $trunc; enumCalls = $calls; offscreenMembers = $offs; unique = $visited.Count }
+  }
+  function Compare-StructureSnapshot($a, $b) {
+    # TWO-PASS member+parent topology stability: exact every-field compare (no int-rounding - rects
+    # compared as raw doubles). ANY drift/missing/new member refuses; masks derive from pass 1 only
+    # after pass 2 proves the structure did not move.
+    if ($a.Count -ne $b.Count) { return "member count drift ($($a.Count) -> $($b.Count))" }
+    $mapB = @{}
+    foreach ($n in $b) { $k = ($n.rid -join ','); if ($mapB.ContainsKey($k)) { return "duplicate rid '$k' in the second pass" }; $mapB[$k] = $n }
+    foreach ($n in $a) {
+      $k = ($n.rid -join ',')
+      if (-not $mapB.ContainsKey($k)) { return "member '$k' ($($n.name)) missing in the second pass" }
+      $m = $mapB[$k]
+      if ($m.ct -ne $n.ct) { return "member '$k' control-type drift ($($n.ct) -> $($m.ct))" }
+      if (-not [string]::Equals([string]$m.name, [string]$n.name, [StringComparison]::Ordinal)) { return "member '$k' name drift ('$($n.name)' -> '$($m.name)')" }
+      if (-not [string]::Equals(($m.parentRid -join ','), ($n.parentRid -join ','), [StringComparison]::Ordinal)) { return "member '$k' parent drift" }
+      foreach ($f in 'Left', 'Top', 'Right', 'Bottom') { if ([double]$m.rect.$f -ne [double]$n.rect.$f) { return "member '$k' ($($n.name)) rect drift ($f $($n.rect.$f) -> $($m.rect.$f))" } }
+      if ($m.off -ne $n.off) { return "member '$k' offscreen drift" }
+    }
+    return 'ok'
+  }
+  function Get-SavedCardStructureV4($anchorName, $btnFinder, $getParent, $getFC, $getNS, $readNode, $rootReader, $capture) {
+    # ORDER (reviewer-mandated): pass-1 member walk -> PROVIDER BOUNDARY (second named-finder, capture
+    # ascent, root revalidation, container identity) -> pass-2 member walk (FINAL provider reads) ->
+    # snapshot compare -> topology/mask derivation -> INJECTED immutable capture callback. NO provider
+    # calls exist after pass 2 (fixture B1 verifies). A mutation at the known second-finder boundary is
+    # therefore caught by the walk1-vs-walk2 snapshot compare (fixture M0 = the original reviewer timing).
+    $st = [ordered]@{ ok = $false; reason = ''; union = $null; contentRects = $null; liRect = $null; winRect = $null; winPid = $null; winRid = $null; ctxHwnd = $null; ctxDpiScale = $null; members = 0; walkCalls1 = 0; walkCalls2 = 0; captured = $null; stats = '' }
+    try {
+      $root = & $rootReader
+      if ($null -eq $root -or $null -eq $root.rect) { $st.reason = 'root unread'; return $st }
+      # EXPLICIT root pid binding (reviewer 04:10:41): landed Read-DiagNode returns
+      # {rid,rect,ct,name,off,el} with NO pid field. The rootReader MUST attach rootPid sourced from
+      # the UIA root's own Current.ProcessId; a missing/null/non-positive rootPid refuses here rather
+      # than silently nulling the ascent pid gate (the fixture suite carries a production-shaped root).
+      $appPid = 0
+      try { $appPid = [int]$root.rootPid } catch { $appPid = 0 }
+      if ($appPid -le 0) { $st.reason = 'root pid not explicitly bound (rootReader must attach rootPid from the UIA root ProcessId; Read-DiagNode carries no pid)'; return $st }
+      $winRid = $root.rid; $winRect1 = $root.rect
+      if (-not (Test-DiagRectFinitePositive $winRect1)) { $st.reason = 'window rectangle not finite-positive at structure read'; return $st }
+      $sBtn = & $btnFinder $anchorName
+      if ($null -eq $sBtn) { $st.reason = 'named button not found'; return $st }
+      $btnNode = $null
+      try { $btnNode = & $readNode $sBtn } catch { $st.reason = "button read-error $($_.Exception.Message)"; return $st }
+      if ($null -eq $btnNode) { $st.reason = 'named button outside app process'; return $st }
+      $asc1 = Walk-DiagAscent $sBtn $getParent 8 $winRid $appPid
+      $ac1 = Test-DiagAscentClean $asc1
+      if ($ac1 -ne 'ok') { $st.reason = "structure ascent unclean: $ac1 (same-PID alone is not a verified app subtree)"; return $st }
+      $sLiNode = $null
+      foreach ($nd in $asc1.nodes) { if ($nd.ct -eq 'ControlType.ListItem') { $sLiNode = $nd; break } }
+      if ($null -eq $sLiNode) { $st.reason = 'list item not found in bounded in-app ascent'; return $st }
+      if (-not (Test-DiagRectFinitePositive $sLiNode.rect)) { $st.reason = 'item rectangle not finite-positive at structure read'; return $st }
+      $btnRid1 = $btnNode.rid; $liRid1 = $sLiNode.rid; $liRect1 = $sLiNode.rect
+      # PASS 1 member walk
+      $walk = Walk-CardStructure $sLiNode.el $sLiNode.rid $getFC $getNS $readNode 60 6 400
+      if ($walk.truncated -or $walk.errs -gt 0 -or $walk.depthSkipped -gt 0) { $st.reason = "descendant walk pass 1 not clean (truncated=$($walk.truncated) errs=$($walk.errs) depthSkipped=$($walk.depthSkipped)); partial structure is not an oracle anchor"; return $st }
+      if ($walk.foreign -gt 0 -or $walk.offscreenMembers -gt 0) { $st.reason = "descendant walk pass 1 has foreign/offscreen members (foreign=$($walk.foreign) offscreen=$($walk.offscreenMembers))"; return $st }
+      # PROVIDER BOUNDARY: second named-finder + capture ascent + root + container identity, all BEFORE
+      # the final member walk.
+      $sBtn2 = & $btnFinder $anchorName
+      if ($null -eq $sBtn2) { $st.reason = 'named button gone at capture'; return $st }
+      $btnNode2 = $null
+      try { $btnNode2 = & $readNode $sBtn2 } catch { $st.reason = "capture-time button read-error $($_.Exception.Message)"; return $st }
+      if ($null -eq $btnNode2) { $st.reason = 'capture-time button outside app process'; return $st }
+      $asc2 = Walk-DiagAscent $sBtn2 $getParent 8 $winRid $appPid
+      $ac2 = Test-DiagAscentClean $asc2
+      if ($ac2 -ne 'ok') { $st.reason = "capture ascent unclean: $ac2"; return $st }
+      $sLiNode2 = $null
+      foreach ($nd in $asc2.nodes) { if ($nd.ct -eq 'ControlType.ListItem') { $sLiNode2 = $nd; break } }
+      if ($null -eq $sLiNode2) { $st.reason = 'list item gone at capture'; return $st }
+      if (-not (Test-DiagRectFinitePositive $sLiNode2.rect)) { $st.reason = 'item rectangle not finite-positive at capture read'; return $st }
+      $root2 = & $rootReader
+      $rootPid2 = 0; try { $rootPid2 = [int]$root2.rootPid } catch { $rootPid2 = 0 }
+      if ($null -eq $root2 -or $rootPid2 -ne $appPid) { $st.reason = "root-pid-changed($appPid)"; return $st }
+      if (-not (Test-DiagRectFinitePositive $root2.rect)) { $st.reason = 'window rectangle not finite-positive at capture read'; return $st }
+      $ident = Compare-DiagIdentity $btnRid1 $liRid1 $liRect1 $winRid $winRect1 $btnNode2.rid $sLiNode2.rid $sLiNode2.rect $root2.rid $root2.rect
+      if ($ident -ne 'ok') { $st.reason = "$ident before capture (stale structure is not evidence)"; return $st }
+      # PASS 2 member walk - the FINAL provider reads.
+      $walk2 = Walk-CardStructure $sLiNode.el $sLiNode.rid $getFC $getNS $readNode 60 6 400
+      if ($walk2.truncated -or $walk2.errs -gt 0 -or $walk2.depthSkipped -gt 0) { $st.reason = "descendant walk pass 2 not clean (truncated=$($walk2.truncated) errs=$($walk2.errs) depthSkipped=$($walk2.depthSkipped)); member freshness unverifiable"; return $st }
+      if ($walk2.foreign -gt 0 -or $walk2.offscreenMembers -gt 0) { $st.reason = "descendant walk pass 2 has foreign/offscreen members (foreign=$($walk2.foreign) offscreen=$($walk2.offscreenMembers))"; return $st }
+      $snap = Compare-StructureSnapshot $walk.nodes $walk2.nodes
+      if ($snap -ne 'ok') { $st.reason = "member snapshot drift before capture: $snap (stale masks are not fresh authority)"; return $st }
+      $nodeRects = New-Object System.Collections.Generic.List[object]
+      foreach ($n in $walk.nodes) { $nodeRects.Add($n.rect) }
+      $outsideCount = Rect-OutsideCount $nodeRects $liRect1
+      if ($outsideCount -gt 0) { $st.reason = "$outsideCount descendant rects outside the item"; return $st }
+      $topo = Test-SavedCardTopologyV4 $walk.nodes $anchorName $sLiNode.rid
+      if (-not $topo.ok) { $st.reason = "topology refused: $($topo.reason)"; return $st }
+      $union = RectUnion $nodeRects
+      if ($null -eq $union) { $st.reason = 'no positive in-app descendant rects'; return $st }
+      $st.union = $union; $st.contentRects = $topo.maskRects; $st.liRect = $sLiNode2.rect; $st.winRect = $root2.rect; $st.winPid = $appPid; $st.winRid = $winRid; $st.members = $walk.nodes.Count
+      $st.walkCalls1 = $walk.enumCalls; $st.walkCalls2 = $walk2.enumCalls
+      # ONE-SNAPSHOT CAPTURE BOUNDARY: injected callback, invoked immediately after mask derivation. The
+      # consumer measures ONLY the bytes the callback carries (same-bytes boundary, fixtures B2/B3).
+      # 'One snapshot + pre/post integrity checks' - NOT an immutable type. The ctx carries the validated
+      # identity/geometry COPIED from the provider-boundary reads (hwnd/dpiScale surface only when the
+      # caller's rootReader attaches them; null-safe here). Required Win32 handle/PID/rect validation
+      # belongs at THIS boundary (before the final member walk); no provider/Win32 calls exist after
+      # pass 2 (fixture B1), and the residual post-boundary TOCTOU window is declared, not hidden.
+      $ctxHwnd = $null; $ctxDpi = $null
+      if ($null -ne $root2) {
+        $ph = $root2.PSObject.Properties['hwnd']; if ($null -ne $ph) { $ctxHwnd = $ph.Value }
+        $pd = $root2.PSObject.Properties['dpiScale']; if ($null -ne $pd) { $ctxDpi = $pd.Value }
+      }
+      $st.ctxHwnd = $ctxHwnd; $st.ctxDpiScale = $ctxDpi
+      if ($null -ne $capture) { $st.captured = & $capture ([pscustomobject]@{ union = $union; contentRects = $st.contentRects; liRect = $st.liRect; winRect = $st.winRect; hwnd = $ctxHwnd; winPid = $appPid; winRid = $winRid; dpiScale = $ctxDpi }) }
+      $st.stats = "members=$($walk.nodes.Count) walkCalls pass1=$($walk.enumCalls)/400 pass2=$($walk2.enumCalls)/400 (PER-WALK caps, not combined) snapshot=ok boundary=pre-pass2 ascent1(hops=$($asc1.hops) root=$($asc1.hitRoot)) ascent2(hops=$($asc2.hops) root=$($asc2.hitRoot)) identity=ok"
+      $st.ok = $true
+    } catch { $st.reason = "threw: $($_.Exception.Message)" }
+    return $st
+  }
+  # ORACLE-STRUCTURE-V4-END
+
+  # ADAPTER-V4-BEGIN: OFFLINE runtime callsite adapter candidate REV2 (NOT landed; for separate source review).
+  # REV2/REV3 contract change (reviewer 03:58:32/04:05:44): the capture callback returns an RGB PAYLOAD
+  # (byte[] + width/height/stride/channelOrder + identity + start/end UTC + declared SHA256), NOT a
+  # live bitmap object. The adapter takes ONE canonical snapshot (packed RGB, defensive copy on the fast
+  # path) with pre/post integrity hash checks - 'canonical one snapshot + integrity checks', NOT an
+  # immutable type; measurement, crops, hashing and PNG artifacts ALL derive from that single array. An incoming live object's
+  # GetPixel is NEVER consulted for pixels (the stable-Bytes-different-GetPixel evasion is structurally
+  # closed). An optional incoming 'bitmap' field may carry a live object for disposal tracking only.
+  # Gates: structure ok -> EXPLICIT capture gate (distinct; structure ok NEVER implies capture ok) ->
+  # canonical hash verification -> measurement -> post-measurement rehash -> evidence+PNG artifacts.
+  # Exception safety: measurement-stage exceptions are caught into reason with partial provenance and
+  # artifacts preserved; every cleanup step is individually guarded and records a warning instead of
+  # throwing. PNG artifacts are built and flushed BEFORE disposal, on success AND failure (whenever a
+  # canonical payload exists). pid/rid/origin are callback ASSERTIONS carried from validated values,
+  # not independent binding proof (labeled in provenance).
+  function Get-BytesSha256([byte[]]$bytes) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+  }
+  $script:CrcTable = $null
+  function Get-Crc32([byte[]]$bytes) {
+    if ($null -eq $script:CrcTable) {
+      $script:CrcTable = New-Object 'uint32[]' 256
+      for ($n = 0; $n -lt 256; $n++) { $c = [uint32]$n; for ($k = 0; $k -lt 8; $k++) { $c = $(if ($c -band 1) { 0xEDB88320 -bxor ($c -shr 1) } else { $c -shr 1 }) }; $script:CrcTable[$n] = $c }
+    }
+    $crc = [uint32]4294967295
+    foreach ($b in $bytes) { $crc = $script:CrcTable[($crc -bxor $b) -band 0xFF] -bxor ($crc -shr 8) }
+    return ([uint32]($crc -bxor 4294967295L))
+  }
+  function Get-Adler32([byte[]]$bytes) {
+    $a = [uint32]1; $b = [uint32]0
+    foreach ($x in $bytes) { $a = ($a + $x) % 65521; $b = ($b + $a) % 65521 }
+    return (($b -shl 16) -bor $a)
+  }
+  function Write-Be32([byte[]]$buf, [int]$off, [uint32]$v) {
+    $buf[$off] = [byte](($v -shr 24) -band 0xFF); $buf[$off+1] = [byte](($v -shr 16) -band 0xFF); $buf[$off+2] = [byte](($v -shr 8) -band 0xFF); $buf[$off+3] = [byte]($v -band 0xFF)
+  }
+  function Add-PngChunk($ms, [string]$type, [byte[]]$data) {
+    $len = New-Object byte[] 4; Write-Be32 $len 0 ([uint32]$data.Length); $ms.Write($len, 0, 4)
+    $tb = [System.Text.Encoding]::ASCII.GetBytes($type); $ms.Write($tb, 0, 4)
+    if ($data.Length -gt 0) { $ms.Write($data, 0, $data.Length) }
+    $crcBuf = New-Object byte[] (4 + $data.Length); [Array]::Copy($tb, $crcBuf, 4); if ($data.Length -gt 0) { [Array]::Copy($data, 0, $crcBuf, 4, $data.Length) }
+    $crc = New-Object byte[] 4; Write-Be32 $crc 0 (Get-Crc32 $crcBuf); $ms.Write($crc, 0, 4)
+  }
+  function ConvertTo-PngRgb([byte[]]$rgb, [int]$w, [int]$h) {
+    $raw = New-Object byte[] (($w * 3 + 1) * $h)
+    for ($y = 0; $y -lt $h; $y++) { [Array]::Copy($rgb, $y * $w * 3, $raw, $y * ($w * 3 + 1) + 1, $w * 3) }
+    $dms = New-Object System.IO.MemoryStream
+    $ds = New-Object System.IO.Compression.DeflateStream($dms, [System.IO.Compression.CompressionMode]::Compress)
+    $ds.Write($raw, 0, $raw.Length); $ds.Dispose()
+    $def = $dms.ToArray(); $dms.Dispose()
+    $zlib = New-Object byte[] ($def.Length + 6)
+    $zlib[0] = 0x78; $zlib[1] = 0x01
+    [Array]::Copy($def, 0, $zlib, 2, $def.Length)
+    Write-Be32 $zlib ($def.Length + 2) (Get-Adler32 $raw)
+    $ms = New-Object System.IO.MemoryStream
+    $sig = [byte[]](137, 80, 78, 71, 13, 10, 26, 10); $ms.Write($sig, 0, 8)
+    $ihdr = New-Object byte[] 13; Write-Be32 $ihdr 0 ([uint32]$w); Write-Be32 $ihdr 4 ([uint32]$h)
+    $ihdr[8] = 8; $ihdr[9] = 2  # 8-bit, truecolor RGB
+    Add-PngChunk $ms 'IHDR' $ihdr
+    Add-PngChunk $ms 'IDAT' $zlib
+    Add-PngChunk $ms 'IEND' ([byte[]]@())
+    $png = $ms.ToArray(); $ms.Dispose()
+    return ,$png
+  }
+  function Get-CropBytes([byte[]]$canon, [int]$bw, [int]$l, [int]$t, [int]$r, [int]$b) {
+    $w = $r - $l; $h = $b - $t
+    $crop = New-Object byte[] ($w * $h * 3)
+    for ($y = 0; $y -lt $h; $y++) { [Array]::Copy($canon, ([int]($t + $y) * $bw + [int]$l) * 3, $crop, $y * $w * 3, $w * 3) }
+    return ,$crop
+  }
+  function New-CanonicalBitmap([byte[]]$rgb, [int]$w, [int]$h) {
+    $o = [pscustomobject]@{ Width = $w; Height = $h; Bytes = $rgb }
+    $o | Add-Member -MemberType ScriptMethod -Name GetPixel -Value { param($x, $y) $i = ([int]$y * $this.Width + [int]$x) * 3; [pscustomobject]@{ R = $this.Bytes[$i]; G = $this.Bytes[$i+1]; B = $this.Bytes[$i+2]; Lum = 0.2126*$this.Bytes[$i] + 0.7152*$this.Bytes[$i+1] + 0.0722*$this.Bytes[$i+2] } }
+    return $o
+  }
+  function ConvertTo-CanonicalRgb([byte[]]$raw, [int]$w, [int]$h, [int]$stride, [string]$order) {
+    if ($stride -eq ($w * 3) -and $order -eq 'RGB') { return ,([byte[]]$raw.Clone()) }  # defensive copy: the callback's array may be reused/mutated later; the snapshot must not alias it
+    $out = New-Object byte[] ($w * $h * 3)
+    for ($y = 0; $y -lt $h; $y++) {
+      for ($x = 0; $x -lt $w; $x++) {
+        $si = $y * $stride + $x * 3; $di = ($y * $w + $x) * 3
+        if ($order -eq 'BGR') { $out[$di] = $raw[$si+2]; $out[$di+1] = $raw[$si+1]; $out[$di+2] = $raw[$si] }
+        else { $out[$di] = $raw[$si]; $out[$di+1] = $raw[$si+1]; $out[$di+2] = $raw[$si+2] }
+      }
+    }
+    return ,$out
+  }
+  function Test-Hex64([object]$s) { return ($null -ne $s -and ([string]$s) -match '^[0-9a-fA-F]{64}$') }
+  function ConvertTo-UtcOffset([object]$v, [ref]$dto) {
+    # require ACTUAL UTC: DateTime Kind must be Utc; DateTimeOffset offset must be zero; strings must
+    # carry an explicit zero offset (e.g. 'Z'). Kind=Unspecified/Local or unzoned strings are refused
+    # (reviewer 04:05:44: unzoned acceptance made the UTC claim false).
+    try {
+      if ($v -is [DateTime]) { if ($v.Kind -ne [DateTimeKind]::Utc) { return $false }; $dto.Value = [DateTimeOffset]$v; return $true }
+      if ($v -is [DateTimeOffset]) { if ($v.Offset -ne [TimeSpan]::Zero) { return $false }; $dto.Value = $v; return $true }
+      $sv = ([string]$v).Trim()
+      # explicit zone marker REQUIRED on string inputs (Z or +/-HH:MM): unzoned strings parse against
+      # the HOST timezone, so a host at TZ=UTC would silently accept them and the UTC claim would be
+      # false (reviewer 04:10:41 reproduction). Typed UTC DateTimes / zero-offset DateTimeOffsets only,
+      # or strings with an explicit marker that parses to a zero offset.
+      if ($sv -notmatch '(?i)(Z|[+-]\d{2}:?\d{2})$') { return $false }
+      $t = [DateTimeOffset]::MinValue
+      if (-not [DateTimeOffset]::TryParse($sv, [ref]$t)) { return $false }
+      if ($t.Offset -ne [TimeSpan]::Zero) { return $false }
+      $dto.Value = $t; return $true
+    } catch { return $false }
+  }
+  function Test-UtcInterval([object]$s, [object]$e, [ref]$ds, [ref]$de) {
+    $os = [DateTimeOffset]::MinValue; $oe = [DateTimeOffset]::MinValue
+    if (-not (ConvertTo-UtcOffset $s ([ref]$os))) { return $false }
+    if (-not (ConvertTo-UtcOffset $e ([ref]$oe))) { return $false }
+    $ds.Value = $os.UtcDateTime; $de.Value = $oe.UtcDateTime
+    return ($ds.Value -le $de.Value)
+  }
+  function Invoke-SavedCardOracleV4($anchorName, $P, $captureOnce, $pred, $frameExp, $pad, $dpiScale, $minFreePixels, $minRegionPixels, $minHaloPixels, $artifactSink = $null) {
+    $res = [ordered]@{ ok = $false; structureOk = $false; captureOk = $false; measureOk = $false; evidenceOk = $false; captureTransportIssue = $false; reason = ''; provenance = $null; evidence = $null; measureReason = ''; captureCalls = 0; captureDisposals = 0 }
+    $res.artifacts = New-Object System.Collections.Generic.List[object]
+    $res.cleanupWarnings = New-Object System.Collections.Generic.List[string]
+    $capState = @{ calls = 0; err = $null }  # hashtable: GetNewClosure scopes would swallow string reassignments
+    $incomingBitmap = $null
+    $capCb = { param($ctx)
+      $capState.calls++
+      if ($capState.calls -gt 1) { $capState.err = 'capture callback invoked more than once'; return $null }
+      try {
+        $raw = & $captureOnce $ctx
+        if ($null -eq $raw) { $capState.err = 'capture callback returned null'; return $null }
+        return $raw
+      } catch { $capState.err = "capture threw: $($_.Exception.Message)"; return $null }
+    }.GetNewClosure()
+    try {
+      $st = Get-SavedCardStructureV4 $anchorName $P.btnFinder $P.getParent $P.getFC $P.getNS $P.readNode $P.rootReader $capCb
+      if (-not $st.ok) { $res.reason = "structure refused: $($st.reason)"; return $res }
+      $res.structureOk = $true
+      $res.captureCalls = $capState.calls
+      # per-walk budget validation: each pass has its OWN 400-call cap (not a combined 800)
+      if (-not ($st.walkCalls1 -le 400 -and $st.walkCalls2 -le 400)) { $res.reason = "walk budget violated (pass1=$($st.walkCalls1) pass2=$($st.walkCalls2); per-walk cap 400)"; return $res }
+      # ---- EXPLICIT CAPTURE-SUCCESS GATE (structure ok says NOTHING about capture) ----
+      if ($null -ne $capState.err) { $res.provenance = [ordered]@{ verification = 'no-capture: ' + $capState.err }; $res.reason = "capture gate: $($capState.err)"; return $res }
+      $c = $st.captured
+      if ($null -eq $c) { $res.provenance = [ordered]@{ verification = 'no-capture: callback absent or returned null' }; $res.reason = 'capture gate: no capture object (callback absent or returned null)'; return $res }
+      # incremental partial provenance - recorded BEFORE validation, labeled unverified
+      $prov = [ordered]@{
+        verification = 'unverified'
+        pid = $c.pid; winRid = [string]$c.winRid; origin = "($($c.originL),$($c.originT))"
+        width = $c.width; height = $c.height; stride = $c.stride; channelOrder = [string]$c.channelOrder
+        captureStartedUtc = $c.captureStartedUtc; captureEndedUtc = $c.captureEndedUtc; declaredSha256 = [string]$c.sha256
+        winPidExpected = $st.winPid; winRidExpected = [string]$st.winRid
+        walkCalls1 = $st.walkCalls1; walkCalls2 = $st.walkCalls2; dpiScale = $dpiScale
+        bindingNote = 'pid/rid/origin are callback assertions carried from validated walk values, not independent binding proof'
+      }
+      $res.provenance = $prov
+      $incomingBitmap = $c.bitmap  # optional live object: disposal tracking ONLY, never pixel reads
+      # finite positive INTEGRAL dimensions
+      $w = 0; $h = 0
+      try { $w = [int]$c.width; $h = [int]$c.height; if (($w -ne [double]$c.width) -or ($h -ne [double]$c.height)) { throw 'fractional' } } catch { $prov.verification = 'gate-failed: dimensions not finite positive integral'; $res.reason = "capture gate: dimensions not finite positive integral (width=$($c.width) height=$($c.height))"; return $res }
+      if ($w -le 0 -or $h -le 0) { $prov.verification = 'gate-failed: non-positive dimensions'; $res.reason = "capture gate: non-positive dimensions ($w x $h)"; return $res }
+      # exact captured surface extent == validated window rect
+      $ww = [int]$st.winRect.Width; $wh = [int]$st.winRect.Height
+      if ($w -ne $ww -or $h -ne $wh) { $prov.verification = 'gate-failed: extent mismatch'; $res.reason = "capture gate: captured extent $w x $h != validated window extent $ww x $wh"; return $res }
+      # stride + checked RGB length
+      $stride = 0
+      try { $stride = [int]$c.stride; if ($stride -ne [double]$c.stride) { throw 'fractional' } } catch { $prov.verification = 'gate-failed: stride not integral'; $res.reason = 'capture gate: stride not integral'; return $res }
+      if ($stride -lt ($w * 3)) { $prov.verification = 'gate-failed: stride too small'; $res.reason = "capture gate: stride $stride < width*3 $($w*3)"; return $res }
+      if ($null -eq $c.rgb -or $c.rgb.Length -ne ($stride * $h)) { $prov.verification = 'gate-failed: rgb length mismatch'; $res.reason = "capture gate: rgb length $(if ($c.rgb) { $c.rgb.Length } else { 0 }) != stride*height $($stride * $h)"; return $res }
+      if ($c.channelOrder -ne 'RGB' -and $c.channelOrder -ne 'BGR') { $prov.verification = 'gate-failed: unknown channel order'; $res.reason = "capture gate: unknown channel order '$($c.channelOrder)'"; return $res }
+      # declared capture-time hash: 64-hex
+      if (-not (Test-Hex64 $c.sha256)) { $prov.verification = 'gate-failed: declared hash not 64-hex'; $res.reason = 'capture gate: declared capture hash is not 64 lowercase/uppercase hex'; return $res }
+      # start/end capture interval metadata
+      $ds = [DateTime]::MinValue; $de = [DateTime]::MinValue
+      if (-not (Test-UtcInterval $c.captureStartedUtc $c.captureEndedUtc ([ref]$ds) ([ref]$de))) { $prov.verification = 'gate-failed: invalid capture interval'; $res.reason = "capture gate: invalid capture interval (started='$($c.captureStartedUtc)' ended='$($c.captureEndedUtc)')"; return $res }
+      # PID-first + root binding (callback assertions carried from validated values)
+      if ($c.pid -ne $st.winPid) { $prov.verification = 'gate-failed: pid mismatch'; $res.reason = "capture gate: pid mismatch (capture $($c.pid) vs validated $($st.winPid))"; return $res }
+      if (-not [string]::Equals([string]$c.winRid, [string]$st.winRid, [StringComparison]::Ordinal)) { $prov.verification = 'gate-failed: window rid mismatch'; $res.reason = 'capture gate: window rid mismatch'; return $res }
+      $ox = [int]$st.winRect.Left; $oy = [int]$st.winRect.Top
+      if ($c.originL -ne $ox -or $c.originT -ne $oy) { $prov.verification = 'gate-failed: origin mismatch'; $res.reason = "capture gate: origin mismatch (capture $($c.originL),$($c.originT) vs validated window $ox,$oy)"; return $res }
+      # canonicalize: ONE frozen packed RGB array underlies measurement, crops, hashing, PNG
+      try { $canon = ConvertTo-CanonicalRgb ([byte[]]$c.rgb) $w $h $stride ([string]$c.channelOrder) } catch { $prov.verification = 'gate-failed: canonicalization threw'; $res.reason = "capture gate: canonicalization threw: $($_.Exception.Message)"; return $res }
+      $h0 = Get-BytesSha256 $canon
+      if ($h0 -ne ([string]$c.sha256).ToLowerInvariant()) { $prov.verification = 'gate-failed: canonical hash != declared hash'; $res.reason = 'capture gate: canonical payload hash does not match the declared capture-time hash'; return $res }
+      $cb = New-CanonicalBitmap $canon $w $h
+      $prov.canonicalSha256 = $h0; $prov.captureIntervalMs = [int]($de - $ds).TotalMilliseconds
+      $prov.verification = 'capture-verified'
+      $res.captureOk = $true
+      # full-surface PNG artifact built from the canonical bytes BEFORE any further gate (failure evidence
+      # is retained for EVERY later refusal, including capture-transport classification)
+      try { $pngFull = ConvertTo-PngRgb $canon $w $h; $res.artifacts.Add([ordered]@{ name = 'captured.png'; bytes = $pngFull; sha256 = (Get-BytesSha256 $pngFull); width = $w; height = $h }) } catch { $res.cleanupWarnings.Add("artifact captured.png build threw: $($_.Exception.Message)") }
+      # blank/black surface (real WPF PrintWindow failure mode): classify as CAPTURE-TRANSPORT, retain the
+      # pixels (captured.png above), do NOT treat as a render/product observation
+      $blank = $true
+      foreach ($bb in $canon) { if ($bb -ne 0) { $blank = $false; break } }
+      if ($blank) { $prov.verification = 'gate-failed: blank capture'; $prov.classification = 'capture-transport-blank'; $res.captureTransportIssue = $true; $res.reason = 'capture gate: blank/black surface (capture returned success with an all-zero payload) - classified CAPTURE-TRANSPORT, not a render/product observation; pixels retained in captured.png'; return $res }
+      # painted rect verifiability inside the canonical surface
+      $uRel = [ordered]@{ L = ($st.union.L - $ox); T = ($st.union.T - $oy); R = ($st.union.R - $ox); B = ($st.union.B - $oy) }
+      $pRel = Get-PaintedRect $uRel $frameExp $pad
+      $prov.union = $st.union; $prov.paintedRel = $pRel; $prov.winRect = $st.winRect
+      if (-not ($pRel.L -ge 1 -and $pRel.T -ge 1 -and $pRel.R -le ($w - 1) -and $pRel.B -le ($h - 1) -and ($pRel.R - $pRel.L) -ge 20 -and ($pRel.B - $pRel.T) -ge 10)) { $prov.verification = 'gate-failed: painted rect not verifiable'; $res.reason = "capture gate: painted rect not verifiable inside the captured bitmap (L$($pRel.L),T$($pRel.T),R$($pRel.R),B$($pRel.B) bmp $($w)x$($h))"; return $res }
+      # measurement on the canonical bytes ONLY, with exception safety
+      $contentRel = New-Object System.Collections.Generic.List[object]
+      foreach ($r in $st.contentRects) { $contentRel.Add([ordered]@{ L = ($r.L - $ox); T = ($r.T - $oy); R = ($r.R - $ox); B = ($r.B - $oy) }) }
+      try {
+        $m = Measure-SavedCardFrameV4 $cb $pRel $contentRel $pred.isFrame $pred.isInterior $pred.isBackground $frameExp $dpiScale $minFreePixels $minRegionPixels $minHaloPixels
+        $res.measureReason = $m.reason
+        # post-measurement integrity rehash of the SAME canonical array
+        $h2 = Get-BytesSha256 $canon
+        if ($h2 -ne $h0) { $prov.verification = 'integrity-failed: canonical mutated during measurement'; $res.reason = 'canonical bytes mutated during measurement (mutable-payload guard)'; return $res }
+        $res.measureOk = $m.ok
+        # crop evidence derived ONLY from the canonical bytes, plus a real PNG artifact
+        $cropBytes = Get-CropBytes $canon $w $pRel.L $pRel.T $pRel.R $pRel.B
+        $cropW = $pRel.R - $pRel.L; $cropH = $pRel.B - $pRel.T
+        try { $cropPng = ConvertTo-PngRgb $cropBytes $cropW $cropH; $res.artifacts.Add([ordered]@{ name = 'painted-crop.png'; bytes = $cropPng; sha256 = (Get-BytesSha256 $cropPng); width = $cropW; height = $cropH }) } catch { $res.cleanupWarnings.Add("artifact painted-crop.png build threw: $($_.Exception.Message)") }
+        $res.evidence = @(
+          [ordered]@{ name = 'captured-canonical'; sha256 = $h0; width = $w; height = $h },
+          [ordered]@{ name = 'painted-crop'; sha256 = (Get-BytesSha256 $cropBytes); rect = "L$($pRel.L),T$($pRel.T),R$($pRel.R),B$($pRel.B)" }
+        )
+        if (-not $m.ok) { $prov.verification = 'measurement-refused'; $res.reason = "measurement refused: $($m.reason) (evidence crops + PNG artifacts derived from the captured bytes)"; return $res }
+        $prov.verification = 'measured-ok'
+      } catch {
+        $prov.verification = 'measurement-threw'
+        $res.reason = "measurement stage threw: $($_.Exception.Message) (partial provenance/evidence/artifacts preserved)"
+        return $res
+      }
+    } catch {
+      # OUTER clean refusal: hash/metadata/gate-stage exceptions never escape (reviewer 04:05:44)
+      if ($null -eq $res.provenance) { $res.provenance = [ordered]@{ verification = 'threw-before-capture-metadata' } }
+      $res.provenance.verification = 'adapter-threw: ' + $_.Exception.Message
+      $res.reason = "adapter stage threw: $($_.Exception.Message) (partial provenance/artifacts preserved)"
+      return $res
+    } finally {
+      # artifacts flushed to the sink BEFORE any disposal, each individually guarded
+      if ($null -ne $artifactSink) {
+        foreach ($art in $res.artifacts) {
+          # VERIFIED-write sink contract (reviewer 04:10:41): the sink writes, reads the bytes back and
+          # compares the read-back SHA256 to the expected hash, returning $true only on equality.
+          # A non-$true return fails evidence exactly like a throw.
+          try {
+            $sinkRet = & $artifactSink $art.name $art.bytes
+            if ($sinkRet -ne $true) { $res.cleanupWarnings.Add("artifact sink failed verification for $($art.name)") }
+          } catch { $res.cleanupWarnings.Add("artifact sink threw for $($art.name): $($_.Exception.Message)") }
+        }
+      }
+      if ($null -ne $incomingBitmap -and $incomingBitmap.PSObject.Methods['Dispose']) {
+        try { $incomingBitmap.Dispose(); $res.captureDisposals++ } catch { $res.cleanupWarnings.Add("incoming bitmap Dispose threw: $($_.Exception.Message)") }
+      }
+      # EVIDENCE GATE (reviewer 04:05:44): when a canonical payload existed, a PASS requires BOTH PNG
+      # artifacts built AND every sink write succeeded - a warning-level artifact failure never yields
+      # a ready PASS without usable evidence. Disposal warnings do not gate evidence.
+      if ($res.captureOk) {
+        $hasFull = (@($res.artifacts | Where-Object { $_.name -eq 'captured.png' }).Count -eq 1)
+        $hasCrop = (@($res.artifacts | Where-Object { $_.name -eq 'painted-crop.png' }).Count -eq 1)
+        $sinkFailed = (@($res.cleanupWarnings | Where-Object { $_ -like 'artifact sink *' }).Count -gt 0)
+        $res.evidenceOk = ($hasFull -and $hasCrop -and -not $sinkFailed)
+        if ($res.measureOk -and -not $res.evidenceOk) {
+          $res.reason = "evidence gate: artifact pipeline incomplete (captured=$hasFull crop=$hasCrop sinkFailed=$sinkFailed); ready PASS never claimed without usable evidence"
+        }
+      }
+      $res.ok = ($res.structureOk -and $res.captureOk -and $res.measureOk -and $res.evidenceOk)
+    }
+    return $res
+  }
+  # ADAPTER-V4-END
+
+  # PWCAP-DIAG-END
+
+
   # SAVED card face (overview): the card Border is a plain Border with the same converters, NOT the popup's
   # PreviewBorder - this is the measurement the audit flagged as missing. Resolve the card's ListItem from its
   # named button, re-acquire FRESH rects right before the capture, validate (positive, inside the app window
@@ -1445,6 +2341,7 @@ public static class DlgDrive {
   Assert 'saved card frame matches the AGREED rule with a real uploaded image: image visible, thick top, thin visible sides AND thin bottom, pure image interior, every clean column passing (painted-bounds anchored; measured px reported, not assumed thickness)' $mres.ok ("reason='$($mres.reason)' measured px: top=$($mres.top) left=$($mres.left) right=$($mres.right) bot=$($mres.bot) botSig=$($mres.botSig) interior=$($mres.interior) topConsistent=$($mres.topConsistent) colsClean=$($mres.colsClean) colsPass=$($mres.colsPass) | $($mres.botDetail) | dpi=$dpiX2,$dpiY2 | crop=out-images/feat-saved-card-frame-crop.png ${cw}x${ch}")
   Shot 'card-with-picker-image'
   Log-SavedCardDiag 'with-image'
+  Invoke-PrintWindowDiag 'with-image'
   # remove image (הסר תמונה) + explicit NO-IMAGE background on the saved card (image property cleared, not a
   # missing file): the audit gap was that only the missing-path fallback was ever exercised.
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for remove image' ($c -eq 'ok') $c
@@ -1497,6 +2394,7 @@ public static class DlgDrive {
   Assert 'saved card shows the color as background with NO image (explicit empty, not missing file; same card re-acquired and validated per poll)' $okCardBg ("center=$seenCardBg expected~rgb(191,219,254)")
   Shot 'card-no-image-background'
   Log-SavedCardDiag 'no-image'
+  Invoke-PrintWindowDiag 'no-image'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
   Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
