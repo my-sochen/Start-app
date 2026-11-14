@@ -1553,6 +1553,7 @@ public static class WinCap {
     $sum = New-Object System.Collections.Generic.List[string]
     $outcome = 'started'
     $stage = 'init'
+    $oracle = $null  # r12: initialized so every refusal path exposes null (missing evidence refuses)
     try {
       $stage = 'pid-binding'
       # EXPLICIT root pid binding (reviewer 04:10:41): landed Read-DiagNode returns
@@ -1615,12 +1616,14 @@ public static class WinCap {
       # measure-scale guard remains as defense in depth.
       $stage = 'oracle-call'
       $oracle = Invoke-SavedCardOracleV4 'E2E ws renamed' $P { param($ctx) Invoke-RealWindowCaptureV1 $ctx } $pred $frameExp $pad 1.0 400 40 200 $sink
-      # OLD-vs-NEW (both preserved and inspectable; old assertions UNCHANGED above and still gating):
+      # OLD-vs-NEW (both preserved and inspectable; r12: the old readings above are now non-gating
+      # LEGACY Info entries - the old anchor is invalid per reviewer 05:55:38 - and the GATE assertion
+      # after this driver call is the gating check):
       $oldState = ''
       if ($tag -eq 'with-image') {
-        try { $oldState = "OLD(with-image, landed assertions above UNCHANGED): mres.ok=$($script:mres.ok) reason='$($script:mres.reason)' top=$($script:mres.top) left=$($script:mres.left) right=$($script:mres.right) bot=$($script:mres.bot) colsClean=$($script:mres.colsClean) colsPass=$($script:mres.colsPass)" } catch { $oldState = 'OLD(with-image): mres unreadable' }
+        try { $oldState = "LEGACY(with-image, non-gating reading above): mres.ok=$($script:mres.ok) reason='$($script:mres.reason)' top=$($script:mres.top) left=$($script:mres.left) right=$($script:mres.right) bot=$($script:mres.bot) colsClean=$($script:mres.colsClean) colsPass=$($script:mres.colsPass)" } catch { $oldState = 'LEGACY(with-image): mres unreadable' }
       } else {
-        try { $oldState = "OLD(no-image, landed assertion above UNCHANGED): okCardBg=$($script:okCardBg) seen='$($script:seenCardBg)'" } catch { $oldState = 'OLD(no-image): okCardBg unreadable' }
+        try { $oldState = "LEGACY(no-image, non-gating reading above): okCardBg=$($script:okCardBg) seen='$($script:seenCardBg)'" } catch { $oldState = 'LEGACY(no-image): okCardBg unreadable' }
       }
       $prov = if ($null -ne $oracle.provenance) { "$($oracle.provenance.verification)" } else { 'none' }
       $stage = 'oracle-report'
@@ -1639,8 +1642,71 @@ public static class WinCap {
       $outcome = "oracle ok=$($oracle.ok) structure=$($oracle.structureOk) capture=$($oracle.captureOk) measure=$($oracle.measureOk) evidence=$($oracle.evidenceOk) transport=$($oracle.captureTransportIssue) reason=$($oracle.reason) prov=$prov artifacts=$($oracle.artifacts.Count) warnings=$($oracle.cleanupWarnings -join '; ') | $oldState"
     } catch { $outcome = "threw at stage=${stage}: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace) | at: $($_.InvocationInfo.PositionMessage)" }
     finally {
-      try { Info "saved-card PrintWindow diag ($tag): $outcome (diagnostic only; original assertions/captures unchanged)" ($sum -join ' | ') } catch { }
+      # r12: expose the ACTUAL oracle result + outcome at flow scope so the GATE assertion uses the SAME
+      # single oracle run (no recapture); stays $null on every refusal path (missing evidence refuses).
+      $script:pwDiagTag = $tag
+      $script:pwDiagOutcome = $outcome
+      $script:pwDiagOracle = $oracle
+      try { Info "saved-card PrintWindow diag ($tag): $outcome (audit only; native upload/save/remove flow unchanged; LEGACY readings above non-gating, the GATE assertion is the gating check)" ($sum -join ' | ') } catch { }
     }
+  }
+
+  # ----- additive gate functions (r12): verified audit export + the gating oracle assertion -----------
+  # The GATE replaces the old item-fraction sampling assertions as the gating check: the SAME single
+  # oracle result captured by the driver above (no recapture) must show structure+capture+measure+
+  # evidence ok on the ONE actual capture, at the named 96 DPI model domain. Unsupported DPI, missing
+  # oracle evidence, or an unverifiable audit export all REFUSE (no silent green).
+  function Export-PwAudit($tag, $oracle, $outcome) {
+    # Persists the ACTUAL oracle runtime data (provenance incl. hashes, structure snapshot with member
+    # masks, measurement object, evidence rects/hashes, artifact paths) BEFORE the gate assertion.
+    # Verified (reviewer 06:02:12): serialize ONCE to UTF8 bytes -> WriteAllBytes -> ReadAllBytes ->
+    # EXACT SHA256 byte-identity -> parse -> required fields. A different/stale valid JSON can never
+    # pass as verified. Every failure sets a named $script:pwAuditError and returns $null (gate refuses).
+    if ($null -eq $oracle) { $script:pwAuditError = 'oracle result null'; return $null }
+    $artList = New-Object System.Collections.Generic.List[object]
+    if ($null -ne $oracle.artifacts) { foreach ($a in $oracle.artifacts) { $artList.Add([ordered]@{ name = [string]$a.name; sha256 = [string]$a.sha256; width = $a.width; height = $a.height; path = "out-images/diag-pw-$tag-$($a.name)" }) } }
+    $warnList = New-Object System.Collections.Generic.List[string]
+    if ($null -ne $oracle.cleanupWarnings) { foreach ($w in $oracle.cleanupWarnings) { $warnList.Add([string]$w) } }
+    $audit = [ordered]@{
+      tag = $tag; recordedAtUtc = [DateTime]::UtcNow.ToString('o'); outcome = [string]$outcome
+      domain = '96 DPI model-frame domain: FrameThicknessConverter (1,8,1,1) with-image / (0,0,0,0) no-image at dpiScale 1.0, Border Padding=4; residual limits DECLARED: model-not-Border, occlusion, corner-AA, post-snapshot TOCTOU'
+      gates = [ordered]@{ ok = $oracle.ok; structureOk = $oracle.structureOk; captureOk = $oracle.captureOk; measureOk = $oracle.measureOk; evidenceOk = $oracle.evidenceOk; captureTransportIssue = $oracle.captureTransportIssue; captureCalls = $oracle.captureCalls; captureDisposals = $oracle.captureDisposals }
+      reason = [string]$oracle.reason; measureReason = [string]$oracle.measureReason
+      provenance = $oracle.provenance; evidence = $oracle.evidence; structure = $oracle.structure; measurement = $oracle.measurement
+      artifacts = $artList; cleanupWarnings = $warnList
+    }
+    $json = $audit | ConvertTo-Json -Depth 10
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+    # absolute via $PWD (same convention as the shipped artifact sink): .NET IO resolves relative
+    # paths against the PROCESS cwd, not the PowerShell location.
+    $p = Join-Path "$PWD/diag" "audit-pw-$tag.json"
+    [System.IO.File]::WriteAllBytes($p, $bytes)
+    $backBytes = [System.IO.File]::ReadAllBytes($p)
+    $hW = Get-BytesSha256 $bytes; $hR = Get-BytesSha256 $backBytes
+    if (-not [string]::Equals($hR, $hW, [StringComparison]::Ordinal)) { $script:pwAuditError = "audit read-back SHA256 mismatch (wrote $hW read $hR); refusing to treat the audit as verified"; return $null }
+    $back = [System.Text.Encoding]::UTF8.GetString($backBytes) | ConvertFrom-Json
+    if ($null -eq $back -or $back.tag -ne $tag) { $script:pwAuditError = 'audit read-back unparseable or tag mismatch'; return $null }
+    if ($null -eq $back.gates -or $null -eq $back.provenance -or $null -eq $back.evidence -or $null -eq $back.structure -or $null -eq $back.measurement) { $script:pwAuditError = 'audit read-back missing required fields'; return $null }
+    return $back
+  }
+  function Assert-PwGate($tag) {
+    # Cross-state binding (reviewer 06:02:12): the gate accepts only the result the driver exposed for
+    # THIS state (Ordinal-exact tag match, known states only). A stale/cross-state/unknown tag refuses
+    # BEFORE any audit write, so a wrong-state audit path is never produced. Ordinary functions, no
+    # GetNewClosure for globals; no extra capture/provider read.
+    $known = ($tag -eq 'with-image' -or $tag -eq 'no-image')
+    $bound = $script:pwDiagTag
+    $tagOk = $known -and ($null -ne $bound) -and [string]::Equals([string]$bound, [string]$tag, [StringComparison]::Ordinal)
+    $o = $script:pwDiagOracle
+    $auditOk = $false; $auditPath = "diag/audit-pw-$tag.json"; $script:pwAuditError = ''
+    if ($tagOk) { try { $back = Export-PwAudit $tag $o $script:pwDiagOutcome; $auditOk = ($null -ne $back) } catch { $auditOk = $false; if ("$($script:pwAuditError)" -eq '') { $script:pwAuditError = "audit export threw: $($_.Exception.Message)" } } }
+    else { $script:pwAuditError = "tag binding failed (known=$known bound='$bound' requested='$tag'); stale/cross-state/unknown state refuses before any audit write" }
+    $hasO = ($null -ne $o)
+    $gatesOk = $hasO -and $o.ok -and $o.structureOk -and $o.captureOk -and $o.measureOk -and $o.evidenceOk -and (-not $o.captureTransportIssue) -and ($o.captureCalls -eq 1)
+    $dpiOk = $hasO -and ($null -ne $o.provenance) -and ($o.provenance.dpiScale -eq 1.0)
+    $detail = "oracle result missing (driver outcome=$($script:pwDiagOutcome))"
+    if ($hasO) { $detail = "outcome=$($script:pwDiagOutcome) gates ok=$($o.ok) structure=$($o.structureOk) capture=$($o.captureOk) measure=$($o.measureOk) evidence=$($o.evidenceOk) transport=$($o.captureTransportIssue) captureCalls=$($o.captureCalls) prov=$(if ($null -ne $o.provenance) { $o.provenance.verification } else { 'none' }) dpiScale=$(if ($null -ne $o.provenance) { $o.provenance.dpiScale } else { 'none' }) reason='$($o.reason)' measureReason='$($o.measureReason)'" }
+    Assert "GATE saved-card PrintWindow oracle ($tag): structure+capture+measure+evidence on the ONE actual capture (96 DPI model domain, painted-bounds anchored; unsupported DPI or missing evidence/audit refuses)" ($tagOk -and $gatesOk -and $dpiOk -and $auditOk) ("tag=$tag bound=$bound tagOk=$tagOk | $detail | audit=$auditPath verified=$auditOk auditErr='$($script:pwAuditError)'")
   }
 
   # MEASURE-V4-BEGIN (r8 domain correction, THIRD cut - offline evaluator canonical source; NOT landed):
@@ -2186,7 +2252,7 @@ public static class WinCap {
     return ($ds.Value -le $de.Value)
   }
   function Invoke-SavedCardOracleV4($anchorName, $P, $captureOnce, $pred, $frameExp, $pad, $dpiScale, $minFreePixels, $minRegionPixels, $minHaloPixels, $artifactSink = $null) {
-    $res = [ordered]@{ ok = $false; structureOk = $false; captureOk = $false; measureOk = $false; evidenceOk = $false; captureTransportIssue = $false; reason = ''; provenance = $null; evidence = $null; measureReason = ''; captureCalls = 0; captureDisposals = 0 }
+    $res = [ordered]@{ ok = $false; structureOk = $false; captureOk = $false; measureOk = $false; evidenceOk = $false; captureTransportIssue = $false; reason = ''; provenance = $null; evidence = $null; measureReason = ''; structure = $null; measurement = $null; captureCalls = 0; captureDisposals = 0 }
     $res.artifacts = New-Object System.Collections.Generic.List[object]
     $res.cleanupWarnings = New-Object System.Collections.Generic.List[string]
     $capState = @{ calls = 0; err = $null }  # hashtable: GetNewClosure scopes would swallow string reassignments
@@ -2207,6 +2273,10 @@ public static class WinCap {
       $res.captureCalls = $capState.calls
       # per-walk budget validation: each pass has its OWN 400-call cap (not a combined 800)
       if (-not ($st.walkCalls1 -le 400 -and $st.walkCalls2 -le 400)) { $res.reason = "walk budget violated (pass1=$($st.walkCalls1) pass2=$($st.walkCalls2); per-walk cap 400)"; return $res }
+      # r12: surface the ACTUAL structure snapshot (member masks = contentRects, rects, identity, walk
+      # budgets) so the per-state audit JSON exports the oracle's OWN runtime data, not an earlier-DIAG
+      # reconstruction.
+      $res.structure = [ordered]@{ union = $st.union; contentRects = $st.contentRects; liRect = $st.liRect; winRect = $st.winRect; winPid = $st.winPid; winRid = [string]$st.winRid; members = $st.members; ctxHwnd = $(if ($null -ne $st.ctxHwnd) { [string]$st.ctxHwnd } else { '' }); ctxDpiScale = $st.ctxDpiScale; walkCalls1 = $st.walkCalls1; walkCalls2 = $st.walkCalls2 }
       # ---- EXPLICIT CAPTURE-SUCCESS GATE (structure ok says NOTHING about capture) ----
       if ($null -ne $capState.err) { $res.provenance = [ordered]@{ verification = 'no-capture: ' + $capState.err }; $res.reason = "capture gate: $($capState.err)"; return $res }
       $c = $st.captured
@@ -2273,6 +2343,7 @@ public static class WinCap {
       try {
         $m = Measure-SavedCardFrameV4 $cb $pRel $contentRel $pred.isFrame $pred.isInterior $pred.isBackground $frameExp $dpiScale $minFreePixels $minRegionPixels $minHaloPixels
         $res.measureReason = $m.reason
+        $res.measurement = $m  # r12: the ACTUAL measurement object for the per-state audit export
         # post-measurement integrity rehash of the SAME canonical array
         $h2 = Get-BytesSha256 $canon
         if ($h2 -ne $h0) { $prov.verification = 'integrity-failed: canonical mutated during measurement'; $res.reason = 'canonical bytes mutated during measurement (mutable-payload guard)'; return $res }
@@ -2366,11 +2437,16 @@ public static class WinCap {
   $mres = Measure-CardFrame $crop2 $cw $ch $isFrame2 $isImg2 $candX $rowMid $scaleY2
   $crop2.Dispose()
   Info 'saved card frame measured px vs preview px (all candidate columns reported)' ("cols clean=$($mres.colsClean) pass=$($mres.colsPass) readings: $($mres.mid) | card: top=$($mres.top) left=$($mres.left) right=$($mres.right) bottomRun=$($mres.bot) anchor=y$($mres.yBot) | preview(9a): top=$topBand left=$leftBand right=$rightBand | dpiX=$dpiX2 dpiY=$dpiY2 bounds=T$($mres.yTop),B$($mres.yBot),L$($mres.xLeft),R$($mres.xRight) transitions(belowTop=$($mres.belowTop) rightOfLeft=$($mres.rightOfLeft))")
-  Assert 'saved card face renders the picker-uploaded image (at least 3 clean candidate columns, all measured and reported)' ($mres.colsClean -ge 3) ("readings: $($mres.mid) crop=${cw}x${ch}")
-  Assert 'saved card frame matches the AGREED rule with a real uploaded image: image visible, thick top, thin visible sides AND thin bottom, pure image interior, every clean column passing (painted-bounds anchored; measured px reported, not assumed thickness)' $mres.ok ("reason='$($mres.reason)' measured px: top=$($mres.top) left=$($mres.left) right=$($mres.right) bot=$($mres.bot) botSig=$($mres.botSig) interior=$($mres.interior) topConsistent=$($mres.topConsistent) colsClean=$($mres.colsClean) colsPass=$($mres.colsPass) | $($mres.botDetail) | dpi=$dpiX2,$dpiY2 | crop=out-images/feat-saved-card-frame-crop.png ${cw}x${ch}")
+  # r12: LEGACY reading, NON-GATING. Historical observation (run 43553053012, reviewer 05:55:38): the
+  # item-fraction sample columns landed outside the painted face (that run: item 864 wide, painted 249
+  # wide) - the old anchor is invalid, so it cannot gate; the PrintWindow GATE below gates. Measurement
+  # code and native flow unchanged.
+  Info 'LEGACY (non-gating; item-fraction sampling, painted-face anchor invalid in observed run 43553053012 - superseded by the GATE below) saved card face columns' ("colsClean=$($mres.colsClean) (old threshold >=3) readings: $($mres.mid) crop=${cw}x${ch}")
+  Info 'LEGACY (non-gating; item-fraction sampling, painted-face anchor invalid in observed run 43553053012 - superseded by the GATE below) saved card frame vs AGREED rule' ("ok=$($mres.ok) reason='$($mres.reason)' measured px: top=$($mres.top) left=$($mres.left) right=$($mres.right) bot=$($mres.bot) botSig=$($mres.botSig) interior=$($mres.interior) topConsistent=$($mres.topConsistent) colsClean=$($mres.colsClean) colsPass=$($mres.colsPass) | $($mres.botDetail) | dpi=$dpiX2,$dpiY2 | crop=out-images/feat-saved-card-frame-crop.png ${cw}x${ch}")
   Shot 'card-with-picker-image'
   Log-SavedCardDiag 'with-image'
   Invoke-PrintWindowDiag 'with-image'
+  Assert-PwGate 'with-image'
   # remove image (הסר תמונה) + explicit NO-IMAGE background on the saved card (image property cleared, not a
   # missing file): the audit gap was that only the missing-path fallback was ever exercised.
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for remove image' ($c -eq 'ok') $c
@@ -2420,10 +2496,11 @@ public static class WinCap {
       } else { $seenCardBg = "rect invalid this poll: $($r3.Left),$($r3.Top),$($r3.Right),$($r3.Bottom)" }
     }
   }
-  Assert 'saved card shows the color as background with NO image (explicit empty, not missing file; same card re-acquired and validated per poll)' $okCardBg ("center=$seenCardBg expected~rgb(191,219,254)")
+  Info 'LEGACY (non-gating; same-card center pixel, painted-face anchor invalid in observed run 43553053012 - superseded by the GATE below) saved card color background with NO image' ("ok=$okCardBg center=$seenCardBg expected~rgb(191,219,254)")
   Shot 'card-no-image-background'
   Log-SavedCardDiag 'no-image'
   Invoke-PrintWindowDiag 'no-image'
+  Assert-PwGate 'no-image'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
   Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
