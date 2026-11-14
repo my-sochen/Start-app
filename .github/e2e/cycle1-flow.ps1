@@ -2837,6 +2837,9 @@ public static class WinCap {
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json
+  # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run
+  $crashLog = Join-Path $storeDir 'crash.log'
+  if (Test-Path $crashLog) { Copy-Item $crashLog diag/app-crash.log -Force; 'app crash log captured into diag/app-crash.log' | Out-File -Append diag/errors.txt }
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
 }

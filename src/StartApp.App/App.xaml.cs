@@ -14,6 +14,7 @@ public partial class App : Application
     private void OnStartup(object sender, StartupEventArgs e)
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp");
+        CrashLogger.Attach(Path.Combine(dir, "crash.log"), this); // evidence only; never marks anything handled
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
         var vm = new MainViewModel(_store, launcher, preflight, capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
