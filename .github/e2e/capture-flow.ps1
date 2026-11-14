@@ -465,9 +465,11 @@ try {
   $o = StoreObj
   $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
   Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#BFDBFE' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
-  $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq 'https://example.com/' } | Select-Object -First 1).id
+  # SiteFromAddressText returns the scheme-prefixed host exactly as read (no forced trailing slash): accept the two
+  # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
+  $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
   $capSiteMem = @($wsCap.items | Where-Object { $_.itemId -eq $capSiteItemId })[0]
-  Assert 'create from capture invents no launch config for the captured site' ($null -ne $capSiteMem -and $null -eq $capSiteMem.launch) ''
+  Assert 'create from capture invents no launch config for the captured site' ($null -ne $capSiteItemId -and $null -ne $capSiteMem -and $null -eq $capSiteMem.launch) ("itemId=$(if ($capSiteItemId) { $capSiteItemId } else { 'NO-ITEM-MATCH' }) membership=$(if ($null -ne $capSiteMem) { 'found' } else { 'MISSING' }) launch=$(if ($null -eq $capSiteMem) { 'n/a' } elseif ($null -eq $capSiteMem.launch) { 'null' } else { $capSiteMem.launch })")
   Assert 'the captured folder is listed in the new workspace' (WaitText 'capfolder' 5) ((Texts) -join ' | ')
   Shot 'created-from-capture-details'
   $c = ClickBtn 'Back' 900; Assert 'back to overview' ($c -eq 'ok') $c
