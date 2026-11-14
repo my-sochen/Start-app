@@ -1478,6 +1478,7 @@ public static class WinCap {
     if ($null -eq $nd) { throw 'root unread at boundary read (outside app process)' }
     $hwndNow = [IntPtr][int64]($winEl.Current.NativeWindowHandle)
     if ($hwndNow -eq [IntPtr]::Zero) { throw 'boundary handle validation: UIA NativeWindowHandle is zero' }
+    if ($null -eq $mainHwnd) { throw 'boundary handle validation: expected launched main window handle is null at the read (caller binding defect, fail-closed)' }
     if ($hwndNow -ne $mainHwnd) { throw ("boundary handle validation: current UIA handle 0x{0:X} != launched main window handle 0x{1:X}" -f $hwndNow.ToInt64(), ([IntPtr]$mainHwnd).ToInt64()) }
     if (-not (& $fnIsWindow $hwndNow)) { throw 'boundary handle validation: handle is not a live window' }
     $wpid = [uint32]0
@@ -1578,7 +1579,15 @@ public static class WinCap {
       # checked Win32 handle/PID/rect/DPI validation FRESH inside Read-ValidatedRoot - nothing cached
       # (reviewer 04:18:27). Any mismatch THROWS (no fallback, no retry) and surfaces as a named
       # structure refusal.
-      $P.rootReader = { Read-ValidatedRoot $win $appPid $script:mainHwnd $fnIsWindow $fnTryPid $fnGetRect $fnGetDpi }.GetNewClosure()
+      # run 43548927818 MEASURED: a GetNewClosure closure binds $script:-qualified reads to the
+      # CLOSURE's own module scope, so $script:mainHwnd arrived NULL at the first root read (thrown
+      # as 'Cannot convert null to type System.IntPtr' inside Read-ValidatedRoot). Cache ONLY the
+      # EXPECTED launched-window identity into a LOCAL here (reviewer 05:17:44): the CURRENT
+      # HWND/PID/rect/DPI are still re-read and re-validated FRESH at BOTH root reads inside
+      # Read-ValidatedRoot - nothing about the live window is cached.
+      $mainHwndForOracle = $script:mainHwnd
+      if ($null -eq $mainHwndForOracle -or $mainHwndForOracle -eq [IntPtr]::Zero) { $outcome = 'refused: launched main window handle is null/zero at the driver read'; return }
+      $P.rootReader = { Read-ValidatedRoot $win $appPid $mainHwndForOracle $fnIsWindow $fnTryPid $fnGetRect $fnGetDpi }.GetNewClosure()
       # landed source constants: Border Padding=4; FrameThicknessConverter (1,8,1,1) with image else 0.
       $pad = 4
       $isFrameP = { param($px) ([math]::Abs([int]$px.R - 191) -le 12 -and [math]::Abs([int]$px.G - 219) -le 12 -and [math]::Abs([int]$px.B - 254) -le 12) }
