@@ -468,8 +468,14 @@ try {
   # size, and full per-swatch containment inside that palette rect (plus on-screen and inside the window).
   # The palette rectangle and ALL swatch sizes are recorded in the detail even on PASS, so the run is auditable.
   Add-Type -MemberDefinition '[DllImport("gdi32.dll")] public static extern int GetDeviceCaps(System.IntPtr hdc, int index); [DllImport("user32.dll")] public static extern System.IntPtr GetDC(System.IntPtr hWnd); [DllImport("user32.dll")] public static extern int ReleaseDC(System.IntPtr hWnd, System.IntPtr hdc);' -Name Dpi -Namespace CapGuard
-  $hdcCap = [CapGuard.Dpi]::GetDC($p.MainWindowHandle); $dpiX = [CapGuard.Dpi]::GetDeviceCaps($hdcCap, 88); [void][CapGuard.Dpi]::ReleaseDC($p.MainWindowHandle, $hdcCap)
-  $swExpected = [int][math]::Round(22.0 * $dpiX / 96.0)
+  # fail-closed DPI read: a zero DC or zero DPI must NOT silently produce expected=0 (threshold -1 would then
+  # accept any zero/clipped swatch size) - verify the DC, read inside try, release the valid DC in finally,
+  # and treat an unreadable scale as a guard failure with no default 96 assumed
+  $hdcCap = [CapGuard.Dpi]::GetDC($p.MainWindowHandle)
+  $dpiX = 0
+  if ($hdcCap -ne [IntPtr]::Zero) { try { $dpiX = [CapGuard.Dpi]::GetDeviceCaps($hdcCap, 88) } finally { [void][CapGuard.Dpi]::ReleaseDC($p.MainWindowHandle, $hdcCap) } }
+  $dpiOk = ($hdcCap -ne [IntPtr]::Zero -and $dpiX -gt 0)
+  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(22.0 * $dpiX / 96.0) }
   $palHex = @('#FFFFFF', '#FDE68A', '#BFDBFE', '#BBF7D0', '#FECACA', '#E9D5FF', '#E5E7EB')
   $wrCap = (CurWin).Current.BoundingRectangle
   $tw = [System.Windows.Automation.TreeWalker]::ControlViewWalker
@@ -483,6 +489,7 @@ try {
     $sr = $sw.Current.BoundingRectangle
     $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
     if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
+    if (-not $dpiOk) { $palBad += "$hex size unverifiable: window DC/DPI unreadable (hdc=$hdcCap dpi=$dpiX), no default assumed"; continue }
     if ([int]$sr.Width -lt ($swExpected - 1) -or [int]$sr.Height -lt ($swExpected - 1)) { $palBad += "$hex size=$([int]$sr.Width)x$([int]$sr.Height) below expected ${swExpected}px"; continue }
     if ($null -ne $palBox) {
       $pr = $palBox.Current.BoundingRectangle
