@@ -1,2 +1,6 @@
 bin/
 obj/
+
+# Python bytecode (offline test tooling)
+__pycache__/
+*.pyc
