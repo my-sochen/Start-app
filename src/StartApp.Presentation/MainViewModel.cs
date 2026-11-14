@@ -7,7 +7,14 @@ namespace StartApp.Presentation;
 
 /// <summary>One visible instance row. Name/Description are the instance's own values with fallback to the catalog item's original name /
 /// no description. Group is the display category (decided Nov 12: sites, folders, files, programs - the earlier files+programs combined group was superseded); order inside a group is undecided, so insertion order is kept.</summary>
-public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null, string? Program = null);
+public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null, string? Program = null)
+{
+    /// <summary>Short name shown next to the program icon (icon + name display, settled Nov 14). The full Program path
+    /// itself is untouched: it stays as the tooltip source and in the open-with popup.</summary>
+    public string ProgramDisplayName => ProgramDisplayNames.Resolve(Program);
+    /// <summary>Accessible name of the opens-with row ("Opens with: <name>").</summary>
+    public string ProgramOpensWithText => ProgramDisplayName.Length == 0 ? "" : "Opens with: " + ProgramDisplayName;
+}
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
 /// read-only state with a message; nothing is written until the user decides (no silent reset).</summary>

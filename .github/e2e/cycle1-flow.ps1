@@ -70,6 +70,10 @@ function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = 
 function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
 function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
+# state-aware: the open-with popup re-checks 'Set as default' whenever a saved launch exists (VM: OpenWithSetDefault =
+# m?.Launch is not null), so a blind ToggleEl would UNCHECK it there and the save would silently not happen. Toggle only
+# when the current state is not already the wanted one, and fail loudly when the wanted state cannot be reached.
+function EnsureToggle($el, $what, $wantOn) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; $p = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern); $isOn = $p.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On; if ($isOn -ne $wantOn) { try { $p.Toggle(); Start-Sleep -Milliseconds 300; $p = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern) } catch { Assert "$what toggleable" $false "$_"; return $false } }; $ok = ($p.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -eq $wantOn; Assert "$what is $(if ($wantOn) { 'on' } else { 'off' })" $ok ("state=$($p.Current.ToggleState)"); return $ok }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = $win.Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
@@ -223,8 +227,35 @@ try {
   $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
   Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
   Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
-  Assert 'row shows the chosen program' (WaitText 'notepad.exe' 5) ((Texts) -join ' | ')
+  # icon + name display (settled Nov 14): the row shows the program icon and a short name, the full path stays in the tooltip
+  Assert 'opens-with shows the short name, not the path' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  $owEls = @($win.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: Notepad'))))
+  Assert 'opens-with icon element present' (@($owEls | Where-Object { $null -ne $_.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) }).Count -ge 1) ("named=$($owEls.Count)")
+  Assert 'opens-with tooltip keeps the full path' (@($owEls | Where-Object { $_.Current.HelpText -like '*notepad.exe*' }).Count -ge 1) ((@($owEls | ForEach-Object { $_.Current.HelpText }) -join ' | '))
+  Assert 'full path no longer shown as row text' (@(@(Texts) | Where-Object { $_ -eq 'Opens with: C:\Windows\notepad.exe' }).Count -eq 0) ((Texts) -join ' | ')
   Shot 'open-with-saved'
+  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  # fallback (settled Nov 14): an exe whose icon cannot be read keeps the full-path text; then restore notepad.exe
+  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the fallback case' ($c -eq 'ok') $c
+  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
+  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the fallback case' ($null -ne $prog) ''
+  SetText $prog 'C:\Windows\notepad2.exe'
+  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
+  $c = ClickBtn 'Open with chosen program' 1500; Assert 'fallback open-with go clicked' ($c -eq 'ok') $c
+  Assert 'store.json: missing-exe choice saved' ((StoreJson) -match 'notepad2\.exe') (StoreJson)
+  Assert 'missing exe falls back to the full-path text' (WaitText 'Opens with: C:\Windows\notepad2.exe' 10) ((Texts) -join ' | ')
+  Assert 'no icon + name panel for the missing exe' ($null -eq $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: notepad2')))) ''
+  Shot 'open-with-fallback'
+  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the restore' ($c -eq 'ok') $c
+  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
+  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the restore' ($null -ne $prog) ''
+  SetText $prog 'C:\Windows\notepad.exe'
+  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
+  $c = ClickBtn 'Open with chosen program' 900; Assert 'restore open-with go clicked' ($c -eq 'ok') $c
+  Assert 'open-with sent the request after restore' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'store.json restored to notepad.exe' (-not ((StoreJson) -match 'notepad2')) (StoreJson)
+  Assert 'icon + name back after the restore' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  Shot 'open-with-restored'
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'

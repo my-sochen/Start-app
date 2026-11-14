@@ -6,6 +6,8 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
         <local:ColorBrushConverter x:Key="ColorBrush"/>
+        <local:ProgramIconConverter x:Key="ProgramIcon"/>
+        <local:ProgramHasIconConverter x:Key="ProgramHasIcon"/>
         <local:CardBrushConverter x:Key="CardBrush"/>
         <local:FrameThicknessConverter x:Key="FrameThickness"/>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
@@ -243,12 +245,26 @@
                                     </Button>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
-                                    <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי) -->
+                                    <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי).
+                                         Icon + short name replaces the long path (settled Nov 14); the full path stays in the tooltip and
+                                         in the open-with popup, and a missing/unreadable exe icon falls back to the full-path text. -->
+                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}" AutomationProperties.Name="{Binding ProgramOpensWithText}">
+                                        <Image Source="{Binding Program, Converter={StaticResource ProgramIcon}}" Width="14" Height="14" Margin="0,0,4,1" VerticalAlignment="Center"/>
+                                        <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2">
+                                            <Run Text="Opens with: "/><Run Text="{Binding ProgramDisplayName}"/>
+                                        </TextBlock>
+                                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
+                                            <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Program, Converter={StaticResource ProgramHasIcon}}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                        </Style.Triggers></Style></StackPanel.Style>
+                                    </StackPanel>
                                     <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}">
                                         <Run Text="Opens with: "/><Run Text="{Binding Program}"/>
                                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                             <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                             <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                            <DataTrigger Binding="{Binding Program, Converter={StaticResource ProgramHasIcon}}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                         </Style.Triggers></Style></TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
