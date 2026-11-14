@@ -548,7 +548,6 @@ public static class DlgDrive {
   [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr h, StringBuilder text, int count);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessageTimeoutW(IntPtr h, uint msg, IntPtr w, string l, uint flags, uint timeout, out IntPtr result);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessageTimeoutW(IntPtr h, uint msg, IntPtr w, StringBuilder l, uint flags, uint timeout, out IntPtr result);
@@ -569,7 +568,6 @@ public static class DlgDrive {
     EnumChildWindows(root, cb, IntPtr.Zero);
     return "truncated=" + hitCap + " count=" + rows.Count + " ;; " + string.Join(" ;; ", rows.ToArray());
   }
-  public static string Title(IntPtr h) { var sb = new StringBuilder(512); GetWindowTextW(h, sb, sb.Capacity); return sb.ToString(); }
   public static IntPtr Foreground() { return GetForegroundWindow(); }
   public static bool Alive(IntPtr h) { return IsWindow(h); }
   public static bool VisEn(IntPtr h) { return IsWindowVisible(h) && IsWindowEnabled(h); }
@@ -621,15 +619,46 @@ public static class DlgDrive {
     $otherVisible = @($edits | Where-Object { $_.vis -and [long]$_.hwnd -ne $selHwnd })
     return [pscustomobject]@{ candidates = $chain; editsTotal = $edits.Count; otherVisible = $otherVisible; otherVisibleCount = $otherVisible.Count }
   }
+  function ConvertTo-TitleLog { param($t)
+    # Diagnostic rendering ONLY (matching uses the raw value): backslash/pipe/control/bidi-format marks
+    # neutralized so the attempt record stays parseable; len + codepoints keep analytic truth.
+    if ($null -eq $t) { return '<null>' }
+    return ($t.Replace('\', '\\') -replace '[\x00-\x1F\u202A-\u202E\u2066-\u2069]', '.' -replace '\|', '!')
+  }
   function Select-NativeOpenButton { param($rows, $appPid, $dlgHwnd, $titleOf)
     # DIRECT root child Button ctrlId 1 (Open), same PID, visible+enabled. id1Total counts ALL matching direct
     # children BEFORE title corroboration: the caller requires id1Total -eq 1 AND exactly one title-corroborated
     # candidate, so an ID collision is never silently discarded by the title filter. Never ID 2 (Cancel), 1136
-    # (file-type filter), or anything that is not a direct child.
+    # (file-type filter), or anything that is not a direct child. $titleOf returns a RECORD
+    # @{ ok=transport success; value=raw text; declared=WM_GETTEXTLENGTH; copied=WM_GETTEXT result; err=message }
+    # from the bounded SendMessageTimeoutW WM_GETTEXTLENGTH+WM_GETTEXT read (SMTO_BLOCK|ABORTIFHUNG, 2000ms) -
+    # the documented cross-process control-text mechanism. Microsoft documents that GetWindowTextW cannot
+    # retrieve another application's control text, which MAY explain the r3 miss; the actual r3 return value
+    # was discarded and remains UNOBSERVED, so no cause is asserted here.
+    # ACCEPT requires a VALID structured read, not just transport-ok: ok, non-null/non-empty value,
+    # 0<=declared<=32768, 0<=copied<=32768, declared==copied==value.Length, THEN the exact raw
+    # 'Open'/'פתיחה' comparison. NO accelerator normalization, no title-set widening. id1Titles logs raw
+    # escaped title + all length fields + codepoints (short titles) + err + the validity verdict for EVERY
+    # direct-child ID1 button BEFORE matching, including failed and partial reads, so every refusal (initial
+    # selection and, via the caller's rv evidence, every revalidation) is classifiable from the diagnostics.
     $btns = @($rows | Where-Object { $_.cls -eq 'Button' -and $_.ctrlId -eq 1 -and $_.parent -eq $dlgHwnd -and $_.vis -and $_.en -and $_.pidN -eq $appPid })
-    $titled = @()
-    foreach ($b in $btns) { $t = & $titleOf $b.hwnd; if ($t -eq 'Open' -or $t -eq 'פתיחה') { $titled += [pscustomobject]@{ row = $b; title = $t } } }
-    return [pscustomobject]@{ candidates = $titled; buttonsTotal = @($rows | Where-Object { $_.cls -eq 'Button' }).Count; id1Total = $btns.Count }
+    $titled = @(); $titles = @()
+    foreach ($b in $btns) {
+      $tr = & $titleOf $b.hwnd
+      $disp = if ($null -ne $tr.value) { ConvertTo-TitleLog $tr.value } else { '<null>' }
+      $lenInfo = "len=$(if ($null -ne $tr.value) { $tr.value.Length } else { -1 }) declared=$($tr.declared) copied=$($tr.copied)"
+      $errS = "$($tr.err)"; $errInfo = if ($errS -ne '' -and $errS -ne '0') { " err='$(ConvertTo-TitleLog $errS)'" } else { '' }
+      $cps = ''; if ($null -ne $tr.value -and $tr.value.Length -le 16) { $cps = ' cp=[' + (($tr.value.ToCharArray() | ForEach-Object { '{0:X4}' -f [int]$_ }) -join ' ') + ']' }
+      $why = $null
+      if (-not $tr.ok) { $why = 'transport-failed' }
+      elseif ($null -eq $tr.value -or $tr.value.Length -eq 0) { $why = 'null-or-empty' }
+      elseif ($tr.declared -lt 0 -or $tr.declared -gt 32768 -or $tr.copied -lt 0 -or $tr.copied -gt 32768) { $why = 'bounds' }
+      elseif ($tr.declared -ne $tr.copied -or $tr.declared -ne $tr.value.Length) { $why = 'length-mismatch' }
+      $verdict = if ($null -eq $why) { 'read-ok' } else { "read-invalid:$why" }
+      $titles += ('0x{0:X}' -f [int64]$b.hwnd) + "='$disp' $lenInfo$errInfo$cps $verdict"
+      if ($null -eq $why -and ($tr.value -eq 'Open' -or $tr.value -eq 'פתיחה')) { $titled += [pscustomobject]@{ row = $b; title = $tr.value } }
+    }
+    return [pscustomobject]@{ candidates = $titled; buttonsTotal = @($rows | Where-Object { $_.cls -eq 'Button' }).Count; id1Total = $btns.Count; id1Titles = $titles }
   }
   function Test-RootUnique { param($alive, $hitsCount, $hit0IsDlg, $rootVisEn, $rootPidMatch, $rootClassOk, $rootClass)
     # Root freshness + uniqueness required immediately before each mutation: FindPickers membership alone is not
@@ -820,6 +849,20 @@ public static class DlgDrive {
   $storeBeforeAccept = ''; $rv1 = 'not-run'; $setOk = $false; $rvMid = 'not-run'; $readbackOk = $false; $rv2 = 'not-run'; $fgOk = $false; $clickAttempted = $false; $clickTransportOk = $false
   $attempt = [ordered]@{ 'native-rows' = 'not-attempted'; 'native-chain-1148' = 'not-attempted'; 'open-button-ctrl1' = 'not-attempted' }
   $attemptErr = [ordered]@{ 'native-rows' = ''; 'native-chain-1148' = ''; 'open-button-ctrl1' = '' }
+  $titleReader = {
+    param($h)
+    [string]$tv = $null; [long]$td = -1; [long]$tc = -1
+    try {
+      $tok = [DlgDrive]::TryGetText([IntPtr]$h, [ref]$tv, [ref]$td, [ref]$tc)
+      [pscustomobject]@{ ok = [bool]$tok; value = $tv; declared = $td; copied = $tc; err = '' }
+    } catch {
+      # partial evidence preserved (value/declared/copied keep whatever the failed read left); the exception
+      # message is sanitized (control/bidi marks) and capped - diagnostics only, no secret data.
+      $em = "$($_.Exception.Message)" -replace '[\x00-\x1F\u202A-\u202E\u2066-\u2069]', '.'
+      if ($em.Length -gt 120) { $em = $em.Substring(0, 120) + '..(truncated)' }
+      [pscustomobject]@{ ok = $false; value = $tv; declared = $td; copied = $tc; err = $em }
+    }
+  }
   try {
     $dlgAlive = [WinN]::IsWindow($dlgAcc)
     $rootClassSeen = ''; $rootHitsSeen = -1
@@ -853,9 +896,9 @@ public static class DlgDrive {
     } catch { $attemptErr['native-rows'] = "$($_.Exception.Message)"; $idConflicts += "native enumeration raised (fail-closed): $($_.Exception.Message)"; $nativeTrunc = $true }
     if (-not $nativeTrunc -and $nativeRows.Count -gt 0) {
       $editSel = Select-NativeFilenameEdit $nativeRows ([uint32]$p.Id) ($dlgAcc.ToInt64())
-      $openSel = Select-NativeOpenButton $nativeRows ([uint32]$p.Id) ($dlgAcc.ToInt64()) ({ param($h) try { [DlgDrive]::Title([IntPtr]$h) } catch { '' } })
+      $openSel = Select-NativeOpenButton $nativeRows ([uint32]$p.Id) ($dlgAcc.ToInt64()) $titleReader
       $attempt['native-chain-1148'] = "editLeaves=$($editSel.candidates.Count) editsTotal=$($editSel.editsTotal) otherVisible=[$(($editSel.otherVisible | ForEach-Object { "ctrlId=$($_.ctrlId)" }) -join ',')]"
-      $attempt['open-button-ctrl1'] = "titledOpen=$($openSel.candidates.Count) id1Direct=$($openSel.id1Total) buttonsTotal=$($openSel.buttonsTotal)"
+      $attempt['open-button-ctrl1'] = "titledOpen=$($openSel.candidates.Count) id1Direct=$($openSel.id1Total) id1Titles=[$($openSel.id1Titles -join ', ')] buttonsTotal=$($openSel.buttonsTotal)"
       if ($editSel.candidates.Count -ne 1) { $idConflicts += "native filename Edit-leaf count=$($editSel.candidates.Count) (need exactly 1; the Edit-leaf is counted once even though chain members share ctrlId 1148)" }
       if ($editSel.otherVisibleCount -gt 0) { $idConflicts += "other VISIBLE Edit-class windows present: $($editSel.otherVisibleCount) (any ctrlId - a competing or malformed Edit never matches silently)" }
       if ($openSel.id1Total -ne 1) { $idConflicts += "direct root child Button ctrlId 1 count=$($openSel.id1Total) (need exactly 1 before title corroboration - an ID collision is never discarded by the title filter)" }
@@ -894,30 +937,32 @@ public static class DlgDrive {
     } else {
       Assert 'exactly one unambiguous filename edit identity in the picker' $true ("edit=0x$($editHwndL.ToString('X')) combo=0x$($comboHwndL.ToString('X')) comboex=0x$($comboexHwndL.ToString('X')) chain=dialog>ComboBoxEx32(1148)>ComboBox(1148)>Edit(1148) open=0x$($openHwndL.ToString('X')) title='$openTitle' attempts=[$(Format-AttemptSummary $attempt $attemptErr)]")
       $storeBeforeAccept = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
+      $script:rvEvidence = 'not-run'
       $revalidate = {
         $rk = & $rootCheck
-        if ($rk -ne 'ok') { return $rk }
+        if ($rk -ne 'ok') { $script:rvEvidence = "root-gate=$rk"; return $rk }
         $rr = "$([DlgDrive]::Rows($dlgAcc, 400))"; $rseg = $rr -split ' ;; '
-        if ($rseg[0] -match 'truncated=True') { return 'revalidation enumeration truncated' }
+        if ($rseg[0] -match 'truncated=True') { $script:rvEvidence = 'enumeration-truncated'; return 'revalidation enumeration truncated' }
         $rrows = @($rseg | Select-Object -Skip 1 | Where-Object { "$_" -ne '' } | ForEach-Object { $f = $_ -split '\|'; [pscustomobject]@{ hwnd = [long]$f[0]; parent = [long]$f[1]; ctrlId = [int]$f[2]; cls = $f[3]; pidN = [uint32]$f[4]; vis = ($f[5] -eq 'True'); en = ($f[6] -eq 'True') } })
         $reE = Select-NativeFilenameEdit $rrows ([uint32]$p.Id) ($dlgAcc.ToInt64())
-        $reO = Select-NativeOpenButton $rrows ([uint32]$p.Id) ($dlgAcc.ToInt64()) ({ param($h) try { [DlgDrive]::Title([IntPtr]$h) } catch { '' } })
+        $reO = Select-NativeOpenButton $rrows ([uint32]$p.Id) ($dlgAcc.ToInt64()) $titleReader
+        $script:rvEvidence = "openTitles=[$($reO.id1Titles -join ', ')] openId1=$($reO.id1Total) titled=$($reO.candidates.Count) editLeaves=$($reE.candidates.Count) otherVisibleEdits=$($reE.otherVisibleCount)"
         return (Test-NativeIdentityUnchanged $reE $reO $editHwndL $comboHwndL $comboexHwndL $openHwndL)
       }
       $rv1 = & $revalidate
-      Assert 'native identity revalidated (full chain + unique fresh root) immediately before WM_SETTEXT' ($rv1 -eq 'ok') ("result=$rv1")
+      Assert 'native identity revalidated (full chain + unique fresh root) immediately before WM_SETTEXT' ($rv1 -eq 'ok') ("result=$rv1 evidence=[$script:rvEvidence]")
       $setTransport = $false; $setLr = [long]-1
       if ($rv1 -eq 'ok') { try { $setTransport = [DlgDrive]::TrySetText([IntPtr]$editHwndL, $probeImg, [ref]$setLr) } catch { $driveNote = "WM_SETTEXT raised: $($_.Exception.Message)" } }
       $setOk = ($setTransport -and $setLr -eq 1)
       if ($rv1 -eq 'ok') { Assert 'bounded WM_SETTEXT to the verified edit succeeded (transport AND LRESULT)' $setOk ("transport=$setTransport lresult=$setLr") }
       if ($setOk) { $rvMid = & $revalidate }
-      if ($setOk) { Assert 'native identity unchanged after WM_SETTEXT, revalidated immediately before the readback' ($rvMid -eq 'ok') ("result=$rvMid") }
+      if ($setOk) { Assert 'native identity unchanged after WM_SETTEXT, revalidated immediately before the readback' ($rvMid -eq 'ok') ("result=$rvMid evidence=[$script:rvEvidence]") }
       $rbVal = $null; $rbLen = [long]-1; $rbCopied = [long]-1; $getTransport = $false; $rbCheck = 'not-run'
       if ($rvMid -eq 'ok') { try { $getTransport = [DlgDrive]::TryGetText([IntPtr]$editHwndL, [ref]$rbVal, [ref]$rbLen, [ref]$rbCopied) } catch { $driveNote = "WM_GETTEXT raised: $($_.Exception.Message)" } }
       if ($rvMid -eq 'ok') { $rbCheck = Test-NativeReadback $getTransport $rbVal $rbLen $rbCopied $probeImg; $readbackOk = ($rbCheck -eq 'ok') }
       if ($rvMid -eq 'ok') { Assert 'picker filename readback succeeded and equals the probe path (declared length + copied count + value length, exact-case, no clip)' $readbackOk ("check=$rbCheck transport=$getTransport declaredLen=$rbLen copied=$rbCopied probeLen=$($probeImg.Length)") }
       if ($readbackOk) { $rv2 = & $revalidate }
-      if ($readbackOk) { Assert 'native identity unchanged through the readback, revalidated immediately before the single Open click' ($rv2 -eq 'ok') ("result=$rv2") }
+      if ($readbackOk) { Assert 'native identity unchanged through the readback, revalidated immediately before the single Open click' ($rv2 -eq 'ok') ("result=$rv2 evidence=[$script:rvEvidence]") }
       $fgHwnd = [IntPtr]::Zero
       if ($rv2 -eq 'ok') { try { $fgHwnd = [DlgDrive]::Foreground(); $fgOk = ($fgHwnd.ToInt64() -eq $dlgAcc.ToInt64()) } catch { $driveNote = "foreground check raised: $($_.Exception.Message)" } }
       if ($rv2 -eq 'ok') { Assert 'picker dialog is the foreground window at the last moment before the Open click' $fgOk ("foreground=0x$($fgHwnd.ToInt64().ToString('X')) dialog=0x$($dlgAcc.ToInt64().ToString('X'))") }
@@ -927,15 +972,15 @@ public static class DlgDrive {
         try { $clickTransportOk = [DlgDrive]::TryClick([IntPtr]$openHwndL, [ref]$clickLr) } catch { $clickTransportOk = $false; $driveNote = "BM_CLICK raised: $($_.Exception.Message)" }
         if ([string]::IsNullOrEmpty($driveNote)) { $driveNote = "verified native chain edit=0x$($editHwndL.ToString('X')) + bounded WM_SETTEXT/GETTEXT readback + last-moment foreground + ONE BM_CLICK attempted (transport=$clickTransportOk lresult=$clickLr) on direct-child Button ctrlId 1 - unknown transport is never retried" }
       } elseif ($rv1 -ne 'ok') {
-        $driveNote = "native input WITHHELD: pre-input revalidation failed: $rv1"
+        $driveNote = "native input WITHHELD: pre-input revalidation failed: $rv1 evidence=[$script:rvEvidence]"
       } elseif (-not $setOk) {
         if ([string]::IsNullOrEmpty($driveNote)) { $driveNote = "native input WITHHELD: WM_SETTEXT failed (transport=$setTransport lresult=$setLr)" }
       } elseif ($rvMid -ne 'ok') {
-        $driveNote = "readback WITHHELD: post-settext revalidation failed: $rvMid"
+        $driveNote = "readback WITHHELD: post-settext revalidation failed: $rvMid evidence=[$script:rvEvidence]"
       } elseif (-not $readbackOk) {
         $driveNote = "Open click WITHHELD: readback failed ($rbCheck transport=$getTransport declaredLen=$rbLen copied=$rbCopied)"
       } elseif ($rv2 -ne 'ok') {
-        $driveNote = "Open click WITHHELD: pre-click revalidation failed: $rv2"
+        $driveNote = "Open click WITHHELD: pre-click revalidation failed: $rv2 evidence=[$script:rvEvidence]"
       } else {
         $driveNote = "Open click WITHHELD: dialog not foreground at the last moment (foreground=0x$($fgHwnd.ToInt64().ToString('X')))"
       }
