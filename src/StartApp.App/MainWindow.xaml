@@ -305,10 +305,13 @@
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Category" Width="80" VerticalAlignment="Center"/>
                                 <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinWidth="120" HorizontalAlignment="Left" AutomationProperties.Name="Capture workspace category"/></DockPanel>
                             <!-- optional card design at creation, same fields as the ordinary create form -->
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"><TextBlock Text="Color" Width="80" VerticalAlignment="Center"/>
-                                <TextBox Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Capture card color"/>
+                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Color" Width="80" VerticalAlignment="Center"/>
+                                <TextBox DockPanel.Dock="Left" Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Capture card color"/>
                                 <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
-                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <!-- finite remaining width (DockPanel, not a horizontal StackPanel which measures children with
+                                         infinite width) + WrapPanel: at the window minimum the narrow capture column clipped the last
+                                         swatch; wrapping inside the bounded space keeps all seven on screen, same order/semantics -->
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate><DataTemplate>
                                         <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
                                                 Background="{Binding ., Converter={StaticResource ColorBrush}}"
@@ -316,7 +319,7 @@
                                                 ToolTip="{Binding}" AutomationProperties.Name="{Binding}"/>
                                     </DataTemplate></ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
+                            </DockPanel>
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Image" Width="80" VerticalAlignment="Center"/>
                                 <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove capture image"/>
                                 <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload capture image"/>

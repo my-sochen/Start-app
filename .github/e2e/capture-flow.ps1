@@ -461,6 +461,26 @@ try {
   $rCapMin = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$rCapMin)
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 720, 400, 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   Shot 'new-form-design-ready-minsize'
+  # regression pin for the minimum-size palette clip (run 43575045592 shot): the original defect clipped the
+  # last swatch at its PARENT container edge while still inside the window, so a window-bounds check is not
+  # enough - require every swatch's full rectangle inside the palette container's own rectangle
+  $palHex = @('#FFFFFF', '#FDE68A', '#BFDBFE', '#BBF7D0', '#FECACA', '#E9D5FF', '#E5E7EB')
+  $wrCap = (CurWin).Current.BoundingRectangle
+  $tw = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $palBox = $null
+  $palBad = @()
+  foreach ($hex in $palHex) {
+    $sw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
+    if ($null -eq $sw) { $palBad += "$hex=missing"; continue }
+    if ($null -eq $palBox) { $anc = $sw; while ($null -ne $anc -and $anc.Current.ControlType -ne $CT::List) { $anc = $tw.GetParent($anc) }; $palBox = $anc }
+    $sr = $sw.Current.BoundingRectangle
+    if ($null -ne $palBox) {
+      $pr = $palBox.Current.BoundingRectangle
+      if ($sw.Current.IsOffscreen -or $sr.Left -lt $pr.Left -or $sr.Right -gt $pr.Right -or $sr.Top -lt $pr.Top -or $sr.Bottom -gt $pr.Bottom -or $sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex swatch=$($sr.Left),$($sr.Top)-$($sr.Right),$($sr.Bottom) palette=$($pr.Left),$($pr.Top)-$($pr.Right),$($pr.Bottom) offscreen=$($sw.Current.IsOffscreen)" }
+    }
+  }
+  if ($null -eq $palBox) { $palBad += 'palette container (UIA List) not found' }
+  Assert 'all 7 palette swatches fully inside the palette container at minimum size' ($palBad.Count -eq 0) ("window=$($wrCap.Left),$($wrCap.Top)-$($wrCap.Right),$($wrCap.Bottom) violators=[$($palBad -join '; ')]")
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
