@@ -307,10 +307,12 @@
                             <!-- optional card design at creation, same fields as the ordinary create form -->
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Color" Width="80" VerticalAlignment="Center"/>
                                 <TextBox DockPanel.Dock="Left" Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Capture card color"/>
-                                <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
+                                <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0" AutomationProperties.Name="Capture palette">
                                     <!-- finite remaining width (DockPanel, not a horizontal StackPanel which measures children with
                                          infinite width) + WrapPanel: at the window minimum the narrow capture column clipped the last
-                                         swatch; wrapping inside the bounded space keeps all seven on screen, same order/semantics -->
+                                         swatch; wrapping inside the bounded space keeps all seven on screen, same order/semantics.
+                                         The unique automation name anchors e2e lookups: the overview stays Visible behind this
+                                         overlay, so the two palettes' hex-named swatches are ambiguous in the window-wide UIA tree -->
                                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate><DataTemplate>
                                         <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"

@@ -47,6 +47,13 @@ function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { $w0 = CurWin; if ($null -e
 function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function Btn($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+# The capture screen is an opaque overlay over the overview, which stays Visible behind it, so both forms'
+# palette swatches sit in the window-wide UIA control view under the same hex automation names (FindFirst
+# picked the OVERVIEW palette in run 43577316808 - a false pass). The capture palette ItemsControl carries
+# the unique automation name 'Capture palette'; EVERY capture palette lookup must go through this anchor
+# (exactly one match) and search only inside its subtree - never the window-wide tree.
+function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Capture palette')))))); if ($m.Count -eq 1) { return $m[0] }; return $null }
+function CapSwatch($hex) { $pal = CapPalette; if ($null -eq $pal) { return $null }; return $pal.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex))))) }
 function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
 function ClickBtn($name, $settle = 900) {
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
@@ -431,7 +438,8 @@ try {
   SetText (NamedEdit 'Capture workspace name') 'From capture'
   $capCardImg = "$PWD\diag\cap-create-card.png"
   $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
-  $csw = Btn '#BFDBFE'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  $capPalAnchor = CapPalette; Assert 'capture palette anchor uniquely found for the swatch click' ($null -ne $capPalAnchor) 'missing or ambiguous Capture palette list - window-wide hex lookup refused'
+  $csw = CapSwatch '#BFDBFE'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
   [void](InvokeEl $csw 'capture palette #BFDBFE'); Start-Sleep -Milliseconds 400
   Assert 'capture palette click fills the color' ((ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') (ValOf (NamedEdit 'Capture card color'))
   SetText (NamedEdit 'Capture card image path') $capCardImg
@@ -462,11 +470,15 @@ try {
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 720, 400, 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   Shot 'new-form-design-ready-minsize'
   # regression pin for the minimum-size palette clip (run 43575045592: the last swatch rendered 15px of its
-  # 20px interior, clipped at its parent container edge while still inside the window). Containment alone is
-  # not enough - a zero-size or clipped rect could still sit inside the palette bounds - so this requires the
-  # palette container to have finite positive geometry, EVERY swatch to measure its full DPI-scaled 22px
-  # size, and full per-swatch containment inside that palette rect (plus on-screen and inside the window).
-  # The palette rectangle and ALL swatch sizes are recorded in the detail even on PASS, so the run is auditable.
+  # 20px interior, clipped at its parent container edge while still inside the window). Anchored like every
+  # capture palette lookup: the overview stays Visible behind the capture overlay, so hex-named swatches are
+  # ambiguous window-wide (run 43577316808's guard passed against the OVERVIEW palette while the visible
+  # capture palette had wrapped - the pixels were the real proof there). CapPalette requires exactly one
+  # 'Capture palette' list and the swatch search runs only inside its subtree; a missing or ambiguous anchor
+  # FAILS before any search. Containment alone is not enough - a zero-size or clipped rect could sit inside
+  # the palette bounds - so this also requires finite positive palette geometry and every swatch at its full
+  # DPI-scaled 22px size (wrapping is fine; clip, offscreen, undersize and outside-window are not). The
+  # palette identity/rect and ALL swatch sizes are recorded in the detail even on PASS, so the run is auditable.
   Add-Type -MemberDefinition '[DllImport("gdi32.dll")] public static extern int GetDeviceCaps(System.IntPtr hdc, int index); [DllImport("user32.dll")] public static extern System.IntPtr GetDC(System.IntPtr hWnd); [DllImport("user32.dll")] public static extern int ReleaseDC(System.IntPtr hWnd, System.IntPtr hdc);' -Name Dpi -Namespace CapGuard
   # fail-closed DPI read: a zero DC or zero DPI must NOT silently produce expected=0 (threshold -1 would then
   # accept any zero/clipped swatch size) - verify the DC, read inside try, release the valid DC in finally,
@@ -478,34 +490,29 @@ try {
   $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(22.0 * $dpiX / 96.0) }
   $palHex = @('#FFFFFF', '#FDE68A', '#BFDBFE', '#BBF7D0', '#FECACA', '#E9D5FF', '#E5E7EB')
   $wrCap = (CurWin).Current.BoundingRectangle
-  $tw = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-  $palBox = $null
+  $palBox = CapPalette
   $palBad = @()
   $palInfo = @()
-  foreach ($hex in $palHex) {
-    $sw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
-    if ($null -eq $sw) { $palBad += "$hex=missing"; continue }
-    if ($null -eq $palBox) { $anc = $sw; while ($null -ne $anc -and $anc.Current.ControlType -ne $CT::List) { $anc = $tw.GetParent($anc) }; $palBox = $anc }
-    $sr = $sw.Current.BoundingRectangle
-    $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
-    if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
-    if (-not $dpiOk) { $palBad += "$hex size unverifiable: window DC/DPI unreadable (hdc=$hdcCap dpi=$dpiX), no default assumed"; continue }
-    if ([int]$sr.Width -lt ($swExpected - 1) -or [int]$sr.Height -lt ($swExpected - 1)) { $palBad += "$hex size=$([int]$sr.Width)x$([int]$sr.Height) below expected ${swExpected}px"; continue }
-    if ($null -ne $palBox) {
-      $pr = $palBox.Current.BoundingRectangle
-      if ($sr.Left -lt $pr.Left -or $sr.Right -gt $pr.Right -or $sr.Top -lt $pr.Top -or $sr.Bottom -gt $pr.Bottom) { $palBad += "$hex outside palette swatch=$([int]$sr.Left),$([int]$sr.Top)-$([int]$sr.Right),$([int]$sr.Bottom) palette=$([int]$pr.Left),$([int]$pr.Top)-$([int]$pr.Right),$([int]$pr.Bottom)" }
-    }
-    if ($sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex outside window" }
-  }
-  $palGeom = 'palette=not-found'
+  $palGeom = 'palette=missing-or-ambiguous'
   if ($null -eq $palBox) {
-    $palBad += 'palette container (UIA List ancestor of a swatch) not found'
+    $palBad += "capture palette anchor (List named 'Capture palette') missing or ambiguous - refusing window-wide search (ambiguous hex names)"
   } else {
     $pr0 = $palBox.Current.BoundingRectangle
     $palGeom = "palette class='$($palBox.Current.ClassName)' name='$($palBox.Current.Name)' rect=$([int]$pr0.Left),$([int]$pr0.Top)-$([int]$pr0.Right),$([int]$pr0.Bottom) size=$([int]$pr0.Width)x$([int]$pr0.Height)"
-    if ([int]$pr0.Width -le 0 -or [int]$pr0.Height -le 0) { $palBad += 'palette container has non-positive geometry' }
+    if ([int]$pr0.Width -le 0 -or [int]$pr0.Height -le 0) { $palBad += 'capture palette container has non-positive geometry' }
+    foreach ($hex in $palHex) {
+      $sw = $palBox.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
+      if ($null -eq $sw) { $palBad += "$hex=missing in the anchored capture palette"; continue }
+      $sr = $sw.Current.BoundingRectangle
+      $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
+      if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
+      if (-not $dpiOk) { $palBad += "$hex size unverifiable: window DC/DPI unreadable (hdc=$hdcCap dpi=$dpiX), no default assumed"; continue }
+      if ([int]$sr.Width -lt ($swExpected - 1) -or [int]$sr.Height -lt ($swExpected - 1)) { $palBad += "$hex size=$([int]$sr.Width)x$([int]$sr.Height) below expected ${swExpected}px"; continue }
+      if ($sr.Left -lt $pr0.Left -or $sr.Right -gt $pr0.Right -or $sr.Top -lt $pr0.Top -or $sr.Bottom -gt $pr0.Bottom) { $palBad += "$hex outside palette swatch=$([int]$sr.Left),$([int]$sr.Top)-$([int]$sr.Right),$([int]$sr.Bottom) palette=$([int]$pr0.Left),$([int]$pr0.Top)-$([int]$pr0.Right),$([int]$pr0.Bottom)" }
+      if ($sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex outside window" }
+    }
   }
-  Assert 'all 7 palette swatches full-size and fully inside the palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
+  Assert 'all 7 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
