@@ -66,7 +66,6 @@ public class ProgramDisplayNameTests
     {
         var row = new ItemRow("i1", "it1", "site", "https://x.example/", "Link", "Sites", null, @"C:\Program Files\Google\Chrome\Application\chrome.exe");
         Assert.Equal("Chrome", row.ProgramDisplayName);
-        Assert.Equal("Opens with: Chrome", row.ProgramOpensWithText);
-        Assert.Equal(@"C:\Program Files\Google\Chrome\Application\chrome.exe", row.Program); // tooltip source unchanged
+        Assert.Equal(@"C:\Program Files\Google\Chrome\Application\chrome.exe", row.Program); // tooltip / help-text source unchanged
     }
 }

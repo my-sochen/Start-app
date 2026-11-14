@@ -10,10 +10,8 @@ namespace StartApp.Presentation;
 public sealed record ItemRow(string InstanceId, string ItemId, string Name, string Target, string Type, string Group, string? Description = null, string? Program = null)
 {
     /// <summary>Short name shown next to the program icon (icon + name display, settled Nov 14). The full Program path
-    /// itself is untouched: it stays as the tooltip source and in the open-with popup.</summary>
+    /// itself is untouched: it stays as the tooltip/help-text source and in the open-with popup.</summary>
     public string ProgramDisplayName => ProgramDisplayNames.Resolve(Program);
-    /// <summary>Accessible name of the opens-with row ("Opens with: <name>").</summary>
-    public string ProgramOpensWithText => ProgramDisplayName.Length == 0 ? "" : "Opens with: " + ProgramDisplayName;
 }
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a

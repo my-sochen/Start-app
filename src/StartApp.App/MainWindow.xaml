@@ -247,11 +247,14 @@
                                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
                                     <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי).
                                          Icon + short name replaces the long path (settled Nov 14); the full path stays in the tooltip and
-                                         in the open-with popup, and a missing/unreadable exe icon falls back to the full-path text. -->
-                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}" AutomationProperties.Name="{Binding ProgramOpensWithText, Mode=OneWay}">
+                                         in the open-with popup, and a missing/unreadable exe icon falls back to the full-path text.
+                                         A plain StackPanel has no UIA peer, so the accessible contract lives on the exposed TextBlock:
+                                         its content is the UIA name, AutomationProperties.HelpText carries the full path for assistive
+                                         tech, and the tooltip keeps the visual hover (gate evidence: name/tooltip on the panel never
+                                         surfaced). Run bindings stay explicit OneWay (Run.Text defaults TwoWay, gate failure 43641855227). -->
+                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}">
                                         <Image Source="{Binding Program, Converter={StaticResource ProgramIcon}}" Width="14" Height="14" Margin="0,0,4,1" VerticalAlignment="Center"/>
-                                        <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2">
-                                            <!-- Run.Text defaults to TwoWay and crashes on a get-only property (gate failure 43641855227): every Run binding here is explicit OneWay, the settled convention elsewhere in this file -->
+                                        <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}" AutomationProperties.HelpText="{Binding Program, Mode=OneWay}">
                                             <Run Text="Opens with: "/><Run Text="{Binding ProgramDisplayName, Mode=OneWay}"/>
                                         </TextBlock>
                                         <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
