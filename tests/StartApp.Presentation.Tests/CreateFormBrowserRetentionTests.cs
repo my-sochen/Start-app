@@ -211,3 +211,63 @@ public class CreateFormBrowserRetentionTests
         Assert.Equal(1, ws.Items.Count(m => m.Launch?.Browser == Chrome));
     }
 }
+
+public class DuplicatePickerBrowserLabelTests
+{
+    private static string Tmp() => Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N"), "store.json");
+    private const string Chrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+    private const string Edge = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+
+    private sealed class FixedCapturer(params CapturedItem[] items) : IOpenItemCapturer
+    {
+        public CaptureScan Scan() => new(items, Array.Empty<string>());
+    }
+    private static void ScanDone(MainViewModel vm)
+    {
+        Assert.NotNull(vm.CurrentScan);
+        Assert.True(vm.CurrentScan!.Wait(TimeSpan.FromSeconds(15)), "scan did not finish");
+        vm.CurrentScan!.GetAwaiter().GetResult();
+        Assert.False(vm.IsScanning);
+    }
+
+    [Fact] public void Same_site_in_two_browsers_gives_two_distinguishable_duplicate_choices()
+    {
+        using var repo = new JsonStore(Tmp());
+        repo.Mutate(c =>
+        {
+            var w = c.CreateWorkspace("existing");
+            var it = c.GetOrAddItem(ItemType.Link, "example.com", "https://example.com/");
+            c.AddToWorkspace(w.Id, it.Id, new LaunchConfig(Browser: Chrome));
+        });
+        var cap = new FixedCapturer(
+            new CapturedItem(ItemType.Link, "example.com", "https://example.com/", Edge),
+            new CapturedItem(ItemType.Link, "example.com", "https://example.com/", Chrome));
+        var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: cap) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureExistingCommand.Execute(null); ScanDone(vm);
+        vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single(w => w.Name == "existing"));
+        Assert.Equal(2, vm.CaptureRows.Count); // scan identity keeps one row per browser (owner decision Nov 14)
+        vm.CaptureAddCommand.Execute(null); // nothing ticked -> all rows; duplicate identity stays Type+Target, so both are offered again
+        Assert.Equal(2, vm.CaptureDupChoices.Count);
+        var labels = vm.CaptureDupChoices.Select(c => c.Label).ToList();
+        Assert.Contains("Add again: example.com  (Edge)", labels);
+        Assert.Contains("Add again: example.com  (Chrome)", labels);
+        Assert.Equal(2, labels.Distinct().Count()); // the Chrome row can be picked knowingly (P2)
+    }
+
+    [Fact] public void Duplicate_choice_label_keeps_plain_name_when_no_browser_was_identified()
+    {
+        using var repo = new JsonStore(Tmp());
+        repo.Mutate(c =>
+        {
+            var w = c.CreateWorkspace("existing");
+            var it = c.GetOrAddItem(ItemType.Link, "example.com", "https://example.com/");
+            c.AddToWorkspace(w.Id, it.Id);
+        });
+        var cap = new FixedCapturer(new CapturedItem(ItemType.Link, "example.com", "https://example.com/"));
+        var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: cap) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureExistingCommand.Execute(null); ScanDone(vm);
+        vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single(w => w.Name == "existing"));
+        vm.CaptureAddCommand.Execute(null);
+        Assert.Equal("Add again: example.com", vm.CaptureDupChoices.Single().Label); // no invented browser, no trailing spaces
+    }
+}
