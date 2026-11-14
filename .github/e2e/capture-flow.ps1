@@ -408,7 +408,9 @@ try {
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
-  Assert 'sites note states the verified scope (hosted-runner: Edge+Chrome single window, Hebrew UI) and the remaining limits' ((WaitText 'verified in hosted-runner scenarios on Edge and Chrome with a single window' 3) -and (WaitText 'Brave, multiple windows and discarded tabs are not verified' 3)) ((Texts) -join ' | ')
+  Assert 'sites note states the verified scope (hosted-runner: Edge+Chrome, Hebrew UI, one two-distinct-Edge-window scenario) and the remaining limits' ((WaitText 'verified in hosted-runner scenarios on Edge and Chrome' 3) -and (WaitText 'two distinct Edge windows' 3) -and (WaitText 'Brave, discarded tabs and other browsers or versions are not verified' 3)) ((Texts) -join ' | ')
+  Assert 'sites note states the browser-retention rule honestly (spec Nov 11, bounded to an identifiable browser)' ((WaitText 'keeps the browser it was found in' 3) -and (WaitText 'when the browser can be identified' 3)) ((Texts) -join ' | ')
+  Assert 'sites note states the two-choice rule (owner decision Nov 14: same site in two browsers = one row per browser)' (WaitText 'appears once per browser' 3) ((Texts) -join ' | ')
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
   # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
@@ -527,7 +529,10 @@ try {
   # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
   $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
   $capSiteMem = @($wsCap.items | Where-Object { $_.itemId -eq $capSiteItemId })[0]
-  Assert 'create from capture invents no launch config for the captured site' ($null -ne $capSiteItemId -and $null -ne $capSiteMem -and $null -eq $capSiteMem.launch) ("itemId=$(if ($capSiteItemId) { $capSiteItemId } else { 'NO-ITEM-MATCH' }) membership=$(if ($null -ne $capSiteMem) { 'found' } else { 'MISSING' }) launch=$(if ($null -eq $capSiteMem) { 'n/a' } elseif ($null -eq $capSiteMem.launch) { 'null' } else { $capSiteMem.launch })")
+  Assert 'captured site keeps the browser it was found in (Edge) as its default browser (spec Nov 11)' ($null -ne $capSiteItemId -and $null -ne $capSiteMem -and $capSiteMem.launch.browser -like '*msedge.exe') ("itemId=$(if ($capSiteItemId) { $capSiteItemId } else { 'NO-ITEM-MATCH' }) browser=$(if ($null -ne $capSiteMem) { $capSiteMem.launch.browser } else { 'NO-MEMBERSHIP' })")
+  $capFolderItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $capFolderMem = @($wsCap.items | Where-Object { $_.itemId -eq $capFolderItemId })[0]
+  Assert 'captured folder has no retained browser (retention is site-only)' ($null -ne $capFolderMem -and [string]::IsNullOrEmpty($capFolderMem.launch.browser)) ("browser=$($capFolderMem.launch.browser)")
   Assert 'the captured folder is listed in the new workspace' (WaitText 'capfolder' 5) ((Texts) -join ' | ')
   Shot 'created-from-capture-details'
   $c = ClickBtn 'Back' 900; Assert 'back to overview' ($c -eq 'ok') $c
@@ -636,6 +641,8 @@ try {
   $storeBeforeDrag = StoreJson
   DragRowToStage '*example.com*' 'site row'
   Assert 'real drag stages the site with its default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
+  Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ValOf (NamedEdit 'Added item open with')) -like '*msedge.exe') (ValOf (NamedEdit 'Added item open with'))
+  Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
   Shot 'side-by-side-drag-staged'
@@ -821,6 +828,10 @@ try {
   Assert 'deep staging: app reports saving all 5 rows' (WaitText 'Saved 5 items' 3) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  foreach ($ds in @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like 'https://example.*' })) {
+    $mem = @($wsB.items | Where-Object { $_.itemId -eq $ds.id })[0]
+    Assert "deep staging: staged site $($ds.target) kept its source browser (Edge) through the existing-workspace save" ($null -ne $mem -and $mem.launch.browser -like '*msedge.exe') ("browser=$($mem.launch.browser)")
+  }
   foreach ($e in $expectDeep) { Assert "deep staging: $e saved exactly once to Cap B" ((WsCountByTarget $wsB $o $e) -eq 1) "count=$(WsCountByTarget $wsB $o $e)" }
   Assert 'deep staging: every saved instance has a non-empty effective name (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep save' ($c -eq 'ok') $c
@@ -917,14 +928,14 @@ try {
       return $false
     }
     $chrome = $null; $chromeLaunchErr = ''
-    try { $chrome = Start-Process $chromeExe -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$chromeProfile", 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { $chromeLaunchErr = "$_" }
+    try { $chrome = Start-Process $chromeExe -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$chromeProfile", 'https://example.com/', 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { $chromeLaunchErr = "$_" }
     if (-not $chrome) {
       Assert 'CROSS-BROWSER: chrome launch' $false "Start-Process $chromeExe failed: $chromeLaunchErr"
     } else {
       Info 'chrome fixture launched' "exe=$chromeExe pid=$($chrome.Id) profile=$chromeProfile"
-      $expectedHosts = @(@('iana.org', 'www.iana.org'), @('rfc-editor.org', 'www.rfc-editor.org'))   # launched URL order => tab strip order; per-tab exact authority pairs (the omnibox may hide www)
-      $script:tabLastHosts = @('', '')
-      $script:tabLastRaw = @('', ''); $script:tabReads = @(0, 0); $tabAttempts = @(0, 0)
+      $expectedHosts = @(@('example.com', 'www.example.com'), @('iana.org', 'www.iana.org'), @('rfc-editor.org', 'www.rfc-editor.org'))   # launched URL order => tab strip order; per-tab exact authority pairs (the omnibox may hide www)
+      $script:tabLastHosts = @('', '', '')
+      $script:tabLastRaw = @('', '', ''); $script:tabReads = @(0, 0, 0); $tabAttempts = @(0, 0, 0)
       $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
       $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
       while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
@@ -934,16 +945,16 @@ try {
           $tabs = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
           if ($tabs.Count -gt $csawTabs) { $csawTabs = $tabs.Count }
           $tabTitles = (@($tabs | ForEach-Object { try { $_.Current.Name } catch { '?' } }) -join ' | ')
-          if ($tabs.Count -gt 2) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
-          if ($tabs.Count -eq 2) {
+          if ($tabs.Count -gt 3) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
+          if ($tabs.Count -eq 3) {
             $origTab = $null
             foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $origTab = $t } } catch { } }
             try {
               # Round-robin short per-tab slices under the one shared 20s deadline: a mismatching tab can no
               # longer consume the whole budget before the other tab is ever read (run 43490152034 starved tab1).
-              $ok = @($false, $false)
-              while ((Get-Date) -lt $deadlineC -and -not ($ok[0] -and $ok[1])) {
-                foreach ($ti in 0..1) {
+              $ok = @($false, $false, $false)
+              while ((Get-Date) -lt $deadlineC -and -not ($ok[0] -and $ok[1] -and $ok[2])) {
+                foreach ($ti in 0..2) {
                   if ($ok[$ti] -or (Get-Date) -ge $deadlineC) { continue }
                   $tabAttempts[$ti]++
                   $slice = (Get-Date).AddSeconds(3); if ($slice -gt $deadlineC) { $slice = $deadlineC }
@@ -953,30 +964,48 @@ try {
             } finally {
               try { if ($origTab) { $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } } catch { }
             }
-            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1]) attempts=$($tabAttempts[0])/$($tabAttempts[1]) reads=$($script:tabReads[0])/$($script:tabReads[1]) raw0='$($script:tabLastRaw[0])' raw1='$($script:tabLastRaw[1])'"
-            if ($ok[0] -and $ok[1]) { $cw = $w; break }
+            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1]) tab2=$($script:tabLastHosts[2]) attempts=$($tabAttempts[0])/$($tabAttempts[1])/$($tabAttempts[2]) reads=$($script:tabReads[0])/$($script:tabReads[1])/$($script:tabReads[2]) raw0='$($script:tabLastRaw[0])' raw1='$($script:tabLastRaw[1])' raw2='$($script:tabLastRaw[2])'"
+            if ($ok[0] -and $ok[1] -and $ok[2]) { $cw = $w; break }
           }
         }
         Start-Sleep -Milliseconds 400
       }
       if ($tooMany) {
-        Assert 'CROSS-BROWSER: exactly the two launched fixture tabs in launch order' $false "found $csawTabs tabs: $tabTitles"
+        Assert 'CROSS-BROWSER: exactly the three launched fixture tabs in launch order' $false "found $csawTabs tabs: $tabTitles"
       } elseif (-not $cw) {
         $procDiag = (@(ChromeFixturePids | ForEach-Object { "pid=$_" }) -join ',')
         $launchState = ''; try { $launchState = "launchedHasExited=$($chrome.HasExited)"; if ($chrome.HasExited) { $launchState += " exitCode=$($chrome.ExitCode)" } } catch { $launchState = "launchedStateError=$_" }
-        Assert 'CROSS-BROWSER: chrome window with both fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
+        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
       } else {
-        Assert 'CROSS-BROWSER: chrome window with both fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
+        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
         $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
         Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
         Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
         $cnames = CheckNames
         Info 'detected rows (chrome check)' ($cnames -join ' | ')
-        Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($cnames -join ' | ')
-        Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed' ($null -ne (CheckByLike '*rfc-editor.org*')) ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed with its browser label' ($null -ne (CheckByLike '*iana.org*(Chrome)*')) ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed with its browser label' ($null -ne (CheckByLike '*rfc-editor.org*(Chrome)*')) ($cnames -join ' | ')
+        # Owner decision Nov 14: the same site open in two browsers is TWO choices, each named with its browser, so the
+        # user picks - the software never picks a browser by scan order. The still-open Edge window (deep-staging
+        # relaunch, example.com) and this Chrome fixture (example.com tab 0) make exactly one row per browser.
+        $exChoices = @($cnames | Where-Object { $_ -like 'Select example.com (*)' })
+        Assert 'TWO-CHOICE: example.com appears exactly twice, one row per browser' ($exChoices.Count -eq 2) ($cnames -join ' | ')
+        Assert 'TWO-CHOICE: the two rows are labeled (Edge) and (Chrome)' (($exChoices -contains 'Select example.com (Edge)') -and ($exChoices -contains 'Select example.com (Chrome)')) ($exChoices -join ' | ')
         Shot 'chrome-check-scan'
-        $c = ClickBtn 'Close capture' 900; Assert 'capture closed after chrome check' ($c -eq 'ok') $c
-        if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (chrome check)' ($c -eq 'ok') $c }
+        foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick all before the chrome retention create'); Start-Sleep -Milliseconds 150 }
+        $chromeChoice = CheckByLike 'Select example.com (Chrome)'; Assert 'TWO-CHOICE: the (Chrome) example.com row is uniquely addressable' ($null -ne $chromeChoice) ($cnames -join ' | ')
+        [void](ToggleEl $chromeChoice 'the user picks the Chrome choice'); Start-Sleep -Milliseconds 300
+        Assert 'chrome retention: exactly the (Chrome) example.com row ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
+        SetText (NamedEdit 'Capture workspace name') 'chrome ws'
+        $c = ClickBtn 'Create workspace from capture' 1200; Assert 'chrome retention create clicked' ($c -eq 'ok') $c
+        Assert 'chrome retention workspace opened in details' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+        $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
+        $ianaId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
+        $chromeMems = @($wsChrome.items | Where-Object { $_.itemId -eq $ianaId })
+        Assert 'TWO-CHOICE create: exactly one example.com instance was saved (only the picked choice)' ($chromeMems.Count -eq 1) "count=$($chromeMems.Count)"
+        Assert 'CROSS-BROWSER: the picked (Chrome) example.com keeps the exact chrome.exe path as its default browser through create' ($chromeMems.Count -eq 1 -and $chromeMems[0].launch.browser -eq $chromeExe) ("browser=$($chromeMems[0].launch.browser) expected=$chromeExe")
+        Shot 'chrome-retention-created'
+        $c = ClickBtn 'Back' 900; Assert 'back to overview after the chrome retention create' ($c -eq 'ok') $c
       }
       foreach ($pidF in @(ChromeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }
       Remove-Item $chromeProfile -Recurse -Force -ErrorAction SilentlyContinue

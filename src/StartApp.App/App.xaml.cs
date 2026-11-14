@@ -37,12 +37,30 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
     public CaptureScan Scan()
     {
         var items = new List<CapturedItem>(); var notes = new List<string>();
-        var ids = System.Diagnostics.Process.GetProcesses().Where(p => { try { return Browsers.Contains(p.ProcessName); } catch (InvalidOperationException) { return false; } }).Select(p => p.Id).ToHashSet();
-        var handles = new List<IntPtr>();
-        EnumWindows((h, _) => { if (IsWindowVisible(h)) { GetWindowThreadProcessId(h, out var pid); if (ids.Contains((int)pid)) handles.Add(h); } return true; }, IntPtr.Zero);
-        // Only browser windows are touched through UI Automation (never this app's own window, which would deadlock on the UI thread).
-        foreach (var hwnd in handles)
+        // The exe path of each browser process is captured up front so a found site can keep its source browser as the
+        // item's default browser (spec Nov 11). The path can be unreadable (e.g. an elevated browser); the site is still
+        // captured, just without a retained browser.
+        var paths = new Dictionary<int, string?>();
+        foreach (var p in System.Diagnostics.Process.GetProcesses())
         {
+            try
+            {
+                if (!Browsers.Contains(p.ProcessName)) continue;
+                string? exe = null;
+                try { exe = p.MainModule?.FileName; }
+                catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+                paths[p.Id] = exe;
+            }
+            catch (InvalidOperationException) { }
+            finally { p.Dispose(); } // every enumerated Process (including all Chromium children) releases its handle on every branch
+        }
+        var unidentifiedSites = 0;
+        var handles = new List<(IntPtr Hwnd, int Pid)>();
+        EnumWindows((h, _) => { if (IsWindowVisible(h)) { GetWindowThreadProcessId(h, out var pid); if (paths.ContainsKey((int)pid)) handles.Add((h, (int)pid)); } return true; }, IntPtr.Zero);
+        // Only browser windows are touched through UI Automation (never this app's own window, which would deadlock on the UI thread).
+        foreach (var (hwnd, pid) in handles)
+        {
+            var browserPath = paths.TryGetValue(pid, out var bp) ? bp : null;
             System.Windows.Automation.AutomationElement? originallySelected = null;
             try
             {
@@ -71,7 +89,8 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                     var site = CaptureRules.SiteFromAddressText(value.Current.Value);
                     if (site is null || !seen.Add(site)) return;
                     var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
-                    items.Add(new CapturedItem(ItemType.Link, host, site));
+                    items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
+                    if (browserPath is null) unidentifiedSites++;
                 }
                 Collect(); // the tab the user is looking at
                 var tabs = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
@@ -117,7 +136,9 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
             }
         }
-        notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified in hosted-runner scenarios on Edge and Chrome with a single window, including Edge with a Hebrew UI - Brave, multiple windows and discarded tabs are not verified");
+        if (unidentifiedSites > 0)
+            notes.Add($"{unidentifiedSites} site(s) were captured without their source browser: its exe path could not be read (for example an elevated browser); those sites open with the Windows default browser");
+        notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified in hosted-runner scenarios on Edge and Chrome, including Edge with a Hebrew UI and one scenario with two distinct Edge windows - Brave, discarded tabs and other browsers or versions are not verified. The same site open in several browsers appears once per browser, with the browser named, so you choose what to keep. A captured site keeps the browser it was found in as its default browser when the browser can be identified; browser profiles are not retained");
         return new(CaptureRules.Dedupe(items), notes);
     }
 }

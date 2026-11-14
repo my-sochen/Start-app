@@ -29,8 +29,10 @@ public static class OwnedClose
             : CloseOutcome.NotOwned;
 }
 
-/// <summary>One thing the scan found open right now: the resource's original name and its exact address.</summary>
-public sealed record CapturedItem(ItemType Type, string Name, string Target);
+/// <summary>One open resource found by a capture source: the resource's original name and its exact address. Browser is the
+/// full exe path of the browser a site was found in (null when unknown or not a site): a captured site keeps its source browser as the item's default browser (spec Nov 11:
+/// דפדפן שזוהה בזמן הלכידה יישמר; browser profiles are deferred until after the prototype).</summary>
+public sealed record CapturedItem(ItemType Type, string Name, string Target, string? Browser = null);
 
 /// <summary>Result of one scan. Notes say honestly what this source cannot see (shown on the capture screen), so a partial detector never looks complete.</summary>
 public sealed record CaptureScan(IReadOnlyList<CapturedItem> Items, IReadOnlyList<string> Notes);
@@ -62,12 +64,35 @@ public sealed class CompositeCapturer(params IOpenItemCapturer[] sources) : IOpe
 
 public static class CaptureRules
 {
-    /// <summary>One row per resource: same type and exact target appears once (the first name wins). Order is kept.</summary>
+    /// <summary>Scan identity is Type+Target, and for links ALSO the source browser (owner decision Nov 14): the same site
+    /// open in two browsers stays two choices, one row per browser with its browser named, so the user picks what to keep -
+    /// the software never picks a browser by scan order. Within one browser (or when no browser was identified) the first
+    /// row still wins. Order is kept.</summary>
     public static IReadOnlyList<CapturedItem> Dedupe(IEnumerable<CapturedItem> items)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal); var list = new List<CapturedItem>();
-        foreach (var i in items) if (seen.Add(Catalog.Key(i.Type, i.Target))) list.Add(i);
+        foreach (var i in items) if (seen.Add(Catalog.Key(i.Type, i.Target) + "\u0000" + (i.Browser ?? ""))) list.Add(i);
         return list;
+    }
+
+    /// <summary>Short display name for a captured browser's exe path, shown next to a captured site so the user can tell two
+    /// browsers apart; null when no browser was identified. Known executables map to their product name, anything else keeps
+    /// its file name (without extension) as-is.</summary>
+    public static string? BrowserDisplayName(string? exePath)
+    {
+        if (string.IsNullOrEmpty(exePath)) return null;
+        var cut = exePath.LastIndexOfAny(new[] { '\\', '/' });
+        var file = cut >= 0 ? exePath[(cut + 1)..] : exePath;
+        var stem = file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? file[..^4] : file;
+        return stem.ToLowerInvariant() switch
+        {
+            "msedge" => "Edge",
+            "chrome" => "Chrome",
+            "firefox" => "Firefox",
+            "brave" => "Brave",
+            "opera" => "Opera",
+            _ => stem,
+        };
     }
 
     /// <summary>file:///C:/Users/a%20b -> C:\Users\a b; null when it is not a local file URL (or not an absolute drive/UNC path).</summary>
