@@ -1039,7 +1039,10 @@ public sealed class MainViewModel : ObservableBase
         private bool _checked;
         public DupChoice(CaptureRow row) { Row = row; }
         public CaptureRow Row { get; }
-        public string Label => "Add again: " + Row.Name;
+        /// <summary>Same site captured in two browsers produces two same-name duplicate rows (identity stays Type+Target,
+        /// settled); the browser suffix - the same one the scan list shows - is what lets the user tell them apart here.
+        /// Without it both read 'Add again: example.com' and the Chrome one cannot be picked knowingly (P2, Trello ObGZE66t).</summary>
+        public string Label => "Add again: " + Row.Name + Row.BrowserSuffix;
         public bool IsChecked { get => _checked; set => Set(ref _checked, value); }
     }
 
