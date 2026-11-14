@@ -48,10 +48,17 @@
           עדכון מקור: 13.11.2026 · PR19: <bdi>9e681f1</bdi> · אין כאן אימות חדש
           של תוכנת Windows או תוצר הפצה.
         </p>
+        <p class="note">
+          מצב נוכחי, 14.11.2026: הענפים feature, dev ו־test/validation נמצאים
+          בראש <bdi>e51d171</bdi> וריצות האימות עליו עברו (למשל
+          ריצה <bdi>43560629710</bdi>). main נשאר ב־<bdi>9a2189f</bdi> ושמור
+          לבעל המאגר. ההורדה מושבתת ואין פרסום. התיעוד עצמו עדיין מתייחס
+          לקריאת PR19 מ־13.11 ולא נקרא מחדש מול הראש החדש.
+        </p>
         <div class="source-links">
           <a href="https://github.com/my-sochen/Start-app">מאגר המקור</a
           ><a href="https://github.com/my-sochen/Start-app/pull/19"
-            >PR19, טיוטה פתוחה</a
+            >PR19, טיוטה שנקראה ב־9e681f1</a
           ><a href="https://trello.com/c/6i7jkHNm">תכנון דף הנחיתה</a
           ><a href="https://trello.com/c/3jCYB98F">דרישות והורדה</a
           ><a href="https://trello.com/c/X0JG9VXo">תנאי בדיקת הנוסח</a>
@@ -114,6 +121,10 @@
               שטרם מוזגה אל dev: התנהגויות האפליקציה המתוארות כאן הן ממצא מענף
               הסקירה הזה, ולא טענה שהן כולן קיימות ב־dev. אין באותם עצי מקור אתר
               או כלי בניית אתר קיימים. הענפים עשויים להתקדם לאחר הבדיקה.
+              עדכון 14.11.2026: מאז הקריאה התקדמו הענפים; feature, dev
+              ו־test/validation נמצאים בראש e51d171 שעבר את ריצות האימות
+              (למשל ריצה 43560629710), ו־main נשאר ב־9a2189f. ההורדה מושבתת
+              ואין פרסום.
             </p>
             <h3>איזו גרסה תוצע באתר</h3>
             <p>
@@ -439,7 +450,9 @@
             <h2>מקורות, בעלויות ושאלות פתוחות</h2>
             <h3>מקורות הקוד</h3>
             <p>
-              מאגר Start-app ו־PR19 נקראו ב־13.11.2026. קובצי העוגן: App.xaml.cs
+              מאגר Start-app ו־PR19 נקראו ב־13.11.2026. נכון ל־14.11.2026 ראש
+              הענפים המאומת הוא e51d171 (feature/dev/test/validation; main ללא
+              שינוי). קובצי העוגן: App.xaml.cs
               ו־StartApp.App.csproj; Model.cs, PlatformPorts.cs,
               CaptureScanning.cs ו־Preflight.cs; MainViewModel.cs; JsonStore.cs;
               Probe.cs ו־WindowsComposition.cs; package-windows.yml. מזהי המקור

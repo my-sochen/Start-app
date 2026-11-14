@@ -161,6 +161,85 @@ function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).C
 function AnyByName($name) { $e = (CurWin).FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
 function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
 
+# --- native picker discovery/cancel machinery: VERBATIM port of the vetted cycle1 helpers (WinN class,
+# OwnerChainOf/OwnerChainHas, PickerEligible, AppWindowDump, FindPickers, Close-OwnedPickers) - the picker opened
+# from the capture form is the SAME shared-handler dialog (title 'העלה תמונה', class #32770, owned by the main
+# window), so the same owner-aware discovery applies with $script:mainHwnd captured at app launch.
+Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class WinN {
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr lparam);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr w, IntPtr l);
+  delegate bool EnumProc(IntPtr hWnd, IntPtr lparam);
+  public const uint WM_CLOSE = 0x0010;
+  public static string Esc(string s) {
+    var b = new StringBuilder();
+    foreach (var ch in s) {
+      int c = ch;
+      if (c < 0x20 || c == 0x7F || char.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.Format) b.Append(string.Format("\\u{0:X4}", c));
+      else b.Append(ch);
+    }
+    return b.ToString();
+  }
+  public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  public static IntPtr OwnerOf(IntPtr h) { return GetWindow(h, 4); } // GW_OWNER
+  public static string TitleOf(IntPtr h) { var sb = new StringBuilder(512); GetWindowTextW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static string ClassOf(IntPtr h) { var sb = new StringBuilder(256); GetClassNameW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static List<IntPtr> TopLevelOfPid(uint pid) {
+    var found = new List<IntPtr>();
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) found.Add(h); return true; }, IntPtr.Zero);
+    return found;
+  }
+}
+'@
+$script:mainHwnd = [IntPtr]::Zero
+function OwnerChainOf($hwnd) { $chain = @(); $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -ne [IntPtr]::Zero) { $chain += ("0x{0:X}" -f $h.ToInt64()) } } return ($chain -join '>') }
+function OwnerChainHas($hwnd, $ancestor) { $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -eq $ancestor) { return $true } } return $false }
+function PickerEligible($h) {
+  # Eligible native picker: a visible top-level window of the app process, not the main window, owned
+  # (directly or through its owner chain) by the main app window, and either a native dialog class or
+  # carrying the hardcoded picker title. Title alone is NOT required: a queued duplicate must be caught
+  # even if its title were to differ unexpectedly.
+  if ($h -eq $script:mainHwnd) { return $false }
+  if (-not [WinN]::IsWindowVisible($h)) { return $false }
+  if (-not (OwnerChainHas $h $script:mainHwnd)) { return $false }
+  $cls = [WinN]::ClassOf($h); $title = [WinN]::TitleOf($h)
+  return ($cls -eq '#32770' -or $title -like '*העלה תמונה*')
+}
+function AppWindowDump() {
+  # Raw per-window diagnostics for EVERY top-level window of the app process, eligible or not: native
+  # HWND/PID/class/owner-chain/visibility/title, the eligibility verdict, and the UIA view. Logged on
+  # success and failure alike so any detection miss is classifiable from the artifact.
+  $lines = @()
+  foreach ($h in [WinN]::TopLevelOfPid([uint32]$p.Id)) {
+    $t = [WinN]::TitleOf($h); $c = [WinN]::ClassOf($h); $vis = [WinN]::IsWindowVisible($h); $elig = PickerEligible $h
+    $uia = ''; try { $el = [System.Windows.Automation.AutomationElement]::FromHandle($h); $modal = 'n/a'; try { $modal = "$($el.GetCurrentPropertyValue([System.Windows.Automation.WindowPattern]::IsModalProperty))" } catch { }; $uia = ("uiaHandle=0x{0:X} uiaName='{1}' uiaCT={2} uiaModal={3}" -f $el.Current.NativeWindowHandle, [WinN]::Esc($el.Current.Name), $el.Current.ControlType.ProgrammaticName, $modal) } catch { $uia = ("uiaErr='{0}'" -f $_.Exception.Message) }
+    $lines += ("hwnd=0x{0:X} pid={1} cls='{2}' ownerChain=[{3}] vis={4} eligible={5} nativeTitle='{6}' {7}" -f $h.ToInt64(), [WinN]::PidOf($h), $c, (OwnerChainOf $h), $vis, $elig, [WinN]::Esc($t), $uia)
+  }
+  return ($lines -join ' || ')
+}
+function FindPickers() { @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { PickerEligible $_ }) }
+function Close-OwnedPickers { param([string]$why)
+  # failure cleanup / CANCEL: close every picker HWND owned by THIS app process (FindPickers is PID-scoped)
+  # and wait for each to disappear; never touches unrelated windows.
+  $owned = @(FindPickers)
+  foreach ($h in $owned) { try { [void][WinN]::PostMessage($h, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { } }
+  foreach ($h in $owned) { for ($t = 0; $t -lt 15 -and [WinN]::IsWindow($h); $t++) { Start-Sleep -Milliseconds 200 } }
+  $leftOpen = @(FindPickers).Count
+  Info 'owned picker cleanup' ("$why; closed=$($owned.Count) remaining=$leftOpen")
+  Assert 'owned picker cleanup left no picker open' ($leftOpen -eq 0) ("$why; remaining=$leftOpen windows: $(AppWindowDump)")
+  return $leftOpen
+}
+
 function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'CaptureTargetWorkspace'))))); if ($null -eq $tw) { return '<no header element>' }; return $tw.Current.Name }
 function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
@@ -282,6 +361,8 @@ try {
   Assert 'app window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
+  $script:mainHwnd = $p.MainWindowHandle
+  Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   $vsB = [System.Windows.Forms.SystemInformation]::VirtualScreen
   Info 'virtual screen bounds (measured)' "left=$($vsB.Left) top=$($vsB.Top) right=$($vsB.Right) bottom=$($vsB.Bottom) ($($vsB.Width)x$($vsB.Height))"
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, $vsB.Left, $vsB.Top, 0, 0, 0x0001)
@@ -323,16 +404,70 @@ try {
   Assert 'sites note states the verified scope (hosted-runner: Edge+Chrome single window, Hebrew UI) and the remaining limits' ((WaitText 'verified in hosted-runner scenarios on Edge and Chrome with a single window' 3) -and (WaitText 'Brave, multiple windows and discarded tabs are not verified' 3)) ((Texts) -join ' | ')
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
+  # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
+  # resets the shared create form; reopening scans fresh with the form at its defaults
+  $oPreDisc = StoreObj; $wsCountPreDisc = if ($null -ne $oPreDisc) { @($oPreDisc.workspaces).Count } else { 0 }
+  SetText (NamedEdit 'Capture card color') '#E9D5FF'
+  Shot 'new-form-design-filled'
+  $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
+  Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'You have changes that were not saved' 5) ((Texts) -join ' | ')
+  Shot 'capture-new-design-unsaved-guard'
+  $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discard the design-only capture-new form' ($c -eq 'ok') $c
+  Assert 'capture screen closed after discard' (-not (WaitText 'Open now' 2)) ''
+  $oDisc = StoreObj
+  Assert 'discard saved nothing (workspace count unchanged from before the capture-new form)' ($null -ne $oDisc -and @($oDisc.workspaces).Count -eq $wsCountPreDisc) ("before=$wsCountPreDisc after=$(if ($null -ne $oDisc) { @($oDisc.workspaces).Count } else { 'no-store' })")
+  Assert 'discard reset the shared create form design fields' ((ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
+  Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+  Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  Assert 'reopened capture-new form has empty design fields' ((ValOf (NamedEdit 'Capture card color')) -eq '' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  $names = CheckNames
+  Assert 'REAL rescan after discard: the three Edge tabs are listed again' (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*'))) ($names -join ' | ')
+  Assert 'reopened form: every row ticked by default again' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
+  $npRow = CheckByLike '*Notepad*'
   if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
   Assert 'unticking works' ($npRow -and -not (IsOn $npRow)) ''
   Assert 'create button needs a name' (-not (Btn 'Create workspace from capture').Current.IsEnabled) ''
   SetText (NamedEdit 'Capture workspace name') 'From capture'
+  $capCardImg = "$PWD\diag\cap-create-card.png"
+  $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
+  $csw = Btn '#BFDBFE'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  [void](InvokeEl $csw 'capture palette #BFDBFE'); Start-Sleep -Milliseconds 400
+  Assert 'capture palette click fills the color' ((ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') (ValOf (NamedEdit 'Capture card color'))
+  SetText (NamedEdit 'Capture card image path') $capCardImg
+  $crm = Btn 'Remove capture image'; Assert 'remove capture image button present' ($null -ne $crm) ''
+  [void](InvokeEl $crm 'remove capture image'); Start-Sleep -Milliseconds 300
+  Assert 'capture remove clears the image path' ((ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  # native picker CANCEL on the capture form (SAME shared creation handler, dialog title 'העלה תמונה'): from an
+  # empty path nothing is set and the typed name/color are kept; with a typed path present the existing text is
+  # preserved, never cleared
+  $preCapP = @(FindPickers); Assert 'no picker already open before the capture-image picker' ($preCapP.Count -eq 0) (AppWindowDump)
+  $upCap = Btn 'Upload capture image'; Assert 'upload capture image button present' ($null -ne $upCap) ''
+  [void](InvokeEl $upCap 'upload capture image (empty cancel flow)')
+  $openedCap = $false; for ($t = 0; $t -lt 20 -and -not $openedCap; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap = $true } }
+  Assert 'native picker opened from the capture form' $openedCap (AppWindowDump)
+  Close-OwnedPickers 'capture-image picker cancelled from an empty path'
+  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ValOf (NamedEdit 'Capture card color'))'")
+  SetText (NamedEdit 'Capture card image path') $capCardImg
+  Assert 'capture typed image path shown' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg) ''
+  [void](InvokeEl (Btn 'Upload capture image') 'upload capture image (preserve cancel flow)')
+  $openedCap2 = $false; for ($t = 0; $t -lt 20 -and -not $openedCap2; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap2 = $true } }
+  Assert 'native picker reopened from the capture form with a typed path present' $openedCap2 (AppWindowDump)
+  Close-OwnedPickers 'capture-image picker cancelled over a typed path'
+  Assert 'capture cancel preserves the typed image path (cancel never clears existing text)' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture') (ValOf (NamedEdit 'Capture card image path'))
+  Shot 'new-form-design-ready'
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
   Assert 'capture screen closed after create' (-not (WaitText 'Open now' 2)) ''
   $sj = StoreJson
   Assert 'store holds the captured folder' ($sj.Contains('capfolder')) $sj
   Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
+  $o = StoreObj
+  $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
+  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#BFDBFE' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
+  $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq 'https://example.com/' } | Select-Object -First 1).id
+  $capSiteMem = @($wsCap.items | Where-Object { $_.itemId -eq $capSiteItemId })[0]
+  Assert 'create from capture invents no launch config for the captured site' ($null -ne $capSiteMem -and $null -eq $capSiteMem.launch) ''
   Assert 'the captured folder is listed in the new workspace' (WaitText 'capfolder' 5) ((Texts) -join ' | ')
   Shot 'created-from-capture-details'
   $c = ClickBtn 'Back' 900; Assert 'back to overview' ($c -eq 'ok') $c

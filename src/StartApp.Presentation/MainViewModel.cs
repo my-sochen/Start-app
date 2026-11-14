@@ -74,6 +74,12 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>העלאת תמונה in the design popup: the view opens a file picker and sets DesignImagePath.</summary>
     public ICommand PickImageCommand { get; }
     public event Action? PickImageRequested;
+    /// <summary>Create-form design (optional image/color at creation, spec Nov 12 morning): the view opens the same file
+    /// dialog as עצב כרטיס and assigns NewWorkspaceImagePath.</summary>
+    public ICommand PickCreateImageCommand { get; }
+    public event Action? PickCreateImageRequested;
+    public ICommand RemoveCreateImageCommand { get; }
+    public ICommand ApplyCreatePaletteColorCommand { get; }
     /// <summary>הסרת תמונה in the design popup: back to the color-as-background look (takes effect on save).</summary>
     public ICommand RemoveImageCommand { get; }
     /// <summary>A preset swatch in the design popup: applies that color to the preview (saved only via Save).</summary>
@@ -185,7 +191,7 @@ public sealed class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
@@ -204,6 +210,9 @@ public sealed class MainViewModel : ObservableBase
         MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
         DesignCardCommand = Cmd(p => BeginDesign((Workspace)p!), p => p is Workspace && !ReadOnly);
         PickImageCommand = Cmd(_ => PickImageRequested?.Invoke(), _ => DesignEditOpen && !ReadOnly);
+        PickCreateImageCommand = Cmd(_ => PickCreateImageRequested?.Invoke(), _ => !ReadOnly);
+        RemoveCreateImageCommand = Cmd(_ => NewWorkspaceImagePath = "", _ => NewWorkspaceImagePath.Length > 0 && !ReadOnly);
+        ApplyCreatePaletteColorCommand = Cmd(p => NewWorkspaceColor = (string)p!, p => p is string && !ReadOnly);
         RemoveImageCommand = Cmd(_ => DesignImagePath = "", _ => DesignEditOpen && DesignImagePath.Length > 0);
         ApplyPaletteColorCommand = Cmd(p => DesignColor = (string)p!, p => p is string && DesignEditOpen && !ReadOnly);
         SaveDesignCommand = Cmd(_ => SaveDesign(), _ => DesignEditOpen && DesignDirty && !ReadOnly);
@@ -280,9 +289,18 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Category chosen in the create form from the managed list (קטגוריה: כללי מסומנת כברירת מחדל, ואפשר לבחור אחרת).</summary>
     public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); } }
     private string _newWsCat = Workspace.DefaultCategory;
+    /// <summary>Optional card color chosen at creation (#RRGGBB, palette or typed; empty = the app's default look). The same
+    /// design rule as עצב כרטיס applies from the first save: with an image the color is the frame, without one the background.</summary>
+    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    private string _newWsColor = "";
+    /// <summary>Optional card background image path chosen at creation; empty = none.</summary>
+    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    private string _newWsImage = "";
+    /// <summary>Clears every create-form field after a successful create or a discard (יציאה בלי לשמור).</summary>
+    private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
     /// <summary>The create form holds unsaved input; closing the app then goes through the same unsaved-exit
     /// dialog (spec: דיאלוג יציאה עם שינויים שלא נשמרו applies to טופס יצירת סביבה too).</summary>
-    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0 || NewWorkspaceCategory != Workspace.DefaultCategory;
+    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0 || NewWorkspaceCategory != Workspace.DefaultCategory || NewWorkspaceColor.Length > 0 || NewWorkspaceImagePath.Length > 0;
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
     public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
     private bool _unsavedForCreate;
@@ -775,13 +793,27 @@ public sealed class MainViewModel : ObservableBase
     /// and then opens its details screen, as the spec requires (אחרי היצירה נפתחים פרטי סביבה).</summary>
     private void Create()
     {
-        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
-        if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); }))
+        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory;
+        var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
+        if (ValidateCreateDesign(color, image) is { } de) { Status = "Not created: " + de; return; }
+        string? id = null;
+        if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
         {
-            NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory;
+            ResetCreateForm();
             Selected = Workspaces.FirstOrDefault(w => w.Id == id);
             LoadDetails(); InDetails = true;
         }
+    }
+
+    /// <summary>Optional design at creation (both create forms): the color rule is the same as עצב כרטיס, and a typed
+    /// image path must be an explicit absolute Windows path. A well-formed path whose file is missing stays allowed:
+    /// missing files are a settled tolerated state with honest warnings elsewhere in the product, and the card renders
+    /// its fallback. A refusal changes nothing and keeps the typed values for fixing.</summary>
+    private static string? ValidateCreateDesign(string color, string image)
+    {
+        if (color.Length > 0 && Catalog.ValidateColor(color) is { } ce) return ce;
+        if (image.Length > 0 && (!Catalog.IsAbsoluteWindowsPath(image) || image.Any(char.IsControl))) return "card image must be an explicit absolute Windows path";
+        return null;
     }
 
     private bool Apply(Action<Catalog> change)
@@ -1236,13 +1268,16 @@ public sealed class MainViewModel : ObservableBase
         var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
         var chosen = CaptureRows.Where(r => r.IsChecked).Select(r => r.Item).ToList();
         if (string.IsNullOrWhiteSpace(n)) { Status = "Not created: workspace name is required"; return false; }
+        var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
+        if (ValidateCreateDesign(color, image) is { } de) { Status = "Not created: " + de; return false; }
         var ok = Apply(c =>
         {
             id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat);
+            c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null);
             foreach (var i in chosen) { var it = c.GetOrAddItem(i.Type, i.Name, i.Target); c.AddToWorkspace(id, it.Id); }
         });
         if (!ok) return false;
-        NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory;
+        ResetCreateForm();
         ResetCapture();
         Selected = Workspaces.FirstOrDefault(w => w.Id == id);
         LoadDetails(); InDetails = true;
@@ -1261,7 +1296,7 @@ public sealed class MainViewModel : ObservableBase
     private void DiscardCaptureChanges()
     {
         StagedRows.Clear();
-        if (IsCaptureNew) { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; }
+        if (IsCaptureNew) { ResetCreateForm(); }
         Raise(nameof(CaptureDirty));
     }
     private void CaptureBack()
@@ -1282,6 +1317,7 @@ public sealed class MainViewModel : ObservableBase
         IsScanning = false;
         CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _dupSingle = null; _capWsId = "";
         CaptureDupGroupPending = false; CaptureSearch = "";
+        if (IsCaptureNew) ResetCreateForm(); // X-discard from capture-new: the shared create form fields leave with the capture screen
         Raise(nameof(CaptureDupSinglePending)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureAddLabel));
         CaptureStageNow = CaptureStage.None;
     }

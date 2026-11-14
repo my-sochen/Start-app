@@ -18,5 +18,19 @@
   "base_branch": "dev",
   "change_branch": "feat/website-docs-review",
   "pull_request": "not requested or created",
-  "pr19_status": "draft, unmerged into dev; application documentation is scoped to this inspected head"
+  "pr19_status": "draft, unmerged into dev; application documentation is scoped to this inspected head",
+  "current_status": {
+    "updated_at": "2026-11-14T09:30:00+02:00",
+    "staged_head": "e51d1710dc76f8635bb1d83f4b9b4f65a6715ff6",
+    "branches": {
+      "feat/per-instance-items": "e51d1710dc76f8635bb1d83f4b9b4f65a6715ff6",
+      "dev": "e51d1710dc76f8635bb1d83f4b9b4f65a6715ff6",
+      "test/validation": "e51d1710dc76f8635bb1d83f4b9b4f65a6715ff6",
+      "main": "9a2189f64d4f620e70dbeec07ee97ed4a09c06d8"
+    },
+    "verification": "feature, dev and test validation runs on the staged head passed and were independently reconciled, latest https://github.com/my-sochen/Start-app/actions/runs/43560629710",
+    "download": "still disabled, no artifact URL",
+    "publication": "none; main is unchanged and reserved for the repository owner",
+    "note": "the inspected_at, dev, pr19 and pr19_status fields above record the 13.11.2026 documentation reading and are kept as provenance"
+  }
 }

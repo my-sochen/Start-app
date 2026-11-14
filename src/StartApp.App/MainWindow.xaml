@@ -47,6 +47,26 @@
                         <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinWidth="120" HorizontalAlignment="Left" AutomationProperties.Name="Workspace category"/>
                         <TextBlock Text="(כללי is the default)" VerticalAlignment="Center" Foreground="Gray" FontSize="11" Margin="6,0,0,0"/>
                     </DockPanel>
+                    <!-- optional card design at creation (spec Nov 12 morning: תיאור, תמונה וצבע יהיו לבחירה); same color rule as עצב כרטיס -->
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="Color (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Create card color"/>
+                        <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
+                                        Background="{Binding ., Converter={StaticResource ColorBrush}}"
+                                        Command="{Binding DataContext.ApplyCreatePaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                        ToolTip="{Binding}" AutomationProperties.Name="{Binding}"/>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock DockPanel.Dock="Left" Text="Image (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove create image"/>
+                        <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload create image"/>
+                        <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Create card image path" ToolTip="Full path of the uploaded image"/>
+                    </DockPanel>
                     <Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2"/>
                 </StackPanel>
                 <ListBox ItemsSource="{Binding Workspaces}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -284,6 +304,23 @@
                                 <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Capture workspace description"/></DockPanel>
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Category" Width="80" VerticalAlignment="Center"/>
                                 <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinWidth="120" HorizontalAlignment="Left" AutomationProperties.Name="Capture workspace category"/></DockPanel>
+                            <!-- optional card design at creation, same fields as the ordinary create form -->
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"><TextBlock Text="Color" Width="80" VerticalAlignment="Center"/>
+                                <TextBox Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Capture card color"/>
+                                <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate><DataTemplate>
+                                        <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
+                                                Background="{Binding ., Converter={StaticResource ColorBrush}}"
+                                                Command="{Binding DataContext.ApplyCreatePaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                ToolTip="{Binding}" AutomationProperties.Name="{Binding}"/>
+                                    </DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Image" Width="80" VerticalAlignment="Center"/>
+                                <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove capture image"/>
+                                <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload capture image"/>
+                                <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture card image path" ToolTip="Full path of the uploaded image"/></DockPanel>
                             <TextBlock Text="Only the ticked items on the right are added." Foreground="Gray" FontSize="11" Margin="0,6,0,0"/>
                             <Button Content="Create workspace from capture" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
                         </StackPanel>

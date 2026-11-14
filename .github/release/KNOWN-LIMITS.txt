@@ -1,6 +1,6 @@
 PROTOTYPE - KNOWN LIMITS / מגבלות ידועות
 (Text to be confirmed by the product owner before any public use.)
 - Evaluation build only. Not a stable or final release. Not code-signed; no installer.
-- Browser capture was tested in automated runner scenarios with Chrome (two tabs) and with Edge (Hebrew UI, one tab), each run only when that browser was available on the runner, plus Edge multi-tab flows. Not a guarantee for any browser or version.
-- Not verified: other browsers or browser versions, several windows, UI languages other than the one Hebrew-UI Edge scenario, browser extensions, other Windows versions or PC specs.
+- Browser capture was tested in automated runner scenarios with Chrome (two tabs) and with Edge (Hebrew UI, one tab), each run only when that browser was available on the runner, plus Edge multi-tab flows and one scenario with two distinct Edge windows (validation run 43560629710). Not a guarantee for any browser or version.
+- Not verified: other browsers or browser versions (including Brave), discarded tabs, window arrangements beyond the one two-distinct-Edge-window scenario, UI languages other than the one Hebrew-UI Edge scenario, browser extensions, other Windows versions or PC specs.
 Design preview frame: the automated check is a visible-edge signature in the red-image scenario on a 96-DPI hosted runner only. Physical frame thickness, border ownership, and rendering at other display scales (125% / 150% / 200%) are not verified.

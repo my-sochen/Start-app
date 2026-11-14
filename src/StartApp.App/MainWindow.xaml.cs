@@ -28,6 +28,7 @@ public partial class MainWindow : Window
         vm.CopyAddressRequested += OnCopyAddressRequested;
         vm.AppCloseApproved += OnAppCloseApproved;
         vm.PickImageRequested += OnPickImageRequested;
+        vm.PickCreateImageRequested += OnPickCreateImageRequested;
         _hooked = vm;
     }
     private void Detach()
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
         _hooked.CopyAddressRequested -= OnCopyAddressRequested;
         _hooked.AppCloseApproved -= OnAppCloseApproved;
         _hooked.PickImageRequested -= OnPickImageRequested;
+        _hooked.PickCreateImageRequested -= OnPickCreateImageRequested;
         _hooked = null;
     }
     private void OnFocusAddRequested() => TargetBox.Focus();
@@ -46,6 +48,11 @@ public partial class MainWindow : Window
     {
         var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
         if (dlg.ShowDialog(this) == true && DataContext is MainViewModel vm) vm.DesignImagePath = dlg.FileName;
+    }
+    private void OnPickCreateImageRequested()
+    {
+        var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
+        if (dlg.ShowDialog(this) == true && DataContext is MainViewModel vm) vm.NewWorkspaceImagePath = dlg.FileName;
     }
     protected override void OnClosing(CancelEventArgs e)
     {

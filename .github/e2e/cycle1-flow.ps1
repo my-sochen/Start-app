@@ -142,6 +142,8 @@ try {
   Assert 'empty state has an add-item button' ($null -ne (Btn 'הוסף אייטם')) ''
   $catCombo = NamedCombo 'Workspace category'
   Assert 'category defaults to כללי' ($null -ne $catCombo -and (ComboValue $catCombo) -eq 'כללי') ($catCombo ? (ComboValue $catCombo) : 'combo not found')
+  $o0 = StoreObj; $ws0 = @($o0.workspaces | Where-Object { $_.name -eq 'E2E ws' })[0]
+  Assert 'create without design leaves color and image empty (defaults)' ($null -ne $ws0 -and [string]::IsNullOrEmpty($ws0.color) -and [string]::IsNullOrEmpty($ws0.imagePath)) ("color='$($ws0.color)' image='$($ws0.imagePath)'")
   Shot 'details-after-create-empty'
   # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
   $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
@@ -2592,6 +2594,207 @@ public static class WinCap {
   $catAfter = $o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $okItemId } | Select-Object -First 1
   $catSnapAfter = "$($catAfter.id)|$($catAfter.type)|$($catAfter.name)|$($catAfter.target)|$($catAfter.description)"
   Assert 'store: shared catalog item survives with identical identity and target' ($null -ne $catAfter -and $catSnapAfter -eq $catSnapBefore) ("before=$catSnapBefore after=$catSnapAfter")
+  # 14. create form optional design (spec Nov 12 morning: תמונה/צבע אופציונליים ביצירה): palette click, native picker
+  # cancel, remove-image, invalid color/malformed image refused at the boundary with typed values kept, valid
+  # color+image persist to the store, the form fully resets after a successful create
+  $c = ClickBtn 'Back' 900; Assert 'back to overview for the create-design flow' ($c -eq 'ok') $c
+  $createImg = "$root\create-card.png"
+  $ib = New-Object System.Drawing.Bitmap 40, 40; $ig = [System.Drawing.Graphics]::FromImage($ib); $ig.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $ig.Dispose(); $ib.Save($createImg, [System.Drawing.Imaging.ImageFormat]::Png); $ib.Dispose()
+  Shot 'create-form-design-controls'
+  SetText (NamedEdit 'Workspace name') 'E2E designed'
+  SetText (NamedEdit 'Create card color') 'notacolor'
+  $storeBeforeBad = StoreJson
+  $c = ClickBtn 'Create workspace' 900; Assert 'create with an invalid color clicked' ($c -eq 'ok') $c
+  Assert 'invalid color refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'refused create changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
+  Assert 'refused create keeps the typed values for correction' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq 'notacolor') ("name=$(ValOf (NamedEdit 'Workspace name')) color=$(ValOf (NamedEdit 'Create card color'))")
+  SetText (NamedEdit 'Create card color') ''
+  SetText (NamedEdit 'Create card image path') 'not-a-path'
+  $c = ClickBtn 'Create workspace' 900; Assert 'create with a malformed image path clicked' ($c -eq 'ok') $c
+  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'refused create (image) changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
+  SetText (NamedEdit 'Create card image path') ''
+  $sw = Btn '#FDE68A'; Assert 'create palette swatch present with its color as the automation name' ($null -ne $sw) ''
+  [void](InvokeEl $sw 'create palette #FDE68A'); Start-Sleep -Milliseconds 400
+  Assert 'palette click fills the typed color' ((ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') (ValOf (NamedEdit 'Create card color'))
+  # app-close guard: TRUE design-only input (palette color only, NO name) is unsaved and guarded; cancelling
+  # the close keeps editing with the design values intact, then the name is restored for the rest of the flow
+  SetText (NamedEdit 'Workspace name') ''
+  $null = $p.CloseMainWindow()
+  Assert 'app-close guard shown for design-only create input (color only, no name)' (WaitText 'You have changes that were not saved' 10) ((Texts) -join ' | ')
+  Shot 'create-design-unsaved-guard'
+  $c = ClickBtn 'Back to editing' 600; Assert 'guard cancelled, keep editing' ($c -eq 'ok') $c
+  Assert 'cancelled close kept the design-only values (color kept, name still empty)' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') ("name='$(ValOf (NamedEdit 'Workspace name'))' color='$(ValOf (NamedEdit 'Create card color'))'")
+  SetText (NamedEdit 'Workspace name') 'E2E designed'
+  Assert 'name restored after the design-only guard cycle' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed') ''
+  # native picker CANCEL from an empty path: nothing is set, the other typed values are kept
+  $preP = @(FindPickers); Assert 'no picker already open before the create-image picker' ($preP.Count -eq 0) (AppWindowDump)
+  $upC = Btn 'Upload create image'; Assert 'upload create image button present' ($null -ne $upC) ''
+  [void](InvokeEl $upC 'upload create image (empty cancel flow)')
+  $openedP = $false; for ($t = 0; $t -lt 20 -and -not $openedP; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedP = $true } }
+  Assert 'native picker opened from the create form' $openedP (AppWindowDump)
+  Close-OwnedPickers 'create-image picker cancelled from an empty path'
+  Assert 'cancel from an empty path sets nothing and keeps the other typed values' ((ValOf (NamedEdit 'Create card image path')) -eq '' -and (ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') ''
+  # native picker CANCEL with a typed path present: the existing text is preserved, never cleared
+  SetText (NamedEdit 'Create card image path') $createImg
+  Assert 'typed image path shown' ((ValOf (NamedEdit 'Create card image path')) -eq $createImg) ''
+  [void](InvokeEl $upC 'upload create image (preserve cancel flow)')
+  $openedP2 = $false; for ($t = 0; $t -lt 20 -and -not $openedP2; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedP2 = $true } }
+  Assert 'native picker reopened with a typed path present' $openedP2 (AppWindowDump)
+  Close-OwnedPickers 'create-image picker cancelled over a typed path'
+  Assert 'cancel preserves the typed image path (cancel never clears existing text)' ((ValOf (NamedEdit 'Create card image path')) -eq $createImg -and (ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed') (ValOf (NamedEdit 'Create card image path'))
+  $rmC = Btn 'Remove create image'; Assert 'remove create image button present' ($null -ne $rmC) ''
+  [void](InvokeEl $rmC 'remove create image'); Start-Sleep -Milliseconds 300
+  Assert 'remove clears the typed image path' ((ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  # native picker ACCEPT through the NEW shared creation handler: the SAME vetted native-drive protocol as the
+  # design popup above (unique owned #32770 root + exact ComboBoxEx32>ComboBox>Edit ctrlId-1148 chain + exactly one
+  # direct-child Button ctrlId 1 title-corroborated, full-chain revalidation before WM_SETTEXT / readback / click,
+  # one bounded BM_CLICK - never WM_COMMAND/IDOK, no store injection, no retry on unknown transport - and the
+  # complete acceptance gate). Reuses the vetted helpers (Select-NativeFilenameEdit, Select-NativeOpenButton,
+  # Test-RootUnique, Test-NativeIdentityUnchanged, Test-NativeReadback, Test-NativeAcceptanceGate, $titleReader,
+  # Close-OwnedPickers, Shot-OwnedDialog, Format-AttemptSummary, Read-EditValue) untouched. Here the code-behind
+  # result fills the CREATE form image path; persistence happens only at the explicit Create below.
+  $preA = @(FindPickers)
+  if ($preA.Count -gt 0) { Assert 'no picker already open before the create-form accept' $false (AppWindowDump); Close-OwnedPickers 'pre-existing picker before create accept click'; Shot 'picker-failure'; throw 'a picker dialog was already open before the create-form accept click' }
+  $upC2 = Btn 'Upload create image'; Assert 'upload create image button present for the accept flow' ($null -ne $upC2) ''
+  $invA = @(InvokeEl $upC2 'upload create image (accept flow)')[-1]
+  if (-not $invA) { Close-OwnedPickers 'create upload button invocation failed'; Shot 'picker-failure'; throw 'create upload button invocation failed (accept flow)' }
+  $dlgA = [IntPtr]::Zero; $openedA = $false; $multiA = $false
+  for ($t = 0; $t -lt 20 -and -not $openedA -and -not $multiA; $t++) { Start-Sleep -Milliseconds 200; $hitsA = @(FindPickers); if ($hitsA.Count -gt 1) { $multiA = $true } elseif ($hitsA.Count -eq 1) { $dlgA = $hitsA[0]; $openedA = $true } }
+  Assert 'exactly one native picker opened for the create-form accept' ($openedA -and -not $multiA) (AppWindowDump)
+  if ($multiA) { Close-OwnedPickers 'multiple pickers after one create upload click'; Shot 'picker-failure'; throw 'more than one owned picker after a single create upload click' }
+  if (-not $openedA) { Close-OwnedPickers 'create picker open detection timed out'; Shot 'picker-failure'; throw 'picker open detection failed (create accept)' }
+  $driveNoteA = ''; $storeBeforeA = ''; $rv1A = 'not-run'; $setOkA = $false; $rvMidA = 'not-run'; $readbackOkA = $false; $rv2A = 'not-run'; $fgOkA = $false; $clickA = $false; $clickTrA = $false
+  $attemptA = [ordered]@{ 'native-rows' = 'not-attempted'; 'native-chain-1148' = 'not-attempted'; 'open-button-ctrl1' = 'not-attempted' }
+  $attemptErrA = [ordered]@{ 'native-rows' = ''; 'native-chain-1148' = ''; 'open-button-ctrl1' = '' }
+  try {
+    $rootCheckA = {
+      if (-not [WinN]::IsWindow($dlgA)) { return (Test-RootUnique $false 0 $false $false $false $false '') }
+      $hitsR = @(FindPickers)
+      $h0 = ($hitsR.Count -ge 1) -and ($hitsR[0].ToInt64() -eq $dlgA.ToInt64())
+      $rc = [WinN]::ClassOf($dlgA)
+      return (Test-RootUnique $true $hitsR.Count $h0 ([DlgDrive]::VisEn($dlgA)) ([DlgDrive]::PidOf($dlgA) -eq [uint32]$p.Id) ($rc -eq '#32770') $rc)
+    }
+    $rootStateA = & $rootCheckA
+    Info 'create-form picker revalidated before any drive' ("uniqueRoot='$rootStateA' class='$([WinN]::ClassOf($dlgA))' ownerChain=fresh-via-FindPickers")
+    if ($rootStateA -ne 'ok') { throw "owned dialog unavailable for the create accept (uniqueRoot=$rootStateA)" }
+    try { Info 'create picker native child windows (bounded)' ([DlgEnum]::Dump($dlgA, 120)) } catch { Info 'create picker native enum error' "$($_.Exception.Message)" }
+    $nativeTruncA = $true; $editHwndA = [long]0; $comboHwndA = [long]0; $comboexHwndA = [long]0; $openHwndA = [long]0; $openTitleA = ''; $openVariantA = ''
+    $idConflictsA = @()
+    try {
+      $rawRowsA = "$([DlgDrive]::Rows($dlgA, 400))"
+      $segA = $rawRowsA -split ' ;; '
+      $nativeTruncA = ($segA[0] -match 'truncated=True')
+      $rowsA = @($segA | Select-Object -Skip 1 | Where-Object { "$_" -ne '' } | ForEach-Object { $f = $_ -split '\|'; [pscustomobject]@{ hwnd = [long]$f[0]; parent = [long]$f[1]; ctrlId = [int]$f[2]; cls = $f[3]; pidN = [uint32]$f[4]; vis = ($f[5] -eq 'True'); en = ($f[6] -eq 'True') } })
+      $attemptA['native-rows'] = "count=$($rowsA.Count) truncated=$nativeTruncA"
+      if ($nativeTruncA) { $idConflictsA += 'native enumeration TRUNCATED at the cap: the all-matches guarantee is lost (fail-closed)' }
+      if ($rowsA.Count -eq 0) { $idConflictsA += 'native enumeration returned no rows for the verified dialog' }
+    } catch { $attemptErrA['native-rows'] = "$($_.Exception.Message)"; $idConflictsA += "native enumeration raised (fail-closed): $($_.Exception.Message)"; $nativeTruncA = $true }
+    if (-not $nativeTruncA -and $rowsA.Count -gt 0) {
+      $editSelA = Select-NativeFilenameEdit $rowsA ([uint32]$p.Id) ($dlgA.ToInt64())
+      $openSelA = Select-NativeOpenButton $rowsA ([uint32]$p.Id) ($dlgA.ToInt64()) $titleReader
+      $attemptA['native-chain-1148'] = "editLeaves=$($editSelA.candidates.Count) editsTotal=$($editSelA.editsTotal) otherVisible=[$(($editSelA.otherVisible | ForEach-Object { "ctrlId=$($_.ctrlId)" }) -join ',')]"
+      $attemptA['open-button-ctrl1'] = "titledOpen=$($openSelA.candidates.Count) id1Direct=$($openSelA.id1Total) id1Titles=[$($openSelA.id1Titles -join ', ')] buttonsTotal=$($openSelA.buttonsTotal)"
+      if ($editSelA.candidates.Count -ne 1) { $idConflictsA += "native filename Edit-leaf count=$($editSelA.candidates.Count) (need exactly 1; the Edit-leaf is counted once even though chain members share ctrlId 1148)" }
+      if ($editSelA.otherVisibleCount -gt 0) { $idConflictsA += "other VISIBLE Edit-class windows present: $($editSelA.otherVisibleCount) (any ctrlId - a competing or malformed Edit never matches silently)" }
+      if ($openSelA.id1Total -ne 1) { $idConflictsA += "direct root child Button ctrlId 1 count=$($openSelA.id1Total) (need exactly 1 before title corroboration - an ID collision is never discarded by the title filter)" }
+      if ($openSelA.candidates.Count -ne 1) { $idConflictsA += "title-corroborated Open count=$($openSelA.candidates.Count) (need exactly 1)" }
+      if ($idConflictsA.Count -eq 0) {
+        $editHwndA = [long]$editSelA.candidates[0].edit.hwnd; $comboHwndA = [long]$editSelA.candidates[0].combo.hwnd; $comboexHwndA = [long]$editSelA.candidates[0].comboex.hwnd
+        $openHwndA = [long]$openSelA.candidates[0].row.hwnd; $openTitleA = $openSelA.candidates[0].title; $openVariantA = $openSelA.candidates[0].variant
+      }
+    }
+    if ($idConflictsA.Count -gt 0) {
+      Assert 'exactly one unambiguous filename edit identity in the create picker' $false ("conflicts=[$($idConflictsA -join '; ')] attempts=[$(Format-AttemptSummary $attemptA $attemptErrA)]")
+      $driveNoteA = "native input WITHHELD: identity not uniquely verified (conflicts=[$($idConflictsA -join '; ')] attempts=[$(Format-AttemptSummary $attemptA $attemptErrA)])"
+    } else {
+      Assert 'exactly one unambiguous filename edit identity in the create picker' $true ("edit=0x$($editHwndA.ToString('X')) combo=0x$($comboHwndA.ToString('X')) comboex=0x$($comboexHwndA.ToString('X')) chain=dialog>ComboBoxEx32(1148)>ComboBox(1148)>Edit(1148) open=0x$($openHwndA.ToString('X')) title='$openTitleA' variant='$openVariantA' attempts=[$(Format-AttemptSummary $attemptA $attemptErrA)]")
+      $storeBeforeA = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
+      $script:rvEvidence = 'not-run'
+      $revalidateA = {
+        $rk = & $rootCheckA
+        if ($rk -ne 'ok') { $script:rvEvidence = "root-gate=$rk"; return $rk }
+        $rr = "$([DlgDrive]::Rows($dlgA, 400))"; $rseg = $rr -split ' ;; '
+        if ($rseg[0] -match 'truncated=True') { $script:rvEvidence = 'enumeration-truncated'; return 'revalidation enumeration truncated' }
+        $rrows = @($rseg | Select-Object -Skip 1 | Where-Object { "$_" -ne '' } | ForEach-Object { $f = $_ -split '\|'; [pscustomobject]@{ hwnd = [long]$f[0]; parent = [long]$f[1]; ctrlId = [int]$f[2]; cls = $f[3]; pidN = [uint32]$f[4]; vis = ($f[5] -eq 'True'); en = ($f[6] -eq 'True') } })
+        $reE = Select-NativeFilenameEdit $rrows ([uint32]$p.Id) ($dlgA.ToInt64())
+        $reO = Select-NativeOpenButton $rrows ([uint32]$p.Id) ($dlgA.ToInt64()) $titleReader
+        $script:rvEvidence = "openTitles=[$($reO.id1Titles -join ', ')] openId1=$($reO.id1Total) titled=$($reO.candidates.Count) editLeaves=$($reE.candidates.Count) otherVisibleEdits=$($reE.otherVisibleCount)"
+        return (Test-NativeIdentityUnchanged $reE $reO $editHwndA $comboHwndA $comboexHwndA $openHwndA)
+      }
+      $rv1A = & $revalidateA
+      Assert 'create picker: native identity revalidated (full chain + unique fresh root) immediately before WM_SETTEXT' ($rv1A -eq 'ok') ("result=$rv1A evidence=[$script:rvEvidence]")
+      $setTransportA = $false; $setLrA = [long]-1
+      if ($rv1A -eq 'ok') { try { $setTransportA = [DlgDrive]::TrySetText([IntPtr]$editHwndA, $createImg, [ref]$setLrA) } catch { $driveNoteA = "WM_SETTEXT raised: $($_.Exception.Message)" } }
+      $setOkA = ($setTransportA -and $setLrA -eq 1)
+      if ($rv1A -eq 'ok') { Assert 'create picker: bounded WM_SETTEXT to the verified edit succeeded (transport AND LRESULT)' $setOkA ("transport=$setTransportA lresult=$setLrA") }
+      if ($setOkA) { $rvMidA = & $revalidateA }
+      if ($setOkA) { Assert 'create picker: native identity unchanged after WM_SETTEXT, revalidated immediately before the readback' ($rvMidA -eq 'ok') ("result=$rvMidA evidence=[$script:rvEvidence]") }
+      $rbValA = $null; $rbLenA = [long]-1; $rbCopiedA = [long]-1; $getTransportA = $false; $rbCheckA = 'not-run'
+      if ($rvMidA -eq 'ok') { try { $getTransportA = [DlgDrive]::TryGetText([IntPtr]$editHwndA, [ref]$rbValA, [ref]$rbLenA, [ref]$rbCopiedA) } catch { $driveNoteA = "WM_GETTEXT raised: $($_.Exception.Message)" } }
+      if ($rvMidA -eq 'ok') { $rbCheckA = Test-NativeReadback $getTransportA $rbValA $rbLenA $rbCopiedA $createImg; $readbackOkA = ($rbCheckA -eq 'ok') }
+      if ($rvMidA -eq 'ok') { Assert 'create picker: filename readback succeeded and equals the probe path (declared length + copied count + value length, exact-case, no clip)' $readbackOkA ("check=$rbCheckA transport=$getTransportA declaredLen=$rbLenA copied=$rbCopiedA probeLen=$($createImg.Length)") }
+      if ($readbackOkA) { $rv2A = & $revalidateA }
+      if ($readbackOkA) { Assert 'create picker: native identity unchanged through the readback, revalidated immediately before the single Open click' ($rv2A -eq 'ok') ("result=$rv2A evidence=[$script:rvEvidence]") }
+      $fgHwndA = [IntPtr]::Zero
+      if ($rv2A -eq 'ok') { try { $fgHwndA = [DlgDrive]::Foreground(); $fgOkA = ($fgHwndA.ToInt64() -eq $dlgA.ToInt64()) } catch { $driveNoteA = "foreground check raised: $($_.Exception.Message)" } }
+      if ($rv2A -eq 'ok') { Assert 'create picker is the foreground window at the last moment before the Open click' $fgOkA ("foreground=0x$($fgHwndA.ToInt64().ToString('X')) dialog=0x$($dlgA.ToInt64().ToString('X'))") }
+      if ($readbackOkA -and $rv2A -eq 'ok' -and $fgOkA) {
+        $clickA = $true; $clickLrA = [long]-1
+        try { $clickTrA = [DlgDrive]::TryClick([IntPtr]$openHwndA, [ref]$clickLrA) } catch { $clickTrA = $false; $driveNoteA = "BM_CLICK raised: $($_.Exception.Message)" }
+        if ([string]::IsNullOrEmpty($driveNoteA)) { $driveNoteA = "verified native chain edit=0x$($editHwndA.ToString('X')) + bounded WM_SETTEXT/GETTEXT readback + last-moment foreground + ONE BM_CLICK attempted (transport=$clickTrA lresult=$clickLrA) on direct-child Button ctrlId 1 - unknown transport is never retried" }
+      } elseif ($rv1A -ne 'ok') {
+        $driveNoteA = "native input WITHHELD: pre-input revalidation failed: $rv1A evidence=[$script:rvEvidence]"
+      } elseif (-not $setOkA) {
+        if ([string]::IsNullOrEmpty($driveNoteA)) { $driveNoteA = "native input WITHHELD: WM_SETTEXT failed (transport=$setTransportA lresult=$setLrA)" }
+      } elseif ($rvMidA -ne 'ok') {
+        $driveNoteA = "readback WITHHELD: post-settext revalidation failed: $rvMidA evidence=[$script:rvEvidence]"
+      } elseif (-not $readbackOkA) {
+        $driveNoteA = "Open click WITHHELD: readback failed ($rbCheckA transport=$getTransportA declaredLen=$rbLenA copied=$rbCopiedA)"
+      } elseif ($rv2A -ne 'ok') {
+        $driveNoteA = "Open click WITHHELD: pre-click revalidation failed: $rv2A evidence=[$script:rvEvidence]"
+      } else {
+        $driveNoteA = "Open click WITHHELD: dialog not foreground at the last moment (foreground=0x$($fgHwndA.ToInt64().ToString('X')))"
+      }
+    }
+  } catch { $driveNoteA = "create-accept dialog drive exception: $($_.Exception.Message)" }
+  Info 'create picker identity strategy attempts (always logged)' (Format-AttemptSummary $attemptA $attemptErrA)
+  Info 'create-form native picker accept drive path' $driveNoteA
+  $closedA = $false; for ($t = 0; $t -lt 20 -and -not $closedA; $t++) { Start-Sleep -Milliseconds 200; $closedA = -not [WinN]::IsWindow($dlgA) }
+  if (-not $closedA) {
+    $preCleanupShotA = Shot-OwnedDialog 'picker-identity-failure' $dlgA
+    Close-OwnedPickers 'create accept attempt did not close the dialog'
+    Shot 'picker-failure'
+    Assert 'create native picker closed after the accept attempt' $false ("driveNote=$driveNoteA; preCleanup=[$preCleanupShotA]; windows: $(AppWindowDump)")
+    throw 'create native picker did not close after the accept attempt'
+  }
+  $noDupA = $false; $storeSameA = $false
+  if ($clickA) {
+    # A timed-out/unknown-transport BM_CLICK may still have executed: run ALL acceptance checks unconditionally.
+    $dupA = [IntPtr]::Zero; for ($t = 0; $t -lt 15 -and $dupA -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $againA = @(FindPickers); if ($againA.Count -gt 0) { $dupA = $againA[0] } }
+    $noDupA = ($dupA -eq [IntPtr]::Zero)
+    Assert 'no picker remains open or queued behind the create-accepted one (3s bounded poll)' $noDupA ("queued=0x$($dupA.ToInt64().ToString('X')) windows: $(AppWindowDump)")
+    $storeAfterA = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
+    $storeSameA = ($storeAfterA -ceq $storeBeforeA)
+    Assert 'store.json unchanged by the create picker accept alone (strict raw before/after compare; persist happens only at the explicit Create)' $storeSameA ("beforeLen=$($storeBeforeA.Length) afterLen=$($storeAfterA.Length)")
+  }
+  $imgEditA = NamedEdit 'Create card image path'; Assert 'create image path editor present for accept readback' ($null -ne $imgEditA) ''
+  $accPathA = ''; $accReadA = (Read-EditValue $imgEditA ([ref]$accPathA))
+  Assert 'create image path readback succeeded after the accept (no fail-open empty)' $accReadA ''
+  Assert 'create image path filled by the ACCEPTED native picker (code-behind result, not typed)' ($accReadA -and $accPathA -eq $createImg) ("edit='$accPathA' probe='$createImg' drive=$driveNoteA")
+  $appPathOkA = ($accReadA -and $accPathA -eq $createImg)
+  $gateA = Test-NativeAcceptanceGate $clickA $clickTrA $rv1A $setOkA $rvMidA $readbackOkA $rv2A $fgOkA $closedA $noDupA $storeSameA $appPathOkA
+  Assert 'complete native acceptance gate before the Create (all pregates + exactly one attempted click + dialog gone + no queued picker + store unchanged + form path readback; transport recorded separately)' $gateA.ok ("failed=[$($gateA.failed -join ',')] transport=$($gateA.transport) drive=$driveNoteA")
+  if (-not $gateA.ok) { Close-OwnedPickers 'create native acceptance gate incomplete'; Shot 'picker-failure'; throw "create native acceptance gate incomplete: $($gateA.failed -join ',')" }
+  Shot 'create-form-picker-accepted'
+  $c = ClickBtn 'Create workspace' 1200; Assert 'create with color and picker-accepted image clicked' ($c -eq 'ok') $c
+  Assert 'designed workspace opened in details' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+  $o = StoreObj
+  $wsD = @($o.workspaces | Where-Object { $_.name -eq 'E2E designed' })[0]
+  Assert 'store: create-time color and picker-accepted image persisted on the new workspace' ($null -ne $wsD -and $wsD.color -eq '#FDE68A' -and $wsD.imagePath -eq $createImg) ("color=$($wsD.color) image=$($wsD.imagePath)")
+  $c = ClickBtn 'Back' 900; Assert 'back to overview with the designed card' ($c -eq 'ok') $c
+  Shot 'created-with-design-card'
+  Assert 'create form fully reset after a successful create' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Workspace description')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
