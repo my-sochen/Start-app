@@ -361,6 +361,7 @@ try {
   $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }
   Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($edgeReady -and $moved -and $edgeTabBefore -eq 1) ("ready=$edgeReady moved=$moved before=$edgeTabBefore hwnd=0x$('{0:X}' -f $script:edgeHwnd) $edgeDiag")
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+  $env:STARTAPP_CRASHLOG = '1' # opt the app into crash.log evidence for this harness run
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
   while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
@@ -1105,6 +1106,9 @@ try {
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
+  # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run
+  $crashLog = Join-Path $storeDir 'crash.log'
+  if (Test-Path $crashLog) { Copy-Item $crashLog diag/app-crash.log -Force; 'app crash log captured into diag/app-crash.log' | Out-File -Append diag/errors.txt }
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   foreach ($pidF in @(EdgeFixturePids | Where-Object { $_ -ne $null })) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }   # fixture-profile-scoped cleanup, independent of the launcher process state (it may have handed off); null-guarded - a null -Id is a terminating binder error -ErrorAction cannot suppress
   if ($edgeProfile) { Remove-Item $edgeProfile -Recurse -Force -ErrorAction SilentlyContinue }
