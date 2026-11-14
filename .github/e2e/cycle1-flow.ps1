@@ -636,8 +636,18 @@ public static class DlgDrive {
     # retrieve another application's control text, which MAY explain the r3 miss; the actual r3 return value
     # was discarded and remains UNOBSERVED, so no cause is asserted here.
     # ACCEPT requires a VALID structured read, not just transport-ok: ok, non-null/non-empty value,
-    # 0<=declared<=32768, 0<=copied<=32768, declared==copied==value.Length, THEN the exact raw
-    # 'Open'/'פתיחה' comparison. NO accelerator normalization, no title-set widening. id1Titles logs raw
+    # 0<=declared<=32768, 0<=copied<=32768, declared==copied==value.Length, THEN the caption check below.
+    # CAPTION CHECK: exact raw equality against the ACCEPTED CAPTION LIST ONLY: 'Open', 'פתיחה', and the
+    # OBSERVED variant '&Open' (run 43531688040 id1Titles: raw '&Open' len=5 declared=5 copied=5
+    # cp=[0026 004F 0070 0065 006E] read-ok - Win32 accelerator marker on 'O', UIA displays 'Open'). This is an
+    # explicit observed-variant acceptance, NOT a general accelerator parser: there is no stripping, trimming,
+    # bidi/nonprinting removal, case change, or any other normalization, so '&&Open', 'Open&', 'O&pen',
+    # whitespace variants, bidi/nonprinting-marked variants, 'Cancel' and '&Cancel' all REFUSE. The matched
+    # variant is recorded on the candidate and in id1Titles (variant='...') alongside the raw caption.
+    # Comparison is OrdinalIgnoreCase: it preserves the inherited bounded case-insensitive choice, while
+    # PowerShell's culture-aware -eq would IGNORE bidi/nonprinting format marks (e.g. 'Open'+U+202E would
+    # falsely equal 'Open') - ordinal comparison refuses them by exact codepoints.
+    # id1Titles logs raw
     # escaped title + all length fields + codepoints (short titles) + err + the validity verdict for EVERY
     # direct-child ID1 button BEFORE matching, including failed and partial reads, so every refusal (initial
     # selection and, via the caller's rv evidence, every revalidation) is classifiable from the diagnostics.
@@ -655,8 +665,11 @@ public static class DlgDrive {
       elseif ($tr.declared -lt 0 -or $tr.declared -gt 32768 -or $tr.copied -lt 0 -or $tr.copied -gt 32768) { $why = 'bounds' }
       elseif ($tr.declared -ne $tr.copied -or $tr.declared -ne $tr.value.Length) { $why = 'length-mismatch' }
       $verdict = if ($null -eq $why) { 'read-ok' } else { "read-invalid:$why" }
-      $titles += ('0x{0:X}' -f [int64]$b.hwnd) + "='$disp' $lenInfo$errInfo$cps $verdict"
-      if ($null -eq $why -and ($tr.value -eq 'Open' -or $tr.value -eq 'פתיחה')) { $titled += [pscustomobject]@{ row = $b; title = $tr.value } }
+      $variant = $null
+      if ($null -eq $why) { foreach ($v in @('Open', 'פתיחה', '&Open')) { if ([string]::Equals($tr.value, $v, [System.StringComparison]::OrdinalIgnoreCase)) { $variant = $v; break } } }
+      $varInfo = if ($null -ne $variant) { " variant='$variant'" } else { '' }
+      $titles += ('0x{0:X}' -f [int64]$b.hwnd) + "='$disp' $lenInfo$errInfo$cps $verdict$varInfo"
+      if ($null -ne $variant) { $titled += [pscustomobject]@{ row = $b; title = $tr.value; variant = $variant } }
     }
     return [pscustomobject]@{ candidates = $titled; buttonsTotal = @($rows | Where-Object { $_.cls -eq 'Button' }).Count; id1Total = $btns.Count; id1Titles = $titles }
   }
@@ -883,7 +896,7 @@ public static class DlgDrive {
     Info 'owned picker dialog native child windows (bounded, before UIA walk)' $nativeDump
     try { $rawDump = Dialog-RawTreeDump $dlgEl 200 12 100 2000 } catch { $rawDump = "rawtree error: $($_.Exception.Message)" }
     Info 'owned picker dialog UIA raw tree (bounded, dialog-only)' $rawDump
-    $nativeTrunc = $true; $nativeRows = @(); $editHwndL = [long]0; $openHwndL = [long]0; $openTitle = ''
+    $nativeTrunc = $true; $nativeRows = @(); $editHwndL = [long]0; $openHwndL = [long]0; $openTitle = ''; $openVariant = ''
     $idConflicts = @()
     try {
       $rawRows = "$([DlgDrive]::Rows($dlgAcc, 400))"
@@ -905,7 +918,7 @@ public static class DlgDrive {
       if ($openSel.candidates.Count -ne 1) { $idConflicts += "title-corroborated Open count=$($openSel.candidates.Count) (need exactly 1)" }
       if ($idConflicts.Count -eq 0) {
         $editHwndL = [long]$editSel.candidates[0].edit.hwnd; $comboHwndL = [long]$editSel.candidates[0].combo.hwnd; $comboexHwndL = [long]$editSel.candidates[0].comboex.hwnd
-        $openHwndL = [long]$openSel.candidates[0].row.hwnd; $openTitle = $openSel.candidates[0].title
+        $openHwndL = [long]$openSel.candidates[0].row.hwnd; $openTitle = $openSel.candidates[0].title; $openVariant = $openSel.candidates[0].variant
         # Optional UIA corroboration (scoped): sticky per-field conflicts via Invoke-UiaCrossCheck (NATIVEID-FN).
         $uiaFromHandle = { param($h) [System.Windows.Automation.AutomationElement]::FromHandle($h) }
         $uiaGetParent = { param($e) [System.Windows.Automation.TreeWalker]::RawViewWalker.GetParent($e) }
@@ -935,7 +948,7 @@ public static class DlgDrive {
       Assert 'exactly one unambiguous filename edit identity in the picker' $false ("conflicts=[$($idConflicts -join '; ')] attempts=[$(Format-AttemptSummary $attempt $attemptErr)]")
       $driveNote = "native input WITHHELD: identity not uniquely verified (conflicts=[$($idConflicts -join '; ')] attempts=[$(Format-AttemptSummary $attempt $attemptErr)])"
     } else {
-      Assert 'exactly one unambiguous filename edit identity in the picker' $true ("edit=0x$($editHwndL.ToString('X')) combo=0x$($comboHwndL.ToString('X')) comboex=0x$($comboexHwndL.ToString('X')) chain=dialog>ComboBoxEx32(1148)>ComboBox(1148)>Edit(1148) open=0x$($openHwndL.ToString('X')) title='$openTitle' attempts=[$(Format-AttemptSummary $attempt $attemptErr)]")
+      Assert 'exactly one unambiguous filename edit identity in the picker' $true ("edit=0x$($editHwndL.ToString('X')) combo=0x$($comboHwndL.ToString('X')) comboex=0x$($comboexHwndL.ToString('X')) chain=dialog>ComboBoxEx32(1148)>ComboBox(1148)>Edit(1148) open=0x$($openHwndL.ToString('X')) title='$openTitle' variant='$openVariant' attempts=[$(Format-AttemptSummary $attempt $attemptErr)]")
       $storeBeforeAccept = if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 } else { '' }
       $script:rvEvidence = 'not-run'
       $revalidate = {
