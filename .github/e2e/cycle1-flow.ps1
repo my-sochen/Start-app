@@ -1551,12 +1551,15 @@ public static class WinCap {
     # new WinCap type and the reviewed oracle functions above. No undefined external assumptions.
     $sum = New-Object System.Collections.Generic.List[string]
     $outcome = 'started'
+    $stage = 'init'
     try {
+      $stage = 'pid-binding'
       # EXPLICIT root pid binding (reviewer 04:10:41): landed Read-DiagNode returns
       # {rid,rect,ct,name,off,el} with NO pid field; the pid comes ONLY from the UIA root itself.
       $appPid = 0; try { $appPid = [int]($win.Current.ProcessId) } catch { $appPid = 0 }
       if ($appPid -le 0) { $outcome = 'refused: UIA root pid unreadable'; return }
       if ($appPid -ne [int]$p.Id) { $outcome = "refused: UIA root pid $appPid != launched process pid $($p.Id)"; return }
+      $stage = 'provider-bindings'
       # provider bindings over LANDED functions only; oracle providers are SINGLE-SHOT (no retry).
       $P = @{
         btnFinder = { param($n) Btn $n }.GetNewClosure()
@@ -1601,6 +1604,7 @@ public static class WinCap {
       # dpi-scale argument 1.0 is justified: EVERY root read refuses non-96 DPI inside
       # Read-ValidatedRoot, and the capture ctx dpiScale is boundary-fresh; the adapter's
       # measure-scale guard remains as defense in depth.
+      $stage = 'oracle-call'
       $oracle = Invoke-SavedCardOracleV4 'E2E ws renamed' $P { param($ctx) Invoke-RealWindowCaptureV1 $ctx } $pred $frameExp $pad 1.0 400 40 200 $sink
       # OLD-vs-NEW (both preserved and inspectable; old assertions UNCHANGED above and still gating):
       $oldState = ''
@@ -1610,8 +1614,21 @@ public static class WinCap {
         try { $oldState = "OLD(no-image, landed assertion above UNCHANGED): okCardBg=$($script:okCardBg) seen='$($script:seenCardBg)'" } catch { $oldState = 'OLD(no-image): okCardBg unreadable' }
       }
       $prov = if ($null -ne $oracle.provenance) { "$($oracle.provenance.verification)" } else { 'none' }
-      $outcome = "oracle ok=$($oracle.ok) structure=$($oracle.structureOk) capture=$($oracle.captureOk) measure=$($oracle.measureOk) evidence=$($oracle.evidenceOk) transport=$($oracle.captureTransportIssue) reason=$($oracle.reason) prov=$prov artifacts=$(@($oracle.artifacts).Count) warnings=$(@($oracle.cleanupWarnings) -join '; ') | $oldState"
-    } catch { $outcome = "threw: $($_.Exception.Message)" }
+      $stage = 'oracle-report'
+      # RESULT-FIRST recording (reviewer 04:49:14): gates/reason/captureCalls/provenance go into $sum
+      # via List.Add BEFORE any summary formatting, so a formatting failure can never mask the actual
+      # result. NEVER array-wrap Generic.List fields: @($list) on List[object] throws 'Argument types do
+      # not match' under pwsh 7.4.6 (reviewer 04:49:14 repro + independent author repro) - the exact
+      # defect that masked the r8 run's underlying refusal behind an empty-detail throw line.
+      try {
+        $sum.Add("gates ok=$($oracle.ok) structure=$($oracle.structureOk) capture=$($oracle.captureOk) measure=$($oracle.measureOk) evidence=$($oracle.evidenceOk) transport=$($oracle.captureTransportIssue)")
+        $sum.Add("reason=$($oracle.reason)")
+        $sum.Add("captureCalls=$($oracle.captureCalls) captureDisposals=$($oracle.captureDisposals) prov=$prov artifactsN=$(if ($null -ne $oracle.artifacts) { $oracle.artifacts.Count } else { 0 }) warningsN=$(if ($null -ne $oracle.cleanupWarnings) { $oracle.cleanupWarnings.Count } else { 0 })")
+        if ($null -ne $oracle.cleanupWarnings -and $oracle.cleanupWarnings.Count -gt 0) { $sum.Add("warnings=$($oracle.cleanupWarnings -join '; ')") }
+        $sum.Add($oldState)
+      } catch { try { $sum.Add("result-record threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message)") } catch { } }
+      $outcome = "oracle ok=$($oracle.ok) structure=$($oracle.structureOk) capture=$($oracle.captureOk) measure=$($oracle.measureOk) evidence=$($oracle.evidenceOk) transport=$($oracle.captureTransportIssue) reason=$($oracle.reason) prov=$prov artifacts=$($oracle.artifacts.Count) warnings=$($oracle.cleanupWarnings -join '; ') | $oldState"
+    } catch { $outcome = "threw at stage=${stage}: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace) | at: $($_.InvocationInfo.PositionMessage)" }
     finally {
       try { Info "saved-card PrintWindow diag ($tag): $outcome (diagnostic only; original assertions/captures unchanged)" ($sum -join ' | ') } catch { }
     }
@@ -2036,7 +2053,7 @@ public static class WinCap {
       if ($null -ne $capture) { $st.captured = & $capture ([pscustomobject]@{ union = $union; contentRects = $st.contentRects; liRect = $st.liRect; winRect = $st.winRect; hwnd = $ctxHwnd; winPid = $appPid; winRid = $winRid; dpiScale = $ctxDpi }) }
       $st.stats = "members=$($walk.nodes.Count) walkCalls pass1=$($walk.enumCalls)/400 pass2=$($walk2.enumCalls)/400 (PER-WALK caps, not combined) snapshot=ok boundary=pre-pass2 ascent1(hops=$($asc1.hops) root=$($asc1.hitRoot)) ascent2(hops=$($asc2.hops) root=$($asc2.hitRoot)) identity=ok"
       $st.ok = $true
-    } catch { $st.reason = "threw: $($_.Exception.Message)" }
+    } catch { $st.reason = "threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace)" }
     return $st
   }
   # ORACLE-STRUCTURE-V4-END
@@ -2169,7 +2186,7 @@ public static class WinCap {
         $raw = & $captureOnce $ctx
         if ($null -eq $raw) { $capState.err = 'capture callback returned null'; return $null }
         return $raw
-      } catch { $capState.err = "capture threw: $($_.Exception.Message)"; return $null }
+      } catch { $capState.err = "capture threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace)"; return $null }
     }.GetNewClosure()
     try {
       $st = Get-SavedCardStructureV4 $anchorName $P.btnFinder $P.getParent $P.getFC $P.getNS $P.readNode $P.rootReader $capCb
@@ -2218,7 +2235,7 @@ public static class WinCap {
       $ox = [int]$st.winRect.Left; $oy = [int]$st.winRect.Top
       if ($c.originL -ne $ox -or $c.originT -ne $oy) { $prov.verification = 'gate-failed: origin mismatch'; $res.reason = "capture gate: origin mismatch (capture $($c.originL),$($c.originT) vs validated window $ox,$oy)"; return $res }
       # canonicalize: ONE frozen packed RGB array underlies measurement, crops, hashing, PNG
-      try { $canon = ConvertTo-CanonicalRgb ([byte[]]$c.rgb) $w $h $stride ([string]$c.channelOrder) } catch { $prov.verification = 'gate-failed: canonicalization threw'; $res.reason = "capture gate: canonicalization threw: $($_.Exception.Message)"; return $res }
+      try { $canon = ConvertTo-CanonicalRgb ([byte[]]$c.rgb) $w $h $stride ([string]$c.channelOrder) } catch { $prov.verification = 'gate-failed: canonicalization threw'; $res.reason = "capture gate: canonicalization threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace)"; return $res }
       $h0 = Get-BytesSha256 $canon
       if ($h0 -ne ([string]$c.sha256).ToLowerInvariant()) { $prov.verification = 'gate-failed: canonical hash != declared hash'; $res.reason = 'capture gate: canonical payload hash does not match the declared capture-time hash'; return $res }
       $cb = New-CanonicalBitmap $canon $w $h
@@ -2260,14 +2277,14 @@ public static class WinCap {
         $prov.verification = 'measured-ok'
       } catch {
         $prov.verification = 'measurement-threw'
-        $res.reason = "measurement stage threw: $($_.Exception.Message) (partial provenance/evidence/artifacts preserved)"
+        $res.reason = "measurement stage threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace) (partial provenance/evidence/artifacts preserved)"
         return $res
       }
     } catch {
       # OUTER clean refusal: hash/metadata/gate-stage exceptions never escape (reviewer 04:05:44)
       if ($null -eq $res.provenance) { $res.provenance = [ordered]@{ verification = 'threw-before-capture-metadata' } }
       $res.provenance.verification = 'adapter-threw: ' + $_.Exception.Message
-      $res.reason = "adapter stage threw: $($_.Exception.Message) (partial provenance/artifacts preserved)"
+      $res.reason = "adapter stage threw: [$($_.Exception.GetType().FullName)] $($_.Exception.Message) | stack: $($_.ScriptStackTrace) (partial provenance/artifacts preserved)"
       return $res
     } finally {
       # artifacts flushed to the sink BEFORE any disposal, each individually guarded
