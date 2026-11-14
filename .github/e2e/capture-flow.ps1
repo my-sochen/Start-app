@@ -456,6 +456,12 @@ try {
   Close-OwnedPickers 'capture-image picker cancelled over a typed path'
   Assert 'capture cancel preserves the typed image path (cancel never clears existing text)' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture') (ValOf (NamedEdit 'Capture card image path'))
   Shot 'new-form-design-ready'
+  # bounded minimum-window evidence (declared MinWidth=720/MinHeight=400): resize to the minimum, one shot of the
+  # filled capture form, restore the previous size immediately
+  $rCapMin = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$rCapMin)
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 720, 400, 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
+  Shot 'new-form-design-ready-minsize'
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
   Assert 'capture screen closed after create' (-not (WaitText 'Open now' 2)) ''

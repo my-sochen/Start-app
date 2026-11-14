@@ -2601,6 +2601,12 @@ public static class WinCap {
   $createImg = "$root\create-card.png"
   $ib = New-Object System.Drawing.Bitmap 40, 40; $ig = [System.Drawing.Graphics]::FromImage($ib); $ig.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $ig.Dispose(); $ib.Save($createImg, [System.Drawing.Imaging.ImageFormat]::Png); $ib.Dispose()
   Shot 'create-form-design-controls'
+  # bounded minimum-window evidence (declared MinWidth=720/MinHeight=400 in MainWindow.xaml): resize to the
+  # minimum, one shot of the create form, restore the previous size immediately - no layout research cycle
+  $rMin = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$rMin)
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 720, 400, 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
+  Shot 'create-form-design-controls-minsize'
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rMin.Rt - $rMin.L), ($rMin.B - $rMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   SetText (NamedEdit 'Workspace name') 'E2E designed'
   SetText (NamedEdit 'Create card color') 'notacolor'
   $storeBeforeBad = StoreJson
