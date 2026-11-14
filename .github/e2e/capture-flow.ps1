@@ -1006,6 +1006,40 @@ try {
         Assert 'CROSS-BROWSER: the picked (Chrome) example.com keeps the exact chrome.exe path as its default browser through create' ($chromeMems.Count -eq 1 -and $chromeMems[0].launch.browser -eq $chromeExe) ("browser=$($chromeMems[0].launch.browser) expected=$chromeExe")
         Shot 'chrome-retention-created'
         $c = ClickBtn 'Back' 900; Assert 'back to overview after the chrome retention create' ($c -eq 'ok') $c
+
+        # DUP-2BROWSER (P2 regression, Trello ObGZE66t): same site in two browsers inside the duplicate picker of an EXISTING
+        # workspace. Duplicate identity stays Type+Target (settled; owner Nov14 20:35) - the fix under test is that both
+        # 'Add again' choices carry their browser name, and the ticked (Chrome) choice is the instance actually added.
+        # Both fixtures are still alive here (Edge example.com + Chrome example.com); chrome ws holds example.com (Chrome).
+        $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'dup two-browser scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+        SetText (NamedEdit 'Capture workspace search') 'chrome ws'
+        Start-Sleep -Milliseconds 600
+        $c = ClickBtn 'Pick workspace chrome ws' 1000; Assert 'picked chrome ws for the dup two-browser pass' ($c -eq 'ok') $c
+        Assert 'dup pass: rows start unticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
+        $edgeRow = CheckByLike 'Select example.com (Edge)'; Assert 'DUP-2BROWSER: the (Edge) example.com row is listed' ($null -ne $edgeRow) ((CheckNames) -join ' | ')
+        $chromeRow2 = CheckByLike 'Select example.com (Chrome)'; Assert 'DUP-2BROWSER: the (Chrome) example.com row is listed' ($null -ne $chromeRow2) ((CheckNames) -join ' | ')
+        [void](ToggleEl $edgeRow 'tick the (Edge) row for the selective add'); Start-Sleep -Milliseconds 200
+        [void](ToggleEl $chromeRow2 'tick the (Chrome) row for the selective add'); Start-Sleep -Milliseconds 300
+        $c = ClickBtn 'הוסף נבחרים' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'Add again: example.com*(Edge)')) -and ($null -ne (CheckByLike 'Add again: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'Add again: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Shot 'dup-two-browser-choices'
+        $chromeDup = CheckByLike 'Add again: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
+        $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
+        Assert 'DUP-2BROWSER: exactly the Chrome duplicate staged' ((@(StagedNames) -join '|') -eq 'example.com') ((StagedNames) -join ' | ')
+        $c = ClickBtn 'Capture save' 1500; Assert 'save the Chrome duplicate (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'the dup save saved exactly one row' (WaitText 'Saved 1 item' 3) ((Texts) -join ' | ')
+        $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
+        $exampleId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
+        $exampleMems = @($wsChrome.items | Where-Object { $_.itemId -eq $exampleId })
+        Assert 'DUP-2BROWSER: chrome ws holds exactly two example.com instances (first + approved duplicate)' ($exampleMems.Count -eq 2) "count=$($exampleMems.Count)"
+        Assert 'DUP-2BROWSER: the approved duplicate kept the Chrome browser (both instances chrome.exe, none Edge)' (($exampleMems.Count -eq 2) -and (@($exampleMems | Where-Object { $_.launch.browser -ne $chromeExe })).Count -eq 0) ((@($exampleMems | ForEach-Object { $_.launch.browser })) -join ' | ')
+        Assert 'DUP-2BROWSER: no non-example rows saved by the dup pass' (@($wsChrome.items).Count -eq 2) ((@($wsChrome.items | ForEach-Object { $_.name })) -join ' | ')
+        $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the dup save' ($c -eq 'ok') $c
+        $c = ClickBtn 'Close capture' 900; Assert 'capture closed after the dup two-browser pass' ($c -eq 'ok') $c
+        if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (dup two-browser)' ($c -eq 'ok') $c }
       }
       foreach ($pidF in @(ChromeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }
       Remove-Item $chromeProfile -Recurse -Force -ErrorAction SilentlyContinue
