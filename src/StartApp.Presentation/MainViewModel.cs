@@ -1004,14 +1004,22 @@ public sealed class MainViewModel : ObservableBase
         public string Name => Item.Name;
         public string Target => Item.Target;
         public string Group => GroupOf(Item.Type);
-        public string Label => "Select " + Item.Name;
+        /// <summary>The captured browser's display name (Edge, Chrome, ...), null when no browser was identified. The same
+        /// site open in two browsers stays one row per browser (owner decision Nov 14), and this name is how the user tells
+        /// them apart before choosing.</summary>
+        public string? BrowserName => CaptureRules.BrowserDisplayName(Item.Browser);
+        /// <summary>Row suffix shown after the group: "  (Edge)" for a browser-captured site, empty otherwise.</summary>
+        public string BrowserSuffix => BrowserName is null ? "" : $"  ({BrowserName})";
+        public string Label => BrowserName is null ? "Select " + Item.Name : $"Select {Item.Name} ({BrowserName})";
         public bool IsChecked { get => _checked; set { if (_checked == value) return; _checked = value; Raise(nameof(IsChecked)); _changed(); } }
     }
     /// <summary>An item moved to the workspace side but not saved yet. Editable here (name, description, address, open-with); the capture side is never changed by these edits.</summary>
     public sealed class StagedRow : ObservableBase
     {
         private string _name, _description = "", _target, _openWith = "";
-        public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; }
+        /// <summary>A staged site starts with the browser it was captured in already filled as its default (spec Nov 11);
+        /// the staged פתח באמצעות popup can still change or clear it before שמור writes anything.</summary>
+        public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; _openWith = i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? i.Browser! : ""; }
         public ItemType Type { get; }
         public string OriginalName { get; }
         public string Group => GroupOf(Type);
@@ -1263,6 +1271,10 @@ public sealed class MainViewModel : ObservableBase
         Status = $"Saved {staged.Count} {(staged.Count == 1 ? "item" : "items")} to the workspace; the capture list stays open";
         return true;
     }
+    /// <summary>A captured site keeps the browser it was found in as its default browser on the new item (spec Nov 11:
+    /// דפדפן שזוהה בזמן הלכידה יישמר; profiles deferred). Anything without a retained browser opens with the Windows default.</summary>
+    private static LaunchConfig? RetainedBrowserLaunch(CapturedItem i) =>
+        i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? new LaunchConfig(Browser: i.Browser) : null;
     private bool CreateFromCapture()
     {
         var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
@@ -1270,11 +1282,16 @@ public sealed class MainViewModel : ObservableBase
         if (string.IsNullOrWhiteSpace(n)) { Status = "Not created: workspace name is required"; return false; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
         if (ValidateCreateDesign(color, image) is { } de) { Status = "Not created: " + de; return false; }
+        foreach (var i in chosen)
+        {
+            var err = Catalog.ValidateTarget(i.Type, i.Target) ?? Catalog.ValidateLaunch(i.Type, RetainedBrowserLaunch(i));
+            if (err != null) { Status = $"Not created ({i.Name}): " + err; return false; }
+        }
         var ok = Apply(c =>
         {
             id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat);
             c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null);
-            foreach (var i in chosen) { var it = c.GetOrAddItem(i.Type, i.Name, i.Target); c.AddToWorkspace(id, it.Id); }
+            foreach (var i in chosen) { var it = c.GetOrAddItem(i.Type, i.Name, i.Target); c.AddToWorkspace(id, it.Id, RetainedBrowserLaunch(i)); }
         });
         if (!ok) return false;
         ResetCreateForm();
