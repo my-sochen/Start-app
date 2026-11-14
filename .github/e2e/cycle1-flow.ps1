@@ -70,6 +70,10 @@ function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = 
 function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
 function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
 function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
+# state-aware: the open-with popup re-checks 'Set as default' whenever a saved launch exists (VM: OpenWithSetDefault =
+# m?.Launch is not null), so a blind ToggleEl would UNCHECK it there and the save would silently not happen. Toggle only
+# when the current state is not already the wanted one, and fail loudly when the wanted state cannot be reached.
+function EnsureToggle($el, $what, $wantOn) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; $p = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern); $isOn = $p.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On; if ($isOn -ne $wantOn) { try { $p.Toggle(); Start-Sleep -Milliseconds 300; $p = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern) } catch { Assert "$what toggleable" $false "$_"; return $false } }; $ok = ($p.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -eq $wantOn; Assert "$what is $(if ($wantOn) { 'on' } else { 'off' })" $ok ("state=$($p.Current.ToggleState)"); return $ok }
 function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
 function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = $win.Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
@@ -121,6 +125,7 @@ try {
   $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; if (Test-Path $storeDir) { Remove-Item -Recurse -Force $storeDir }
   $store = Join-Path $storeDir 'store.json'
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+  $env:STARTAPP_CRASHLOG = '1' # opt the app into crash.log evidence for this harness run
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
   while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
@@ -223,9 +228,47 @@ try {
   $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
   Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
   Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
-  Assert 'row shows the chosen program' (WaitText 'notepad.exe' 5) ((Texts) -join ' | ')
-  Shot 'open-with-saved'
+  # kill the launched notepad BEFORE the row evidence: the harness launch hands it the link target as a file
+  # argument, and notepad's own "filename syntax is incorrect" modal would obscure the row in the screenshots
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 500
+  try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
+  Start-Sleep -Milliseconds 300
+  # icon + name display (settled Nov 14): the row shows the program icon and a short name; the full path stays in the
+  # tooltip. A plain StackPanel has no UIA peer, so the accessible contract is the exposed TextBlock: content = UIA
+  # name, AutomationProperties.HelpText = full path; the icon is the Image sibling under the same parent panel.
+  Assert 'opens-with shows the short name, not the path' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: Notepad')))
+  Assert 'opens-with tooltip keeps the full path' ($null -ne $owTb -and $owTb.Current.HelpText -like '*notepad.exe*') ("help=$(if ($owTb) { $owTb.Current.HelpText } else { 'no-element' })")
+  $owImg = $null; if ($owTb) { $owP = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($owTb); if ($owP) { $owImg = $owP.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) } }
+  Assert 'opens-with icon element present next to the name' ($null -ne $owImg) ''
+  Assert 'full path no longer shown as row text' (@(@(Texts) | Where-Object { $_ -eq 'Opens with: C:\Windows\notepad.exe' }).Count -eq 0) ((Texts) -join ' | ')
+  Shot 'open-with-saved'
+  # fallback (settled Nov 14): an exe whose icon cannot be read keeps the full-path text; then restore notepad.exe
+  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the fallback case' ($c -eq 'ok') $c
+  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
+  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the fallback case' ($null -ne $prog) ''
+  SetText $prog 'C:\Windows\notepad2.exe'
+  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
+  $c = ClickBtn 'Open with chosen program' 1500; Assert 'fallback open-with go clicked' ($c -eq 'ok') $c
+  Assert 'store.json: missing-exe choice saved' ((StoreJson) -match 'notepad2\.exe') (StoreJson)
+  Assert 'missing exe falls back to the full-path text' (WaitText 'Opens with: C:\Windows\notepad2.exe' 10) ((Texts) -join ' | ')
+  Assert 'no icon + name panel for the missing exe' ($null -eq $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: notepad2')))) ''
+  Shot 'open-with-fallback'
+  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the restore' ($c -eq 'ok') $c
+  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
+  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the restore' ($null -ne $prog) ''
+  SetText $prog 'C:\Windows\notepad.exe'
+  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
+  $c = ClickBtn 'Open with chosen program' 900; Assert 'restore open-with go clicked' ($c -eq 'ok') $c
+  Assert 'open-with sent the request after restore' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'store.json restored to notepad.exe' (-not ((StoreJson) -match 'notepad2')) (StoreJson)
+  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue  # same modal hygiene before the row evidence
+  Start-Sleep -Milliseconds 500
+  try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
+  Start-Sleep -Milliseconds 300
+  Assert 'icon + name back after the restore' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  Shot 'open-with-restored'
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'
   SetText $wsNameBox2 'E2E ws renamed'
@@ -2806,6 +2849,9 @@ public static class WinCap {
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/assertions.json
+  # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run
+  $crashLog = Join-Path $storeDir 'crash.log'
+  if (Test-Path $crashLog) { Copy-Item $crashLog diag/app-crash.log -Force; 'app crash log captured into diag/app-crash.log' | Out-File -Append diag/errors.txt }
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
 }

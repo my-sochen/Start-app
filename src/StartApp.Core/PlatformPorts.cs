@@ -80,19 +80,33 @@ public static class CaptureRules
     /// its file name (without extension) as-is.</summary>
     public static string? BrowserDisplayName(string? exePath)
     {
-        if (string.IsNullOrEmpty(exePath)) return null;
-        var cut = exePath.LastIndexOfAny(new[] { '\\', '/' });
-        var file = cut >= 0 ? exePath[(cut + 1)..] : exePath;
-        var stem = file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? file[..^4] : file;
-        return stem.ToLowerInvariant() switch
+        var stem = ExeStem(exePath);
+        return stem is null ? null : KnownBrowserName(stem) ?? stem;
+    }
+
+    /// <summary>The product name for a known browser exe ("chrome.exe" -> "Chrome"); null for anything else. Single source
+    /// shared by the capture-row naming above and by the details-row icon + name display (Presentation).</summary>
+    public static string? KnownBrowserName(string? exePath)
+    {
+        var stem = ExeStem(exePath);
+        return stem?.ToLowerInvariant() switch
         {
             "msedge" => "Edge",
             "chrome" => "Chrome",
             "firefox" => "Firefox",
             "brave" => "Brave",
             "opera" => "Opera",
-            _ => stem,
+            _ => null,
         };
+    }
+
+    // exe path -> file name without a trailing .exe; null for an empty path (splits on both separators, any OS)
+    private static string? ExeStem(string? exePath)
+    {
+        if (string.IsNullOrEmpty(exePath)) return null;
+        var cut = exePath.LastIndexOfAny(new[] { '\\', '/' });
+        var file = cut >= 0 ? exePath[(cut + 1)..] : exePath;
+        return file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? file[..^4] : file;
     }
 
     /// <summary>file:///C:/Users/a%20b -> C:\Users\a b; null when it is not a local file URL (or not an absolute drive/UNC path).</summary>
