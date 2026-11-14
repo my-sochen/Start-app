@@ -248,10 +248,11 @@
                                     <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי).
                                          Icon + short name replaces the long path (settled Nov 14); the full path stays in the tooltip and
                                          in the open-with popup, and a missing/unreadable exe icon falls back to the full-path text. -->
-                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}" AutomationProperties.Name="{Binding ProgramOpensWithText}">
+                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}" AutomationProperties.Name="{Binding ProgramOpensWithText, Mode=OneWay}">
                                         <Image Source="{Binding Program, Converter={StaticResource ProgramIcon}}" Width="14" Height="14" Margin="0,0,4,1" VerticalAlignment="Center"/>
                                         <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2">
-                                            <Run Text="Opens with: "/><Run Text="{Binding ProgramDisplayName}"/>
+                                            <!-- Run.Text defaults to TwoWay and crashes on a get-only property (gate failure 43641855227): every Run binding here is explicit OneWay, the settled convention elsewhere in this file -->
+                                            <Run Text="Opens with: "/><Run Text="{Binding ProgramDisplayName, Mode=OneWay}"/>
                                         </TextBlock>
                                         <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                             <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -260,7 +261,7 @@
                                         </Style.Triggers></Style></StackPanel.Style>
                                     </StackPanel>
                                     <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}">
-                                        <Run Text="Opens with: "/><Run Text="{Binding Program}"/>
+                                        <Run Text="Opens with: "/><Run Text="{Binding Program, Mode=OneWay}"/>
                                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                             <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                             <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
