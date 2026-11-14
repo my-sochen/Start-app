@@ -1,5 +1,5 @@
 # Validation-only artifact pipeline for feature -> dev -> test. Never runs on main.
-# Every push to the three named branches is checked, not only workflow edits.
+# Every push to the named branches is checked, not only workflow edits.
 # PERMANENT ROUTE: the test-stage branch is test/validation. A literal 'test' branch
 # cannot be created while test/* refs exist (Git ref namespace: no ref as both parent
 # and child), so the durable stage branch lives under the existing namespace.
@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/per-instance-items, dev, test/validation]
+    branches: [feat/per-instance-items, feat/browser-icon-display, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
