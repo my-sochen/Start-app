@@ -1162,6 +1162,253 @@ public static class DlgDrive {
     return $res
   }
   # MEASURE-FN-END
+  # DIAG-FN-START (r7c): saved-card STRUCTURAL DIAGNOSTICS - diagnostic only: no assertion, threshold,
+  # oracle, mask or drive changes; the original measurements/captures above still run and still gate.
+  # The descendant-union region is a STRUCTURE-DERIVED DIAGNOSTIC REGION ONLY (union of descendant element
+  # rectangles, NOT proven to equal the painted card Border bounds; RawView may include wrappers or omit the
+  # Border). Never used as frame bounds or acceptance geometry. All diagnostic crops/readings in one call
+  # derive from ONE immutable APP-WINDOW bitmap captured after identity+geometry revalidation; these are NEW
+  # captures, separate from and later than the original oracle crop and Shot (no provenance is shared).
+  function RectUnion($rects) {
+    $uL = 2147483647; $uT = 2147483647; $uR = -1; $uB = -1; $cnt = 0
+    foreach ($r in $rects) {
+      if ($r.Width -le 0 -or $r.Height -le 0) { continue }
+      $cnt++
+      if ([int]$r.Left -lt $uL) { $uL = [int]$r.Left }
+      if ([int]$r.Top -lt $uT) { $uT = [int]$r.Top }
+      if ([int]$r.Right -gt $uR) { $uR = [int]$r.Right }
+      if ([int]$r.Bottom -gt $uB) { $uB = [int]$r.Bottom }
+    }
+    if ($cnt -eq 0) { return $null }
+    return [ordered]@{ L = $uL; T = $uT; R = $uR; B = $uB; n = $cnt }
+  }
+  # five diagnostic columns at the same fractions the original oracle used (0.4,0.5,0.6,0.3,0.7) but of the
+  # descendant-union diagnostic region, never of the full list-item width.
+  function UnionDiagColumns($uL, $uR) {
+    $uw = $uR - $uL
+    return @([int]($uL + $uw * 0.4), [int]($uL + $uw * 0.5), [int]($uL + $uw * 0.6), [int]($uL + $uw * 0.3), [int]($uL + $uw * 0.7))
+  }
+  # PID gate FIRST: foreign-process nodes yield $null before any name/rect/rid detail is read or returned.
+  function Read-DiagNode($e, $appPid) {
+    $c = $e.Current
+    if ($c.ProcessId -ne $appPid) { return $null }
+    $dr = $c.BoundingRectangle
+    $drid = ''; try { $drid = ($e.GetRuntimeId() -join ',') } catch { $drid = 'rid-error' }
+    return [ordered]@{ rid = $drid; rect = $dr; ct = $c.ControlType.ProgrammaticName; name = $c.Name; off = $c.IsOffscreen; el = $e }
+  }
+  # descendant walk: each visited node's children enumerated ONCE; visited-rid dedupe; explicit global
+  # budgets (nodes, depth, provider calls) all reported; foreign nodes skipped without details and their
+  # children never enumerated; per-operation errors counted and the walk continues where safe.
+  function Walk-DiagDescendants($root, $getFC, $getNS, $readNode, $maxNodes, $maxDepth, $maxCalls) {
+    $visited = @{}
+    $lines = New-Object System.Collections.Generic.List[string]
+    $rects = New-Object System.Collections.Generic.List[object]
+    $queue = New-Object System.Collections.Generic.Queue[object]
+    $errs = 0; $foreign = 0; $trunc = $false; $nodes = 0; $depthSkipped = 0; $calls = 0; $offs = 0
+    # cap checked BEFORE every provider enumeration call; a skipped read marks truncated.
+    # enumCalls counts ENUMERATION calls only (getFC/getNS) - per-node property/rid reads are NOT
+    # counted against any global budget (explicitly not claimed).
+    $ch = $null
+    if ($calls -lt $maxCalls) { try { $calls++; $ch = & $getFC $root } catch { $errs++; $lines.Add("root child-enum-error $($_.Exception.Message)") } } else { $trunc = $true }
+    while ($ch) {
+      $queue.Enqueue([pscustomobject]@{ el = $ch; depth = 1 })
+      if ($calls -ge $maxCalls) { $trunc = $true; break }
+      try { $calls++; $ch = & $getNS $ch } catch { $errs++; $lines.Add("root sibling-enum-error $($_.Exception.Message)"); $ch = $null }
+    }
+    while ($queue.Count -gt 0) {
+      if ($nodes -ge $maxNodes) { $trunc = $true; break }
+      $qit = $queue.Dequeue()
+      if ($qit.depth -gt $maxDepth) { $depthSkipped++; $trunc = $true; continue }
+      $nodes++
+      $nd = $null
+      try { $nd = & $readNode $qit.el } catch { $errs++; $lines.Add("n$nodes read-error $($_.Exception.Message)"); continue }
+      if ($null -eq $nd) { $foreign++; continue }
+      if ($nd.rid -ne '' -and $nd.rid -ne 'rid-error') { if ($visited.ContainsKey($nd.rid)) { continue }; $visited[$nd.rid] = $true }
+      $lines.Add("n$nodes depth=$($qit.depth) $($nd.ct) name='$($nd.name)' rid=[$($nd.rid)] rect=L$([int]$nd.rect.Left),T$([int]$nd.rect.Top),R$([int]$nd.rect.Right),B$([int]$nd.rect.Bottom) offscreen=$($nd.off)")
+      if ($nd.off) { $offs++ }
+      if ($nd.rect.Width -gt 0 -and $nd.rect.Height -gt 0) { $rects.Add($nd.rect) }
+      $ch2 = $null
+      if ($calls -lt $maxCalls) { try { $calls++; $ch2 = & $getFC $qit.el } catch { $errs++; $lines.Add("n$nodes child-enum-error $($_.Exception.Message)") } } else { $trunc = $true }
+      while ($ch2) {
+        $queue.Enqueue([pscustomobject]@{ el = $ch2; depth = ($qit.depth + 1) })
+        if ($calls -ge $maxCalls) { $trunc = $true; break }
+        try { $calls++; $ch2 = & $getNS $ch2 } catch { $errs++; $lines.Add("n$nodes sibling-enum-error $($_.Exception.Message)"); $ch2 = $null }
+      }
+    }
+    if ($queue.Count -gt 0) { $trunc = $true }
+    return [ordered]@{ lines = $lines; rects = $rects; nodes = $nodes; unique = $visited.Count; errs = $errs; foreign = $foreign; depthSkipped = $depthSkipped; truncated = $trunc; enumCalls = $calls; offscreenMembers = $offs }
+  }
+  # bounded in-app ascent: logs in-app parents only; stops at the verified app root (rid match), at a
+  # foreign-pid parent (leftApp, NOT logged), at budget, or when no parent remains.
+  function Walk-DiagAscent($start, $getParent, $maxHops, $stopAtRid, $appPid) {
+    $nodes = New-Object System.Collections.Generic.List[object]
+    $lines = New-Object System.Collections.Generic.List[string]
+    $hops = 0; $hitRoot = $false; $leftApp = $false; $budgetHit = $false; $topReached = $false; $errs = 0
+    $cur = $null
+    try { $cur = & $getParent $start } catch { $errs++; $lines.Add("ascent-start-error $($_.Exception.Message)") }
+    while ($cur) {
+      if ($hops -ge $maxHops) { $budgetHit = $true; break }
+      $nd = $null
+      try { $nd = Read-DiagNode $cur $appPid } catch { $errs++; $lines.Add("a$hops read-error $($_.Exception.Message)"); break }
+      if ($null -eq $nd) { $leftApp = $true; break }
+      if (-not (Test-DiagRectFinitePositive $nd.rect)) { $errs++; $lines.Add("a$($hops + 1): invalid finite-positive ancestor rectangle (details not cast)"); break }
+      $hops++
+      $rootMark = ($stopAtRid -ne '' -and $stopAtRid -ne 'rid-error' -and $nd.rid -eq $stopAtRid)
+      $line = "a$hops $($nd.ct) name='$($nd.name)' rid=[$($nd.rid)] rect=L$([int]$nd.rect.Left),T$([int]$nd.rect.Top),R$([int]$nd.rect.Right),B$([int]$nd.rect.Bottom)"
+      if ($rootMark) { $line += ' APP-ROOT-VERIFIED-STOP' }
+      $nodes.Add($nd); $lines.Add($line)
+      if ($rootMark) { $hitRoot = $true; break }
+      try { $cur = & $getParent $cur } catch { $errs++; $lines.Add("a$hops ascent-error $($_.Exception.Message)"); $cur = $null }
+    }
+    if (-not $cur -and -not $hitRoot -and -not $leftApp -and -not $budgetHit -and $errs -eq 0) { $topReached = $true }
+    return [ordered]@{ nodes = $nodes; lines = $lines; hops = $hops; hitRoot = $hitRoot; leftApp = $leftApp; budgetHit = $budgetHit; topReached = $topReached; errs = $errs }
+  }
+  # explicit finite-positive rectangle validation: false for null, any NaN/Infinity in
+  # Left/Top/Right/Bottom/Width/Height, Width<=0, Height<=0, Right<=Left, Bottom<=Top; otherwise true.
+  # Must run BEFORE any [int] cast or summary formatting of a rectangle (an exception is not validation).
+  function Test-DiagRectFinitePositive($r) {
+    if ($null -eq $r) { return $false }
+    foreach ($v in @($r.Left, $r.Top, $r.Right, $r.Bottom, $r.Width, $r.Height)) {
+      if ($null -eq $v) { return $false }
+      try { if ([double]::IsNaN([double]$v) -or [double]::IsInfinity([double]$v)) { return $false } } catch { return $false }
+    }
+    if ($r.Width -le 0 -or $r.Height -le 0 -or $r.Right -le $r.Left -or $r.Bottom -le $r.Top) { return $false }
+    return $true
+  }
+  # an ascent proves the verified in-app chain ONLY when it hit the verified root with clean flags.
+  function Test-DiagAscentClean($asc) {
+    if (-not $asc.hitRoot) { return "no-verified-root(hitRoot=$($asc.hitRoot) leftApp=$($asc.leftApp) budget=$($asc.budgetHit) errs=$($asc.errs))" }
+    if ($asc.leftApp) { return 'left-app' }
+    if ($asc.budgetHit) { return 'budget-hit' }
+    if ($asc.errs -gt 0) { return "ascent-errors($($asc.errs))" }
+    return 'ok'
+  }
+  # count of positive member rects lying (even partly) outside the container rect; labeling only.
+  function Rect-OutsideCount($rects, $container) {
+    $n = 0
+    foreach ($r in $rects) {
+      if ($r.Width -le 0 -or $r.Height -le 0) { continue }
+      if ($r.Left -lt $container.Left -or $r.Top -lt $container.Top -or $r.Right -gt $container.Right -or $r.Bottom -gt $container.Bottom) { $n++ }
+    }
+    return $n
+  }
+  # exact identity + geometry + root comparison between the structure pass and the capture moment.
+  function Compare-DiagIdentity($btnRid1, $liRid1, $liRect1, $winRid1, $winRect1, $btnRid2, $liRid2, $liRect2, $winRid2, $winRect2) {
+    if ($btnRid1 -eq '' -or $btnRid1 -eq 'rid-error' -or $liRid1 -eq '' -or $liRid1 -eq 'rid-error' -or $winRid1 -eq '' -or $winRid1 -eq 'rid-error') { return 'unreadable-rid' }
+    if ($btnRid1 -ne $btnRid2 -or $liRid1 -ne $liRid2) { return 'rid-changed' }
+    if ($winRid1 -ne $winRid2) { return 'root-identity-changed' }
+    if ([int]$liRect1.Left -ne [int]$liRect2.Left -or [int]$liRect1.Top -ne [int]$liRect2.Top -or [int]$liRect1.Right -ne [int]$liRect2.Right -or [int]$liRect1.Bottom -ne [int]$liRect2.Bottom) { return 'item-geometry-changed' }
+    if ([int]$winRect1.Left -ne [int]$winRect2.Left -or [int]$winRect1.Top -ne [int]$winRect2.Top -or [int]$winRect1.Right -ne [int]$winRect2.Right -or [int]$winRect1.Bottom -ne [int]$winRect2.Bottom) { return 'window-geometry-changed' }
+    return 'ok'
+  }
+  function Log-SavedCardDiag([string]$tag) {
+    $dg = $null; $gDpi3 = $null; $ubmp = $null; $ibmp = $null; $dbmp = $null
+    $outcome = 'started'
+    $sum = New-Object System.Collections.Generic.List[string]
+    try {
+      $appPid = $win.Current.ProcessId
+      $winRid = ''; try { $winRid = ($win.GetRuntimeId() -join ',') } catch { $winRid = 'rid-error' }
+      $winRect1 = $win.Current.BoundingRectangle
+      if (-not (Test-DiagRectFinitePositive $winRect1)) { $outcome = 'refused: window rectangle not finite-positive at structure read'; return }
+      $sum.Add("appPid=$appPid rootRid=[$winRid] winRect=L$([int]$winRect1.Left),T$([int]$winRect1.Top),R$([int]$winRect1.Right),B$([int]$winRect1.Bottom)")
+      $dBtn = Btn 'E2E ws renamed'
+      if ($null -eq $dBtn) { $outcome = 'refused: named button not found'; return }
+      $btnNode = $null
+      try { $btnNode = Read-DiagNode $dBtn $appPid } catch { $outcome = "refused: button read-error $($_.Exception.Message)"; return }
+      if ($null -eq $btnNode) { $outcome = 'refused: named button outside app process'; return }
+      $tStruct0 = [DateTime]::UtcNow.ToString('HH:mm:ss.fff')
+      $asc1 = Walk-DiagAscent $dBtn { param($e) $tw2.GetParent($e) } 8 $winRid $appPid
+      $sum.Add("ascent1 hops=$($asc1.hops) hitRoot=$($asc1.hitRoot) leftApp=$($asc1.leftApp) budget=$($asc1.budgetHit) errs=$($asc1.errs) :: $($asc1.lines -join ' || ')")
+      $ac1 = Test-DiagAscentClean $asc1
+      if ($ac1 -ne 'ok') { $outcome = "refused: structure ascent unclean: $ac1 (same-PID alone is not a verified app subtree)"; return }
+      $dLiNode = $null
+      foreach ($nd in $asc1.nodes) { if ($nd.ct -eq 'ControlType.ListItem') { $dLiNode = $nd; break } }
+      if ($null -eq $dLiNode) { $outcome = 'refused: list item not found in bounded in-app ascent'; return }
+      if (-not (Test-DiagRectFinitePositive $dLiNode.rect)) { $outcome = 'refused: item rectangle not finite-positive at structure read'; return }
+      $dLi = $dLiNode.el
+      $btnRid1 = $btnNode.rid; $liRid1 = $dLiNode.rid; $liRect1 = $dLiNode.rect
+      $sum.Add("titleBtnRid=[$btnRid1] listItemRid=[$liRid1] itemRect1=L$([int]$liRect1.Left),T$([int]$liRect1.Top),R$([int]$liRect1.Right),B$([int]$liRect1.Bottom)")
+      $sel = 'IsSelected=n/a'
+      try { $sel = "IsSelected=$($dLi.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected)" } catch { $sel = 'IsSelected=pattern-unavailable' }
+      $foc = 'focused=unread'
+      try { $fe = [System.Windows.Automation.AutomationElement]::FocusedElement
+        if ($fe) { if ($fe.Current.ProcessId -eq $appPid) { $foc = "focused(in-app)='$($fe.Current.Name)' ($($fe.Current.ControlType.ProgrammaticName))" } else { $foc = 'focused=outside-app (details not logged)' } } else { $foc = 'focused=none' }
+      } catch { $foc = 'focused=read-error' }
+      $sum.Add("$sel | $foc")
+      $walk = Walk-DiagDescendants $dLi { param($e) [System.Windows.Automation.TreeWalker]::RawViewWalker.GetFirstChild($e) } { param($e) [System.Windows.Automation.TreeWalker]::RawViewWalker.GetNextSibling($e) } { param($e) Read-DiagNode $e $appPid } 60 6 400
+      $tStruct1 = [DateTime]::UtcNow.ToString('HH:mm:ss.fff')
+      $sum.Add("walkBudgets nodes=$($walk.nodes)/60 unique=$($walk.unique) foreignSkipped=$($walk.foreign) depthCap=6 depthSkipped=$($walk.depthSkipped) enumCalls=$($walk.enumCalls)/400 (enumeration calls only; property/rid reads NOT budget-counted) readErr=$($walk.errs) truncated=$($walk.truncated)")
+      $sum.Add("descendants: $($walk.lines -join ' || ')")
+      $union = RectUnion $walk.rects
+      if ($null -eq $union) { $outcome = 'refused: no positive in-app descendant rects (see budgets)'; return }
+      $liRect1b = $dLiNode.rect
+      $outsideCount = Rect-OutsideCount $walk.rects $liRect1b
+      $sum.Add("structureWindowUtc=$tStruct0-$tStruct1 union=L$($union.L),T$($union.T),R$($union.R),B$($union.B) members=$($union.n) offscreenMembers=$($walk.offscreenMembers) outsideItemMembers=$outsideCount (union members from THIS earlier NON-ATOMIC walk, offscreen/outside members counted and INCLUDED, union NOT revalidated at capture, NOT painted-face bounds)")
+      # identity + geometry + root revalidation immediately before capture
+      $dBtn2 = Btn 'E2E ws renamed'
+      if ($null -eq $dBtn2) { $outcome = 'refused: named button gone at capture'; return }
+      $btnNode2 = $null
+      try { $btnNode2 = Read-DiagNode $dBtn2 $appPid } catch { $outcome = "refused: capture-time button read-error $($_.Exception.Message)"; return }
+      if ($null -eq $btnNode2) { $outcome = 'refused: capture-time button outside app process'; return }
+      $asc2 = Walk-DiagAscent $dBtn2 { param($e) $tw2.GetParent($e) } 8 $winRid $appPid
+      $sum.Add("ascent2 hops=$($asc2.hops) hitRoot=$($asc2.hitRoot) leftApp=$($asc2.leftApp) budget=$($asc2.budgetHit) errs=$($asc2.errs)")
+      $ac2 = Test-DiagAscentClean $asc2
+      if ($ac2 -ne 'ok') { $outcome = "refused: capture ascent unclean: $ac2"; return }
+      $dLiNode2 = $null
+      foreach ($nd in $asc2.nodes) { if ($nd.ct -eq 'ControlType.ListItem') { $dLiNode2 = $nd; break } }
+      if ($null -eq $dLiNode2) { $outcome = 'refused: list item gone at capture'; return }
+      if (-not (Test-DiagRectFinitePositive $dLiNode2.rect)) { $outcome = 'refused: item rectangle not finite-positive at capture read'; return }
+      $winRid2 = ''; try { $winRid2 = ($win.GetRuntimeId() -join ',') } catch { $winRid2 = 'rid-error' }
+      $winRect2 = $win.Current.BoundingRectangle
+      if (-not (Test-DiagRectFinitePositive $winRect2)) { $outcome = 'refused: window rectangle not finite-positive at capture read'; return }
+      $rootPid2 = -1; try { $rootPid2 = $win.Current.ProcessId } catch { $rootPid2 = -1 }
+      if ($rootPid2 -ne $appPid) { $outcome = "refused: root-pid-changed($appPid->$rootPid2) before capture"; return }
+      $ident = Compare-DiagIdentity $btnRid1 $liRid1 $liRect1 $winRid $winRect1 $btnNode2.rid $dLiNode2.rid $dLiNode2.rect $winRid2 $winRect2
+      $sum.Add("identityAtCapture=$ident (container rids + int item/window geometry + fresh root pid/rid revalidated; button rect and descendant-union member geometry NOT revalidated)")
+      if ($ident -ne 'ok') { $outcome = "refused: $ident before capture (stale structure is not evidence)"; return }
+      $liR = $dLiNode2.rect; $wrD = $winRect2
+      $vsD = [System.Windows.Forms.SystemInformation]::VirtualScreen
+      $contained = ($wrD.Width -gt 40 -and $wrD.Height -gt 20 -and $wrD.Left -ge $vsD.Left -and $wrD.Top -ge $vsD.Top -and $wrD.Right -le $vsD.Right -and $wrD.Bottom -le $vsD.Bottom -and $liR.Left -ge ($wrD.Left - 2) -and $liR.Top -ge ($wrD.Top - 2) -and $liR.Right -le ($wrD.Right + 2) -and $liR.Bottom -le ($wrD.Bottom + 2))
+      $sum.Add("containmentAtCapture=$contained")
+      if (-not $contained) { $outcome = "refused: window/item containment invalid at capture (win=$([int]$wrD.Left),$([int]$wrD.Top),$([int]$wrD.Right),$([int]$wrD.Bottom) item=$([int]$liR.Left),$([int]$liR.Top),$([int]$liR.Right),$([int]$liR.Bottom))"; return }
+      # ONE immutable APP-WINDOW bitmap; every diagnostic crop/reading below derives from these SAME bytes
+      $tCap0 = [DateTime]::UtcNow.ToString('HH:mm:ss.fff')
+      $aw = [int]$wrD.Width; $ah = [int]$wrD.Height
+      $dbmp = New-Object System.Drawing.Bitmap $aw, $ah; $dg = [System.Drawing.Graphics]::FromImage($dbmp); $dg.CopyFromScreen([int]$wrD.Left, [int]$wrD.Top, 0, 0, $dbmp.Size)
+      $tCap1 = [DateTime]::UtcNow.ToString('HH:mm:ss.fff')
+      $dg.Dispose(); $dg = $null
+      $bmpId = "diag-$tag-appbitmap"
+      $sum.Add("bitmap=$bmpId capturedUtc=$tCap0-$tCap1 (positive ${aw}x${ah}; item/union crops derive from THESE bytes; the original oracle crop and Shot are SEPARATE earlier captures)")
+      $dbmp.Save("$PWD/out-images/$bmpId.png")
+      $gDpi3 = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $dpiX3 = $gDpi3.DpiX; $dpiY3 = $gDpi3.DpiY
+      $iL = [math]::Max(0, [int]$liR.Left - [int]$wrD.Left); $iT = [math]::Max(0, [int]$liR.Top - [int]$wrD.Top)
+      $iR = [math]::Min($aw, [int]$liR.Right - [int]$wrD.Left); $iB = [math]::Min($ah, [int]$liR.Bottom - [int]$wrD.Top)
+      $readings = ''; $uInfo = "union=L$($union.L),T$($union.T),R$($union.R),B$($union.B) n=$($union.n)"
+      if (($iR - $iL) -gt 10 -and ($iB - $iT) -gt 10) {
+        $ibmp = $dbmp.Clone((New-Object System.Drawing.Rectangle($iL, $iT, ($iR - $iL), ($iB - $iT))), $dbmp.PixelFormat)
+        $ibmp.Save("$PWD/out-images/diag-$tag-item.png")
+        $uL2 = [math]::Max(0, $union.L - [int]$wrD.Left); $uT2 = [math]::Max(0, $union.T - [int]$wrD.Top)
+        $uR2 = [math]::Min($aw, $union.R - [int]$wrD.Left); $uB2 = [math]::Min($ah, $union.B - [int]$wrD.Top)
+        $uInfo += " clamped-rel=$uL2,$uT2-$uR2,$uB2"
+        if (($uR2 - $uL2) -gt 10 -and ($uB2 - $uT2) -gt 10) {
+          $ubmp = $dbmp.Clone((New-Object System.Drawing.Rectangle($uL2, $uT2, ($uR2 - $uL2), ($uB2 - $uT2))), $dbmp.PixelFormat)
+          $ubmp.Save("$PWD/out-images/diag-$tag-union.png")
+          $uCols = UnionDiagColumns 0 ($uR2 - $uL2)
+          $uMidY = [int](($uB2 - $uT2) / 2)
+          $rd = @()
+          foreach ($ux in $uCols) { $upx = $ubmp.GetPixel([math]::Min($ux, ($uR2 - $uL2) - 1), $uMidY); $rd += "x$($uL2 + $ux):rgb($($upx.R),$($upx.G),$($upx.B))" }
+          $readings = ($rd -join ' ')
+        } else { $readings = 'union region too small after clamp; no union crop or readings' }
+      } else { $readings = 'item region too small after clamp; no crops or readings'; $uInfo += ' (no crops)' }
+      $sum.Add("$uInfo | unionMidReadings: $readings | dpi=$dpiX3,$dpiY3 | imgs=out-images/$bmpId.png,diag-$tag-item.png,diag-$tag-union.png")
+      $outcome = 'captured'
+    } catch { $outcome = "threw: $($_.Exception.Message)" }
+    finally {
+      foreach ($res in @($dg, $gDpi3, $ubmp, $ibmp, $dbmp)) { if ($res) { try { $res.Dispose() } catch { } } }
+      try { Info "saved-card diag ($tag): $outcome (diagnostic only; original assertions/captures unchanged)" ($sum -join ' | ') } catch { }
+    }
+  }
+  # DIAG-FN-END
 
   # SAVED card face (overview): the card Border is a plain Border with the same converters, NOT the popup's
   # PreviewBorder - this is the measurement the audit flagged as missing. Resolve the card's ListItem from its
@@ -1197,6 +1444,7 @@ public static class DlgDrive {
   Assert 'saved card face renders the picker-uploaded image (at least 3 clean candidate columns, all measured and reported)' ($mres.colsClean -ge 3) ("readings: $($mres.mid) crop=${cw}x${ch}")
   Assert 'saved card frame matches the AGREED rule with a real uploaded image: image visible, thick top, thin visible sides AND thin bottom, pure image interior, every clean column passing (painted-bounds anchored; measured px reported, not assumed thickness)' $mres.ok ("reason='$($mres.reason)' measured px: top=$($mres.top) left=$($mres.left) right=$($mres.right) bot=$($mres.bot) botSig=$($mres.botSig) interior=$($mres.interior) topConsistent=$($mres.topConsistent) colsClean=$($mres.colsClean) colsPass=$($mres.colsPass) | $($mres.botDetail) | dpi=$dpiX2,$dpiY2 | crop=out-images/feat-saved-card-frame-crop.png ${cw}x${ch}")
   Shot 'card-with-picker-image'
+  Log-SavedCardDiag 'with-image'
   # remove image (הסר תמונה) + explicit NO-IMAGE background on the saved card (image property cleared, not a
   # missing file): the audit gap was that only the missing-path fallback was ever exercised.
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for remove image' ($c -eq 'ok') $c
@@ -1248,6 +1496,7 @@ public static class DlgDrive {
   }
   Assert 'saved card shows the color as background with NO image (explicit empty, not missing file; same card re-acquired and validated per poll)' $okCardBg ("center=$seenCardBg expected~rgb(191,219,254)")
   Shot 'card-no-image-background'
+  Log-SavedCardDiag 'no-image'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
   Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
