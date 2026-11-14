@@ -1724,7 +1724,10 @@ public static class WinCap {
     $titleT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
     $openedT = @($txts | Where-Object { $_.name -like 'Last opened:*' }); if ($openedT.Count -ne 1) { $res.reason = "'Last opened' text count=$($openedT.Count)"; return $res }
     $goT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
-    $dotsT = @($txts | Where-Object { [string]::Equals([string]$_.name, "`u{2026}", [StringComparison]::Ordinal) }); if ($dotsT.Count -ne 1) { $res.reason = "actions-label text count=$($dotsT.Count)"; return $res }
+    # actions-label glyph MEASURED U+22EF (midline horizontal ellipsis) on the real app: runs 43548927818 +
+    # 43551695254 JSONs carry U+22EF x63 and U+2026 x0 in BOTH states (reviewer 05:39:18, independently rechecked).
+    # Exact-glyph Ordinal gate kept; U+2026 stays refused (no accept-both without product evidence).
+    $dotsT = @($txts | Where-Object { [string]::Equals([string]$_.name, "`u{22ef}", [StringComparison]::Ordinal) }); if ($dotsT.Count -ne 1) { $res.reason = "actions-label text count=$($dotsT.Count)"; return $res }
     $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid -and $_.rid -ne $dotsT[0].rid })
     if ($catT.Count -ne 1) { $res.reason = "category text not uniquely identified ($($catT.Count))"; return $res }
     # parent bindings: each text bound to its GROUNDED parent button (not geometric containment alone)
