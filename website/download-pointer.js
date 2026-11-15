@@ -92,6 +92,15 @@
     };
   }
 
+  // Left-to-right data (tags, versions, sizes, hashes) embedded in the RTL
+  // Hebrew copy is wrapped in Unicode isolates so the bidi algorithm keeps it
+  // in logical order instead of scrambling mixed runs.
+  const LRI = "\u2066";
+  const PDI = "\u2069";
+  const ltr = function (text) {
+    return LRI + text + PDI;
+  };
+
   function formatSize(bytes) {
     if (bytes === null) return null;
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
@@ -113,7 +122,7 @@
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      setLabel("הורדה ל־Windows - " + p.tag);
+      setLabel("הורדה ל־Windows - " + ltr(p.tag));
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
@@ -121,10 +130,10 @@
         global.location.assign(p.url);
       };
       if (note) {
-        const parts = [p.label + " · גרסה " + p.version];
+        const parts = [p.label + " · גרסה " + ltr(p.version)];
         const size = formatSize(p.size);
-        if (size) parts.push(size);
-        if (p.sha256) parts.push("sha256: " + p.sha256);
+        if (size) parts.push(ltr(size));
+        if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
         parts.push("הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.");
         note.textContent = parts.join(" · ");
       }

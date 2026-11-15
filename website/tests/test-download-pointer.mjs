@@ -124,6 +124,14 @@ t("render ok enables button and binds the validated URL only", () => {
   assert.match(els.note.textContent, /sha256/);
 });
 
+t("ok label and note isolate LTR data inside the RTL copy", () => {
+  const els = fakeEls();
+  P.render(els, P.validate(VALID));
+  assert.ok(els.button.textContent.includes("\u2066v0.1.0-proto.3\u2069"), "tag isolated in label");
+  assert.ok(els.note.textContent.includes("\u20660.1.0-proto.3\u2069"), "version isolated in note");
+  assert.ok(els.note.textContent.includes("\u2066sha256: " + "a".repeat(64) + "\u2069"), "hash isolated in note");
+});
+
 t("repeated render(ok) replaces the handler, never accumulates", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
@@ -268,6 +276,12 @@ t("wire resolves state-bearing static copy (badge + heading) per state", () => {
   for (const state of ["ok", "none", "invalid"]) {
     assert.ok(WIRE.includes(state + ":"), "wire has " + state + " texts");
   }
+});
+
+t("state notes wrap over-long tokens instead of overflowing the layout", () => {
+  const css = readFileSync(join(SITE, "styles.css"), "utf8");
+  assert.ok(/\.hero-download-state \{[^}]*overflow-wrap: anywhere/.test(css), "hero note wraps long tokens");
+  assert.ok(/\.note \{[^}]*overflow-wrap: anywhere/.test(css), "section note wraps long tokens");
 });
 
 t("static copy is state-neutral or truthful in every initial state", () => {
