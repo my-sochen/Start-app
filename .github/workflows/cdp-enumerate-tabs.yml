@@ -1,0 +1,58 @@
+name: cdp-enumerate-tabs
+# Synthetic connect/enumerate diagnostic. Review candidate: not pushed, not run, no run authority.
+# INTERACTIVE, not read-only and not no-input: synthetic omnibox input (SetValue + one global Enter, residual non-atomic focus race),
+# an exact checkbox toggle in a fresh disposable profile, a strict attributed modal Allow/Deny, helper Target.getTargets only.
+# Disposable fresh hosted runner only, no personal windows. Branch name below is a PROPOSAL pending coordinator reservation.
+on:
+  push:
+    branches:
+      - test/cdp-enumerate-tabs-v1
+permissions:
+  contents: read
+concurrency:
+  group: cdp-enumerate-tabs
+  cancel-in-progress: false
+jobs:
+  enumerate:
+    if: ${{ github.event.deleted == false }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v4.2.2, commit carried over from the reviewed v4 workflow (re-verify against api.github.com before any push)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Author hash gate (script and helper)
+        shell: pwsh
+        run: |
+          $expected = @{
+            'startapp-cdp-feasibility/enumerate-tabs.ps1' = 'a01c3f791204841470c1ea02ad95ef0dd1e43ee7db1ce1990e8c67108d64390e'
+            'startapp-cdp-feasibility/read-targets.mjs'  = 'e3cf9ab79d66fb3841ba04787899eeec6f4272e05c4b3670bbdab22ab4e5b1c7'
+          }
+          foreach ($path in $expected.Keys) {
+            $actual = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
+            if ($actual -ne $expected[$path]) { Write-Host "HASH_GATE_FAIL $path $actual"; exit 1 }
+            Write-Host "HASH_GATE_OK $path $actual"
+          }
+      - name: Print runtime versions (unpinned, recorded before classification)
+        shell: pwsh
+        run: |
+          Write-Host "RUNTIME_PWSH $($PSVersionTable.PSVersion)"
+          Write-Host "RUNTIME_NODE $(node --version)"
+          Write-Host "RUNTIME_OS $([Runtime.InteropServices.RuntimeInformation]::OSDescription)"
+      - name: Enumerate (synthetic navigation, toggle, consent, Target.getTargets, bounded PNG to console)
+        id: probe
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'enum-out'
+          & pwsh -NoProfile -File startapp-cdp-feasibility/enumerate-tabs.ps1 -OutDir $out
+          $code = $LASTEXITCODE
+          "child_exit=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "out_dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit 0
+      - name: Classify (runs only after the probe step completed)
+        if: ${{ steps.probe.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          node startapp-cdp-feasibility/classify-enumerate.mjs "${{ steps.probe.outputs.out_dir }}" "${{ steps.probe.outputs.child_exit }}"
+          exit $LASTEXITCODE
