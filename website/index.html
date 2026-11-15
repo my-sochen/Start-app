@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="robots" content="noindex,nofollow" />
+    <link rel="canonical" href="https://my-sochen.github.io/Start-app/" />
     <meta
       name="description"
-      content="Start-app: אתר ותיעוד לסקירת אב-טיפוס. ללא הורדה פעילה."
+      content="Start-app: אוספים תוכנות, תיקיות וקישורים בסביבת עבודה אחת. אב-טיפוס להערכה."
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'"
     />
     <title>תוכנות, תיקיות וקישורים בסביבת עבודה אחת | Start-app</title>
     <link rel="stylesheet" href="styles.css" />
@@ -18,7 +18,8 @@
   <body>
     <a class="skip" href="#main">דילוג לתוכן</a>
     <div class="review-strip">
-      תצוגה פרטית לסקירה · אב-טיפוס בתכנון להפצה · אין הורדה פעילה
+      אב-טיפוס להערכה · בתכנון להפצה ·
+      <span id="availability-badge">לא ניתן לאמת הורדה כרגע</span>
     </div>
     <header>
       <a class="brand" href="index.html" aria-label="Start-app, דף הבית"
@@ -48,12 +49,18 @@
               aria-describedby="hero-download-state"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m6.5 10.5 5.5 5.5 5.5-5.5"/><path d="M4 20h16"/></svg>
-              <span>הורדה ל־Windows - עדיין לא זמינה</span>
+              <span>הורדה לא זמינה</span>
             </button>
             <p id="hero-download-state" class="hero-download-state">
-              יעד האריזה: Windows x64. אין קובץ, קישור הורדה או מנגנון
-              עדכון פעיל.
+              יעד האריזה: Windows x64. לא ניתן לאמת כרגע גרסה להורדה. ההורדה
+              נשארת כבויה.
             </p>
+            <noscript>
+              <p class="hero-download-state">
+                JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת
+                כבויה.
+              </p>
+            </noscript>
           </div>
           <div class="actions">
             <a class="text-link" href="#how">איך מרכיבים סביבת עבודה ←</a
@@ -143,7 +150,7 @@
       </section>
       <section class="section" id="download">
         <p class="eyebrow">02 / זמינות</p>
-        <h2>אין הורדה זמינה כרגע.</h2>
+        <h2 id="download-heading">זמינות הורדה</h2>
         <p class="section-intro">
           יעד האריזה הוא Windows x64. אין גרסת Mac או Linux מאומתת.
         </p>
@@ -153,11 +160,16 @@
           disabled
           aria-describedby="download-state"
         >
-          הורדה ל־Windows - עדיין לא זמינה
+          הורדה לא זמינה
         </button>
         <p id="download-state" class="note">
-          אין כאן קובץ, קישור הורדה או מנגנון עדכון פעיל.
+          לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.
         </p>
+        <noscript>
+          <p class="note">
+            JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת כבויה.
+          </p>
+        </noscript>
       </section>
       <section class="section faq">
         <p class="eyebrow">03 / שאלות נפוצות</p>
@@ -199,5 +211,7 @@
         <span><bdi>Start-app</bdi> · אב-טיפוס להערכה, לא גרסה יציבה</span>
       </div>
     </footer>
+    <script src="download-pointer.js"></script>
+    <script src="download-wire.js"></script>
   </body>
 </html>

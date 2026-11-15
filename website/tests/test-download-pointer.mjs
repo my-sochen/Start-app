@@ -2,6 +2,9 @@
 /* Offline tests for website/download-pointer.js. No network, no deps:
  * node website/tests/test-download-pointer.mjs */
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import assert from "node:assert/strict";
 const require = createRequire(import.meta.url);
 const P = require("../download-pointer.js");
@@ -121,6 +124,14 @@ t("render ok enables button and binds the validated URL only", () => {
   assert.match(els.note.textContent, /sha256/);
 });
 
+t("ok label and note isolate LTR data inside the RTL copy", () => {
+  const els = fakeEls();
+  P.render(els, P.validate(VALID));
+  assert.ok(els.button.textContent.includes("\u2066v0.1.0-proto.3\u2069"), "tag isolated in label");
+  assert.ok(els.note.textContent.includes("\u20660.1.0-proto.3\u2069"), "version isolated in note");
+  assert.ok(els.note.textContent.includes("\u2066sha256: " + "a".repeat(64) + "\u2069"), "hash isolated in note");
+});
+
 t("repeated render(ok) replaces the handler, never accumulates", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
@@ -138,13 +149,15 @@ t("render non-ok after ok disables AND unbinds the stale URL", () => {
   P.render(els, { state: "none", reason: "withdrawn" });
   assert.equal(els.button.disabled, true);
   assert.equal(els.button.onclick, null);
+  assert.equal(els.button.textContent, "אין הורדה זמינה כרגע", "label no longer claims the stale tag");
 });
 
-t("render none keeps disabled with honest note", () => {
+t("render none keeps disabled with truthful label and honest note", () => {
   const els = fakeEls();
   P.render(els, { state: "none", reason: "r" });
   assert.equal(els.button.disabled, true);
   assert.equal(els.button.onclick, null);
+  assert.equal(els.button.textContent, "אין הורדה זמינה כרגע", "truthful none label");
   assert.ok(els.note.textContent.length > 0);
 });
 
@@ -208,7 +221,9 @@ t("render invalid keeps disabled and leaks no document data", () => {
   const els = fakeEls();
   P.render(els, P.validate({ ...VALID, url: "http://evil.example/x" }));
   assert.equal(els.button.disabled, true);
+  assert.equal(els.button.textContent, "הורדה לא זמינה", "truthful invalid label");
   assert.ok(!els.note.textContent.includes("evil.example"));
+  assert.ok(!els.button.textContent.includes("evil.example"));
 });
 
 t("load rejects non-https pointer URL without fetching", async () => {
@@ -219,6 +234,120 @@ t("load rejects non-https pointer URL without fetching", async () => {
 t("load maps fetch failure to invalid, never throws", async () => {
   const r = await P.load("https://127.0.0.1:1/pointer.json");
   assert.equal(r.state, "invalid");
+});
+
+/* Wiring assertions: the activated page must load the reader and the wire
+ * script, allow same-origin fetch in CSP, and resolve pointer.json relative
+ * to the page (same-origin, https on the deployed site). */
+const SITE = join(dirname(fileURLToPath(import.meta.url)), "..");
+const INDEX = readFileSync(join(SITE, "index.html"), "utf8");
+const DOCS = readFileSync(join(SITE, "docs.html"), "utf8");
+const WIRE = readFileSync(join(SITE, "download-wire.js"), "utf8");
+
+t("index CSP allows same-origin fetch, nothing more", () => {
+  const m = INDEX.match(/connect-src ([^;]+);/);
+  assert.ok(m, "connect-src directive present");
+  assert.equal(m[1], "'self'");
+});
+
+t("index loads reader then wire script", () => {
+  const iReader = INDEX.indexOf('src="download-pointer.js"');
+  const iWire = INDEX.indexOf('src="download-wire.js"');
+  assert.ok(iReader > -1, "reader script tag present");
+  assert.ok(iWire > iReader, "wire script loads after reader");
+});
+
+t("wire resolves pointer.json relative to the page (same-origin)", () => {
+  assert.ok(WIRE.includes('new URL("pointer.json", window.location.href)'));
+  assert.ok(WIRE.includes("StartAppPointer.load(url)"));
+  assert.ok(!WIRE.includes("github.com"), "wire must not hardcode any origin");
+});
+
+t("wire renders both CTAs through the reader contract", () => {
+  assert.equal((WIRE.match(/StartAppPointer.render/g) || []).length, 2);
+  assert.ok(WIRE.includes("hero-download-state"));
+  assert.ok(WIRE.includes("download-state"));
+});
+
+t("wire resolves state-bearing static copy (badge + heading) per state", () => {
+  assert.ok(INDEX.includes('id="availability-badge"'), "badge id in index");
+  assert.ok(INDEX.includes('id="download-heading"'), "heading id in index");
+  assert.ok(WIRE.includes("availability-badge"), "wire updates badge");
+  assert.ok(WIRE.includes("download-heading"), "wire updates heading");
+  for (const state of ["ok", "none", "invalid"]) {
+    assert.ok(WIRE.includes(state + ":"), "wire has " + state + " texts");
+  }
+});
+
+t("pointer metadata wraps only the hash, never the version token", () => {
+  const css = readFileSync(join(SITE, "styles.css"), "utf8");
+  assert.ok(/\.ptr-sha \{[^}]*overflow-wrap: anywhere/.test(css), "hash token may wrap");
+  assert.ok(/\.ptr-ltr \{[^}]*white-space: nowrap/.test(css), "version/size tokens never split");
+  assert.ok(!/\.note \{[^}]*overflow-wrap/.test(css), "note element no longer breaks every token");
+  assert.ok(!/\.hero-download-state \{[^}]*overflow-wrap/.test(css), "hero note no longer breaks every token");
+});
+
+t("public copy never claims a private review stage", () => {
+  for (const html of [INDEX, DOCS]) {
+    assert.ok(!html.includes("פרטית"), "no 'private' claim in public copy");
+    assert.ok(html.includes("אב-טיפוס להערכה · בתכנון להפצה"), "strip states prototype evaluation truthfully");
+  }
+  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs strip makes no static download claim");
+});
+
+t("reader keeps the CTA label version token unbreakable", () => {
+  const src = readFileSync(join(SITE, "download-pointer.js"), "utf8");
+  const okBlock = src.slice(src.indexOf('result.state === "ok"'));
+  const labelSpan = okBlock.indexOf('tagSpan.className = "ptr-ltr"');
+  assert.ok(labelSpan > -1, "CTA label tag uses the nowrap ptr-ltr span");
+  assert.ok(okBlock.indexOf('setLabel("הורדה ל־Windows - " + ltr(p.tag))') > labelSpan,
+    "isolate label is only the text-only fallback");
+});
+
+t("docs carry no unconditional availability claim in either direction (regression)", () => {
+  // The exact stale claims Moshe's pass caught must never come back:
+  assert.ok(!DOCS.includes("ללא הורדה פעילה"), "docs meta: no 'no active download' claim");
+  assert.ok(!DOCS.includes("אין כרגע חבילה זמינה להורדה"), "docs install: no 'no package available' claim");
+  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs strip: no static download claim");
+  // ...and the docs must not claim availability either: they defer to the
+  // live homepage state, which is correct in both active and none states.
+  const install = DOCS.slice(DOCS.indexOf('id="install"'), DOCS.indexOf('id="main-screen"'));
+  assert.ok(install.includes('href="index.html#download"'), "install guidance links to the live homepage state");
+  assert.ok(!/גרסה (מאומתת )?זמינה(?! להורדה כ)/.test(install.replace("כשקיימת גרסת אב-טיפוס מאומתת", "")),
+    "install guidance makes no unconditional availability claim");
+  assert.ok(!INDEX.includes("לסקירת אב-טיפוס") && !DOCS.includes("לסקירת אב-טיפוס"),
+    "meta descriptions no longer describe the site as a private review");
+});
+
+t("hero CTA has distinct enabled vs disabled styling", () => {
+  const css = readFileSync(join(SITE, "styles.css"), "utf8");
+  const base = css.match(/\.hero-download-button \{([^}]*)\}/)[1];
+  assert.ok(base.includes("var(--green)"), "enabled hero uses the design green");
+  assert.ok(!base.includes("not-allowed"), "enabled hero is not styled disabled");
+  assert.ok(/\.hero-download-button\[disabled\] \{[^}]*not-allowed/.test(css), "disabled hero keeps the disabled look");
+});
+
+t("shipped static copy is truthful with JavaScript disabled (no-JS fallback)", () => {
+  const desc = INDEX.match(/name="description"\s+content="([^"]*)"/);
+  assert.ok(desc, "meta description present");
+  assert.ok(!desc[1].includes("הורדה פעילה"), "meta is state-neutral");
+  // Without JavaScript no check can run: the shipped state must be the honest
+  // "cannot verify - download stays off" copy, not a perpetual "checking".
+  assert.ok(INDEX.includes("הורדה לא זמינה"), "static CTA is the disabled truth");
+  assert.ok(INDEX.includes("לא ניתן לאמת כרגע גרסה להורדה"), "static note is the disabled truth");
+  assert.ok(INDEX.includes('<span id="availability-badge">לא ניתן לאמת הורדה כרגע</span>'),
+    "static badge is the disabled truth");
+  assert.ok(INDEX.includes("<noscript>"), "noscript explanation present");
+  assert.ok(!INDEX.includes("<h2>אין הורדה זמינה כרגע.</h2>"),
+    "static heading does not pre-claim 'none'");
+});
+
+t("wire upgrades to the checking state only when JavaScript runs", () => {
+  assert.ok(WIRE.includes("applyLoading"), "wire has a loading upgrade");
+  assert.ok(WIRE.includes("בודק זמינות הורדה"), "wire sets the checking label");
+  assert.ok(WIRE.includes("בודק אם קיימת גרסת אב-טיפוס מאומתת"), "wire sets the checking note");
+  const iStatic = INDEX.indexOf("הורדה לא זמינה");
+  assert.ok(iStatic > -1, "checking copy must come from the wire, not the shipped HTML");
 });
 
 console.log(passed + " tests passed");

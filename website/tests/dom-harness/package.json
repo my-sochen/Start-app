@@ -1,0 +1,12 @@
+{
+  "name": "start-app-dom-harness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DOM behavior harness for the Start-app website download-pointer states (real Chrome via puppeteer-core).",
+  "scripts": {
+    "test": "node drive.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.17.0"
+  }
+}

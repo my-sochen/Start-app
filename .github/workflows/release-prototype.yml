@@ -1,11 +1,12 @@
-# DORMANT manual prototype-release workflow. NOT ACTIVE: it has no automatic trigger
-# and its only write-capable job is hard-disabled (see the draft-prerelease job).
-# Purpose: make the reviewed release design inspectable
-# in the repository without any distribution capability.
+# Manual prototype-release workflow. ACTIVATED: no automatic trigger, and its
+# only write-capable job (draft-prerelease) is gated on the candidate being on
+# main, all gates green, the owner-enabled repository variable
+# PROTOTYPE_RELEASE_ENABLE, and the protected 'prototype-release' Environment.
+# Publishing, pointer writes and site deployment are NOT done by this file.
 #
-# Activation is a code change, not a setting: it requires editing this file per
-# .github/release/RELEASE-PIPELINE.md, an appointed writer, independent review and
-# the repository owner's explicit approval. Only the owner merges to main.
+# Any change to this file is a code change: it requires an appointed writer,
+# independent review and the repository owner's explicit approval.
+# Only the owner merges to main.
 #
 # Design (from the delivered plan, adapted to what is already integrated):
 #   - Manual trigger only. Candidate code comes from the 'sha' input; trusted
@@ -13,9 +14,9 @@
 #   - Unit tests and packaging are bound to the SAME candidate sha. The manifest
 #     records the ui-gate job's ACTUAL result for that sha, not a declared value.
 #   - The draft-prerelease job is limited to creating a DRAFT prerelease (never a
-#     published release) and is hard-disabled here.
-#   - No stable pointer is written anywhere. Pointer selection is offline
-#     (.github/release/pick_release_pointer.py) and its target is unresolved.
+#     published release) and runs only when its reviewed gate below passes.
+#   - No stable pointer is written by this file. Pointer selection and the
+#     atomic site+pointer deploy live in release-pointer-update.yml (owner-gated).
 name: release-prototype
 on:
   workflow_dispatch:
@@ -262,27 +263,21 @@ jobs:
           path: cand/*
 
   draft-prerelease:
-    # DORMANT HARD-OFF: this job can never run while this literal remains.
-    # It is the reviewed design's ONLY write-capable step: create a DRAFT prerelease
-    # (never publish) from the verified candidate of THIS run.
-    #
-    # The design condition it will carry when activated (kept here for review):
-    #   needs.resolve.outputs.on_main == 'true'
-    #   && needs.tests.result == 'success'
-    #   && needs.ui-gate.result == 'success'
-    #   && needs.package.result == 'success'
-    #   && vars.PROTOTYPE_RELEASE_ENABLE == 'true'   (repository variable; does not exist)
-    # plus `environment:` naming an owner-configured Environment with a required
-    # reviewer, and job-level `permissions: contents: write` replacing the current
-    # `contents: none`. Activation steps and evidence requirements are listed in
-    # .github/release/RELEASE-PIPELINE.md. A variable or Environment name alone is
-    # NOT proof of approval protection: the owner must configure and verify the
-    # required reviewer before any enabled run.
-    name: draft-prerelease (DORMANT - disabled)
+    # ACTIVE write step: creates a DRAFT prerelease (never publishes) from the
+    # verified candidate of THIS run. The gate requires the candidate to be on
+    # main, every gate job green, the owner-enabled repository variable
+    # PROTOTYPE_RELEASE_ENABLE, and the protected 'prototype-release'
+    # Environment. A variable or Environment name alone is NOT proof of
+    # approval protection: the owner must configure the Environment with a
+    # required reviewer BEFORE any enabled run.
+    # Owner disarm paths: delete PROTOTYPE_RELEASE_ENABLE, remove the
+    # Environment's protection, or revert this file via the reviewed path.
+    name: draft-prerelease
     needs: [resolve, tests, ui-gate, package]
-    if: ${{ false }}
+    if: ${{ needs.resolve.outputs.on_main == 'true' && needs.tests.result == 'success' && needs.ui-gate.result == 'success' && needs.package.result == 'success' && vars.PROTOTYPE_RELEASE_ENABLE == 'true' }}
+    environment: prototype-release
     permissions:
-      contents: none
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

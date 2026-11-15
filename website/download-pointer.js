@@ -1,16 +1,16 @@
 "use strict";
 /*
- * Start-app prototype download pointer reader (DORMANT INTEGRATION - not wired).
+ * Start-app prototype download pointer reader (WIRED by download-wire.js).
  *
  * This module is the website side of .github/release/pick_release_pointer.py.
- * It validates a pointer document (schema 1) emitted by that selector and, only
- * when a hosting decision supplies a pointer URL, renders the download state.
+ * It validates a pointer document (schema 1) emitted by that selector and
+ * renders the download state for both CTAs.
  *
- * Dormant by design:
- *  - The module makes NO network call by itself. load() runs only when the
- *    reviewed activation change wires a pointer URL into the page.
- *  - The current page CSP is connect-src 'none'; any fetch fails closed until
- *    the activation change also allowlists the pointer origin.
+ * Contract:
+ *  - The module makes NO network call by itself. download-wire.js passes the
+ *    same-origin pointer.json URL (deployed atomically with the site).
+ *  - The page CSP is connect-src 'self': the same-origin fetch is allowed and
+ *    no external origin is needed.
  *  - validate() never invents a URL: every field must come from the document,
  *    and the download URL must come from the published release (the selector
  *    already enforces that).
@@ -92,6 +92,15 @@
     };
   }
 
+  // Left-to-right data (tags, versions, sizes, hashes) embedded in the RTL
+  // Hebrew copy is wrapped in Unicode isolates so the bidi algorithm keeps it
+  // in logical order instead of scrambling mixed runs.
+  const LRI = "\u2066";
+  const PDI = "\u2069";
+  const ltr = function (text) {
+    return LRI + text + PDI;
+  };
+
   function formatSize(bytes) {
     if (bytes === null) return null;
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
@@ -113,7 +122,21 @@
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      setLabel("הורדה ל־Windows - " + p.tag);
+      // The version tag inside the CTA label never splits: in a real DOM it
+      // gets the same scoped ptr-ltr span as the note metadata (nowrap);
+      // the text-only fallback keeps Unicode isolates. The label may wrap
+      // before the token, never inside it. For a plain-text CTA (no els.label)
+      // the button itself holds only this label, so replaceChildren is safe;
+      // a rich CTA passes els.label and its own markup is never flattened.
+      const labelTarget = els.label || button;
+      if (typeof labelTarget.replaceChildren === "function" && typeof document !== "undefined") {
+        const tagSpan = document.createElement("span");
+        tagSpan.className = "ptr-ltr";
+        tagSpan.textContent = p.tag;
+        labelTarget.replaceChildren(document.createTextNode("הורדה ל־Windows - "), tagSpan);
+      } else {
+        setLabel("הורדה ל־Windows - " + ltr(p.tag));
+      }
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
@@ -121,17 +144,41 @@
         global.location.assign(p.url);
       };
       if (note) {
-        const parts = [p.label + " · גרסה " + p.version];
         const size = formatSize(p.size);
-        if (size) parts.push(size);
-        if (p.sha256) parts.push("sha256: " + p.sha256);
-        parts.push("הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.");
-        note.textContent = parts.join(" · ");
+        const honesty =
+          "הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.";
+        if (typeof note.replaceChildren === "function" && typeof document !== "undefined") {
+          // Real DOM: scoped elements keep LTR data readable and unbreakable
+          // (tags/versions never split on narrow screens); only the long hash
+          // token is allowed to wrap.
+          const mk = function (cls, text) {
+            const span = document.createElement("span");
+            span.className = cls;
+            span.textContent = text;
+            return span;
+          };
+          const nodes = [document.createTextNode(p.label + " · גרסה "), mk("ptr-ltr", p.version)];
+          if (size) nodes.push(document.createTextNode(" · "), mk("ptr-ltr", size));
+          if (p.sha256) nodes.push(document.createTextNode(" · "), mk("ptr-sha", "sha256: " + p.sha256));
+          nodes.push(document.createTextNode(" · " + honesty));
+          note.replaceChildren.apply(note, nodes);
+        } else {
+          // Text-only fallback (offline tests): Unicode isolates carry the
+          // same bidi protection without markup.
+          const parts = [p.label + " · גרסה " + ltr(p.version)];
+          if (size) parts.push(ltr(size));
+          if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
+          parts.push(honesty);
+          note.textContent = parts.join(" · ");
+        }
       }
       return;
     }
     button.disabled = true;
     button.onclick = null;
+    setLabel(
+      result.state === "none" ? "אין הורדה זמינה כרגע" : "הורדה לא זמינה"
+    );
     if (note) {
       note.textContent =
         result.state === "none"

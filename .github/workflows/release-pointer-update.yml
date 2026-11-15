@@ -1,11 +1,11 @@
-# DORMANT pointer-update workflow. NOT ACTIVE: nothing runs until the owner
-# merges this file, enables Pages (source: GitHub Actions), creates the
-# github-pages environment protection, and sets PROTOTYPE_RELEASE_ENABLE=true.
+# ACTIVATED pointer-update workflow, owner-gated: this file is merged, but no
+# job can run until the owner enables Pages (source: GitHub Actions), creates
+# the github-pages environment protection, and sets
+# PROTOTYPE_RELEASE_ENABLE=true.
 # Design: .github/release/POINTER-WORKFLOW-DESIGN.md (guarantees AND limits).
 #
-# Trigger model (PROPOSED dormant design, per author design addendum and
-# reviewer precision - activation is the owner's reviewed code change and
-# merge, never this file's mere presence):
+# Trigger model (activated design, per author design addendum and reviewer
+# precision; every run still requires the owner's environments and variable):
 # - release: [published, unpublished, edited, deleted] - fires ONLY on the
 #   owner's own release actions: publish, withdraw-to-draft, edit, delete.
 #   Every one of them re-runs the selector, so withdrawal/rollback reconciles
@@ -37,9 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     # deploy-pages convention (auto-created if absent). Protection policy is
     # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver":
-    # recommended baseline is deployment branches restricted to the default
-    # branch; a required reviewer is possible but with prevent-self-review the
-    # reviewer must differ from whoever publishes/dispatches.
+    # recommended baseline there is the OWNER as required reviewer with
+    # prevent-self-review OFF. Deployment-branch restriction to the default
+    # branch is NOT the coherent mechanism here: release-event runs deploy
+    # from the tag ref, so a main-only restriction would block them.
     environment: github-pages
     permissions:
       contents: read      # checkout
