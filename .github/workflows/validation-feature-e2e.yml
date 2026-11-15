@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
@@ -47,6 +47,11 @@ jobs:
           for f in .github/release/verify_candidate.py .github/release/make_manifest.py .github/release/ui_gate_check.py .github/release/KNOWN-LIMITS.txt .github/e2e/smoke-package.ps1; do [ -f "$f" ] || { echo "workflow revision lacks $f"; exit 1; }; done
           for f in .github/e2e/cycle1-flow.ps1 .github/e2e/capture-flow.ps1; do git cat-file -e "$SHA:$f" || { echo "candidate sha lacks $f (UI gate cannot run)"; exit 1; }; done
           bash .github/release/check_tag_free.sh "$REPO" "v$VERSION" || echo "(validation: tag state noted, not blocking)"
+
+      - name: Static release wiring policy checks (no release execution)
+        shell: bash
+        run: |
+          python tests/release/test_release_portable_wiring.py
 
   tests:            # HARD GATE: whole-solution unit tests on the exact pushed sha
     needs: resolve
