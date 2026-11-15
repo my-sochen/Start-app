@@ -122,21 +122,8 @@
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      // The version tag inside the CTA label never splits: in a real DOM it
-      // gets the same scoped ptr-ltr span as the note metadata (nowrap);
-      // the text-only fallback keeps Unicode isolates. The label may wrap
-      // before the token, never inside it. For a plain-text CTA (no els.label)
-      // the button itself holds only this label, so replaceChildren is safe;
-      // a rich CTA passes els.label and its own markup is never flattened.
-      const labelTarget = els.label || button;
-      if (typeof labelTarget.replaceChildren === "function" && typeof document !== "undefined") {
-        const tagSpan = document.createElement("span");
-        tagSpan.className = "ptr-ltr";
-        tagSpan.textContent = p.tag;
-        labelTarget.replaceChildren(document.createTextNode("הורדה ל־Windows - "), tagSpan);
-      } else {
-        setLabel("הורדה ל־Windows - " + ltr(p.tag));
-      }
+      // Keep the primary action simple; the exact version remains in technical details.
+      setLabel("הורדה ל־Windows");
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
@@ -153,7 +140,7 @@
       if (metaTarget) {
         const size = formatSize(p.size);
         const honesty =
-          "הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.";
+          "הפרטים נלקחו ממידע הגרסה. הקובץ לא נבדק מחדש בדף זה.";
         if (typeof metaTarget.replaceChildren === "function" && typeof document !== "undefined") {
           // Real DOM: scoped elements keep LTR data readable and unbreakable
           // (tags/versions never split on narrow screens); only the long hash
@@ -164,19 +151,22 @@
             span.textContent = text;
             return span;
           };
-          const nodes = [document.createTextNode(p.label + " · גרסה "), mk("ptr-ltr", p.version)];
-          if (size) nodes.push(document.createTextNode(" · "), mk("ptr-ltr", size));
-          if (p.sha256) nodes.push(document.createTextNode(" · "), mk("ptr-sha", "sha256: " + p.sha256));
-          nodes.push(document.createTextNode(" · " + honesty));
+          const nodes = [mk("ptr-row", "גרסה: "), mk("ptr-ltr", p.version)];
+          if (size) nodes.push(mk("ptr-row", "גודל הקובץ: "), mk("ptr-ltr", size));
+          if (p.sha256) {
+            nodes.push(mk("ptr-row", "קוד אימות (SHA-256):"));
+            nodes.push(mk("ptr-sha", p.sha256));
+          }
+          nodes.push(mk("ptr-honesty", honesty));
           metaTarget.replaceChildren.apply(metaTarget, nodes);
         } else {
           // Text-only fallback (offline tests): Unicode isolates carry the
           // same bidi protection without markup.
-          const parts = [p.label + " · גרסה " + ltr(p.version)];
+          const parts = ["גרסה: " + ltr(p.version)];
           if (size) parts.push(ltr(size));
           if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
           parts.push(honesty);
-          metaTarget.textContent = parts.join(" · ");
+          metaTarget.textContent = parts.join("\n");
         }
       }
       return;

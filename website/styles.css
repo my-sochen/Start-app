@@ -196,3 +196,9 @@ h1:focus, h1:focus-visible { outline: none; }
 /* centered hero blocks (must follow the generic .verify / state rules) */
 .hero .hero-download-state, .hero .verify { margin-inline: auto; text-align: center; }
 .hero .proto-note { text-align: center; }
+
+/* Technical data is optional and separate from the primary download action. */
+.verify:not([open]) > :not(summary) { display: none; }
+.verify .ptr-row { display: block; margin-top: 10px; }
+.verify .ptr-sha { display: block; text-align: left; font: 12px/1.7 monospace; user-select: all; }
+.verify .ptr-honesty { display: block; margin-top: 14px; }
