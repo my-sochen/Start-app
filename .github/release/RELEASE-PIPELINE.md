@@ -35,7 +35,7 @@ Nothing here publishes, tags, hosts, or enables a download on its own.
   revision (source separation the validation workflow does not have), hard
   tag-collision check, same test/UI/package gates, and an ACTIVATED
   draft-prerelease job gated by the documented design condition
-  (`workflow_run` of the release workflow on main, all gates green, and the
+  (candidate sha on main in that manual run, all gates green, and the
   repository variable `PROTOTYPE_RELEASE_ENABLE == "true"`), protected by the
   `prototype-release` Environment, with `contents: write` scoped to that job.
   Still cannot run on any push.

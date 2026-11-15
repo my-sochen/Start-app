@@ -14,9 +14,9 @@
 #   - Unit tests and packaging are bound to the SAME candidate sha. The manifest
 #     records the ui-gate job's ACTUAL result for that sha, not a declared value.
 #   - The draft-prerelease job is limited to creating a DRAFT prerelease (never a
-#     published release) and is hard-disabled here.
-#   - No stable pointer is written anywhere. Pointer selection is offline
-#     (.github/release/pick_release_pointer.py) and its target is unresolved.
+#     published release) and runs only when its reviewed gate below passes.
+#   - No stable pointer is written by this file. Pointer selection and the
+#     atomic site+pointer deploy live in release-pointer-update.yml (owner-gated).
 name: release-prototype
 on:
   workflow_dispatch:

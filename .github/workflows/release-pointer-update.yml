@@ -37,9 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     # deploy-pages convention (auto-created if absent). Protection policy is
     # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver":
-    # recommended baseline is deployment branches restricted to the default
-    # branch; a required reviewer is possible but with prevent-self-review the
-    # reviewer must differ from whoever publishes/dispatches.
+    # recommended baseline there is the OWNER as required reviewer with
+    # prevent-self-review OFF. Deployment-branch restriction to the default
+    # branch is NOT the coherent mechanism here: release-event runs deploy
+    # from the tag ref, so a main-only restriction would block them.
     environment: github-pages
     permissions:
       contents: read      # checkout
