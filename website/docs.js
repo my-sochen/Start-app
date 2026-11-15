@@ -17,20 +17,20 @@
   function applySearch() {
     var p = parts();
     if (!p) return;
-    var query = p.input.value.trim().toLocaleLowerCase("he");
+    var query = p.input.value.trim().toLocaleLowerCase(document.documentElement.lang || "he");
     var count = 0;
     p.sections.forEach(function (section) {
       var visible =
-        !query || section.textContent.toLocaleLowerCase("he").includes(query);
+        !query || section.textContent.toLocaleLowerCase(document.documentElement.lang || "he").includes(query);
       section.hidden = !visible;
       if (visible) count++;
       var link = document.querySelector('.sidebar a[href="#' + section.id + '"]');
       if (link) link.hidden = !visible;
     });
     document.querySelector("#no-results").hidden = count !== 0;
-    p.status.textContent = query
-      ? count + " פרקים מתוך " + p.sections.length
-      : p.sections.length + " פרקי מדריך";
+    p.status.textContent = window.StartAppI18n
+      ? window.StartAppI18n.t(query ? "{count} פרקים מתוך {total}" : "{total} פרקי מדריך", {count: count, total: p.sections.length})
+      : query ? count + " פרקים מתוך " + p.sections.length : p.sections.length + " פרקי מדריך";
   }
   function showHash() {
     var p = parts();

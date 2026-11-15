@@ -1,11 +1,195 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<?xml version='1.0' encoding='UTF-8'?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://my-sochen.github.io/Start-app/</loc>
-    <lastmod>2026-11-15</lastmod>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
   </url>
   <url>
     <loc>https://my-sochen.github.io/Start-app/docs.html</loc>
-    <lastmod>2026-11-15</lastmod>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/en/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/en/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/ru/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/ru/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/zh-Hans/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/zh-Hans/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/ja/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/ja/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/fr/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/fr/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/es/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/es/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/de/index.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/index.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/index.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/index.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/index.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/index.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/index.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/index.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/" />
+  </url>
+  <url>
+    <loc>https://my-sochen.github.io/Start-app/de/docs.html</loc>
+    <xhtml:link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+    <xhtml:link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
   </url>
 </urlset>

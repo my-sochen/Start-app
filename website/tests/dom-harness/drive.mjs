@@ -31,7 +31,7 @@ const SITE = mkdtempSync(join(tmpdir(), "dom-harness-site-"));
 for (const name of readdirSync(SITE_SRC)) {
   if (name === "tests") continue;
   const src = join(SITE_SRC, name);
-  if (statSync(src).isFile() || name === "shots") cpSync(src, join(SITE, name), { recursive: true });
+  if (statSync(src).isFile() || name === "shots" || name === "fonts") cpSync(src, join(SITE, name), { recursive: true });
 }
 cpSync(join(HERE, "fixtures"), join(SITE, "fixtures"), { recursive: true });
 
@@ -42,6 +42,7 @@ for (const name of readdirSync(SITE)) {
   if (name !== "Start-app" && name !== "fixtures" && statSync(src).isFile()) cpSync(src, join(SITE, "Start-app", name));
 }
 cpSync(join(SITE, "shots"), join(SITE, "Start-app", "shots"), { recursive: true });
+cpSync(join(SITE, "fonts"), join(SITE, "Start-app", "fonts"), { recursive: true });
 
 const server = spawn(process.execPath, [join(HERE, "server.js")], {
   env: { ...process.env, SITE_ROOT: SITE, CERT_DIR: CERTS, PORT },
@@ -197,7 +198,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   let s = await page.evaluate(() => ({
     marker: window.__marker, title: document.title, focus: document.activeElement.tagName, focusText: document.activeElement.textContent.trim().slice(0, 20),
     y: scrollY, ann: document.getElementById("route-announcer").textContent,
-    cur: [...document.querySelectorAll("header nav a[aria-current]")].map((a) => a.getAttribute("href")),
+    cur: [...document.querySelectorAll("header > nav a[aria-current]")].map((a) => a.getAttribute("href")),
     sections: document.querySelectorAll("[data-doc]").length, status: document.getElementById("search-status").textContent,
   }));
   ok(s.marker === 42, pre + ": home to guide did NOT reload the document");
@@ -443,7 +444,7 @@ for (const path of ["/", "/docs.html"]) {
   const s = await page.evaluate(() => {
     const b = document.querySelector("[data-download-cta]");
     return { disabled: b.disabled, label: b.textContent.trim(), hidden: document.querySelector("details.verify").hidden,
-      hrefs: [...document.querySelectorAll("header nav a")].map((a) => a.getAttribute("href")) };
+      hrefs: [...document.querySelectorAll("header > nav a")].map((a) => a.getAttribute("href")) };
   });
   ok(s.disabled && s.label === "הורדה לא זמינה" && s.hidden, `no-JS ${path}: CTA disabled with truthful label, no verification panel`);
   ok(s.hrefs.every((h) => /^(index|docs)\.html/.test(h)), `no-JS ${path}: nav links are real hrefs`);

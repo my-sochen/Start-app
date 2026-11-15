@@ -1,4 +1,6 @@
 "use strict";
+function tr(text) { return typeof window !== "undefined" && window.StartAppI18n ? window.StartAppI18n.t(text) : text; }
+
 /*
  * Start-app prototype download pointer reader (WIRED by download-wire.js).
  *
@@ -123,7 +125,7 @@
       const p = result.pointer;
       button.disabled = false;
       // Keep the primary action simple; the exact version remains in technical details.
-      setLabel("הורדה ל־Windows");
+      setLabel(tr("הורדה ל־Windows"));
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
@@ -134,7 +136,7 @@
       // panel): the full metadata goes there and the visible note stays short.
       const metaTarget = els.detail || note;
       if (els.detail && note) {
-        note.textContent = "Windows x64 · קובץ ZIP";
+        note.textContent = tr("Windows x64 · קובץ ZIP");
       }
       if (els.detail && els.detail.parentNode) els.detail.parentNode.hidden = false;
       if (metaTarget) {
@@ -149,17 +151,17 @@
             span.textContent = text;
             return span;
           };
-          const nodes = [mk("ptr-row", "גרסה: "), mk("ptr-ltr", p.version)];
-          if (size) nodes.push(mk("ptr-row", "גודל הקובץ: "), mk("ptr-ltr", size));
+          const nodes = [mk("ptr-row", tr("גרסה: ")), mk("ptr-ltr", p.version)];
+          if (size) nodes.push(mk("ptr-row", tr("גודל הקובץ: ")), mk("ptr-ltr", size));
           if (p.sha256) {
-            nodes.push(mk("ptr-row", "קוד אימות (SHA-256):"));
+            nodes.push(mk("ptr-row", tr("קוד אימות (SHA-256):")));
             nodes.push(mk("ptr-sha", p.sha256));
           }
           metaTarget.replaceChildren.apply(metaTarget, nodes);
         } else {
           // Text-only fallback (offline tests): Unicode isolates carry the
           // same bidi protection without markup.
-          const parts = ["גרסה: " + ltr(p.version)];
+          const parts = [tr("גרסה: ") + ltr(p.version)];
           if (size) parts.push(ltr(size));
           if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
           metaTarget.textContent = parts.join("\n");
@@ -174,13 +176,13 @@
       els.detail.parentNode.hidden = true;
     }
     setLabel(
-      result.state === "none" ? "אין הורדה זמינה כרגע" : "הורדה לא זמינה"
+      result.state === "none" ? tr("אין הורדה זמינה כרגע") : tr("הורדה לא זמינה")
     );
     if (note) {
       note.textContent =
         result.state === "none"
-          ? "אין עדיין גרסת אב-טיפוס שעברה את כל הבדיקות ואושרה להורדה."
-          : "לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.";
+          ? tr("אין עדיין גרסת אב-טיפוס שעברה את כל הבדיקות ואושרה להורדה.")
+          : tr("לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.");
     }
   }
 
