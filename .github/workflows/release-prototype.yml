@@ -1,0 +1,304 @@
+# DORMANT manual prototype-release workflow. NOT ACTIVE: it has no automatic trigger
+# and its only write-capable job is hard-disabled (see the draft-prerelease job).
+# Purpose: make the reviewed release design inspectable
+# in the repository without any distribution capability.
+#
+# Activation is a code change, not a setting: it requires editing this file per
+# .github/release/RELEASE-PIPELINE.md, an appointed writer, independent review and
+# the repository owner's explicit approval. Only the owner merges to main.
+#
+# Design (from the delivered plan, adapted to what is already integrated):
+#   - Manual trigger only. Candidate code comes from the 'sha' input; trusted
+#     scripts come from the workflow's own pushed revision (source separation).
+#   - Unit tests and packaging are bound to the SAME candidate sha. The manifest
+#     records the ui-gate job's ACTUAL result for that sha, not a declared value.
+#   - The draft-prerelease job is limited to creating a DRAFT prerelease (never a
+#     published release) and is hard-disabled here.
+#   - No stable pointer is written anywhere. Pointer selection is offline
+#     (.github/release/pick_release_pointer.py) and its target is unresolved.
+name: release-prototype
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Full 40-char candidate commit sha (must be an ancestor of main for the release stage)'
+        required: true
+        type: string
+      version:
+        description: 'Prototype version, e.g. 0.1.0-proto.1'
+        required: true
+        type: string
+concurrency:
+  group: release-prototype
+  cancel-in-progress: false
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  WORKFLOW_SHA: ${{ github.sha }}
+  CANDIDATE_SHA: ${{ inputs.sha }}
+  VERSION: ${{ inputs.version }}
+  REPO: ${{ github.repository }}
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      on_main: ${{ steps.checks.outputs.on_main }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with: { fetch-depth: 0 }
+      - id: checks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          set -u
+          [ "$IS_PRIVATE" = "false" ] || { echo "repository is not public (or visibility unknown): failing loudly"; exit 1; }
+          [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "workflow sha must be 40 lowercase hex"; exit 1; }
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "candidate sha must be 40 lowercase hex"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-proto\.[0-9]+$ ]] || { echo "version must look like 0.1.0-proto.1 (prototype channel)"; exit 1; }
+          git cat-file -e "$WORKFLOW_SHA^{commit}" || { echo "workflow sha not found in repo"; exit 1; }
+          git cat-file -e "$CANDIDATE_SHA^{commit}" || { echo "candidate sha not found in repo"; exit 1; }
+          if git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "candidate sha is not on main: packaging may run for inspection, the release stage may not"
+          fi
+          # Trusted scripts must exist in the WORKFLOW revision (this checkout).
+          for f in .github/release/verify_candidate.py .github/release/make_manifest.py .github/release/ui_gate_check.py .github/release/KNOWN-LIMITS.txt .github/e2e/smoke-package.ps1; do
+            [ -f "$f" ] || { echo "workflow revision lacks $f"; exit 1; }
+          done
+          # Candidate revision must carry the UI gate scripts.
+          for f in .github/e2e/cycle1-flow.ps1 .github/e2e/capture-flow.ps1; do
+            git cat-file -e "$CANDIDATE_SHA:$f" || { echo "candidate sha lacks $f (UI gate cannot run)"; exit 1; }
+          done
+          # Tag collision is a HARD failure here (unlike the validation workflow):
+          # a release run with an occupied tag has no valid outcome.
+          bash .github/release/check_tag_free.sh "$REPO" "v$VERSION"
+
+  tests:            # HARD GATE: whole-solution unit tests on the exact candidate sha
+    needs: resolve
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Unit tests (fail the job on any failure)
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -ne $env:CANDIDATE_SHA) { 'checked out sha differs from requested candidate'; exit 1 }
+          dotnet test StartApp.slnx --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+  ui-gate:          # HARD GATE: UI flows on the candidate sha, checker from the workflow revision
+    needs: [resolve, tests]
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1       # candidate FIRST, at repo root (e2e scripts use src/... and diag/ relative paths)
+        with:
+          ref: ${{ inputs.sha }}
+      - uses: actions/checkout@v7.0.1       # trusted SECOND: the workflow's own revision supplies the checker
+        with: { path: trusted }
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Checks before any UI run
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -ne $env:CANDIDATE_SHA) { 'checked out sha differs from requested candidate'; exit 1 }
+          if ((git -C trusted rev-parse HEAD) -ne $env:WORKFLOW_SHA) { 'trusted checkout differs from workflow revision'; exit 1 }
+          if (-not (Test-Path trusted/.github/release/ui_gate_check.py)) { 'trusted checker missing after checkouts'; exit 1 }
+          python --version; if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force diag, out-images | Out-Null
+          $bad = $false
+          foreach ($f in '.github/e2e/cycle1-flow.ps1', '.github/e2e/capture-flow.ps1') {
+            $tokens = $null; $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$tokens, [ref]$errs)
+            if ($errs -and $errs.Count -gt 0) { $bad = $true; "PARSE ERRORS in ${f}" | Tee-Object -Append diag/errors.txt }
+          }
+          if ($bad) { exit 1 }
+      - name: Build App (fail on error)
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
+          if ($LASTEXITCODE -ne 0) { 'BUILD FAILED' | Out-File -Append diag/errors.txt; exit 1 }
+      - name: Cycle-1 flow UI run (hard - a failing step fails this job)
+        shell: pwsh
+        run: |
+          $env:GITHUB_SHA = $env:CANDIDATE_SHA   # scripts write $env:GITHUB_SHA into their completion marker; make the source explicit
+          pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Capture flow UI run (hard)
+        shell: pwsh
+        run: |
+          $env:GITHUB_SHA = $env:CANDIDATE_SHA
+          pwsh -NoProfile -File .github/e2e/capture-flow.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
+        if: always()
+        shell: pwsh
+        run: |
+          python trusted/.github/release/ui_gate_check.py --diag diag --sha $env:CANDIDATE_SHA
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: release-ui-gate-diagnostics
+          retention-days: 5
+          if-no-files-found: warn
+          path: |
+            diag/
+            out-images/
+
+  package:          # Same reviewed packaging chain as validation-feature-e2e.yml, on the candidate sha
+    needs: [resolve, tests, ui-gate]
+    if: ${{ always() && needs.tests.result == 'success' && needs.resolve.result == 'success' }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      UI_GATE: ${{ needs.ui-gate.result == 'success' && 'passed' || 'failed' }}
+    steps:
+      - uses: actions/checkout@v7.0.1       # trusted FIRST this time: scripts come from the workflow revision
+        with: { path: trusted }
+      - uses: actions/checkout@v7.0.1       # candidate SECOND, into src/ (never cleaned after trusted exists)
+        with:
+          path: src
+          ref: ${{ inputs.sha }}
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Dependency check (fail fast)
+        shell: pwsh
+        run: |
+          python --version; if ($LASTEXITCODE -ne 0) { exit 1 }
+          foreach ($f in 'trusted/.github/release/verify_candidate.py','trusted/.github/release/make_manifest.py','trusted/.github/release/KNOWN-LIMITS.txt','trusted/.github/e2e/smoke-package.ps1') { if (-not (Test-Path $f)) { "missing trusted file $f"; exit 1 } }
+          if ((git -C trusted rev-parse HEAD) -ne $env:WORKFLOW_SHA) { 'trusted checkout differs from workflow revision'; exit 1 }
+          if ((git -C src rev-parse HEAD) -ne $env:CANDIDATE_SHA) { 'candidate checkout differs from requested sha'; exit 1 }
+      - name: Publish twice, same path, cleaned between
+        shell: pwsh
+        working-directory: src
+        run: |
+          New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
+          foreach ($out in 'pkg-a','pkg-b') {
+            if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
+            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+            if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
+          }
+          if (Test-Path diag/errors.txt) { exit 1 }
+      - name: Stamp identical prototype notice and known limits into both payloads
+        shell: pwsh
+        working-directory: src
+        run: |
+          $notice = @(
+            'PROTOTYPE / אב-טיפוס'
+            'This package is a PROTOTYPE build for evaluation only - not a stable or final distribution.'
+            'חבילה זו היא אב-טיפוס לצורכי הערכה בלבד - זו אינה הפצה יציבה או סופית.'
+            "commit: $env:CANDIDATE_SHA (version: $env:VERSION)"
+          )
+          foreach ($out in 'pkg-a','pkg-b') { $notice | Out-File -Encoding utf8 "$out\PROTOTYPE-NOTICE.txt"; Copy-Item ..\trusted\.github\release\KNOWN-LIMITS.txt "$out\KNOWN-LIMITS.txt" }
+      - name: Compare payloads (REPORT ONLY, never fails the job)
+        shell: pwsh
+        working-directory: src
+        run: |
+          function PayloadHashes($dir) { $root=(Resolve-Path $dir).Path; Get-ChildItem -Recurse -File $dir | Sort-Object FullName | ForEach-Object { $_.FullName.Substring($root.Length) + ':' + (Get-FileHash $_.FullName -Algorithm SHA256).Hash } }
+          $diff = Compare-Object (PayloadHashes 'pkg-a') (PayloadHashes 'pkg-b')
+          if ($diff) { 'REPRODUCIBLE=no (same-runner, same-path comparison; report only)' | Tee-Object diag/reproducibility.txt; $diff | Format-Table | Out-String | Tee-Object diag/reproducibility-diff.txt }
+          else { 'REPRODUCIBLE=yes (scoped: same runner image, same paths; not a cross-run guarantee)' | Tee-Object diag/reproducibility.txt }
+      - name: Build normalized ZIP, hash, BUILDINFO, manifest
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+          New-Item -ItemType Directory -Force cand | Out-Null
+          $zipPath = "$PWD\cand\StartApp-win-x64.zip"
+          $fs = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::CreateNew)
+          $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
+          $epoch = [DateTimeOffset]::new(2026,1,1,0,0,0,[TimeSpan]::Zero)
+          $rootA = (Resolve-Path src/pkg-a).Path
+          $files = @(Get-ChildItem -Recurse -File src/pkg-a | ForEach-Object { [pscustomobject]@{ Rel = $_.FullName.Substring($rootA.Length + 1).Replace('\','/'); Path = $_.FullName } })
+          $rels = [string[]]@($files | ForEach-Object { $_.Rel }); $keys = [string[]]@($rels.Clone()); [Array]::Sort($keys, [StringComparer]::Ordinal)   # ordinal, culture-independent entry order
+          $byRel = @{}; foreach ($f in $files) { $byRel[$f.Rel] = $f.Path }
+          foreach ($rel in $keys) {
+            $entry = $zip.CreateEntry($rel); $entry.LastWriteTime = $epoch
+            $es = $entry.Open(); $s = [System.IO.File]::OpenRead($byRel[$rel]); $s.CopyTo($es); $s.Dispose(); $es.Dispose()
+          }
+          $zip.Dispose(); $fs.Dispose()
+          $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          "$hash StartApp-win-x64.zip" | Out-File -Encoding ascii cand/StartApp-win-x64.zip.sha256
+          @(
+            "commit: $env:CANDIDATE_SHA"
+            "version: $env:VERSION"
+            "run: ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+            "workflow-revision: $env:WORKFLOW_SHA"
+            "distribution: PROTOTYPE (evaluation only)"
+            "sdk: $(dotnet --version)"
+            "built-utc: $([DateTime]::UtcNow.ToString('o'))"
+            "repro: $((Get-Content src/diag/reproducibility.txt -Raw).Trim())"
+            "sha256: $hash"
+          ) | Out-File -Encoding utf8 cand/BUILDINFO.txt
+          Copy-Item src/diag/reproducibility.txt cand/reproducibility.txt
+          python trusted/.github/release/make_manifest.py --dir cand --sha $env:CANDIDATE_SHA --version $env:VERSION --ui-gate $env:UI_GATE
+      - name: Smoke-run the ZIP that would ship (FAILURE GATE, smoke script)
+        shell: pwsh
+        run: |
+          Expand-Archive -Path cand/StartApp-win-x64.zip -DestinationPath verify-ship -Force
+          pwsh -NoProfile -File trusted/.github/e2e/smoke-package.ps1 -ExePath 'verify-ship\StartApp.App.exe'
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Verify candidate consistency (verifier)
+        shell: pwsh
+        run: |
+          python trusted/.github/release/verify_candidate.py --dir cand --sha $env:CANDIDATE_SHA --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: StartApp-release-candidate
+          retention-days: 5
+          if-no-files-found: error
+          path: cand/*
+
+  draft-prerelease:
+    # DORMANT HARD-OFF: this job can never run while this literal remains.
+    # It is the reviewed design's ONLY write-capable step: create a DRAFT prerelease
+    # (never publish) from the verified candidate of THIS run.
+    #
+    # The design condition it will carry when activated (kept here for review):
+    #   needs.resolve.outputs.on_main == 'true'
+    #   && needs.tests.result == 'success'
+    #   && needs.ui-gate.result == 'success'
+    #   && needs.package.result == 'success'
+    #   && vars.PROTOTYPE_RELEASE_ENABLE == 'true'   (repository variable; does not exist)
+    # plus `environment:` naming an owner-configured Environment with a required
+    # reviewer, and job-level `permissions: contents: write` replacing the current
+    # `contents: none`. Activation steps and evidence requirements are listed in
+    # .github/release/RELEASE-PIPELINE.md. A variable or Environment name alone is
+    # NOT proof of approval protection: the owner must configure and verify the
+    # required reviewer before any enabled run.
+    name: draft-prerelease (DORMANT - disabled)
+    needs: [resolve, tests, ui-gate, package]
+    if: ${{ false }}
+    permissions:
+      contents: none
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with: { name: StartApp-release-candidate, path: cand }
+      - name: Create DRAFT prerelease and upload candidate assets (never publishes)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "v$VERSION" --draft --prerelease \
+            --title "v$VERSION (prototype draft)" \
+            --notes "Prototype evaluation build. commit $CANDIDATE_SHA. Not a stable release. See KNOWN-LIMITS.txt." \
+            cand/StartApp-win-x64.zip cand/StartApp-win-x64.zip.sha256 cand/BUILDINFO.txt cand/manifest.json cand/reproducibility.txt
+          echo "draft prerelease created (not published)"
+
+# Distribution, publishing, pointer writes and main promotion remain separate
+# owner decisions. This file, as committed, grants none of them.

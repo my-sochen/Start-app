@@ -18,7 +18,7 @@ function applySearch() {
   document.querySelector("#no-results").hidden = count !== 0;
   status.textContent = query
     ? count + " פרקים מתוך " + sections.length
-    : sections.length + " פרקי תיעוד";
+    : sections.length + " פרקי מדריך";
 }
 input.addEventListener("input", applySearch);
 function showHash() {
