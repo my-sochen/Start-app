@@ -1,4 +1,4 @@
-# Synthetic navigation, consent and metadata diagnostic. Local candidate, no run authority.
+# Synthetic navigation, consent and metadata diagnostic. Local packet4, no fifth run authority.
 param([string]$OutDir='cdp-enumerate-out')
 $ErrorActionPreference='Stop'
 $OutDir=[IO.Path]::GetFullPath($OutDir)
@@ -125,6 +125,51 @@ function Picture($name,$phase,$window) {
  try {$d=Capture "$name-$phase" $window;Record $name $phase 'PASS' ($d | ConvertTo-Json -Compress);return $true}
  catch {Record $name $phase 'UNKNOWN' $_.Exception.Message;return $false}
 }
+# Diagnostic-only stream, not OBS_RECORD: never supplies a phase PASS or replaces pixels.
+# Fixed field allowlists at each call site; synthetic HWNDs/states only, bounded samples, no document content.
+function Diagnostic($name,$stage,$detail) {
+ Write-Host ('OBS_DIAG '+(@{browser=$name;stage=$stage;detail=$detail;utc=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json -Depth 6 -Compress))
+}
+function ActivateSynthetic($name,$stage,$profile,$exeName,$handle) {
+ $eligible=@(Windows $profile $exeName | Where-Object {$_.Current.NativeWindowHandle -eq $handle.ToInt64()})
+ if($eligible.Count -ne 1){Diagnostic $name $stage @{target=$handle.ToInt64();eligible=$eligible.Count;attempted=$false};return $false}
+ # Exactly ONE activation call. Passive reads do not bypass Windows foreground restrictions.
+ $prior=[ObserveNative]::GetForegroundWindow().ToInt64()
+ $accepted=[ObserveNative]::SetForegroundWindow($handle)
+ $clock=[Diagnostics.Stopwatch]::StartNew();$samples=@();$matched=$false
+ for($i=0;$i -lt 21;$i++){
+  $actual=[ObserveNative]::GetForegroundWindow().ToInt64()
+  $samples+=@{elapsedMs=$clock.ElapsedMilliseconds;hwnd=$actual}
+  if($actual -eq $handle.ToInt64()){$matched=$true;break}
+  if($clock.ElapsedMilliseconds -ge 2000){break};Start-Sleep -Milliseconds 100
+ }
+ Diagnostic $name $stage @{target=$handle.ToInt64();eligible=1;attempted=$true;prior=$prior;apiReturned=$accepted;samples=$samples;matched=$matched}
+ # A false API return alone no longer hides the independent actual-HWND read.
+ return $matched
+}
+function FreshInspectToggle($profile,$exeName,$handle,$uri) {
+ $ws=@(Windows $profile $exeName | Where-Object {$_.Current.NativeWindowHandle -eq $handle.ToInt64()})
+ if($ws.Count -ne 1){throw 'Fresh inspect HWND attribution unavailable'}
+ $edits=@(Omnibox $ws[0]);if($edits.Count -ne 1 -or $edits[0].GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -cne $uri){throw 'Fresh inspect omnibox URI mismatch'}
+ $docs=@(Descendants $ws[0] | Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Document})
+ $docMatch=$false
+ foreach($doc in $docs){try{if($doc.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq $uri){$docMatch=$true}}catch{}}
+ if(-not $docMatch){throw 'Fresh inspect Document URL unavailable'}
+ $boxes=@(Descendants $ws[0] | Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox -and $_.Current.AutomationId -eq 'remote-debugging-enabled' -and $_.Current.Name -ceq 'Allow remote debugging for this browser instance'})
+ if($boxes.Count -ne 1 -or -not $boxes[0].Current.IsEnabled -or $boxes[0].Current.IsOffscreen){throw 'Fresh exact enabled visible inspect checkbox unavailable'}
+ $boxes[0].GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+}
+function WaitToggleState($name,$stage,$profile,$exeName,$handle,$uri,$desired) {
+ $clock=[Diagnostics.Stopwatch]::StartNew();$samples=@();$matched=$false;$readError=$false
+ for($i=0;$i -lt 21;$i++){
+  try{$fresh=FreshInspectToggle $profile $exeName $handle $uri;$state=$fresh.Current.ToggleState.ToString();$samples+=@{elapsedMs=$clock.ElapsedMilliseconds;state=$state}}
+  catch{$samples+=@{elapsedMs=$clock.ElapsedMilliseconds;state='UNAVAILABLE';exceptionType=$_.Exception.GetType().FullName};$readError=$true;break}
+  if($state -ceq $desired){$matched=$true;break}
+  if($clock.ElapsedMilliseconds -ge 2000){break};Start-Sleep -Milliseconds 100
+ }
+ Diagnostic $name $stage @{desired=$desired;samples=$samples;matched=$matched;readError=$readError}
+ return $matched
+}
 function FixturePictures($name,$stage,$profile,$exeName,$expected) {
  $all=@(Windows $profile $exeName);$ok=$true
  $handles=@($expected.hwnd | Sort-Object -Unique)
@@ -133,7 +178,7 @@ function FixturePictures($name,$stage,$profile,$exeName,$expected) {
   $w=@($all | Where-Object {$_.Current.NativeWindowHandle -eq $handles[$i]})
   if($w.Count -ne 1){return $false}
   $h=[IntPtr]$handles[$i]
-  if(-not [ObserveNative]::SetForegroundWindow($h) -or [ObserveNative]::GetForegroundWindow() -ne $h){Record $name "$stage-window$($i+1)" 'UNKNOWN' 'Synthetic fixture window foreground not verified';$ok=$false;continue}
+  if(-not(ActivateSynthetic $name "$stage-window$($i+1)-activation" $profile $exeName $h)){Record $name "$stage-window$($i+1)" 'UNKNOWN' 'Synthetic fixture window foreground not verified after one activation and bounded passive readback';$ok=$false;continue}
   if(-not(Picture $name "$stage-window$($i+1)" $w[0])){$ok=$false}
  }
  return $ok
@@ -197,7 +242,7 @@ foreach($browser in $browsers) {
  $name=$browser.name;$exe=$browser.exe;$exeName=[IO.Path]::GetFileName($exe)
  $root=Join-Path $env:TEMP ('startapp-enumerate-'+$name+'-'+[Guid]::NewGuid().ToString('N'));$profile=Join-Path $root 'profile'
  New-Item -ItemType Directory -Force $profile | Out-Null
- $toggle=$null
+ $toggle=$null;$inspectHandle=[IntPtr]::Zero
  try {
   if(-not(Test-Path $exe)){Record $name 'version' 'UNAVAILABLE' 'Browser binary missing';continue}
   $version=(Get-Item $exe).VersionInfo.FileVersion;Record $name 'version' 'INFO' $version
@@ -221,10 +266,19 @@ foreach($browser in $browsers) {
   if(-not(WaitUntil {ValidSelection @(Selection $profile $exeName)})){Record $name 'fixture' 'UNKNOWN' '3tabs/2windows/exactly one selected each not proven';continue}
   Record $name 'fixture' 'PASS' 'Three synthetic tabs across two fixture windows; one selected per window'
   $initial=@(Selection $profile $exeName)
-  [void](FixturePictures $name 'before' $profile $exeName $initial)
-  $toggle.Toggle()
-  if($toggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::On){Record $name 'inspect-toggle' 'UNKNOWN' 'On readback failed';continue}
-  Record $name 'inspect-toggle' 'PASS' 'Exact verified inspect checkbox toggled On in disposable profile only'
+  if(-not(FixturePictures $name 'before' $profile $exeName $initial)){Record $name 'inspect-toggle' 'UNKNOWN' 'Required fixture-before evidence incomplete; enable and connection not attempted';continue}
+  $inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle
+  if(-not(ActivateSynthetic $name 'enable-activation' $profile $exeName $inspectHandle)){Record $name 'inspect-toggle' 'UNKNOWN' 'Inspect foreground unavailable; enable and connection not attempted';continue}
+  $toggle=FreshInspectToggle $profile $exeName $inspectHandle $browser.uri
+  $preState=$toggle.Current.ToggleState.ToString()
+  Diagnostic $name 'enable-prestate' @{target=$inspectHandle.ToInt64();state=$preState}
+  if($preState -cne 'Off'){Record $name 'inspect-toggle' 'UNKNOWN' 'Fresh enable prestate not Off; no toggle attempted';continue}
+  if([ObserveNative]::GetForegroundWindow() -ne $inspectHandle){Record $name 'inspect-toggle' 'UNKNOWN' 'Foreground changed immediately before enable; no toggle attempted';continue}
+  Diagnostic $name 'enable-call' @{attempted=$true;returned=$false;target=$inspectHandle.ToInt64()}
+  try{$toggle.Toggle();Diagnostic $name 'enable-return' @{returned=$true}}
+  catch{Diagnostic $name 'enable-exception' @{returned=$false;exceptionType=$_.Exception.GetType().FullName};throw}
+  if(-not(WaitToggleState $name 'enable-state' $profile $exeName $inspectHandle $browser.uri 'On')){Record $name 'inspect-toggle' 'UNKNOWN' 'On not established by bounded fresh reads; see diagnostic states/errors';continue}
+  Record $name 'inspect-toggle' 'PASS' 'One exact disposable-checkbox enable call returned and fresh On state observed; synthetic only'
   if(-not(WaitUntil {Test-Path (Join-Path $profile 'DevToolsActivePort')} 12)){Record $name 'endpoint' 'UNKNOWN' 'No synthetic endpoint file; no flag fallback';continue}
   Record $name 'endpoint' 'PASS' 'Endpoint exists in unique disposable profile'
   $inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle
@@ -246,7 +300,28 @@ foreach($browser in $browsers) {
   }
  }catch{Record $name 'probe' 'UNKNOWN' $_.Exception.Message}
  finally {
-  if($null -ne $toggle){try{if($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::On){$toggle.Toggle()};Record $name 'disable' $(if($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::Off){'PASS'}else{'UNKNOWN'}) 'Fresh Off readback, not transport enforcement proof'}catch{Record $name 'disable' 'UNKNOWN' $_.Exception.Message}}
+  if($null -ne $toggle){
+   try{
+    if($inspectHandle -eq [IntPtr]::Zero){$inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle}
+    $toggle=FreshInspectToggle $profile $exeName $inspectHandle $browser.uri
+    $preDisable=$toggle.Current.ToggleState.ToString()
+    Diagnostic $name 'disable-prestate' @{state=$preDisable;target=$inspectHandle.ToInt64()}
+    if($preDisable -ceq 'On'){
+     if(-not(ActivateSynthetic $name 'disable-activation' $profile $exeName $inspectHandle)){throw 'Cleanup foreground unavailable; no disable input'}
+     $toggle=FreshInspectToggle $profile $exeName $inspectHandle $browser.uri
+     $freshDisable=$toggle.Current.ToggleState.ToString()
+     Diagnostic $name 'disable-freshstate' @{state=$freshDisable}
+     if($freshDisable -ceq 'On'){
+      if([ObserveNative]::GetForegroundWindow() -ne $inspectHandle){throw 'Cleanup foreground changed; no disable input'}
+      Diagnostic $name 'disable-call' @{attempted=$true;returned=$false}
+      try{$toggle.Toggle();Diagnostic $name 'disable-return' @{returned=$true}}
+      catch{Diagnostic $name 'disable-exception' @{returned=$false;exceptionType=$_.Exception.GetType().FullName};throw}
+     }elseif($freshDisable -cne 'Off'){throw 'Cleanup fresh state ambiguous; no toggle input'}
+    }elseif($preDisable -cne 'Off'){throw 'Cleanup prestate ambiguous; no toggle input'}
+    $off=WaitToggleState $name 'disable-state' $profile $exeName $inspectHandle $browser.uri 'Off'
+    Record $name 'disable' $(if($off){'PASS'}else{'UNKNOWN'}) 'Fresh bounded Off readback only, not transport enforcement proof'
+   }catch{Record $name 'disable' 'UNKNOWN' $_.Exception.Message}
+  }
   # Deliberately no claim that a generic post-disable error proves revocation.
   Record $name 'post-disable-unavailable' 'UNKNOWN' 'Not an enforcement proof; scoped diagnostic does not establish causal revocation'
   try {

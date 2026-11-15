@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           $expected = @{
-            'startapp-cdp-feasibility/enumerate-tabs.ps1' = 'a01c3f791204841470c1ea02ad95ef0dd1e43ee7db1ce1990e8c67108d64390e'
+            'startapp-cdp-feasibility/enumerate-tabs.ps1' = '2016383f5430a054a8220ce97018123b2c54dd114f67b0e71818abd3318576e7'
             'startapp-cdp-feasibility/read-targets.mjs'  = 'e3cf9ab79d66fb3841ba04787899eeec6f4272e05c4b3670bbdab22ab4e5b1c7'
           }
           foreach ($path in $expected.Keys) {
