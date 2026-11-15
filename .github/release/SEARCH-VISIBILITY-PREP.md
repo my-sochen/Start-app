@@ -11,8 +11,9 @@ ranking are Google's decisions and are not guaranteed or timed by us.
    and docs.html. This is THE deliberate semantics change: the pages were
    marked non-indexable for the private review stage, and the owner's request
    makes indexability a launch requirement. Without this removal nothing else
-   here can work. The "private review" strip copy is unchanged (Moshe's call
-   whether to reword it at launch).
+   here can work. The strip copy was reworded in the activation draft (v5, Moshe's review):
+   it no longer claims a private review stage, so it stays truthful when the
+   site is public.
 2. Added an absolute `<link rel="canonical">` per page pointing at the
    approved hosting address:
    - https://my-sochen.github.io/Start-app/
