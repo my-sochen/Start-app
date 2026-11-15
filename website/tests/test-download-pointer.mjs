@@ -141,13 +141,15 @@ t("render non-ok after ok disables AND unbinds the stale URL", () => {
   P.render(els, { state: "none", reason: "withdrawn" });
   assert.equal(els.button.disabled, true);
   assert.equal(els.button.onclick, null);
+  assert.equal(els.button.textContent, "אין הורדה זמינה כרגע", "label no longer claims the stale tag");
 });
 
-t("render none keeps disabled with honest note", () => {
+t("render none keeps disabled with truthful label and honest note", () => {
   const els = fakeEls();
   P.render(els, { state: "none", reason: "r" });
   assert.equal(els.button.disabled, true);
   assert.equal(els.button.onclick, null);
+  assert.equal(els.button.textContent, "אין הורדה זמינה כרגע", "truthful none label");
   assert.ok(els.note.textContent.length > 0);
 });
 
@@ -211,7 +213,9 @@ t("render invalid keeps disabled and leaks no document data", () => {
   const els = fakeEls();
   P.render(els, P.validate({ ...VALID, url: "http://evil.example/x" }));
   assert.equal(els.button.disabled, true);
+  assert.equal(els.button.textContent, "הורדה לא זמינה", "truthful invalid label");
   assert.ok(!els.note.textContent.includes("evil.example"));
+  assert.ok(!els.button.textContent.includes("evil.example"));
 });
 
 t("load rejects non-https pointer URL without fetching", async () => {
@@ -254,6 +258,29 @@ t("wire renders both CTAs through the reader contract", () => {
   assert.equal((WIRE.match(/StartAppPointer.render/g) || []).length, 2);
   assert.ok(WIRE.includes("hero-download-state"));
   assert.ok(WIRE.includes("download-state"));
+});
+
+t("wire resolves state-bearing static copy (badge + heading) per state", () => {
+  assert.ok(INDEX.includes('id="availability-badge"'), "badge id in index");
+  assert.ok(INDEX.includes('id="download-heading"'), "heading id in index");
+  assert.ok(WIRE.includes("availability-badge"), "wire updates badge");
+  assert.ok(WIRE.includes("download-heading"), "wire updates heading");
+  for (const state of ["ok", "none", "invalid"]) {
+    assert.ok(WIRE.includes(state + ":"), "wire has " + state + " texts");
+  }
+});
+
+t("static copy is state-neutral or truthful in every initial state", () => {
+  const desc = INDEX.match(/name="description"\s+content="([^"]*)"/);
+  assert.ok(desc, "meta description present");
+  assert.ok(!desc[1].includes("הורדה פעילה"), "meta is state-neutral");
+  // Initial (loading) copy must be the truthful "checking" state, not a claim.
+  const checking = "בודק זמינות הורדה";
+  assert.ok(INDEX.includes(checking), "initial CTA copy is the checking state");
+  assert.ok(INDEX.includes("בודק אם קיימת גרסת אב-טיפוס מאומתת"),
+    "initial note copy is the checking state");
+  assert.ok(!INDEX.includes("<h2>אין הורדה זמינה כרגע.</h2>"),
+    "static heading does not pre-claim 'none'");
 });
 
 console.log(passed + " tests passed");

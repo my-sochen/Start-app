@@ -1,6 +1,6 @@
 # Pointer-update workflow - design, guarantees and honest limits (DRAFT for review, nothing applied)
 
-Baseline: feat/dormant-release-pipeline @ cd028cd8344f207033fce250a87935d450efa0c7.
+Baseline history: feat/dormant-release-pipeline @ cd028cd8344f207033fce250a87935d450efa0c7 (design phase; the workflow is now activated code, owner-gated - see RELEASE-PIPELINE.md).
 Companion artifacts: .github/workflows/release-pointer-update.yml, .github/release/update_pointer.py,
 .github/release/tests/test_update_pointer.py. Baseline files reused unchanged:
 .github/release/pick_release_pointer.py, website/ (reader contract owned by the requesting author's side).

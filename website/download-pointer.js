@@ -1,16 +1,16 @@
 "use strict";
 /*
- * Start-app prototype download pointer reader (DORMANT INTEGRATION - not wired).
+ * Start-app prototype download pointer reader (WIRED by download-wire.js).
  *
  * This module is the website side of .github/release/pick_release_pointer.py.
- * It validates a pointer document (schema 1) emitted by that selector and, only
- * when a hosting decision supplies a pointer URL, renders the download state.
+ * It validates a pointer document (schema 1) emitted by that selector and
+ * renders the download state for both CTAs.
  *
- * Dormant by design:
- *  - The module makes NO network call by itself. load() runs only when the
- *    reviewed activation change wires a pointer URL into the page.
- *  - The current page CSP is connect-src 'none'; any fetch fails closed until
- *    the activation change also allowlists the pointer origin.
+ * Contract:
+ *  - The module makes NO network call by itself. download-wire.js passes the
+ *    same-origin pointer.json URL (deployed atomically with the site).
+ *  - The page CSP is connect-src 'self': the same-origin fetch is allowed and
+ *    no external origin is needed.
  *  - validate() never invents a URL: every field must come from the document,
  *    and the download URL must come from the published release (the selector
  *    already enforces that).
@@ -132,6 +132,9 @@
     }
     button.disabled = true;
     button.onclick = null;
+    setLabel(
+      result.state === "none" ? "אין הורדה זמינה כרגע" : "הורדה לא זמינה"
+    );
     if (note) {
       note.textContent =
         result.state === "none"

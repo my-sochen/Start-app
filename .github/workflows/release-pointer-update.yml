@@ -1,11 +1,11 @@
-# DORMANT pointer-update workflow. NOT ACTIVE: nothing runs until the owner
-# merges this file, enables Pages (source: GitHub Actions), creates the
-# github-pages environment protection, and sets PROTOTYPE_RELEASE_ENABLE=true.
+# ACTIVATED pointer-update workflow, owner-gated: this file is merged, but no
+# job can run until the owner enables Pages (source: GitHub Actions), creates
+# the github-pages environment protection, and sets
+# PROTOTYPE_RELEASE_ENABLE=true.
 # Design: .github/release/POINTER-WORKFLOW-DESIGN.md (guarantees AND limits).
 #
-# Trigger model (PROPOSED dormant design, per author design addendum and
-# reviewer precision - activation is the owner's reviewed code change and
-# merge, never this file's mere presence):
+# Trigger model (activated design, per author design addendum and reviewer
+# precision; every run still requires the owner's environments and variable):
 # - release: [published, unpublished, edited, deleted] - fires ONLY on the
 #   owner's own release actions: publish, withdraw-to-draft, edit, delete.
 #   Every one of them re-runs the selector, so withdrawal/rollback reconciles

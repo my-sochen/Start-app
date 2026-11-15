@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex,nofollow" />
     <meta
       name="description"
-      content="Start-app: אתר ותיעוד לסקירת אב-טיפוס. ללא הורדה פעילה."
+      content="Start-app: אתר ותיעוד לסקירת אב-טיפוס."
     />
     <meta
       http-equiv="Content-Security-Policy"
@@ -18,7 +18,8 @@
   <body>
     <a class="skip" href="#main">דילוג לתוכן</a>
     <div class="review-strip">
-      תצוגה פרטית לסקירה · אב-טיפוס בתכנון להפצה · אין הורדה פעילה
+      תצוגה פרטית לסקירה · אב-טיפוס בתכנון להפצה ·
+      <span id="availability-badge">בודק זמינות הורדה…</span>
     </div>
     <header>
       <a class="brand" href="index.html" aria-label="Start-app, דף הבית"
@@ -48,11 +49,10 @@
               aria-describedby="hero-download-state"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m6.5 10.5 5.5 5.5 5.5-5.5"/><path d="M4 20h16"/></svg>
-              <span>הורדה ל־Windows - עדיין לא זמינה</span>
+              <span>בודק זמינות הורדה…</span>
             </button>
             <p id="hero-download-state" class="hero-download-state">
-              יעד האריזה: Windows x64. אין קובץ, קישור הורדה או מנגנון
-              עדכון פעיל.
+              יעד האריזה: Windows x64. בודק אם קיימת גרסת אב-טיפוס מאומתת…
             </p>
           </div>
           <div class="actions">
@@ -143,7 +143,7 @@
       </section>
       <section class="section" id="download">
         <p class="eyebrow">02 / זמינות</p>
-        <h2>אין הורדה זמינה כרגע.</h2>
+        <h2 id="download-heading">זמינות הורדה</h2>
         <p class="section-intro">
           יעד האריזה הוא Windows x64. אין גרסת Mac או Linux מאומתת.
         </p>
@@ -153,10 +153,10 @@
           disabled
           aria-describedby="download-state"
         >
-          הורדה ל־Windows - עדיין לא זמינה
+          בודק זמינות הורדה…
         </button>
         <p id="download-state" class="note">
-          אין כאן קובץ, קישור הורדה או מנגנון עדכון פעיל.
+          בודק אם קיימת גרסת אב-טיפוס מאומתת…
         </p>
       </section>
       <section class="section faq">
