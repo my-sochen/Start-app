@@ -119,7 +119,7 @@ t("render ok enables button and binds the validated URL only", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
   assert.equal(els.button.disabled, false);
-  assert.match(els.button.textContent, /v0\.1\.0-proto\.3/);
+  assert.equal(els.button.textContent, "הורדה ל־Windows");
   assert.equal(typeof els.button.onclick, "function");
   assert.match(els.note.textContent, /sha256/);
 });
@@ -127,7 +127,7 @@ t("render ok enables button and binds the validated URL only", () => {
 t("ok label and note isolate LTR data inside the RTL copy", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
-  assert.ok(els.button.textContent.includes("\u2066v0.1.0-proto.3\u2069"), "tag isolated in label");
+  assert.equal(els.button.textContent, "הורדה ל־Windows", "version stays out of primary action");
   assert.ok(els.note.textContent.includes("\u20660.1.0-proto.3\u2069"), "version isolated in note");
   assert.ok(els.note.textContent.includes("\u2066sha256: " + "a".repeat(64) + "\u2069"), "hash isolated in note");
 });
@@ -140,7 +140,7 @@ t("repeated render(ok) replaces the handler, never accumulates", () => {
   P.render(els, newer);
   assert.equal(typeof els.button.onclick, "function");
   assert.notEqual(els.button.onclick, first);
-  assert.match(els.button.textContent, /v0\.1\.0-proto\.4/);
+  assert.equal(els.button.textContent, "הורדה ל־Windows");
 });
 
 t("render non-ok after ok disables AND unbinds the stale URL", () => {
@@ -166,7 +166,7 @@ t("label adapter: rich CTA markup is never flattened", () => {
   els.label = { textContent: "" };
   const originalButtonText = els.button.textContent;
   P.render(els, P.validate(VALID));
-  assert.match(els.label.textContent, /v0\.1\.0-proto\.3/);
+  assert.equal(els.label.textContent, "הורדה ל־Windows");
   assert.equal(els.button.textContent, originalButtonText, "button markup/text untouched when a label element is given");
 });
 
@@ -312,13 +312,11 @@ t("public copy never claims a private review stage", () => {
   assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs makes no static download claim");
 });
 
-t("reader keeps the CTA label version token unbreakable", () => {
-  const src = readFileSync(join(SITE, "download-pointer.js"), "utf8");
-  const okBlock = src.slice(src.indexOf('result.state === "ok"'));
-  const labelSpan = okBlock.indexOf('tagSpan.className = "ptr-ltr"');
-  assert.ok(labelSpan > -1, "CTA label tag uses the nowrap ptr-ltr span");
-  assert.ok(okBlock.indexOf('setLabel("הורדה ל־Windows - " + ltr(p.tag))') > labelSpan,
-    "isolate label is only the text-only fallback");
+t("reader keeps technical version separate from the simple CTA", () => {
+  const reader = readFileSync(join(SITE, "download-pointer.js"), "utf8");
+  assert.ok(reader.includes('setLabel("הורדה ל־Windows")'));
+  assert.ok(reader.includes('mk("ptr-ltr", p.version)'));
+  assert.ok(!reader.includes('tagSpan'));
 });
 
 t("docs carry no unconditional availability claim in either direction (regression)", () => {

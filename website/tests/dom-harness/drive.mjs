@@ -119,8 +119,8 @@ for (const path of ["/", "/docs.html"]) {
     const s = await ctaState(page);
     if (state === "ok") {
       ok(!s.disabled && s.onclick && s.cursor === "pointer", `${tag} ok: CTA enabled with handler`);
-      ok(s.label.includes("v0.1.0-proto.3"), `${tag} ok: label carries tag`);
-      ok(!s.detailHidden && s.detailText.includes("0.1.0-proto.3") && s.detailText.includes("sha256: " + "a".repeat(64)) && s.detailText.includes("הבייטים עצמם לא נבדקו מחדש"),
+      ok(s.label === "הורדה ל־Windows", `${tag} ok: label carries tag`);
+      ok(!s.detailHidden && s.detailText.includes("0.1.0-proto.3") && s.detailText.includes("a".repeat(64)) && s.detailText.includes("הקובץ לא נבדק מחדש"),
          `${tag} ok: version/sha/honesty inside the verification panel`);
       ok(!s.note.includes("sha256") && s.note.length < 90, `${tag} ok: visible note stays short`);
       ok(s.badge === undefined || s.badge === "גרסת אב-טיפוס זמינה להורדה", `${tag} ok: badge truthful`);
@@ -210,7 +210,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   ok(s.sections === 12 && s.status.includes("12"), pre + ": guide initialized (12 chapters, search status)");
   ok(s.y === 0, pre + ": scrolled to top on forward navigation");
   const cs = await ctaState(page);
-  ok(!cs.disabled && cs.onclick && cs.label.includes("v0.1.0-proto.3"), pre + ": guide CTA rendered from the validated pointer after swap");
+  ok(!cs.disabled && cs.onclick && cs.label === "הורדה ל־Windows", pre + ": guide CTA rendered from the validated pointer after swap");
   // guide search still works after swap
   await page.type("#doc-search", "פרטיות");
   s = await page.evaluate(() => ({ vis: [...document.querySelectorAll("[data-doc]")].filter((e) => !e.hidden).length }));
