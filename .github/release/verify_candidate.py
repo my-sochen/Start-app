@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Gate for a release candidate directory. Run from the TRUSTED workflow revision, never from the candidate tree.
+"""Structural/metadata gate for a candidate directory.
+Caller chooses checker provenance. In validation both checkouts are the same
+pushed revision: this is a self-gate, not an independent trust boundary.
+Release workflows must separately pin/review the checker revision they use.
 Any failure -> exit 1. Usage: verify_candidate.py --dir DIR --sha FULL_SHA --version V
 """
 import argparse, hashlib, json, re, sys, zipfile
@@ -22,6 +25,7 @@ def single(text, key, errs):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--layout", choices=["legacy", "portable"], default="legacy");
     ap.add_argument("--dir", required=True); ap.add_argument("--sha", required=True); ap.add_argument("--version", required=True)
     a = ap.parse_args()
     d = Path(a.dir); errs = []
@@ -58,12 +62,21 @@ def main():
     with zipfile.ZipFile(d / ASSET) as z:
         names = z.namelist()
         need(len(names) == len(set(names)), "ZIP has duplicate entries")
-        for n in ("PROTOTYPE-NOTICE.txt", "KNOWN-LIMITS.txt"):
+        prefix = "App/" if a.layout == "portable" else ""
+        for name in names:
+            need(not name.startswith(("/", "\\")) and "\\" not in name and ":" not in name and ".." not in name.split("/"), "ZIP contains unsafe path")
+        for n in (prefix + "PROTOTYPE-NOTICE.txt", prefix + "KNOWN-LIMITS.txt"):
             need(n in names, f"ZIP lacks {n}")
-        if "PROTOTYPE-NOTICE.txt" in names:
-            t = z.read("PROTOTYPE-NOTICE.txt").decode("utf-8-sig")
+        if prefix + "PROTOTYPE-NOTICE.txt" in names:
+            t = z.read(prefix + "PROTOTYPE-NOTICE.txt").decode("utf-8-sig")
             need(a.sha in t and a.version in t, "notice must name both sha and version")
-        need(sum(n == "StartApp.App.exe" for n in names) == 1, "ZIP must contain StartApp.App.exe at its root")
+        if a.layout == "portable":
+            need(set(n for n in names if "/" not in n) == {"Start-app.exe", "START-HERE.txt"}, "portable root must contain only Start-app.exe and START-HERE.txt")
+            need("App/StartApp.App.exe" in names, "portable ZIP lacks actual app under App/")
+            need(all(n in ("Start-app.exe", "START-HERE.txt") or n.startswith("App/") for n in names), "unexpected portable ZIP entry")
+            need(mf.get("layout") == "portable-v1", "portable manifest layout missing")
+        else:
+            need(sum(n == "StartApp.App.exe" for n in names) == 1, "ZIP must contain StartApp.App.exe at its root")
     return fail(errs) if errs else ok(real)
 
 def fail(errs):

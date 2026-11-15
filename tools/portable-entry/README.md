@@ -31,3 +31,26 @@ Acceptance: paths with spaces/Hebrew, relocation, unrelated working directory,
 fixed target rather than a CWD decoy, owned-child exit code, missing-folder UX,
 actual WPF app startup/clean exit and inspectable app pixels. Hosted-runner checks
 are not a physical consumer-Windows or SmartScreen approval claim.
+
+## Candidate pipeline integration preparation
+
+The follow-up feature routes the normal **validation** candidate ZIP through this
+layout, records `layout: portable-v1` in its manifest, verifies fixed archive
+structure and launches the **extracted archive's top-level entry**, not the loose
+payload directly. It uploads small synthetic smoke pixels for human inspection.
+The original release verifier's legacy mode remains the default for the existing
+published package and unchanged release workflow. Layout choice must be explicit.
+
+Release workflow wiring is NOT done by this slice. Before a future distribution,
+reconcile the live main release workflow's active approval gates against dev's
+older dormant version. Apply only reviewed packaging steps; never overwrite the
+owner's current activation/approval policy. Build and verify a new candidate,
+review its real artifact/layout/checksums and request owner main/release approval.
+The current site download and SmartScreen status are unchanged.
+
+Validation's `src` and `trusted` directories currently use the same pushed SHA.
+The names do not establish independent checker trust. ZIP schema checks establish
+layout consistency, not signing, safety, or publisher trust. Reproducibility is a
+report-only same-run comparison with one launcher build shared by both copies;
+it does not independently reproduce the native launcher. The release workflow
+and downstream selector schema remain outside this slice.
