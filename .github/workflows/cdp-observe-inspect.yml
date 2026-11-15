@@ -1,0 +1,45 @@
+name: cdp-observe-inspect
+# Observation-only synthetic diagnostic. Review candidate: not pushed, not run.
+# Branch name below is a PROPOSAL pending coordinator reservation.
+on:
+  push:
+    branches:
+      - test/cdp-observe-inspect-v1
+permissions:
+  contents: read
+concurrency:
+  group: cdp-observe-inspect
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: ${{ github.event.deleted == false }}
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v4.2.2, commit verified against api.github.com tag ref
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Author hash gate
+        shell: pwsh
+        run: |
+          $expected = '85910d86390edad0c0ba54a023843cd0e00f7887a326f550e5993693aa52b7d9'
+          $actual = (Get-FileHash -Algorithm SHA256 startapp-cdp-feasibility/observe-inspect.ps1).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { Write-Host "HASH_GATE_FAIL $actual"; exit 1 }
+          Write-Host "HASH_GATE_OK $actual"
+      - name: Observe (read-only UIA structure and bounded PNG to console)
+        id: probe
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'obs-out'
+          & pwsh -NoProfile -File startapp-cdp-feasibility/observe-inspect.ps1 -OutDir $out
+          $code = $LASTEXITCODE
+          "child_exit=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "out_dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit 0
+      - name: Classify (runs only after the probe step completed)
+        if: ${{ steps.probe.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          node startapp-cdp-feasibility/classify-observation.mjs "${{ steps.probe.outputs.out_dir }}" "${{ steps.probe.outputs.child_exit }}"
+          exit $LASTEXITCODE
