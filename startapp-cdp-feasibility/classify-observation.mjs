@@ -9,7 +9,7 @@ const reasons=[]; const note=x=>reasons.push(x);
 const required=['version','navigation','inspect-before','fixture','before-window1','before-window2','inspect-toggle','endpoint','socket-observation','prompt-observation','first-consent','enumeration','fixture-selection-unchanged','after-window1','after-window2','reconnect-denied','disable','post-disable-unavailable','cleanup','complete'];
 const baseline=['inspect-before','before-window1','before-window2','after-window1','after-window2'];
 const prompt=['prompt-onset','prompt-end'];
-const optional=['version-floor','probe',...prompt];
+const optional=['version-floor','probe','default-session',...prompt];
 const forbiddenPass=['reconnect-denied','post-disable-unavailable'];
 const browsers=['chrome','edge'];
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
@@ -35,8 +35,9 @@ if(pick('all','preflight').length)note('preflight incomplete');
 function validSelection(v){
  const a=arr(v);if(a.length!==3)return false;
  if(!a.every(x=>obj(x)&&integer(x.hwnd)&&typeof x.title==='string'&&x.fixture===x.title.split(/\s/)[0]&&typeof x.selected==='boolean'))return false;
- const h=new Set(a.map(x=>x.hwnd)),t=new Set(a.map(x=>x.title.split(/\s/)[0]));
- return h.size===2&&t.size===3&&[...t].every(x=>/^StartAppFixture[ABC]$/.test(x))&&[...h].every(h=>a.filter(x=>x.hwnd===h&&x.selected).length===1);
+ const by=name=>a.filter(x=>x.fixture==='StartAppFixture'+name);
+ const A=by('A'),B=by('B'),C=by('C');
+ return A.length===1&&B.length===1&&C.length===1&&A[0].hwnd===B[0].hwnd&&C[0].hwnd!==A[0].hwnd&&A[0].selected===true&&B[0].selected===false&&C[0].selected===true;
 }
 const canon=x=>JSON.stringify(arr(x).map(x=>[x.hwnd,x.fixture,x.selected]).sort());
 function validIdentity(s){
@@ -99,11 +100,15 @@ for(const b of browsers){
    if(!['INFO','UNKNOWN','UNAVAILABLE'].includes(x)||s==='complete'&&x!=='INFO')note(`${b}/${s} invalid observationstatus`);
   }else if(!['PASS','UNKNOWN','UNAVAILABLE','FAIL'].includes(x))note(`${b}/${s} invalid phasestatus`);
  }
- for(const s of optional){const a=pick(b,s);if(a.length>1)note(`${b}/${s} duplicate`);if(a.length&&!(prompt.includes(s)?a[0].status==='INFO':['UNKNOWN','UNAVAILABLE','FAIL'].includes(a[0].status)))note(`${b}/${s} optionalinvalid`);}
+ for(const s of optional){const a=pick(b,s);if(a.length>1)note(`${b}/${s} duplicate`);if(a.length&&!(prompt.includes(s)?a[0].status==='INFO':s==='default-session'?['INFO','UNKNOWN'].includes(a[0].status):['UNKNOWN','UNAVAILABLE','FAIL'].includes(a[0].status)))note(`${b}/${s} optionalinvalid`);}
  if(status(b,'version')!=='INFO'){collected=false;note(`${b} versionnotINFOforfullobservation`);}
  if(pick(b,'version-floor').length||pick(b,'probe').length)collected=false;
  if(pick(b,'version-floor').length||pick(b,'probe').length)note(`${b} earlyterminationrowinfullobservation`);
  for(const s of ['navigation','fixture','inspect-toggle','endpoint','fixture-selection-unchanged','disable','cleanup',...baseline])if(status(b,s)!=='PASS')collected=false;
+ const ds=detail(pick(b,'default-session')[0]||{});
+ const rootSuffix=b==='chrome'?'/google/chrome/user data':'/microsoft/edge/user data';
+ const defaultValid=status(b,'default-session')==='INFO'&&ds?.initiallyAbsent===true&&ds.normalLaunch===true&&ds.customUserDataSwitch===false&&Number.isSafeInteger(ds.rootCount)&&ds.rootCount>=1&&ds.profilePathVerified===true&&ds.versionUri===(b==='chrome'?'chrome://version':'edge://version')&&ds.profilePath===ds.defaultRoot+'\\Default'&&typeof ds.defaultRoot==='string'&&/^[a-z]:[\\/]/i.test(ds.defaultRoot)&&ds.defaultRoot.replaceAll('\\','/').toLowerCase().endsWith(rootSuffix);
+ if(!defaultValid){collected=false;note(`${b} defaultsessionnotproven`);}
  const nav=detail(pick(b,'navigation')[0]||{}),uri=b==='chrome'?'chrome://inspect/#remote-debugging':'edge://inspect/#remote-debugging';
  if(status(b,'navigation')==='PASS'&&(!nav||nav.confirmed!==true||nav.omnibox!==uri||nav.intended!==uri))note(`${b} navigationdetail`);
  const selection=pick(b,'fixture-selection-unchanged')[0],sd=detail(selection||{});
@@ -148,9 +153,9 @@ for(const b of browsers){
 }
 if(images>14||bytes>3670016)note('globalimagecap');
 if(exitArg!=='2')note('observationchildmustexit2');
-const verdict=anyFail?'TEST_FAILURE':reasons.length||!collected?'INCONCLUSIVE':'SYNTHETIC_METADATA_COLLECTED';
+const verdict=anyFail?'TEST_FAILURE':reasons.length||!collected?'INCONCLUSIVE':'DEFAULT_SESSION_SYNTHETIC_METADATA_COLLECTED';
 console.log(`OBS_VERDICT ${verdict} childExit=${exitArg} reasons=${reasons.length} images=${images}`);
 for(const r of reasons)console.log('OBS_REASON '+r);
 for(const b of browsers)console.log(`OBS_PHASES ${b} `+required.map(s=>`${s}=${status(b,s)}`).join(','));
-console.log('OBS_NOTE FULL_GATE NOT_PASS. SYNTHETIC_METADATA_COLLECTED means bounded synthetic metadata and stable selection records only, not consumer-device/personal-session compatibility or no physical window activation during setup. Reconnectdenial and causalrevocation remain UNKNOWN. Actual PNG decode/executor+main pixelreview mandatory. Refusal=>STOP, no retry/guardrelaxation.');
+console.log('OBS_NOTE FULL_GATE NOT_PASS. DEFAULT_SESSION_SYNTHETIC_METADATA_COLLECTED means bounded synthetic metadata in initially absent normal default-root sessions on hosted Windows Server only, plus stable selection records; no consumer Windows11, all-profile or ordinary personal-data proof, not consumer-device/personal-session compatibility or no physical window activation during setup. Reconnectdenial and causalrevocation remain UNKNOWN. Actual PNG decode/executor+main pixelreview mandatory. Refusal=>STOP, no retry/guardrelaxation.');
 process.exit(anyFail?1:0);

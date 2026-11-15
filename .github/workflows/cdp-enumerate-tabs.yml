@@ -1,7 +1,7 @@
 name: cdp-enumerate-tabs
-# LOCAL consent+metadata candidate. NOT permission to push or run.
+# LOCAL C1 default-directory existing-session candidate. NOT permission to push or run.
 # ONE separately reviewed atomicbranch update only, no dispatch/retry.
-# Synthetic profiles only: exact native-owned Allow Invoke then one read-only
+# Fresh default roots in ephemeral runner account only: exact native-owned Allow Invoke then one read-only
 # Target.getTargets. No user profile/product/release modifications.
 on:
   push:
@@ -26,10 +26,10 @@ jobs:
         shell: pwsh
         run: |
           $expected = @{
-            'startapp-cdp-feasibility/observe-prompt.ps1' = 'd52f654572dd14217afc9da0476e6884e9f5ebf2b33b6dbf13cb56defcda11b6'
+            'startapp-cdp-feasibility/observe-prompt.ps1' = 'c378ed4724ff531191b36b66207a0d7a254fb50cca27807d6aea8779c346feac'
             'startapp-cdp-feasibility/observe-socket.mjs' = '34afdce9f341adc42e6ce47043997d4b8d32da7d1baa7e29c13ed0f0322bc444'
             'startapp-cdp-feasibility/consent-targets.mjs' = 'cbc38ee75344b3195e02b10f01a38efed436b2e5c717c9119ddddbd36cb4d6ab'
-            'startapp-cdp-feasibility/classify-observation.mjs' = '9153d1bdcc17cb53837dcd0835ca16e4e5435cccb11dfbbc98d33c6aa4dd7305'
+            'startapp-cdp-feasibility/classify-observation.mjs' = '7fb2ee5e9634febbc5ef42d3d0a891809c12fafe1bcf6e554249fa0c54e211c9'
             'startapp-cdp-feasibility/extract-observation.py' = '2aef204911265146230c3535c18f4955d64f52706c37befaf9e9285b6b3bcd08'
             'startapp-cdp-feasibility/.gitattributes' = 'a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9'
           }

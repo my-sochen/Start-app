@@ -1,6 +1,23 @@
-# LOCAL consent+metadata candidate. No push/run authority. Fresh synthetic profiles ONLY.
+# LOCAL C1 default-directory consent+metadata candidate. No push/run authority. Clean ephemeral runner ONLY.
 param([string]$OutDir='cdp-enumerate-out')
 $ErrorActionPreference='Stop'
+function ReviewedProductAllowed($value) {
+ if($value -isnot [string] -or $value -cnotmatch '\A7\.5\.4 SHA: (?<commit>[0-9a-f]{7,40})\z'){return $false}
+ return '7c8d9e7e0ed2fc1f2caf50746fe9fef720ca2a0a'.StartsWith($Matches.commit,[StringComparison]::Ordinal)
+}
+function ReviewedRuntimeAllowed($f) {
+ return ($f.windows -eq $true -and $f.ps -ceq '7.5.4' -and $f.gitCommit -ceq '7.5.4' -and $f.edition -ceq 'Core' -and $f.runtime -ceq '9.0.10' -and $f.commandType -ceq 'Cmdlet' -and $f.module -ceq 'Microsoft.PowerShell.Management' -and $f.assembly -ceq 'Microsoft.PowerShell.Commands.Management' -and (ReviewedProductAllowed $f.product) -and $f.assemblyInPSHome -eq $true -and $f.nodeApplication -eq $true)
+}
+function AssertReviewedRuntime {
+ $cmd=Get-Command 'Microsoft.PowerShell.Management\Start-Process' -CommandType Cmdlet -ErrorAction Stop
+ $node=Get-Command node.exe -CommandType Application -ErrorAction Stop
+ $location=$cmd.ImplementingType.Assembly.Location
+ $expected=Join-Path $PSHOME 'Microsoft.PowerShell.Commands.Management.dll'
+ $facts=@{windows=[Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([Runtime.InteropServices.OSPlatform]::Windows);ps=$PSVersionTable.PSVersion.ToString();gitCommit=[string]$PSVersionTable.GitCommitId;edition=[string]$PSVersionTable.PSEdition;runtime=[Environment]::Version.ToString();commandType=$cmd.CommandType.ToString();module=$cmd.ModuleName;assembly=$cmd.ImplementingType.Assembly.GetName().Name;product=(Get-Item -LiteralPath $location).VersionInfo.ProductVersion;assemblyInPSHome=[StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($location),[IO.Path]::GetFullPath($expected));nodeApplication=($node.CommandType -eq [Management.Automation.CommandTypes]::Application -and [IO.Path]::IsPathFullyQualified($node.Path))}
+ if(-not(ReviewedRuntimeAllowed $facts)){throw 'Reviewed experiment unavailable: requires exact Windows PowerShell7.5.4/Core/.NET9.0.10 and reviewed built-in current-user redirected launch path; no alternate runtime or retry'}
+ return $node.Path
+}
+try{$script:reviewedNode=AssertReviewedRuntime}catch{Write-Host ('OBS_RUNTIME_UNAVAILABLE '+$_.Exception.Message);exit 2}
 $OutDir=[IO.Path]::GetFullPath($OutDir)
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $records=[Collections.Generic.List[object]]::new()
@@ -10,8 +27,89 @@ function Record($browser,$step,$status,$detail) {
  Write-Host ('OBS_RECORD '+($r | ConvertTo-Json -Depth 8 -Compress))
  $records | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 (Join-Path $OutDir 'assertions.json')
 }
+# Normal default-directory launches have no profile argument in their command line.
+# Do not replace old attribution with a broad executable-name match: fail on ANY unknown process.
+$script:ownership=$null
+$script:helperCleanupUnconfirmed=$false
+function BirthKey($row) {
+ if($null -eq $row.CreationDate){throw 'Missing process birth identity'}
+ return ([DateTime]$row.CreationDate).ToUniversalTime().Ticks.ToString()
+}
+function ProcessAllowed($row,$state) {
+ if($null -eq $row -or -not $row.ProcessId -or -not $row.ExecutablePath -or -not $row.CommandLine){return $false}
+ if(-not [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($row.ExecutablePath),$state.exe)){return $false}
+ # No debugging switch or custom user-data directory, even if the path happens to be expected.
+ if($row.CommandLine -match '(?i)--(?:user-data-dir|remote-debugging-port|remote-debugging-pipe)(?:[=\s]|$)'){return $false}
+ try{$birth=BirthKey $row}catch{return $false}
+ $id=[string]$row.ProcessId
+ if(-not $state.known.ContainsKey($id)){return $false}
+ $known=$state.known[$id]
+ return ($known.birth -ceq $birth -and $known.parent -eq [int]$row.ParentProcessId)
+}
 function Processes($profile,$exeName) {
- @(Get-CimInstance Win32_Process -Filter "Name='$exeName'" | Where-Object {$_.CommandLine -and $_.CommandLine.Contains($profile)})
+ $state=$script:ownership
+ if($null -eq $state -or -not [StringComparer]::OrdinalIgnoreCase.Equals($profile,$state.profile) -or $exeName -cne $state.exeName){throw 'No exact default-session ownership context'}
+ $allRows=@(Get-CimInstance Win32_Process)
+ $rows=@($allRows | Where-Object {[StringComparer]::OrdinalIgnoreCase.Equals($_.Name,$exeName)})
+ # Read current process tree once, expand only from an already recorded birth-bound root.
+ $pending=[Collections.Generic.List[object]]::new();foreach($row in $rows){$pending.Add($row)}
+ for($round=0;$round -le $rows.Count -and $pending.Count;$round++){
+  $progress=$false
+  foreach($row in @($pending.ToArray())){
+   $id=[string]$row.ProcessId;$parent=[string]$row.ParentProcessId
+   if($state.known.ContainsKey($id)){
+    if(-not(ProcessAllowed $row $state)){throw 'Owned PID identity changed or prohibited browser switch'}
+    [void]$pending.Remove($row);$progress=$true;continue
+   }
+   if(-not $state.known.ContainsKey($parent)){continue}
+   $parentKnown=$state.known[$parent];$birth=BirthKey $row
+   if([long]$birth -lt [long]$parentKnown.birth){throw 'Process predates recorded parent'}
+   $liveParent=@($allRows | Where-Object {[string]$_.ProcessId -ceq $parent})
+   if($liveParent.Count -ne 1){throw 'Unrecorded child requires its exact live parent; historical ancestry insufficient'}
+   if(-not(ProcessAllowed $liveParent[0] $state)){throw 'Parent PID reused or changed'}
+   $state.known[$id]=@{birth=$birth;parent=[int]$row.ParentProcessId;launch=$false}
+   if(-not(ProcessAllowed $row $state)){[void]$state.known.Remove($id);throw 'Foreign child process or prohibited browser switch'}
+   [void]$pending.Remove($row);$progress=$true
+  }
+  if(-not $progress){break}
+ }
+ if($pending.Count){throw 'Unattributed same-browser process; no broad name fallback'}
+ return $rows
+}
+function StartOwnedBrowser($exe,$arguments) {
+ $state=$script:ownership
+ # Detect any foreign same-browser process BEFORE adding another deliberately launched root.
+ if($state.known.Count){[void]@(Processes $state.profile $state.exeName)}
+ elseif(@(Get-CimInstance Win32_Process -Filter "Name='$($state.exeName)'").Count){throw 'Browser appeared before initial launch'}
+ [void](AssertReviewedRuntime)
+ $started=Microsoft.PowerShell.Management\Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
+ $started.Refresh()
+ [void]$started.Handle # Bind exact live process object before accepting CIM identity.
+ if($started.HasExited){throw 'Launch root exited before birth-bound ownership could be recorded'}
+ $row=@(Get-CimInstance Win32_Process -Filter "ProcessId=$($started.Id)")
+ if($row.Count -ne 1 -or $row[0].ParentProcessId -ne $PID){throw 'Exact launch root/parent not proven'}
+ if((BirthKey $row[0]) -cne $started.StartTime.ToUniversalTime().Ticks.ToString()){throw 'Launch process birth mismatch; no timestamp-tolerance fallback'}
+ $id=[string]$started.Id
+ if($state.known.ContainsKey($id)){throw 'Launch PID already recorded'}
+ $state.known[$id]=@{birth=(BirthKey $row[0]);parent=[int]$row[0].ParentProcessId;launch=$true}
+ if(-not(ProcessAllowed $row[0] $state)){throw 'Launch path/switch identity refused'}
+ Diagnostic $state.exeName 'owned-normal-launch' @{pid=[int]$started.Id;birth=$state.known[$id].birth;parent=[int]$row[0].ParentProcessId;exe=$state.exe;defaultRoot=$state.profile;normalSwitchesOnly=$true}
+ return $started
+}
+function StopOwnedProcess($row) {
+ $state=$script:ownership
+ if(-not(ProcessAllowed $row $state)){throw 'Cleanup row no longer birth/path owned'}
+ $proc=$null
+ try {
+  $proc=[Diagnostics.Process]::GetProcessById([int]$row.ProcessId)
+  # Force opening the exact process handle before comparing birth, then kill through that object.
+  [void]$proc.Handle
+  if($proc.StartTime.ToUniversalTime().Ticks.ToString() -cne (BirthKey $row)){throw 'Cleanup process handle birth mismatch; no kill'}
+  $proc.Kill()
+ }catch{
+  # An exited PID is harmless only if it is still absent; never kill a replacement.
+  if(@(Get-CimInstance Win32_Process -Filter "ProcessId=$($row.ProcessId)").Count){throw}
+ }finally{if($proc){$proc.Dispose()}}
 }
 function Windows($profile,$exeName) {
  $ids=@(Processes $profile $exeName | ForEach-Object {[int]$_.ProcessId})
@@ -120,9 +218,15 @@ function CanonSelection($items) {
  @($items | Sort-Object hwnd,fixture | ForEach-Object {[pscustomobject]@{hwnd=$_.hwnd;fixture=$_.fixture;selected=$_.selected}}) | ConvertTo-Json -Compress
 }
 function ValidSelection($items) {
- if($items.Count -ne 3 -or @($items.hwnd | Select-Object -Unique).Count -ne 2 -or @($items.title | ForEach-Object {($_ -split '\s')[0]} | Select-Object -Unique).Count -ne 3){return $false}
- foreach($g in ($items | Group-Object hwnd)){if(@($g.Group | Where-Object {$_.selected -eq $true}).Count -ne 1){return $false}}
- return $true
+ if($items.Count -ne 3){return $false}
+ foreach($x in $items){
+  if($null -eq $x -or $x.hwnd -le 0 -or $x.selected -isnot [bool] -or $x.fixture -cnotmatch '^StartAppFixture[ABC]$' -or ($x.title -split '\s')[0] -cne $x.fixture){return $false}
+ }
+ $a=@($items | Where-Object {$_.fixture -ceq 'StartAppFixtureA'})
+ $b=@($items | Where-Object {$_.fixture -ceq 'StartAppFixtureB'})
+ $c=@($items | Where-Object {$_.fixture -ceq 'StartAppFixtureC'})
+ if($a.Count -ne 1 -or $b.Count -ne 1 -or $c.Count -ne 1){return $false}
+ return ($a[0].hwnd -eq $b[0].hwnd -and $c[0].hwnd -ne $a[0].hwnd -and $a[0].selected -eq $true -and $b[0].selected -eq $false -and $c[0].selected -eq $true)
 }
 function Picture($name,$phase,$window) {
  try {$d=Capture "$name-$phase" $window;Record $name $phase 'PASS' ($d | ConvertTo-Json -Compress);return $true}
@@ -341,6 +445,13 @@ function InvokeOwnedConsent($name,$profile,$exeName,$inspectHandle,$uri,$onsetId
  Diagnostic $name 'consent-return' @{returned=$true;buttonRuntimeId=$node.runtimeId}
  return [pscustomobject]@{invoked=$true;identity=$c;button=$node;root=$tree.nodes[0];warningMatched=$true;treeStable=$true;attempted=$true;returned=$true}
 }
+function StopRetainedHelper($helper,$retainedHandle) {
+ # Never resolve a numeric PID during helper cleanup. An exited handle remains the original process.
+ if($null -eq $helper -or $retainedHandle -eq [IntPtr]::Zero){throw 'No retained helper handle; no termination attempted'}
+ if($helper.Handle -ne $retainedHandle){throw 'Helper handle changed; no termination attempted'}
+ if(-not $helper.HasExited){$helper.Kill()}
+ if(-not $helper.WaitForExit(5000)){throw 'Retained helper exit not confirmed'}
+}
 function ObserveSocketAttempt($name,$phase,$profile,$exeName,$inspectWindow) {
  $inspectHandle=[IntPtr]$inspectWindow.Current.NativeWindowHandle
  $eligible=@(Windows $profile $exeName | Where-Object {$_.Current.NativeWindowHandle -eq $inspectHandle})
@@ -349,9 +460,13 @@ function ObserveSocketAttempt($name,$phase,$profile,$exeName,$inspectWindow) {
  $result=Join-Path $OutDir "$name-$phase-result.json";$stdout=Join-Path $OutDir "$name-$phase-stdout.txt";$stderr=Join-Path $OutDir "$name-$phase-stderr.txt"
  $signal=Join-Path $OutDir "$name-invoked.json";$manifest=Join-Path $OutDir "$name-manifest.json"
  if(Test-Path $signal){throw 'Stale consent signal'}
- $p=Start-Process 'node.exe' -ArgumentList @('"'+(Join-Path $PSScriptRoot 'consent-targets.mjs')+'"','"'+(Join-Path $profile 'DevToolsActivePort')+'"','"'+$result+'"','"'+$signal+'"','"'+$manifest+'"') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+ $nodePath=AssertReviewedRuntime
+ $p=Microsoft.PowerShell.Management\Start-Process -FilePath $nodePath -ArgumentList @('"'+(Join-Path $PSScriptRoot 'consent-targets.mjs')+'"','"'+(Join-Path $profile 'DevToolsActivePort')+'"','"'+$result+'"','"'+$signal+'"','"'+$manifest+'"') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+ $retainedHandle=[IntPtr]::Zero
  $onset=$false;$end=$false;$attempted=$false;$invoked=$false;$proof=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
  try {
+  $retainedHandle=$p.Handle
+  if($retainedHandle -eq [IntPtr]::Zero){throw 'Helper process handle unavailable; no consent input'}
   for($i=0;$i -lt 193 -and $clock.ElapsedMilliseconds -le 48000;$i++){
    $s=ObservationSnapshot $profile $exeName $inspectHandle $uri
    if($s.eligible -and -not $attempted){
@@ -368,11 +483,14 @@ function ObserveSocketAttempt($name,$phase,$profile,$exeName,$inspectWindow) {
    }
    if($p.HasExited){break};Start-Sleep -Milliseconds 250
   }
-  if(-not $p.HasExited){Stop-Process -Id $p.Id -ErrorAction Stop}
+  StopRetainedHelper $p $retainedHandle
   $p.Refresh();$exitCode=if($p.HasExited){$p.ExitCode}else{-1}
   $r=if(Test-Path $result){Get-Content -Raw $result | ConvertFrom-Json}else{[pscustomobject]@{state='no_result'}}
   [pscustomobject]@{result=$r;helperExit=$exitCode;promptSeen=[bool]($onset -and $end);decisionApplied=$invoked;decision='single-Allow';onsetEvidence=[bool]$onset;endEvidence=[bool]$end;inputAttempted=$attempted;consentProof=$proof}
- }finally{try{if(-not $p.HasExited){Stop-Process -Id $p.Id -ErrorAction Stop}}catch{Write-Warning 'Synthetic helper cleanup not confirmed'}}
+ }finally{
+  try{StopRetainedHelper $p $retainedHandle}catch{$script:helperCleanupUnconfirmed=$true;Record $name 'probe' 'UNKNOWN' ('Retained helper cleanup not confirmed: '+$_.Exception.Message)}
+  finally{$p.Dispose()}
+ }
 }
 
 try {
@@ -395,22 +513,43 @@ public static class PromptNative {
 }
 '@
 }catch{Record 'all' 'preflight' 'UNKNOWN' $_.Exception.Message;Record 'all' 'complete' 'INFO' 'Preflight incomplete';exit 2}
-Record 'all' 'scope' 'INFO' 'Fresh synthetic profiles only. One exact owned Allow Invoke and ONE Target.getTargets per browser; no other protocol method, activation or selection input during bracket. No personal profile/product/release changes. Full gate remains NOT_PASS.'
+Record 'all' 'scope' 'INFO' 'C1 only: fresh default user-data roots in a pristine ephemeral runner account, normal launches, synthetic fixtures only. One exact owned Allow Invoke and ONE Target.getTargets per browser; no other protocol method, activation or selection input during bracket. No personal profile/product/release changes. Full gate remains NOT_PASS.'
 $browsers=@(
- @{name='chrome';exe="${env:ProgramFiles}\Google\Chrome\Application\chrome.exe";uri='chrome://inspect/#remote-debugging'},
- @{name='edge';exe="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe";uri='edge://inspect/#remote-debugging'}
+ @{name='chrome';defaultRoot=(Join-Path $env:LOCALAPPDATA 'Google/Chrome/User Data');exe="${env:ProgramFiles}\Google\Chrome\Application\chrome.exe";versionUri='chrome://version';uri='chrome://inspect/#remote-debugging'},
+ @{name='edge';defaultRoot=(Join-Path $env:LOCALAPPDATA 'Microsoft/Edge/User Data');exe="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe";versionUri='edge://version';uri='edge://inspect/#remote-debugging'}
 )
 foreach($browser in $browsers) {
  $name=$browser.name;$exe=$browser.exe;$exeName=[IO.Path]::GetFileName($exe)
- $root=Join-Path $env:TEMP ('startapp-enumerate-'+$name+'-'+[Guid]::NewGuid().ToString('N'));$profile=Join-Path $root 'profile'
- New-Item -ItemType Directory -Force $profile | Out-Null
+ $root=Join-Path $env:TEMP ('startapp-default-c1-'+$name+'-'+[Guid]::NewGuid().ToString('N'));$profile=[IO.Path]::GetFullPath($browser.defaultRoot)
+ $script:ownership=$null;$defaultInitiallyAbsent=$false;$defaultCreated=$false
  $toggle=$null;$inspectHandle=[IntPtr]::Zero
  try {
   if(-not(Test-Path $exe)){Record $name 'version' 'UNAVAILABLE' 'Browser binary missing';continue}
   $version=(Get-Item $exe).VersionInfo.FileVersion;Record $name 'version' 'INFO' $version
   if([int]($version.Split('.')[0]) -lt 144){Record $name 'version-floor' 'UNAVAILABLE' 'Consent route conservative floor144';continue}
-  Start-Process $exe -ArgumentList @('--no-first-run','--no-default-browser-check',"--user-data-dir=`"$profile`"",'--window-position=0,0','--window-size=1000,680','--new-window','about:blank') | Out-Null
+  # Hard refusal, never back up, copy, move or delete an existing default profile.
+  if(Test-Path -LiteralPath $profile){Record $name 'default-session' 'UNKNOWN' 'Default user-data root already exists; untouched, no launch';continue}
+  if(@(Get-CimInstance Win32_Process -Filter "Name='$exeName'").Count){Record $name 'default-session' 'UNKNOWN' 'Existing browser process; untouched, no launch';continue}
+  $defaultInitiallyAbsent=$true
+  $script:ownership=@{profile=$profile;exe=[IO.Path]::GetFullPath($exe);exeName=$exeName;known=@{}}
+  New-Item -ItemType Directory $root -ErrorAction Stop | Out-Null
+  [void](StartOwnedBrowser $exe @('--no-first-run','--no-default-browser-check','--window-position=0,0','--window-size=1000,680','--new-window','about:blank'))
+  $defaultCreated=WaitUntil {[void]@(Processes $profile $exeName);Test-Path -LiteralPath $profile}
+  if(-not $defaultCreated){throw 'Default root not created by normal launch'}
+
   if(-not(WaitUntil {@(Windows $profile $exeName).Count -eq 1})){Record $name 'navigation' 'UNKNOWN' 'Unique initial window not established';continue}
+  # Read the browser-owned version page to bind its actual Profile Path, not merely a conventional path guess.
+  $versionNav=NavigateInspect $profile $exeName $browser.versionUri
+  if(-not $versionNav.confirmed){throw 'Exact internal version page unavailable; default-profile binding unproven'}
+  $vw=@(Windows $profile $exeName);if($vw.Count -ne 1){throw 'Unique version window lost'}
+  $profilePath=Join-Path $profile 'Default'
+  $versionTexts=@(Descendants $vw[0] | Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Text})
+  $pathHits=@($versionTexts | Where-Object {[StringComparer]::OrdinalIgnoreCase.Equals($_.Current.Name,$profilePath)})
+  $labelHits=@($versionTexts | Where-Object {$_.Current.Name -ceq 'Profile Path'})
+  if($pathHits.Count -ne 1 -or $labelHits.Count -ne 1){throw 'Exact browser version Profile Path label/value not uniquely proven; no alternate path or data copy'}
+  $pathPid=$pathHits[0].Current.ProcessId;$allowedIds=@(Processes $profile $exeName | ForEach-Object {[int]$_.ProcessId})
+  if($allowedIds -notcontains $pathPid -or $allowedIds -notcontains $labelHits[0].Current.ProcessId){throw 'Version Profile Path elements not in owned process closure'}
+  Record $name 'default-session' 'INFO' (@{defaultRoot=$profile;profilePath=$profilePath;profilePathVerified=$true;versionUri=$browser.versionUri;initiallyAbsent=$true;normalLaunch=$true;customUserDataSwitch=$false;rootCount=$script:ownership.known.Count;note='Fresh unique browser-owned version Profile Path exact label/value plus launch birth/exe/ancestry; hostedServer synthetic only'} | ConvertTo-Json -Compress)
   $nav=NavigateInspect $profile $exeName $browser.uri
   Record $name 'navigation' $(if($nav.confirmed){'PASS'}else{'UNKNOWN'}) ($nav | ConvertTo-Json -Compress)
   $ws=@(Windows $profile $exeName);if($ws.Count -ne 1){throw 'Unique inspect window lost'};$inspect=$ws[0]
@@ -422,11 +561,11 @@ foreach($browser in $browsers) {
   if($toggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off){Record $name 'inspect-toggle' 'UNKNOWN' 'Fresh profile checkbox unexpectedly not Off';$toggle=$null;continue}
   $urls=@()
   foreach($letter in @('A','B','C')){$f=Join-Path $root "fixture-$letter.html";Set-Content -Encoding utf8 $f "<!doctype html><title>StartAppFixture$letter</title><h1>Fixture $letter</h1>";$urls+=([Uri]$f).AbsoluteUri}
-  Start-Process $exe -ArgumentList @("--user-data-dir=`"$profile`"",'--new-window',$urls[0],$urls[1]) | Out-Null
+  [void](StartOwnedBrowser $exe @('--new-window',$urls[0],$urls[1]))
   if(-not(WaitUntil {@(Selection $profile $exeName).Count -eq 2})){Record $name 'fixture' 'UNKNOWN' 'Initial two fixture tabs unavailable';continue}
-  Start-Process $exe -ArgumentList @("--user-data-dir=`"$profile`"",'--new-window',$urls[2]) | Out-Null
-  if(-not(WaitUntil {ValidSelection @(Selection $profile $exeName)})){Record $name 'fixture' 'UNKNOWN' '3tabs/2windows/exactly one selected each not proven';continue}
-  Record $name 'fixture' 'PASS' 'Three synthetic tabs across two fixture windows; one selected per window'
+  [void](StartOwnedBrowser $exe @('--new-window',$urls[2]))
+  if(-not(WaitUntil {ValidSelection @(Selection $profile $exeName)})){Record $name 'fixture' 'UNKNOWN' 'Required Aselected/Binactive samewindow plus Cselected separatewindow not proven';continue}
+  Record $name 'fixture' 'PASS' 'Aselected and Binactive in same fixture window; Cselected in separate fixture window'
   $initial=@(Selection $profile $exeName)
   if(-not(FixturePictures $name 'before' $profile $exeName $initial)){Record $name 'inspect-toggle' 'UNKNOWN' 'Required fixture-before evidence incomplete; enable and connection not attempted';continue}
   $inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle
@@ -442,7 +581,7 @@ foreach($browser in $browsers) {
   if(-not(WaitToggleState $name 'enable-state' $profile $exeName $inspectHandle $browser.uri 'On')){Record $name 'inspect-toggle' 'UNKNOWN' 'On not established by bounded fresh reads; see diagnostic states/errors';continue}
   Record $name 'inspect-toggle' 'PASS' 'One exact disposable-checkbox enable call returned and fresh On state observed; synthetic only'
   if(-not(WaitUntil {Test-Path (Join-Path $profile 'DevToolsActivePort')} 12)){Record $name 'endpoint' 'UNKNOWN' 'No synthetic endpoint file; no flag fallback';continue}
-  Record $name 'endpoint' 'PASS' 'Endpoint exists in unique disposable profile'
+  Record $name 'endpoint' 'PASS' 'Endpoint exists in initially absent default-root for this recorded test-owned normal session'
   $manifest=@();for($i=0;$i -lt 3;$i++){$letter='ABC'[$i].ToString();$manifest+=[pscustomobject]@{label=$letter;title="StartAppFixture$letter";url=$urls[$i]}}
   $manifest | ConvertTo-Json -Compress | Set-Content -Encoding utf8 (Join-Path $OutDir "$name-manifest.json")
   $inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle
@@ -486,14 +625,20 @@ foreach($browser in $browsers) {
   # Deliberately no claim that a generic post-disable error proves revocation.
   Record $name 'post-disable-unavailable' 'UNKNOWN' 'Not an enforcement proof; scoped diagnostic does not establish causal revocation'
   try {
-   @(Processes $profile $exeName) | ForEach-Object {$processId=[int]$_.ProcessId;try{Stop-Process -Id $processId -Force -ErrorAction Stop}catch{if(Get-Process -Id $processId -ErrorAction SilentlyContinue){throw}}}
+   if($null -eq $script:ownership){throw 'No ownership context; no process or default-directory deletion attempted'}
+   @(Processes $profile $exeName) | ForEach-Object {StopOwnedProcess $_}
    if(-not(WaitUntil {@(Processes $profile $exeName).Count -eq 0} 5)){throw 'Synthetic browser processes remain'}
-   Remove-Item -LiteralPath $root -Recurse -Force;Record $name 'cleanup' 'PASS' 'Only unique test-profile processes/temp directory removed'
+   # Deliberately never recursively delete a default-root, even when initially absent.
+   # Browser-created data belongs to disposable runner lifetime; preserving it avoids destructive default-profile cleanup.
+   if(Test-Path -LiteralPath $root){Remove-Item -LiteralPath $root -Recurse -Force}
+   Record $name 'cleanup' 'PASS' 'Birth-bound test processes stopped and GUID fixture directory removed; default root left for ephemeral runner disposal, never deleted'
   }catch{Record $name 'cleanup' 'UNKNOWN' $_.Exception.Message}
   foreach($phase in @('version','navigation','inspect-before','fixture','before-window1','before-window2','inspect-toggle','endpoint','first-consent','enumeration','fixture-selection-unchanged','prompt-observation','socket-observation','after-window1','after-window2','reconnect-denied','disable','cleanup')){if(@($records | Where-Object {$_.browser -eq $name -and $_.step -eq $phase}).Count -eq 0){Record $name $phase 'UNKNOWN' 'Not reached or evidence unavailable'}}
-  Record $name 'complete' 'INFO' 'Bounded browser diagnostic finished; unknown remains inconclusive'
+  Record $name 'complete' 'INFO' 'C1 default-session diagnostic finished; lifecycle/reconnect/causalOff/consumerWin11 untested'
+  $script:ownership=$null
  }
+ if($script:helperCleanupUnconfirmed){break} # No second browser while helper closure is unproven.
 }
-Record 'all' 'complete' 'INFO' 'Both bounded loops finished; synthetic results only, no product implementation'
+Record 'all' 'complete' 'INFO' $(if($script:helperCleanupUnconfirmed){'Stopped remaining browser loop because helper cleanup unconfirmed; synthetic only'}else{'Both bounded loops finished; synthetic results only, no product implementation'})
 if(@($records | Where-Object {$_.status -in @('UNKNOWN','UNAVAILABLE','FAIL')}).Count){exit 2}
 exit 0
