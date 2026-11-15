@@ -1,0 +1,46 @@
+name: Raw observer synthetic fixture feature-only
+'on':
+  push:
+    branches: ['diag/raw-observer-fixture-v1']
+    paths:
+      - '.github/workflows/raw-observer-fixture.yml'
+      - 'diagnostic/**'
+permissions:
+  contents: read
+jobs:
+  compile-fixture:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/diag/raw-observer-fixture-v1'
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      # Pins copied from the existing reviewed DEV portable-entry workflow.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Require preinstalled SDK, no setup or install
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet --info
+          if ($LASTEXITCODE -ne 0) { throw 'UNSUPPORTED: dotnet unavailable' }
+          $sdks = dotnet --list-sdks
+          if (-not ($sdks -match '^10\.')) { throw 'UNSUPPORTED: preinstalled .NET 10 SDK unavailable' }
+      - name: Build exact fixture-only collector and synthetic fixture
+        shell: pwsh
+        working-directory: diagnostic
+        run: |
+          dotnet build observer/RawObserver.csproj -c Release -p:DefineConstants=FIXTURE_ONLY
+          if ($LASTEXITCODE -ne 0) { throw 'Observer compile failed' }
+          dotnet build fixture/RawObserverFixture.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Fixture compile failed' }
+      - name: Verify observation-only endpoints and refusal behavior
+        shell: pwsh
+        working-directory: diagnostic
+        run: ./run-fixture.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: raw-observer-synthetic-evidence
+          path: diagnostic/evidence/
+          if-no-files-found: warn
+          retention-days: 3
