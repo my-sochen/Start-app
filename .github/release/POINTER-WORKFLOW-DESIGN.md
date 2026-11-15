@@ -109,9 +109,13 @@ protection rules including required reviewers and an optional
 restrictions limit which refs may deploy to an environment. Fact established at
 review time (not from docs): the repo has push collaborators mysochen2,
 zamfa4 and mysochen3, so any policy reasoning that assumes "only the owner can
-push" is wrong for this repository. The CURRENT live state of the environment's
-protection rules and of branch protection on main was NOT inspected; nothing
-below asserts that protections are absent or present.
+push" is wrong for this repository. Live state as of 2026-11-15 (owner-approved
+hosting preparation): the github-pages environment exists with the OWNER as
+required reviewer and "prevent self-review" OFF (option 1 below, configured);
+main carries branch protection requiring a PR with owner review. OPEN ITEM:
+GitHub auto-created that environment with a main-only deployment-branch
+restriction, which would block release-event runs (they deploy from the tag
+ref) - flagged to the owner for a decision, not changed by us.
 
 RECOMMENDED BASELINE (a recommendation for Yitzhak to decide - NOT a configured
 or approved policy, no setting has been changed or chosen by us):

@@ -91,10 +91,18 @@ Nothing here publishes, tags, hosts, or enables a download on its own.
 
 ## What remains for the owner (settings, all owner-gated)
 
-1. Approve this activation slice (reviewed code, exact merge approval).
-2. Approve the hosting prep package: enable Pages (Actions source), create the
-   `prototype-release` and `github-pages` Environments with required
-   reviewers, verify the protection actually prompts.
+Done in the owner-approved hosting preparation (2026-11-15): Pages source set
+to GitHub Actions (nothing deployed; the address 404s until an approved
+deploy); `prototype-release` and `github-pages` Environments created, each
+with the OWNER as required reviewer and "prevent self-review" OFF (self-review
+allowed: the owner's own runs pause for his own explicit approval click).
+Open settings conflict flagged to the owner: the auto-created `github-pages`
+environment carries a main-only deployment-branch restriction that would block
+release-event runs (tag refs); not changed by us.
+
+1. Decide the `github-pages` deployment-branch restriction (keep main-only and
+   accept dispatch-only deploys, or relax it so release-event tag refs deploy).
+2. Approve this activation slice (reviewed code, exact merge approval).
 3. Create repository variable PROTOTYPE_RELEASE_ENABLE=true.
 4. First run is a manually dispatched, explicitly approved trial with version,
    sha and evidence recorded; maintenance afterwards is per-event by request
