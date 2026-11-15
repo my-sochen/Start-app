@@ -1,0 +1,96 @@
+name: cdp-consent-probe
+
+# Wrapper-lane candidate for the v3 synthetic consent diagnostic.
+# REVIEW ARTIFACT - not authorized for push or execution by this delivery.
+#
+# Route (v3 contract): dedicated exact-name branch push only.
+#   - No default-branch merge, no workflow_dispatch bootstrap, no wildcard,
+#     no schedule, no pull_request, no release trigger.
+#   - A push to this branch STARTS A RUN and consumes Actions minutes. That
+#     push requires its own separate approval; this file grants nothing.
+#   - Standard windows-latest compute is free on a verified PUBLIC repo per
+#     https://docs.github.com/en/billing/concepts/product-billing/github-actions
+#     Artifact storage allowance is separate and NOT assumed: upload is locked
+#     OFF below. Re-verify repo visibility and runner class before any push.
+#
+# A green job is never substantive PASS. The classification step prints the
+# verdict; v3 intentionally cannot produce a full consent gate PASS.
+
+on:
+  push:
+    branches:
+      - 'test/cdp-consent-isolated-v1'
+    paths:
+      - '.github/workflows/cdp-consent-probe.yml'
+      - 'startapp-cdp-feasibility/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdp-consent-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  diagnostic:
+    # Deletion guard: a branch-delete push must never run the diagnostic.
+    if: ${{ github.event.deleted != true }}
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      EXPECT_HELPER_SHA256: 'e3cf9ab79d66fb3841ba04787899eeec6f4272e05c4b3670bbdab22ab4e5b1c7'
+      EXPECT_PROBE_SHA256: '8650f9b088234f16656cd9766d1cc410cda8e80fe75bd2e78edad056c118a5f5'
+    steps:
+      - name: Checkout pushed revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Node 24 (helper needs Node 22+; wrapper targets 24)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Verify toolchain and author-byte integrity (LF-preserving)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nodeVersion = (& node.exe --version)
+          if ($nodeVersion -notmatch '^v24\.') {
+            Write-Host "::error::Node 24.x required, found $nodeVersion"
+            exit 1
+          }
+          Write-Host "Toolchain: node $nodeVersion, PS $($PSVersionTable.PSVersion)"
+          $expected = [ordered]@{
+            'startapp-cdp-feasibility/read-targets.mjs'          = $env:EXPECT_HELPER_SHA256
+            'startapp-cdp-feasibility/windows-consent-probe.ps1' = $env:EXPECT_PROBE_SHA256
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = (Get-FileHash -Algorithm SHA256 -Path $entry.Key).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.Value) {
+              Write-Host "::error::Author-byte integrity FAILED for $($entry.Key): got $actual, expected $($entry.Value). Refusing to run unreviewed bytes (content or line-ending drift)."
+              exit 1
+            }
+            Write-Host "Integrity OK: $($entry.Key) = $actual"
+          }
+
+      - name: Run synthetic consent probe (raw child exit preserved; step never fails)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force cdp-feasibility-out | Out-Null
+          pwsh -NoProfile -File startapp-cdp-feasibility/windows-consent-probe.ps1 -OutDir cdp-feasibility-out
+          $code = $LASTEXITCODE
+          if ($null -eq $code) { $code = -1 }
+          Set-Content -Encoding ascii -Path cdp-feasibility-out/probe-exit-code.txt -Value $code
+          Write-Host "Probe child exit code preserved: $code"
+          Write-Host 'Classification (next step) decides the verdict; nonzero child is INCONCLUSIVE, never silently green.'
+          exit 0
+
+      - name: Classify assertions against the v3 contract
+        shell: pwsh
+        run: |
+          node startapp-cdp-feasibility/classify-assertions.mjs cdp-feasibility-out/assertions.json cdp-feasibility-out/probe-exit-code.txt
+          exit $LASTEXITCODE
+
+      # NO artifact upload step by design: screenshots and output stay on the
+      # ephemeral runner (upload LOCKED OFF pending a separate reviewed
+      # audience/storage decision). Console logs are visible to the repository
+      # audience; fixture-only data only.
