@@ -139,8 +139,6 @@
       if (els.detail && els.detail.parentNode) els.detail.parentNode.hidden = false;
       if (metaTarget) {
         const size = formatSize(p.size);
-        const honesty =
-          "הפרטים נלקחו ממידע הגרסה. הקובץ לא נבדק מחדש בדף זה.";
         if (typeof metaTarget.replaceChildren === "function" && typeof document !== "undefined") {
           // Real DOM: scoped elements keep LTR data readable and unbreakable
           // (tags/versions never split on narrow screens); only the long hash
@@ -157,7 +155,6 @@
             nodes.push(mk("ptr-row", "קוד אימות (SHA-256):"));
             nodes.push(mk("ptr-sha", p.sha256));
           }
-          nodes.push(mk("ptr-honesty", honesty));
           metaTarget.replaceChildren.apply(metaTarget, nodes);
         } else {
           // Text-only fallback (offline tests): Unicode isolates carry the
@@ -165,7 +162,6 @@
           const parts = ["גרסה: " + ltr(p.version)];
           if (size) parts.push(ltr(size));
           if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
-          parts.push(honesty);
           metaTarget.textContent = parts.join("\n");
         }
       }

@@ -120,8 +120,8 @@ for (const path of ["/", "/docs.html"]) {
     if (state === "ok") {
       ok(!s.disabled && s.onclick && s.cursor === "pointer", `${tag} ok: CTA enabled with handler`);
       ok(s.label === "הורדה ל־Windows", `${tag} ok: label carries tag`);
-      ok(!s.detailHidden && s.detailText.includes("0.1.0-proto.3") && s.detailText.includes("a".repeat(64)) && s.detailText.includes("הקובץ לא נבדק מחדש"),
-         `${tag} ok: version/sha/honesty inside the verification panel`);
+      ok(!s.detailHidden && s.detailText.includes("0.1.0-proto.3") && s.detailText.includes("a".repeat(64)) && !s.detailText.includes("הקובץ לא נבדק מחדש"),
+         `${tag} ok: version/sha retained and implementation disclaimer absent`);
       ok(!s.note.includes("sha256") && s.note.length < 90, `${tag} ok: visible note stays short`);
       ok(s.badge === undefined || s.badge === "גרסת אב-טיפוס זמינה להורדה", `${tag} ok: badge truthful`);
       ok(await clickCta(page), `${tag} ok: click targets the exact pinned release URL`);
