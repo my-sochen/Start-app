@@ -100,6 +100,15 @@ const grab = (page) => page.evaluate(() => {
     main: { disabled: main.disabled, onclickIsFn: typeof main.onclick === "function",
             label: main.textContent.trim(),
             note: document.getElementById("download-state").textContent.trim() },
+    labelTag: (() => {
+      const spans = [hero.querySelector("span .ptr-ltr"), main.querySelector(".ptr-ltr")];
+      return spans.map((el) => el ? {
+        text: el.textContent,
+        nowrap: getComputedStyle(el).whiteSpace === "nowrap",
+        fits: el.getBoundingClientRect().width <= document.documentElement.clientWidth,
+        oneLine: el.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(el).fontSize),
+      } : null);
+    })(),
   };
 });
 
@@ -111,8 +120,10 @@ ok(!s.hero.disabled && !s.main.disabled, "ok: both CTAs enabled");
 ok(s.heroStyle.cursor === "pointer" && s.heroStyle.bg === "rgb(36, 87, 73)", "ok: hero CTA enabled styling (pointer + design green)");
 ok(s.ptr.hasLtr && s.ptr.hasSha && s.ptr.ltrNoWrap && s.ptr.ltrFits, "ok: note metadata uses nowrap LTR spans that fit the viewport");
 ok(s.hero.onclickIsFn && s.main.onclickIsFn, "ok: both CTAs have onclick handlers");
-ok(s.hero.label === "הורדה ל־Windows - \u2066v0.1.0-proto.3\u2069", "ok: hero label carries isolated tag");
-ok(s.main.label === "הורדה ל־Windows - \u2066v0.1.0-proto.3\u2069", "ok: main label carries isolated tag");
+ok(s.hero.label.includes("v0.1.0-proto.3") && s.main.label.includes("v0.1.0-proto.3"), "ok: both CTA labels carry the tag");
+ok(s.labelTag[0] && s.labelTag[1] &&
+   s.labelTag.every((x) => x.nowrap && x.fits && x.oneLine && x.text === "v0.1.0-proto.3"),
+   "ok: CTA label version token is a nowrap unbroken span that fits");
 ok(s.main.note.includes("0.1.0-proto.3") && s.main.note.includes("sha256: " + "a".repeat(64)), "ok: note carries version+sha256 (scoped spans)");
 ok(s.main.note.includes("הבייטים עצמם לא נבדקו מחדש"), "ok: note carries the no-byte-reverification honesty sentence");
 ok(s.badge === "גרסת אב-טיפוס זמינה להורדה", "ok: badge truthful");
@@ -128,7 +139,8 @@ await page.screenshot({ path: join(SHOTS, "ok-mobile-390.png"), fullPage: true }
 await page.setViewport({ width: 320, height: 700 });
 const s320 = await grab(page);
 ok(!s320.overflowX, "ok 320: no horizontal overflow");
-ok(s320.ptr.ltrFits && s320.ptr.ltrNoWrap, "ok 320: version token unbroken and fits");
+ok(s320.ptr.ltrFits && s320.ptr.ltrNoWrap, "ok 320: note version token unbroken and fits");
+ok(s320.labelTag.every((x) => x && x.nowrap && x.fits && x.oneLine), "ok 320: CTA label version token unbroken and fits");
 await page.screenshot({ path: join(SHOTS, "ok-mobile-320.png"), fullPage: true });
 await page.close();
 

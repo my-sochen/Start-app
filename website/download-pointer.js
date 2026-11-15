@@ -122,7 +122,21 @@
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      setLabel("הורדה ל־Windows - " + ltr(p.tag));
+      // The version tag inside the CTA label never splits: in a real DOM it
+      // gets the same scoped ptr-ltr span as the note metadata (nowrap);
+      // the text-only fallback keeps Unicode isolates. The label may wrap
+      // before the token, never inside it. For a plain-text CTA (no els.label)
+      // the button itself holds only this label, so replaceChildren is safe;
+      // a rich CTA passes els.label and its own markup is never flattened.
+      const labelTarget = els.label || button;
+      if (typeof labelTarget.replaceChildren === "function" && typeof document !== "undefined") {
+        const tagSpan = document.createElement("span");
+        tagSpan.className = "ptr-ltr";
+        tagSpan.textContent = p.tag;
+        labelTarget.replaceChildren(document.createTextNode("הורדה ל־Windows - "), tagSpan);
+      } else {
+        setLabel("הורדה ל־Windows - " + ltr(p.tag));
+      }
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).

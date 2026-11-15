@@ -241,6 +241,7 @@ t("load maps fetch failure to invalid, never throws", async () => {
  * to the page (same-origin, https on the deployed site). */
 const SITE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const INDEX = readFileSync(join(SITE, "index.html"), "utf8");
+const DOCS = readFileSync(join(SITE, "docs.html"), "utf8");
 const WIRE = readFileSync(join(SITE, "download-wire.js"), "utf8");
 
 t("index CSP allows same-origin fetch, nothing more", () => {
@@ -284,6 +285,23 @@ t("pointer metadata wraps only the hash, never the version token", () => {
   assert.ok(/\.ptr-ltr \{[^}]*white-space: nowrap/.test(css), "version/size tokens never split");
   assert.ok(!/\.note \{[^}]*overflow-wrap/.test(css), "note element no longer breaks every token");
   assert.ok(!/\.hero-download-state \{[^}]*overflow-wrap/.test(css), "hero note no longer breaks every token");
+});
+
+t("public copy never claims a private review stage", () => {
+  for (const html of [INDEX, DOCS]) {
+    assert.ok(!html.includes("פרטית"), "no 'private' claim in public copy");
+    assert.ok(html.includes("אב-טיפוס להערכה · בתכנון להפצה"), "strip states prototype evaluation truthfully");
+  }
+  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs strip makes no static download claim");
+});
+
+t("reader keeps the CTA label version token unbreakable", () => {
+  const src = readFileSync(join(SITE, "download-pointer.js"), "utf8");
+  const okBlock = src.slice(src.indexOf('result.state === "ok"'));
+  const labelSpan = okBlock.indexOf('tagSpan.className = "ptr-ltr"');
+  assert.ok(labelSpan > -1, "CTA label tag uses the nowrap ptr-ltr span");
+  assert.ok(okBlock.indexOf('setLabel("הורדה ל־Windows - " + ltr(p.tag))') > labelSpan,
+    "isolate label is only the text-only fallback");
 });
 
 t("hero CTA has distinct enabled vs disabled styling", () => {
