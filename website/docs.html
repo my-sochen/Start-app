@@ -10,38 +10,37 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'"
     />
     <title>מדריך למשתמש | Start-app</title>
     <link rel="stylesheet" href="styles.css" />
-    <script src="docs.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">דילוג לתוכן</a>
-    <div class="review-strip">
-      אב-טיפוס להערכה · בתכנון להפצה
-    </div>
     <header>
       <a class="brand" href="index.html" aria-label="Start-app, דף הבית"
         ><i aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 12 4"/><path d="M5.5 4H12v6.5"/></svg></i>Start-app</a
       >
       <nav aria-label="ניווט ראשי">
-        <a href="index.html#how">איך זה עובד</a
-        ><a href="docs.html" aria-current="page">מדריך למשתמש</a
-        ><a href="index.html#download">זמינות</a>
+        <a href="docs.html" aria-current="page">מדריך למשתמש</a
+        ><a href="index.html#download">הורדה</a>
       </nav>
     </header>
     <main id="main" class="wrap">
       <div class="docs-intro">
         <p class="eyebrow">מדריך למשתמש</p>
-        <h1>מדריך Start-app</h1>
+        <h1 tabindex="-1">מדריך Start-app</h1>
         <p class="lead">
           צעד אחר צעד: יצירת סביבת עבודה, הוספת פריטים, לכידה, שיגור ושמירה -
           עם צילומי מסך אמיתיים של האפליקציה ועם המגבלות שחשוב להכיר.
         </p>
+        <p class="pill">אב-טיפוס להערכה, לא גרסה יציבה</p>
       </div>
       <div class="doc-layout">
-        <aside class="sidebar" aria-label="תוכן עניינים">
+        <div class="docs-jump">
+          <a href="#toc">פרקי המדריך</a><a href="#main">חזרה למעלה ↑</a>
+        </div>
+        <aside class="sidebar" id="toc" aria-label="תוכן עניינים">
           <label for="doc-search">חיפוש בפרקי המדריך</label
           ><input
             id="doc-search"
@@ -102,6 +101,48 @@
               הורדה, יחד עם מספר הגרסה, גודל הקובץ וה-sha256 שלו לבדיקה לפני
               ההתקנה.
             </p>
+            <div class="doc-download">
+              <button
+                class="primary"
+                type="button"
+                disabled
+                data-download-cta
+                data-verify="docs-verify-body"
+                aria-describedby="docs-download-state"
+              >
+                הורדה לא זמינה
+              </button>
+              <p id="docs-download-state" class="note" aria-live="polite">
+                לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.
+              </p>
+              <details class="verify" hidden>
+                <summary>פרטי אימות</summary>
+                <p id="docs-verify-body" class="note"></p>
+              </details>
+            </div>
+            <h3>הפעלה אחרי ההורדה</h3>
+            <p>
+              ההורדה היא קובץ ZIP, לא מתקין. אחרי ההורדה:
+            </p>
+            <ol class="steps-list">
+              <li>חלצו את כל הקבצים מה־ZIP לתיקייה.</li>
+              <li>
+                פתחו את התיקייה שחולצה והפעילו את
+                <bdi><code>StartApp.App.exe</code></bdi>.
+              </li>
+              <li>השאירו את קובצי ה־DLL וה־runtime בתיקייה, לצד הקובץ.</li>
+            </ol>
+            <p>
+              האפליקציה כוללת את סביבת ההרצה שלה, ולכן אין צורך בהתקנת .NET
+              בנפרד. אין הרשמה, חשבון או התחברות. הנתונים נשמרים בקובץ מקומי
+              ב־<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            </p>
+            <p>
+              מה נבדק: אב-טיפוס זה נבנה כאפליקציית Windows x64 עצמאית, והופעל
+              ונסגר בהצלחה בשרת Windows Server 2025 מתארח. לא נבדק באופן
+              עצמאי ב־Windows 11 ביתי, ואין התחייבות לגרסת Windows מינימלית.
+              אין התחייבות שלא יופיעו אזהרות אבטחה או התראות של תוכנת אנטי-וירוס.
+            </p>
           </section>
           <section id="main-screen" class="doc-section" data-doc>
             <span class="doc-kicker">מסכים</span>
@@ -120,6 +161,8 @@
               <img
                 src="shots/doc-feat-24-create-form-design-controls.png"
                 alt="המסך הראשי עם שלושה כרטיסי סביבה, כרטיס מסומן בצבע עם חותמת פתיחה אחרונה, וטופס יצירת סביבה מתחת"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -140,6 +183,8 @@
               <img
                 src="shots/doc-feat-08-overview-after-guard.png"
                 alt="טופס יצירת סביבה מלא: שם, תיאור, קטגוריה עם ברירת מחדל, פלטת צבעים ושדה תמונה, ושורת סטטוס שהפרטים נשמרו"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -154,6 +199,8 @@
               <img
                 src="shots/doc-feat-11-empty-workspace-dialog.png"
                 alt="הודעת סביבת עבודה ריקה בעת שיגור, עם מעבר לפרטי הסביבה"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -173,6 +220,8 @@
               <img
                 src="shots/doc-feat-01-details-empty.png"
                 alt="מסך פרטי סביבה ללא אייטמים, עם שורת הוספת אייטם ובחירת סוג"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -187,6 +236,8 @@
               <img
                 src="shots/doc-feat-22-four-groups.png"
                 alt="ארבע קבוצות האייטמים במלואן: אתרים, תיקיות, קבצים ותוכנות, עם עריכה לכל שורה"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -211,6 +262,8 @@
               <img
                 src="shots/doc-cap-pick-workspace-search.png"
                 alt="מסך לכידה: חיפוש סביבה קיימת לצד רשימת הפריטים שזוהו כפתוחים כעת"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -227,6 +280,8 @@
               <img
                 src="shots/doc-cap-side-by-side-staged.png"
                 alt="מסך הלכידה צד-לצד לפני שמירה: פריטים שנוספו ועוד לא נשמרו מול הפריטים שזוהו"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -240,6 +295,8 @@
               <img
                 src="shots/doc-cap-created-from-capture-details.png"
                 alt="סביבה שנוצרה מלכידה עם שישה פריטים שנלכדו, אתרים שומרים את הדפדפן שממנו נמצאו"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -258,6 +315,8 @@
               <img
                 src="shots/doc-feat-12-card-actions-menu.png"
                 alt="תפריט הפעולות של כרטיס סביבה: הצג, שגר, הוסף אייטם, עצב כרטיס, ערוך קטגוריה"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>תפריט הפעולות של כרטיס סביבה.</figcaption>
@@ -272,6 +331,8 @@
               <img
                 src="shots/doc-feat-13-design-popup-open.png"
                 alt="חלונית עיצוב כרטיס עם פלטת צבעים ובחירת תמונת רקע"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>עיצוב כרטיס: צבע ותמונת רקע.</figcaption>
@@ -284,6 +345,8 @@
               <img
                 src="shots/doc-feat-07-unsaved-dialog.png"
                 alt="אזהרת שינויים שלא נשמרו עם האפשרויות שמור וצא או צא בלי לשמור"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>אזהרת יציאה עם שינויים שלא נשמרו.</figcaption>
@@ -302,6 +365,8 @@
               <img
                 src="shots/doc-feat-09-decision-panel.png"
                 alt="פאנל ההחלטות לפני פתיחה עם אזהרות לכל פריט, כפתורי Open anyway ו-Cancel, והבהרה ששום דבר עוד לא נפתח"
+                width="900"
+                height="560"
                 loading="lazy"
               />
               <figcaption>
@@ -402,5 +467,10 @@
         <span><bdi>Start-app</bdi> · אב-טיפוס להערכה, לא גרסה יציבה</span>
       </div>
     </footer>
+      <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <script src="download-pointer.js"></script>
+    <script src="download-wire.js"></script>
+    <script src="docs.js"></script>
+    <script src="site-nav.js"></script>
   </body>
 </html>

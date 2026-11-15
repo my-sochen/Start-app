@@ -244,10 +244,12 @@ const INDEX = readFileSync(join(SITE, "index.html"), "utf8");
 const DOCS = readFileSync(join(SITE, "docs.html"), "utf8");
 const WIRE = readFileSync(join(SITE, "download-wire.js"), "utf8");
 
-t("index CSP allows same-origin fetch, nothing more", () => {
-  const m = INDEX.match(/connect-src ([^;]+);/);
-  assert.ok(m, "connect-src directive present");
-  assert.equal(m[1], "'self'");
+t("index and docs CSP allow same-origin fetch, nothing more", () => {
+  for (const html of [INDEX, DOCS]) {
+    const m = html.match(/connect-src ([^;]+);/);
+    assert.ok(m, "connect-src directive present");
+    assert.equal(m[1], "'self'");
+  }
 });
 
 t("index loads reader then wire script", () => {
@@ -263,16 +265,29 @@ t("wire resolves pointer.json relative to the page (same-origin)", () => {
   assert.ok(!WIRE.includes("github.com"), "wire must not hardcode any origin");
 });
 
-t("wire renders both CTAs through the reader contract", () => {
-  assert.equal((WIRE.match(/StartAppPointer.render/g) || []).length, 2);
-  assert.ok(WIRE.includes("hero-download-state"));
-  assert.ok(WIRE.includes("download-state"));
+t("wire renders EVERY CTA through one reader call (hero + guide)", () => {
+  assert.equal((WIRE.match(/StartAppPointer\.render\(/g) || []).length, 1);
+  assert.ok(WIRE.includes("[data-download-cta]"));
+  assert.equal((INDEX.match(/data-download-cta/g) || []).length, 1, "home has one CTA");
+  assert.equal((DOCS.match(/data-download-cta/g) || []).length, 1, "guide has one gated CTA");
+  for (const html of [INDEX, DOCS]) {
+    assert.ok(!/<a[^>]*download-pointer|releases\/download/.test(html), "no static download URL in any page");
+    const cta = html.match(/<button[^>]*data-download-cta[^>]*>/)[0];
+    assert.ok(/\bdisabled\b/.test(cta), "CTA ships disabled (fail closed)");
+  }
+});
+
+t("home is clean: guide/onboarding facts live only in the guide", () => {
+  for (const s of ["StartApp.App.exe", "LOCALAPPDATA", "id=\"how\"", "class=\"faq\""]) {
+    assert.ok(!INDEX.includes(s), "home has no " + s);
+  }
+  assert.ok(DOCS.includes("StartApp.App.exe") && DOCS.includes("חלצו את כל הקבצים"));
+  assert.ok(DOCS.includes("לא נבדק באופן"), "guide states what was not verified");
 });
 
 t("wire resolves state-bearing static copy (badge + heading) per state", () => {
-  assert.ok(INDEX.includes('id="availability-badge"'), "badge id in index");
-  assert.ok(INDEX.includes('id="download-heading"'), "heading id in index");
-  assert.ok(WIRE.includes("availability-badge"), "wire updates badge");
+  assert.ok(!INDEX.includes('id="availability-badge"'), "no duplicate availability badge");
+  assert.ok(WIRE.includes("availability-badge"), "wire stays null-safe for a badge");
   assert.ok(WIRE.includes("download-heading"), "wire updates heading");
   for (const state of ["ok", "none", "invalid"]) {
     assert.ok(WIRE.includes(state + ":"), "wire has " + state + " texts");
@@ -290,9 +305,11 @@ t("pointer metadata wraps only the hash, never the version token", () => {
 t("public copy never claims a private review stage", () => {
   for (const html of [INDEX, DOCS]) {
     assert.ok(!html.includes("פרטית"), "no 'private' claim in public copy");
-    assert.ok(html.includes("אב-טיפוס להערכה · בתכנון להפצה"), "strip states prototype evaluation truthfully");
+    assert.ok(html.includes("אב-טיפוס להערכה, לא גרסה יציבה"), "prototype truth is stated on the page (home near CTA, guide intro)");
+    assert.ok(!html.includes("review-strip"), "no top unstable-version strip (owner steering)");
+    assert.ok(!html.includes("בתכנון להפצה"), "stale planned-release wording removed");
   }
-  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs strip makes no static download claim");
+  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs makes no static download claim");
 });
 
 t("reader keeps the CTA label version token unbreakable", () => {
@@ -335,8 +352,6 @@ t("shipped static copy is truthful with JavaScript disabled (no-JS fallback)", (
   // "cannot verify - download stays off" copy, not a perpetual "checking".
   assert.ok(INDEX.includes("הורדה לא זמינה"), "static CTA is the disabled truth");
   assert.ok(INDEX.includes("לא ניתן לאמת כרגע גרסה להורדה"), "static note is the disabled truth");
-  assert.ok(INDEX.includes('<span id="availability-badge">לא ניתן לאמת הורדה כרגע</span>'),
-    "static badge is the disabled truth");
   assert.ok(INDEX.includes("<noscript>"), "noscript explanation present");
   assert.ok(!INDEX.includes("<h2>אין הורדה זמינה כרגע.</h2>"),
     "static heading does not pre-claim 'none'");

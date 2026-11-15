@@ -1,0 +1,186 @@
+"use strict";
+/*
+ * Progressive-enhancement client-side navigation between the two real pages
+ * (index.html, docs.html) of this site directory. Every link keeps its real
+ * href, so with no JavaScript, a failed fetch, a new-tab/modifier click, or a
+ * crawler, the browser performs a normal full page load to the same URL.
+ *
+ * With JavaScript: same-origin clicks between the two pages fetch the target
+ * HTML, swap <main>, the review strip, the title, canonical and description,
+ * push history, re-run the page initializers (download CTAs via the cached
+ * validated pointer result, guide search), reset or restore scroll, move
+ * focus to the new page heading and announce it in a polite live region.
+ * Back/forward restore the scroll saved for each history entry (saved as the
+ * user scrolls, so hash-link entries are covered too). Any failure falls back
+ * to a real navigation. No inline script, no eval, same-origin fetch only.
+ */
+(function () {
+  var PAGES = { "index.html": "index.html", "docs.html": "docs.html", "": "index.html" };
+  var cache = {};
+  var token = 0;
+  var saveTimer = null;
+  // Site directory (e.g. "/Start-app/"), taken once from the page that loaded
+  // this script. A same-named file in another directory is not enhanced.
+  var BASE = location.pathname.replace(/[^\/]*$/, "");
+
+  function pageOf(url) {
+    var u = new URL(url, location.href);
+    if (u.origin !== location.origin) return null;
+    if (u.pathname.slice(0, BASE.length) !== BASE) return null;
+    var name = u.pathname.slice(BASE.length);
+    return Object.prototype.hasOwnProperty.call(PAGES, name) ? PAGES[name] : null;
+  }
+  function currentPage() {
+    return pageOf(location.href);
+  }
+
+  function fetchPage(page) {
+    if (cache[page]) return Promise.resolve(cache[page]);
+    var url = new URL(page, location.href).href;
+    return fetch(url, { credentials: "omit" }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.text();
+    }).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      if (!doc.querySelector("main#main")) throw new Error("no main");
+      cache[page] = doc;
+      return doc;
+    });
+  }
+
+  function announce(text) {
+    var el = document.getElementById("route-announcer");
+    if (!el) return;
+    el.textContent = "";
+    // Re-set on the next task so repeated identical announcements are read.
+    setTimeout(function () { el.textContent = text; }, 30);
+  }
+
+  function setCurrentNav(page) {
+    var links = document.querySelectorAll("header nav a");
+    Array.prototype.forEach.call(links, function (a) {
+      var u = new URL(a.getAttribute("href"), location.href);
+      var isHere = !u.hash && pageOf(u.href) === page;
+      if (isHere) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+    });
+  }
+
+  function copyChildren(from, to) {
+    to.replaceChildren.apply(to, Array.prototype.map.call(from.childNodes, function (n) {
+      return document.importNode(n, true);
+    }));
+  }
+
+  function swapIn(doc, page) {
+    document.title = doc.title;
+    [["link[rel=\"canonical\"]", "href"], ["meta[name=\"description\"]", "content"]].forEach(function (p) {
+      var cur = document.head.querySelector(p[0]);
+      var nxt = doc.head.querySelector(p[0]);
+      if (cur && nxt) cur.setAttribute(p[1], nxt.getAttribute(p[1]));
+    });
+    var main = document.getElementById("main");
+    main.className = doc.getElementById("main").className;
+    copyChildren(doc.getElementById("main"), main);
+    var strip = document.querySelector(".review-strip");
+    var nextStrip = doc.querySelector(".review-strip");
+    if (strip && nextStrip) copyChildren(nextStrip, strip);
+    setCurrentNav(page);
+    document.body.setAttribute("data-page", page);
+    if (window.StartAppDownload) window.StartAppDownload.init();
+    if (window.StartAppDocs) window.StartAppDocs.init();
+  }
+
+  function afterSwap(url, restoreY) {
+    var u = new URL(url, location.href);
+    var target = u.hash ? document.getElementById(decodeURIComponent(u.hash.slice(1))) : null;
+    if (typeof restoreY === "number") {
+      window.scrollTo({ top: restoreY, left: 0, behavior: "instant" });
+    } else if (target) {
+      target.scrollIntoView({ behavior: "instant" });
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+    var focusEl = target || document.querySelector("main h1");
+    if (focusEl) {
+      if (!focusEl.hasAttribute("tabindex")) focusEl.setAttribute("tabindex", "-1");
+      focusEl.focus({ preventScroll: true });
+    }
+    announce("נטען: " + document.title);
+  }
+
+  function flushScroll() {
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+    history.replaceState({ y: window.scrollY }, "");
+  }
+
+  function go(url, push, restoreY) {
+    var page = pageOf(url);
+    var my = ++token;
+    fetchPage(page).then(function (doc) {
+      if (my !== token) return;
+      if (push) {
+        flushScroll();
+        history.pushState({ y: 0 }, "", url);
+      }
+      swapIn(doc, page);
+      afterSwap(url, restoreY);
+    }).catch(function () {
+      if (my !== token) return;
+      location.assign(url);
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+    var page = pageOf(a.href);
+    if (!page) return;
+    var u = new URL(a.href);
+    if (page === currentPage()) {
+      // Clicking a link to the page already shown cancels a pending
+      // navigation to the other page (the user changed their mind).
+      token++;
+      // In-page hash link: the browser creates a new history entry right after
+      // this handler, so persist the DEPARTING entry's scroll first (no timer).
+      if (u.hash) flushScroll();
+      // Same page, same query, no hash: scroll to top in place. Hash links
+      // and links with a different query are left to the browser.
+      if (!u.hash && u.search === location.search) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      }
+      return;
+    }
+    // Only exact site URLs are enhanced; a query string is never carried by
+    // the swap, so such links navigate natively and stay URL/content-true.
+    if (u.search) return;
+    e.preventDefault();
+    go(u.pathname + u.search + u.hash, true);
+  });
+
+  window.addEventListener("popstate", function (e) {
+    token++;
+    var page = pageOf(location.href);
+    if (!page) { location.reload(); return; }
+    var y = e.state && typeof e.state.y === "number" ? e.state.y : undefined;
+    if (page === document.body.getAttribute("data-page")) {
+      // Same page (hash step). scrollRestoration is manual, so restore the
+      // position saved for that entry.
+      if (typeof y === "number") window.scrollTo({ top: y, left: 0, behavior: "instant" });
+      return;
+    }
+    go(location.pathname + location.search + location.hash, false, y);
+  });
+
+  // Save scroll into the CURRENT history entry as the user scrolls
+  // (throttled), so Back/Forward can restore any entry, including entries
+  // created by in-page hash links.
+  window.addEventListener("scroll", function () {
+    if (saveTimer === null) saveTimer = setTimeout(function () { saveTimer = null; history.replaceState({ y: window.scrollY }, ""); }, 120);
+  }, { passive: true });
+
+  document.body.setAttribute("data-page", currentPage() || "");
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+})();
