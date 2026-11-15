@@ -2,6 +2,9 @@
 /* Offline tests for website/download-pointer.js. No network, no deps:
  * node website/tests/test-download-pointer.mjs */
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import assert from "node:assert/strict";
 const require = createRequire(import.meta.url);
 const P = require("../download-pointer.js");
@@ -219,6 +222,38 @@ t("load rejects non-https pointer URL without fetching", async () => {
 t("load maps fetch failure to invalid, never throws", async () => {
   const r = await P.load("https://127.0.0.1:1/pointer.json");
   assert.equal(r.state, "invalid");
+});
+
+/* Wiring assertions: the activated page must load the reader and the wire
+ * script, allow same-origin fetch in CSP, and resolve pointer.json relative
+ * to the page (same-origin, https on the deployed site). */
+const SITE = join(dirname(fileURLToPath(import.meta.url)), "..");
+const INDEX = readFileSync(join(SITE, "index.html"), "utf8");
+const WIRE = readFileSync(join(SITE, "download-wire.js"), "utf8");
+
+t("index CSP allows same-origin fetch, nothing more", () => {
+  const m = INDEX.match(/connect-src ([^;]+);/);
+  assert.ok(m, "connect-src directive present");
+  assert.equal(m[1], "'self'");
+});
+
+t("index loads reader then wire script", () => {
+  const iReader = INDEX.indexOf('src="download-pointer.js"');
+  const iWire = INDEX.indexOf('src="download-wire.js"');
+  assert.ok(iReader > -1, "reader script tag present");
+  assert.ok(iWire > iReader, "wire script loads after reader");
+});
+
+t("wire resolves pointer.json relative to the page (same-origin)", () => {
+  assert.ok(WIRE.includes('new URL("pointer.json", window.location.href)'));
+  assert.ok(WIRE.includes("StartAppPointer.load(url)"));
+  assert.ok(!WIRE.includes("github.com"), "wire must not hardcode any origin");
+});
+
+t("wire renders both CTAs through the reader contract", () => {
+  assert.equal((WIRE.match(/StartAppPointer.render/g) || []).length, 2);
+  assert.ok(WIRE.includes("hero-download-state"));
+  assert.ok(WIRE.includes("download-state"));
 });
 
 console.log(passed + " tests passed");
