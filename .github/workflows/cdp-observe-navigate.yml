@@ -1,0 +1,52 @@
+name: cdp-observe-navigate
+# Synthetic navigation+observation diagnostic. Review candidate: not pushed, not run.
+# Author script uses synthetic UI input (omnibox SetValue + one global Enter, residual non-atomic focus race). Disposable fresh hosted runner only. NOT no-input.
+# Branch name below is a PROPOSAL pending coordinator reservation.
+on:
+  push:
+    branches:
+      - test/cdp-observe-navigate-v1
+permissions:
+  contents: read
+concurrency:
+  group: cdp-observe-navigate
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: ${{ github.event.deleted == false }}
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v4.2.2, commit verified against api.github.com tag ref
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Author hash gate
+        shell: pwsh
+        run: |
+          $expected = 'a8f61594d80a63bf3842e0e00bae26c023aefc0745a90a9b629190c640259480'
+          $actual = (Get-FileHash -Algorithm SHA256 startapp-cdp-feasibility/observe-inspect.ps1).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { Write-Host "HASH_GATE_FAIL $actual"; exit 1 }
+          Write-Host "HASH_GATE_OK $actual"
+      - name: Print runtime versions (unpinned, recorded before classification)
+        shell: pwsh
+        run: |
+          Write-Host "RUNTIME_PWSH $($PSVersionTable.PSVersion)"
+          Write-Host "RUNTIME_NODE $(node --version)"
+          Write-Host "RUNTIME_OS $([Runtime.InteropServices.RuntimeInformation]::OSDescription)"
+      - name: Observe (synthetic navigation, UIA structure and bounded PNG to console)
+        id: probe
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'obs-out'
+          & pwsh -NoProfile -File startapp-cdp-feasibility/observe-inspect.ps1 -OutDir $out
+          $code = $LASTEXITCODE
+          "child_exit=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "out_dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit 0
+      - name: Classify (runs only after the probe step completed)
+        if: ${{ steps.probe.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          node startapp-cdp-feasibility/classify-observation.mjs "${{ steps.probe.outputs.out_dir }}" "${{ steps.probe.outputs.child_exit }}"
+          exit $LASTEXITCODE
