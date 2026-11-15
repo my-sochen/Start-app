@@ -304,6 +304,21 @@ t("reader keeps the CTA label version token unbreakable", () => {
     "isolate label is only the text-only fallback");
 });
 
+t("docs carry no unconditional availability claim in either direction (regression)", () => {
+  // The exact stale claims Moshe's pass caught must never come back:
+  assert.ok(!DOCS.includes("ללא הורדה פעילה"), "docs meta: no 'no active download' claim");
+  assert.ok(!DOCS.includes("אין כרגע חבילה זמינה להורדה"), "docs install: no 'no package available' claim");
+  assert.ok(!DOCS.includes("אין הורדה פעילה"), "docs strip: no static download claim");
+  // ...and the docs must not claim availability either: they defer to the
+  // live homepage state, which is correct in both active and none states.
+  const install = DOCS.slice(DOCS.indexOf('id="install"'), DOCS.indexOf('id="main-screen"'));
+  assert.ok(install.includes('href="index.html#download"'), "install guidance links to the live homepage state");
+  assert.ok(!/גרסה (מאומתת )?זמינה(?! להורדה כ)/.test(install.replace("כשקיימת גרסת אב-טיפוס מאומתת", "")),
+    "install guidance makes no unconditional availability claim");
+  assert.ok(!INDEX.includes("לסקירת אב-טיפוס") && !DOCS.includes("לסקירת אב-טיפוס"),
+    "meta descriptions no longer describe the site as a private review");
+});
+
 t("hero CTA has distinct enabled vs disabled styling", () => {
   const css = readFileSync(join(SITE, "styles.css"), "utf8");
   const base = css.match(/\.hero-download-button \{([^}]*)\}/)[1];
