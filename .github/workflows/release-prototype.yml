@@ -290,6 +290,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "v$VERSION" --draft --prerelease \
+            --repo "$REPO" \
+            --target "$CANDIDATE_SHA" \
             --title "v$VERSION (prototype draft)" \
             --notes "Prototype evaluation build. commit $CANDIDATE_SHA. Not a stable release. See KNOWN-LIMITS.txt." \
             cand/StartApp-win-x64.zip cand/StartApp-win-x64.zip.sha256 cand/BUILDINFO.txt cand/manifest.json cand/reproducibility.txt
