@@ -1,10 +1,8 @@
 name: cdp-enumerate-tabs
-# LOCAL observation-only integrated candidate, not authorization to push or run.
-# Existing branch trigger retained as a proposal ONLY. One separately approved atomic
-# update would trigger one run. No workflow_dispatch, no rerun, no automatic retry.
-# Interactive disposable setup: omnibox Enter, exact checkbox enable/guarded disable,
-# ONE explicit inspect activation immediately before handshake helper starts.
-# No consent input, no activation after helper starts, no metadata protocol commands.
+# LOCAL consent+metadata candidate. NOT permission to push or run.
+# ONE separately reviewed atomicbranch update only, no dispatch/retry.
+# Synthetic profiles only: exact native-owned Allow Invoke then one read-only
+# Target.getTargets. No user profile/product/release modifications.
 on:
   push:
     branches:
@@ -28,9 +26,10 @@ jobs:
         shell: pwsh
         run: |
           $expected = @{
-            'startapp-cdp-feasibility/observe-prompt.ps1' = '2e66b300904315f0c208e547308a371c8cd66a0afd672bf5e15cbc748bc140f7'
+            'startapp-cdp-feasibility/observe-prompt.ps1' = 'd52f654572dd14217afc9da0476e6884e9f5ebf2b33b6dbf13cb56defcda11b6'
             'startapp-cdp-feasibility/observe-socket.mjs' = '34afdce9f341adc42e6ce47043997d4b8d32da7d1baa7e29c13ed0f0322bc444'
-            'startapp-cdp-feasibility/classify-observation.mjs' = '0a590127d21cccc34eea15ca60288f7216ddb0de18e546ed5f2ef02b55a55b93'
+            'startapp-cdp-feasibility/consent-targets.mjs' = 'cbc38ee75344b3195e02b10f01a38efed436b2e5c717c9119ddddbd36cb4d6ab'
+            'startapp-cdp-feasibility/classify-observation.mjs' = '9153d1bdcc17cb53837dcd0835ca16e4e5435cccb11dfbbc98d33c6aa4dd7305'
             'startapp-cdp-feasibility/extract-observation.py' = '2aef204911265146230c3535c18f4955d64f52706c37befaf9e9285b6b3bcd08'
             'startapp-cdp-feasibility/.gitattributes' = 'a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9'
           }
@@ -47,17 +46,17 @@ jobs:
           Write-Host "RUNTIME_PWSH $($PSVersionTable.PSVersion)"
           Write-Host "RUNTIME_NODE $(node --version)"
           Write-Host "RUNTIME_OS $([Runtime.InteropServices.RuntimeInformation]::OSDescription)"
-      - name: Observe native-owned prompt only (no consent action or metadata)
+      - name: Invoke exact owned synthetic consent then read fixture metadata once
         id: probe
         shell: pwsh
         run: |
-          $out = Join-Path $env:RUNNER_TEMP 'prompt-observation-out'
+          $out = Join-Path $env:RUNNER_TEMP 'consent-metadata-out'
           & pwsh -NoProfile -File startapp-cdp-feasibility/observe-prompt.ps1 -OutDir $out
           $code = $LASTEXITCODE
           "child_exit=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "out_dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           exit 0
-      - name: Audit observation evidence (never full-gate PASS)
+      - name: Audit bounded consent metadata evidence (never full-gate PASS)
         if: ${{ steps.probe.outcome == 'success' }}
         shell: pwsh
         run: |

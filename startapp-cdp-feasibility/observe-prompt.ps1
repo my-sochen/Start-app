@@ -1,4 +1,4 @@
-# LOCAL observation-only author packet. No push/run authority. Interactive disposable setup retained; no consent input or metadata query.
+# LOCAL consent+metadata candidate. No push/run authority. Fresh synthetic profiles ONLY.
 param([string]$OutDir='cdp-enumerate-out')
 $ErrorActionPreference='Stop'
 $OutDir=[IO.Path]::GetFullPath($OutDir)
@@ -111,10 +111,13 @@ function Selection($profile,$exeName) {
  foreach($w in (Windows $profile $exeName)) {
   foreach($tab in (Descendants $w | Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::TabItem -and $_.Current.Name -match '^StartAppFixture[ABC](?:\s.*)?$'})) {
    $sp=$tab.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
-   $items+=[pscustomobject]@{hwnd=$w.Current.NativeWindowHandle;title=$tab.Current.Name;selected=$sp.Current.IsSelected}
+   $items+=[pscustomobject]@{hwnd=$w.Current.NativeWindowHandle;fixture=($tab.Current.Name -split '\s')[0];title=$tab.Current.Name;selected=$sp.Current.IsSelected}
   }
  }
  @($items | Sort-Object hwnd,title)
+}
+function CanonSelection($items) {
+ @($items | Sort-Object hwnd,fixture | ForEach-Object {[pscustomobject]@{hwnd=$_.hwnd;fixture=$_.fixture;selected=$_.selected}}) | ConvertTo-Json -Compress
 }
 function ValidSelection($items) {
  if($items.Count -ne 3 -or @($items.hwnd | Select-Object -Unique).Count -ne 2 -or @($items.title | ForEach-Object {($_ -split '\s')[0]} | Select-Object -Unique).Count -ne 3){return $false}
@@ -183,7 +186,7 @@ function FixturePictures($name,$stage,$profile,$exeName,$expected) {
  }
  return $ok
 }
-# Local author functions only. No modal Invoke, click, key or activation is used here.
+# Native identity/capture functions use no input. The sole consent Invoke is separately gated below.
 # Identity is native-owner-chain AND native/UIA PID/HWND agreement, never title-only.
 function ObservationIdentityAllowed($s) {
  if(-not $s.inspectUnique -or -not $s.inspectFresh -or -not $s.foregroundStable){return $false}
@@ -282,43 +285,93 @@ function ObservePromptEvidence($name,$stage,$profile,$exeName,$inspectHandle,$ur
   for($i=0;$i -lt $base64.Length;$i+=3000){Write-Host ("OBS_PNG_CHUNK $key "+$base64.Substring($i,[Math]::Min(3000,$base64.Length-$i)))}
   Write-Host "OBS_PNG_END $key"
   Record $name $stage 'INFO' (@{bytes=$bytes.Length;sha256=$hash;width=$width;height=$height;identity=$c;note='Native-owned foreground and full parent-window screen pixels only; not consent/metadata/occlusion proof'} | ConvertTo-Json -Depth 12 -Compress)
-  return $true
+  return [pscustomobject]@{identity=$c}
  }catch{Diagnostic $name $stage @{errorType=$_.Exception.GetType().FullName;emitted=$false};return $false}
  finally{if($stream){$stream.Dispose()};if($graphics){$graphics.Dispose()};if($bitmap){$bitmap.Dispose()}}
 }
+function ConsentTreeAllowed($tree,$identity,$name) {
+ if($tree.truncated -or -not $identity.eligible){return $false}
+ $nodes=@($tree.nodes)
+ if(-not $nodes.Count -or $nodes[0].name -cne 'Allow remote debugging?' -or $nodes[0].hwnd -ne $identity.foreground -or $nodes[0].pid -ne $identity.uiaPid){return $false}
+ $allow=@($nodes | Where-Object {$_.type -ceq 'ControlType.Button' -and $_.name -ceq 'Allow'})
+ $cancel=@($nodes | Where-Object {$_.type -ceq 'ControlType.Button' -and $_.name -ceq 'Cancel'})
+ if($allow.Count -ne 1 -or $cancel.Count -ne 1){return $false}
+ foreach($node in @($allow[0],$cancel[0])){
+  if($node.pid -ne $identity.uiaPid -or -not $node.enabled -or $node.offscreen -or $node.patterns -notcontains 'InvokePatternIdentifiers.Pattern'){return $false}
+  $r=$node.bounds;$p=$identity.popupRect
+  if($r.Count -ne 4 -or @($r | Where-Object {-not [double]::IsFinite([double]$_)}).Count -or $r[2] -le 0 -or $r[3] -le 0 -or $r[0] -lt $p[0] -or $r[1] -lt $p[1] -or $r[0]+$r[2] -gt $p[2] -or $r[1]+$r[3] -gt $p[3]){return $false}
+ }
+ # Chrome exact wording seen sixth pixels+tree; Microsoft Edge exact wording seen fifth UIA only.
+ # Fresh runtime attribution still mandatory; prior text never authenticates a new popup.
+ $brand=if($name -ceq 'chrome'){'Chrome'}elseif($name -ceq 'edge'){'Microsoft Edge'}else{return $false}
+ $warning="An external app wants full control over this $brand session to debug it. This includes access to your saved data, cookies and site data, and the ability to navigate to any URL."
+ if(@($nodes | Where-Object {$_.type -ceq 'ControlType.Text' -and $_.name -ceq $warning -and $_.pid -eq $identity.uiaPid -and $_.enabled -and -not $_.offscreen}).Count -ne 1){return $false}
+ return $true
+}
+function ConsentImagesMatch($onset,$end,$current) {
+ return ($null -ne $onset -and $null -ne $end -and (SameObservationIdentity $onset $end) -and (SameObservationIdentity $end $current))
+}
+function ConsentHelperLive($process,$clock) {
+ # Conservative local cutoff leaves nominal margin before the helper's 45s timeout.
+ # Native/provider calls and cross-process races are not hard real-time guarantees.
+ try { $process.Refresh(); return (-not $process.HasExited -and $clock.ElapsedMilliseconds -lt 40000) } catch { return $false }
+}
+function InvokeOwnedConsent($name,$profile,$exeName,$inspectHandle,$uri,$onsetIdentity,$endIdentity,$helper,$clock) {
+ $a=ObservationSnapshot $profile $exeName $inspectHandle $uri
+ if(-not(ConsentImagesMatch $onsetIdentity $endIdentity $a) -or -not(ConsentHelperLive $helper $clock)){return $false}
+ $popup=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$a.foreground)
+ $tree=Structure $popup
+ if(-not(ConsentTreeAllowed $tree $a $name)){Diagnostic $name 'consent-refused' @{reason='exact known prompt tree not proven'};return $false}
+ $buttons=@(Descendants $popup | Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $_.Current.Name -ceq 'Allow'})
+ if($buttons.Count -ne 1){return $false}
+ $button=$buttons[0];$node=@($tree.nodes | Where-Object {$_.type -ceq 'ControlType.Button' -and $_.name -ceq 'Allow'})[0]
+ if(($button.GetRuntimeId() | ConvertTo-Json -Compress) -cne ($node.runtimeId | ConvertTo-Json -Compress) -or $button.Current.ProcessId -ne $a.uiaPid -or -not $button.Current.IsEnabled -or $button.Current.IsOffscreen){return $false}
+ $invoke=$button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+ $b=ObservationSnapshot $profile $exeName $inspectHandle $uri
+ if(-not(SameObservationIdentity $a $b)){return $false}
+ # Fresh fulltree must exactly match before input, no cross-popup stale UIA handle.
+ $tree2=Structure $popup
+ if(-not(ConsentTreeAllowed $tree2 $b $name) -or ($tree.nodes | ConvertTo-Json -Depth 12 -Compress) -cne ($tree2.nodes | ConvertTo-Json -Depth 12 -Compress)){return $false}
+ $c=ObservationSnapshot $profile $exeName $inspectHandle $uri
+ if(-not(SameObservationIdentity $b $c) -or -not(ConsentImagesMatch $onsetIdentity $endIdentity $c)){return $false}
+ Diagnostic $name 'consent-call' @{attempted=$true;returned=$false;identity=$c;buttonRuntimeId=$node.runtimeId}
+ # Exactly ONE Invoke, no catch-and-retry, no focus/keyboard/coordinates.
+ if(-not(ConsentHelperLive $helper $clock)){return $false}
+ $invoke.Invoke()
+ Diagnostic $name 'consent-return' @{returned=$true;buttonRuntimeId=$node.runtimeId}
+ return [pscustomobject]@{invoked=$true;identity=$c;button=$node;root=$tree.nodes[0];warningMatched=$true;treeStable=$true;attempted=$true;returned=$true}
+}
 function ObserveSocketAttempt($name,$phase,$profile,$exeName,$inspectWindow) {
- # ONE explicit pre-helper inspect activation remains below; no activation after helper starts.
- # Original strict consent-input function is absent: there is no modal Invoke path at all.
  $inspectHandle=[IntPtr]$inspectWindow.Current.NativeWindowHandle
  $eligible=@(Windows $profile $exeName | Where-Object {$_.Current.NativeWindowHandle -eq $inspectHandle})
- if($eligible.Count -ne 1 -or -not [ObserveNative]::SetForegroundWindow($inspectHandle) -or [ObserveNative]::GetForegroundWindow() -ne $inspectHandle){throw 'Attributed inspect foreground not established before observation connection'}
+ if($eligible.Count -ne 1 -or [ObserveNative]::GetForegroundWindow() -ne $inspectHandle){throw 'Attributed inspect foreground not retained before connection; no activation inside bracket'}
  $uri=if($name -ceq 'chrome'){'chrome://inspect/#remote-debugging'}else{'edge://inspect/#remote-debugging'}
  $result=Join-Path $OutDir "$name-$phase-result.json";$stdout=Join-Path $OutDir "$name-$phase-stdout.txt";$stderr=Join-Path $OutDir "$name-$phase-stderr.txt"
- $p=Start-Process 'node.exe' -ArgumentList @('"'+(Join-Path $PSScriptRoot 'observe-socket.mjs')+'"','"'+(Join-Path $profile 'DevToolsActivePort')+'"','"'+$result+'"') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
- $onset=$false;$onsetAttempted=$false;$rejectionRecorded=$false;$last=$null;$clock=[Diagnostics.Stopwatch]::StartNew();$samples=@()
+ $signal=Join-Path $OutDir "$name-invoked.json";$manifest=Join-Path $OutDir "$name-manifest.json"
+ if(Test-Path $signal){throw 'Stale consent signal'}
+ $p=Start-Process 'node.exe' -ArgumentList @('"'+(Join-Path $PSScriptRoot 'consent-targets.mjs')+'"','"'+(Join-Path $profile 'DevToolsActivePort')+'"','"'+$result+'"','"'+$signal+'"','"'+$manifest+'"') -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+ $onset=$false;$end=$false;$attempted=$false;$invoked=$false;$proof=$null;$clock=[Diagnostics.Stopwatch]::StartNew()
  try {
-  # Bounded 153 samples, nominal 38s. Provider latency is not a hard real-time bound.
-  for($i=0;$i -lt 153 -and $clock.ElapsedMilliseconds -le 38000;$i++){
+  for($i=0;$i -lt 193 -and $clock.ElapsedMilliseconds -le 48000;$i++){
    $s=ObservationSnapshot $profile $exeName $inspectHandle $uri
-   $samples+=@{elapsedMs=$clock.ElapsedMilliseconds;foreground=$s.foreground;rootOwner=$s.rootOwner;eligible=$s.eligible;errorType=$s.errorType;errorStage=$s.errorStage}
-   if(-not $s.eligible -and -not $rejectionRecorded -and $s.foreground -ne $inspectHandle.ToInt64()){Diagnostic $name 'prompt-first-rejection' @{identity=$s};$rejectionRecorded=$true}
-   if($s.eligible){$last=$s;if(-not $onsetAttempted){$onsetAttempted=$true;$onset=ObservePromptEvidence $name 'prompt-onset' $profile $exeName $inspectHandle $uri}}
+   if($s.eligible -and -not $attempted){
+    $attempted=$true
+    $onset=ObservePromptEvidence $name 'prompt-onset' $profile $exeName $inspectHandle $uri
+    if($onset){$end=ObservePromptEvidence $name 'prompt-end' $profile $exeName $inspectHandle $uri}
+    # Both fullparent pre-consent frames must pass unchanged strictattribution before input.
+    if($onset -and $end){$proof=InvokeOwnedConsent $name $profile $exeName $inspectHandle $uri $onset.identity $end.identity $p $clock;$invoked=($null -ne $proof -and $proof -isnot [bool] -and $proof.invoked -eq $true)}
+    if($invoked){
+     $tempSignal="$signal.tmp"
+     @{invoked=$true;kind='native-owned-single-Allow'} | ConvertTo-Json -Compress | Set-Content -Encoding utf8 $tempSignal
+     Move-Item -LiteralPath $tempSignal -Destination $signal
+    }else{break}
+   }
    if($p.HasExited){break};Start-Sleep -Milliseconds 250
   }
-  $end=$false
-  if($onset){$end=ObservePromptEvidence $name 'prompt-end' $profile $exeName $inspectHandle $uri}
-  Diagnostic $name 'prompt-observation-summary' @{lastSnapshot=$s;samples=$samples;onsetAttempted=$onsetAttempted;onsetEmitted=$onset;endEmitted=$end;lastEligible=$last;consentInput=$false}
-  if(-not $p.HasExited){try{Stop-Process -Id $p.Id -ErrorAction Stop}catch{if(-not $p.HasExited){throw}}}
+  if(-not $p.HasExited){Stop-Process -Id $p.Id -ErrorAction Stop}
   $p.Refresh();$exitCode=if($p.HasExited){$p.ExitCode}else{-1}
   $r=if(Test-Path $result){Get-Content -Raw $result | ConvertFrom-Json}else{[pscustomobject]@{state='no_result'}}
-  # Emit only allowlisted helper event names and scalar fields. Never output endpoint or payload.
-  if(Test-Path $stdout){
-   foreach($line in @(Get-Content $stdout | Select-Object -First 12)){
-    if($line -notmatch '^SOCKET_EVENT '){continue}
-    try{$e=$line.Substring(13) | ConvertFrom-Json;if($e.event -notin @('connect-requested','open','timeout','error','close','finished','invalid-endpoint','unsolicited-message-discarded')){continue};Diagnostic $name 'socket-event' @{event=$e.event;utc=$e.utc;opened=$e.opened;closeCode=$e.closeCode;clean=$e.clean;state=$e.state}}catch{}
-   }
-  }
-  [pscustomobject]@{result=$r;helperExit=$exitCode;promptSeen=$false;decisionApplied=$false;decision='observe-only';onsetEvidence=$onset;endEvidence=$end}
+  [pscustomobject]@{result=$r;helperExit=$exitCode;promptSeen=[bool]($onset -and $end);decisionApplied=$invoked;decision='single-Allow';onsetEvidence=[bool]$onset;endEvidence=[bool]$end;inputAttempted=$attempted;consentProof=$proof}
  }finally{try{if(-not $p.HasExited){Stop-Process -Id $p.Id -ErrorAction Stop}}catch{Write-Warning 'Synthetic helper cleanup not confirmed'}}
 }
 
@@ -342,7 +395,7 @@ public static class PromptNative {
 }
 '@
 }catch{Record 'all' 'preflight' 'UNKNOWN' $_.Exception.Message;Record 'all' 'complete' 'INFO' 'Preflight incomplete';exit 2}
-Record 'all' 'scope' 'INFO' 'Fresh synthetic profiles only: existing bounded navigation and exact checkbox setup/cleanup. Passive native-owned foreground evidence and handshake-only helper. No consent input, no Target.getTargets, no metadata. No personal profile/product/registry/policy/release. UNKNOWN is not PASS.'
+Record 'all' 'scope' 'INFO' 'Fresh synthetic profiles only. One exact owned Allow Invoke and ONE Target.getTargets per browser; no other protocol method, activation or selection input during bracket. No personal profile/product/release changes. Full gate remains NOT_PASS.'
 $browsers=@(
  @{name='chrome';exe="${env:ProgramFiles}\Google\Chrome\Application\chrome.exe";uri='chrome://inspect/#remote-debugging'},
  @{name='edge';exe="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe";uri='edge://inspect/#remote-debugging'}
@@ -390,17 +443,19 @@ foreach($browser in $browsers) {
   Record $name 'inspect-toggle' 'PASS' 'One exact disposable-checkbox enable call returned and fresh On state observed; synthetic only'
   if(-not(WaitUntil {Test-Path (Join-Path $profile 'DevToolsActivePort')} 12)){Record $name 'endpoint' 'UNKNOWN' 'No synthetic endpoint file; no flag fallback';continue}
   Record $name 'endpoint' 'PASS' 'Endpoint exists in unique disposable profile'
+  $manifest=@();for($i=0;$i -lt 3;$i++){$letter='ABC'[$i].ToString();$manifest+=[pscustomobject]@{label=$letter;title="StartAppFixture$letter";url=$urls[$i]}}
+  $manifest | ConvertTo-Json -Compress | Set-Content -Encoding utf8 (Join-Path $OutDir "$name-manifest.json")
   $inspectHandle=[IntPtr]$inspect.Current.NativeWindowHandle
   if(-not [ObserveNative]::SetForegroundWindow($inspectHandle) -or [ObserveNative]::GetForegroundWindow() -ne $inspectHandle){throw 'Inspect foreground not proven before synthetic connection'}
   # Selection snapshots tightly bracket ONLY the connection/consent/enumeration attempt.
   $before=@(Selection $profile $exeName)
   $attempt=ObserveSocketAttempt $name 'first' $profile $exeName $inspect
   Record $name 'socket-observation' 'INFO' ($attempt | ConvertTo-Json -Depth 12 -Compress)
-  Record $name 'prompt-observation' $(if($attempt.onsetEvidence -and $attempt.endEvidence){'INFO'}else{'UNKNOWN'}) 'Observation only; if either bounded native-attributed picture unavailable, stop/report, no retry or attribution relaxation'
+  Record $name 'prompt-observation' $(if($attempt.onsetEvidence -and $attempt.endEvidence){'INFO'}else{'UNKNOWN'}) 'Both frames pre-consent; bounded attribution refusal stops this browser without retry or relaxation'
   $after=@(Selection $profile $exeName)
-  Record $name 'first-consent' $(if($attempt.promptSeen -and $attempt.decisionApplied){'PASS'}else{'UNKNOWN'}) 'No consent input by design; prompt observation is not consent proof'
-  Record $name 'enumeration' 'UNKNOWN' ($attempt | ConvertTo-Json -Depth 8 -Compress)
-  $stable=(ValidSelection $before) -and (ValidSelection $after) -and (($before | ConvertTo-Json -Compress) -ceq ($after | ConvertTo-Json -Compress))
+  Record $name 'first-consent' $(if($attempt.promptSeen -and $attempt.decisionApplied){'PASS'}else{'UNKNOWN'}) 'One attributed Invoke returned only; not proof that transport opened or personal user consent'
+  Record $name 'enumeration' $(if($attempt.decisionApplied -and $attempt.result.state -ceq 'metadata_collected' -and $attempt.helperExit -eq 0){'PASS'}else{'UNKNOWN'}) ($attempt | ConvertTo-Json -Depth 8 -Compress)
+  $stable=(ValidSelection $before) -and (ValidSelection $after) -and ((CanonSelection $before) -ceq (CanonSelection $after))
   Record $name 'fixture-selection-unchanged' $(if($stable){'PASS'}elseif((ValidSelection $before) -and (ValidSelection $after)){'FAIL'}else{'UNKNOWN'}) (@{before=$before;after=$after} | ConvertTo-Json -Depth 7 -Compress)
   [void](FixturePictures $name 'after' $profile $exeName $after)
 

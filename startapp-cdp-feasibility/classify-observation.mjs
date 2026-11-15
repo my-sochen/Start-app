@@ -3,13 +3,14 @@
 import {readFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {join} from 'node:path';
+import {fixtureTargets,validManifest} from './consent-targets.mjs';
 const [dir,exitArg]=process.argv.slice(2);
 const reasons=[]; const note=x=>reasons.push(x);
 const required=['version','navigation','inspect-before','fixture','before-window1','before-window2','inspect-toggle','endpoint','socket-observation','prompt-observation','first-consent','enumeration','fixture-selection-unchanged','after-window1','after-window2','reconnect-denied','disable','post-disable-unavailable','cleanup','complete'];
 const baseline=['inspect-before','before-window1','before-window2','after-window1','after-window2'];
 const prompt=['prompt-onset','prompt-end'];
 const optional=['version-floor','probe',...prompt];
-const forbiddenPass=['first-consent','enumeration','reconnect-denied','post-disable-unavailable'];
+const forbiddenPass=['reconnect-denied','post-disable-unavailable'];
 const browsers=['chrome','edge'];
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const arr=x=>Array.isArray(x)?x:x==null?[]:[x];
@@ -33,11 +34,11 @@ for(const s of ['scope','complete'])if(pick('all',s).length!==1||status('all',s)
 if(pick('all','preflight').length)note('preflight incomplete');
 function validSelection(v){
  const a=arr(v);if(a.length!==3)return false;
- if(!a.every(x=>obj(x)&&integer(x.hwnd)&&typeof x.title==='string'&&typeof x.selected==='boolean'))return false;
+ if(!a.every(x=>obj(x)&&integer(x.hwnd)&&typeof x.title==='string'&&x.fixture===x.title.split(/\s/)[0]&&typeof x.selected==='boolean'))return false;
  const h=new Set(a.map(x=>x.hwnd)),t=new Set(a.map(x=>x.title.split(/\s/)[0]));
  return h.size===2&&t.size===3&&[...t].every(x=>/^StartAppFixture[ABC]$/.test(x))&&[...h].every(h=>a.filter(x=>x.hwnd===h&&x.selected).length===1);
 }
-const canon=x=>JSON.stringify(arr(x).map(x=>[x.hwnd,x.title,x.selected]).sort());
+const canon=x=>JSON.stringify(arr(x).map(x=>[x.hwnd,x.fixture,x.selected]).sort());
 function validIdentity(s){
  if(!obj(s)||s.eligible!==true||!['inspectUnique','inspectFresh','foregroundStable','visible','rectAgrees','rectWithinParent','parentWithinScreen','sizeAllowed'].every(k=>s[k]===true)||s.minimized!==false||s.offscreen!==false)return false;
  const chain=arr(s.chain),pids=arr(s.profilePids);
@@ -51,30 +52,43 @@ function validIdentity(s){
  if(r[2]-r[0]<300||r[2]-r[0]>1600||r[3]-r[1]<200||r[3]-r[1]>1100)return false;
  return q[0]>=r[0]&&q[1]>=r[1]&&q[2]<=r[2]&&q[3]<=r[3]&&q[2]>q[0]&&q[3]>q[1];
 }
-function validSocket(d){
- if(!obj(d)||d.promptSeen!==false||d.decisionApplied!==false||d.decision!=='observe-only'||typeof d.onsetEvidence!=='boolean'||typeof d.endEvidence!=='boolean'||!Number.isInteger(d.helperExit)||!obj(d.result))return false;
- const r=d.result;if(r.state==='no_result'||Object.keys(r).some(k=>!['state','opened','events','closeCode','clean'].includes(k)))return false;
- const codes={timeout:2,connection_error:4,closed:7,invalid_endpoint:8};
- if(codes[r.state]!==d.helperExit||typeof r.opened!=='boolean'||!Array.isArray(r.events)||r.events.length<2||r.events.length>8||'targets'in r)return false;
- const allowed={event:1,utc:1,state:1,opened:1,closeCode:1,clean:1};
- const names=['connect-requested','open','timeout','error','close','finished','invalid-endpoint','unsolicited-message-discarded'];
- if(!r.events.every(e=>obj(e)&&Object.keys(e).every(k=>allowed[k])&&names.includes(e.event)&&typeof e.utc==='string'&&Number.isFinite(Date.parse(e.utc))))return false;
- if(r.events.some((e,i)=>i>0&&Date.parse(e.utc)<Date.parse(r.events[i-1].utc)))return false;
- for(const e of r.events){if('opened'in e&&typeof e.opened!=='boolean'||'closeCode'in e&&!Number.isInteger(e.closeCode)||'clean'in e&&typeof e.clean!=='boolean')return false;}
- const seq=r.events.map(e=>e.event),last=r.events.at(-1);
- if(new Set(seq).size!==seq.length||last.event!=='finished'||last.state!==r.state)return false;
- if((seq.includes('open'))!==r.opened||seq.includes('unsolicited-message-discarded')&&!r.opened)return false;
- const terminal={timeout:'timeout',connection_error:'error',closed:'close',invalid_endpoint:'invalid-endpoint'}[r.state];
- if(seq.at(-2)!==terminal)return false;
- const expected=['connect-requested',...(r.opened?['open']:[]),...(seq.includes('unsolicited-message-discarded')?['unsolicited-message-discarded']:[]),terminal,'finished'];
- if(r.state!=='invalid_endpoint'&&JSON.stringify(seq)!==JSON.stringify(expected))return false;
- if(r.state==='invalid_endpoint')return seq.length===2&&!r.opened;
- if(seq[0]!=='connect-requested')return false;
- if(r.opened&&seq.indexOf('open')!==1)return false;
- if(r.state==='closed'&&(!Number.isInteger(r.closeCode)||typeof r.clean!=='boolean'||r.events.at(-2).closeCode!==r.closeCode||r.events.at(-2).clean!==r.clean))return false;
- if(['timeout','connection_error','closed'].includes(r.state)&&r.events.at(-2).opened!==r.opened)return false;
- return true;
+// Same source-of-truth identity fields as the pre-effect PowerShell comparator.
+function sameIdentity(a,b){
+ if(!validIdentity(a)||!validIdentity(b))return false;
+ const keys=['inspect','foreground','rootOwner','profilePids','uiaPid','inspectUiaPid','uiaHwnd','runtimeId','parentRuntimeId','parentRect','popupRect'];
+ return keys.every(k=>JSON.stringify(a[k])===JSON.stringify(b[k]))&&JSON.stringify(a.chain.map(x=>[x.hwnd,x.pid,x.owner]))===JSON.stringify(b.chain.map(x=>[x.hwnd,x.pid,x.owner]));
 }
+function validConsent(p){
+ if(!obj(p)||!['invoked','warningMatched','treeStable','attempted','returned'].every(k=>p[k]===true)||!validIdentity(p.identity))return false;
+ const n=p.button,r=p.root,i=p.identity;
+ if(!obj(n)||!obj(r)||r.name!=='Allow remote debugging?'||r.hwnd!==i.foreground||r.pid!==i.uiaPid||n.name!=='Allow'||n.type!=='ControlType.Button'||n.pid!==i.uiaPid||n.enabled!==true||n.offscreen!==false||!Array.isArray(n.patterns)||!n.patterns.includes('InvokePatternIdentifiers.Pattern')||!Array.isArray(n.runtimeId)||n.runtimeId.length===0||!n.runtimeId.every(Number.isSafeInteger))return false;
+ const q=n.bounds,b=i.popupRect;
+ return Array.isArray(q)&&q.length===4&&q.every(Number.isFinite)&&q[2]>0&&q[3]>0&&q[0]>=b[0]&&q[1]>=b[1]&&q[0]+q[2]<=b[2]&&q[1]+q[3]<=b[3];
+}
+function validSocket(d,browser){
+ if(!obj(d)||typeof d.promptSeen!=='boolean'||typeof d.decisionApplied!=='boolean'||d.decision!=='single-Allow'||typeof d.inputAttempted!=='boolean'||typeof d.onsetEvidence!=='boolean'||typeof d.endEvidence!=='boolean'||!Number.isInteger(d.helperExit)||!obj(d.result))return false;
+ if(d.decisionApplied&&(!d.promptSeen||!d.onsetEvidence||!d.endEvidence||!d.inputAttempted||!validConsent(d.consentProof)))return false;
+ if(!d.decisionApplied&&d.consentProof&&d.consentProof!==false)return false;
+ const r=d.result;
+ if(r.state==='no_result')return !d.decisionApplied&&d.helperExit!==0; // refused input, helper stopped, not positive evidence
+ if(Object.keys(r).some(k=>!['state','opened','signaled','sent','events','targets'].includes(k))||!['opened','signaled','sent'].every(k=>typeof r[k]==='boolean')||!Array.isArray(r.events)||r.events.length<2||r.events.length>7||!Array.isArray(r.targets))return false;
+ const names=['connect-requested','open','invoke-signal','request-sent','response-matched','timeout','error','close','invalid-input','finished'];
+ if(!r.events.every((e,i)=>obj(e)&&Object.keys(e).every(k=>['event','utc'].includes(k))&&names.includes(e.event)&&typeof e.utc==='string'&&Number.isFinite(Date.parse(e.utc))&&(!i||Date.parse(e.utc)>=Date.parse(r.events[i-1].utc))))return false;
+ const seq=r.events.map(e=>e.event);
+ if(new Set(seq).size!==seq.length||seq.at(-1)!=='finished'||r.opened!==seq.includes('open')||r.signaled!==seq.includes('invoke-signal')||r.sent!==seq.includes('request-sent'))return false;
+ if(r.signaled&&(!d.decisionApplied||!r.opened)||r.sent&&(!r.signaled||!r.opened))return false;
+ const codes={metadata_collected:0,timeout:2,connection_error:4,send_error:4,closed:7,invalid_input:8,invalid_signal:9,unsolicited_message:10,invalid_response:11,fixture_mismatch:12};
+ if(codes[r.state]!==d.helperExit)return false;
+ const terminal={timeout:'timeout',connection_error:'error',closed:'close',invalid_input:'invalid-input',metadata_collected:'response-matched'}[r.state];
+ const expected=[...(r.state==='invalid_input'?[]:['connect-requested']),...(r.opened?['open']:[]),...(r.signaled?['invoke-signal']:[]),...(r.sent?['request-sent']:[]),...(terminal?[terminal]:[]),'finished'];
+ if(JSON.stringify(seq)!==JSON.stringify(expected))return false;
+ if(r.state==='metadata_collected'){
+  if(!d.decisionApplied||!r.opened||!r.signaled||!r.sent)return false;
+  try{const m=JSON.parse(readFileSync(join(dir,`${browser}-manifest.json`),'utf8').replace(/^\uFEFF/,''));if(!validManifest(m))return false;return JSON.stringify(fixtureTargets(r.targets,m))===JSON.stringify(r.targets);}catch{return false;}
+ }
+ return r.targets.length===0;
+}
+
 let collected=true;
 for(const b of browsers){
  for(const s of required){
@@ -101,8 +115,12 @@ for(const b of browsers){
  if(status(b,'version')==='INFO'&&!String(pick(b,'version')[0]?.detail||'').trim())note(`${b} versionempty`);
  const enumDetail=detail(pick(b,'enumeration')[0]||{});
  if(sock&&JSON.stringify(enumDetail)!==JSON.stringify(sock))note(`${b} enumerationmustonlyrepeatobservationresult`);
- if(status(b,'socket-observation')==='INFO'&&!validSocket(sock))note(`${b} malformedhandshakeevidence`);
- if(status(b,'socket-observation')!=='INFO'||!validSocket(sock))collected=false;
+ if(status(b,'socket-observation')==='INFO'&&!validSocket(sock,b))note(`${b} malformedhandshakeevidence`);
+ if(status(b,'socket-observation')!=='INFO'||!validSocket(sock,b)||sock?.result?.state!=='metadata_collected'||status(b,'first-consent')!=='PASS'||status(b,'enumeration')!=='PASS')collected=false;
+ if(status(b,'first-consent')==='PASS'&&(!sock?.decisionApplied||!sock?.promptSeen||!validSocket(sock,b)))note(`${b} unproveninvokePASS`);
+ if(status(b,'enumeration')==='PASS'&&(!validSocket(sock,b)||sock?.result?.state!=='metadata_collected'||status(b,'first-consent')!=='PASS'))note(`${b} unprovenmetadataPASS`);
+ if(sock?.decisionApplied){for(const phase of prompt){const pd=detail(pick(b,phase)[0]||{});if(!pd||!sameIdentity(pd.identity,sock.consentProof?.identity))note(`${b} consentpictureidentitymismatch`);}}
+ if(sock?.result?.state==='metadata_collected'&&status(b,'enumeration')!=='PASS')note(`${b} metadatastatuscontradiction`);
  const observed=status(b,'prompt-observation')==='INFO';
  if(!observed)collected=false;
  if(observed&&(!sock?.onsetEvidence||!sock?.endEvidence))note(`${b} summarydoesnotmatchemittedpictures`);
@@ -130,9 +148,9 @@ for(const b of browsers){
 }
 if(images>14||bytes>3670016)note('globalimagecap');
 if(exitArg!=='2')note('observationchildmustexit2');
-const verdict=anyFail?'TEST_FAILURE':reasons.length||!collected?'INCONCLUSIVE':'OBSERVATION_COLLECTED';
+const verdict=anyFail?'TEST_FAILURE':reasons.length||!collected?'INCONCLUSIVE':'SYNTHETIC_METADATA_COLLECTED';
 console.log(`OBS_VERDICT ${verdict} childExit=${exitArg} reasons=${reasons.length} images=${images}`);
 for(const r of reasons)console.log('OBS_REASON '+r);
 for(const b of browsers)console.log(`OBS_PHASES ${b} `+required.map(s=>`${s}=${status(b,s)}`).join(','));
-console.log('OBS_NOTE FULL_GATE NOT_PASS. Consent, metadata, reconnectdenial and causalrevocation remain UNKNOWN. OBSERVATION_COLLECTED means structurally complete local evidence only, not decoded/pixelvalid/nativeindependent proof. Actual PNGdecode/executor+main pixelreview mandatory. If bounded attribution refuses images, report/stop, no retry or guardrelaxation.');
+console.log('OBS_NOTE FULL_GATE NOT_PASS. SYNTHETIC_METADATA_COLLECTED means bounded synthetic metadata and stable selection records only, not consumer-device/personal-session compatibility or no physical window activation during setup. Reconnectdenial and causalrevocation remain UNKNOWN. Actual PNG decode/executor+main pixelreview mandatory. Refusal=>STOP, no retry/guardrelaxation.');
 process.exit(anyFail?1:0);
