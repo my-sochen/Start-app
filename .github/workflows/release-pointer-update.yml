@@ -34,6 +34,7 @@ jobs:
     # would skip that run and strand a stale pointer. Manual dispatch is the
     # same reconciliation path (bootstrap, asset-level changes).
     if: vars.PROTOTYPE_RELEASE_ENABLE == 'true'
+    runs-on: ubuntu-latest
     # deploy-pages convention (auto-created if absent). Protection policy is
     # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver":
     # recommended baseline is deployment branches restricted to the default

@@ -76,3 +76,23 @@ class DeployShapeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobShapeTests(unittest.TestCase):
+    """Regression for the live parse failure on first push (run 43661392190):
+    a job without runs-on is rejected by GitHub before any step runs."""
+
+    def test_every_job_has_runs_on(self):
+        for name, job in DOC["jobs"].items():
+            self.assertIn("runs-on", job, f"job {name} lacks runs-on")
+            self.assertTrue(str(job["runs-on"]).strip(), f"job {name} has empty runs-on")
+
+    def test_every_job_has_nonempty_steps(self):
+        for name, job in DOC["jobs"].items():
+            steps = job.get("steps")
+            self.assertIsInstance(steps, list, f"job {name} lacks steps")
+            self.assertGreater(len(steps), 0, f"job {name} has empty steps")
+
+    def test_update_pointer_runs_on_ubuntu(self):
+        # configure-pages / upload-pages-artifact / deploy-pages are Linux actions.
+        self.assertEqual(str(DOC["jobs"]["update-pointer"]["runs-on"]), "ubuntu-latest")

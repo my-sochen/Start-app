@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/per-instance-items, feat/browser-icon-display, dev, test/validation]
+    branches: [feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false

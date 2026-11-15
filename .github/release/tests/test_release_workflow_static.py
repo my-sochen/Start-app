@@ -88,3 +88,16 @@ class GateShapeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobShapeTests(unittest.TestCase):
+    """Same latent-requirement sweep applied to the dormant release workflow:
+    every job must declare runs-on and non-empty steps."""
+
+    def test_every_job_has_runs_on_and_steps(self):
+        for name, job in DOC["jobs"].items():
+            self.assertIn("runs-on", job, f"job {name} lacks runs-on")
+            self.assertTrue(str(job["runs-on"]).strip(), f"job {name} has empty runs-on")
+            steps = job.get("steps")
+            self.assertIsInstance(steps, list, f"job {name} lacks steps")
+            self.assertGreater(len(steps), 0, f"job {name} has empty steps")
