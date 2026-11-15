@@ -22,9 +22,15 @@ nav a { text-decoration: none; font-size: 14px; font-weight: 600; min-height: 44
 nav a[aria-current="page"] { text-decoration: underline; }
 .brand { font-size: 23px; font-weight: 700; letter-spacing: -.8px; direction: ltr; text-decoration: none; white-space: nowrap; }
 .brand i { display: inline-flex; background: var(--ink); color: var(--accent); width: 29px; height: 29px; align-items: center; justify-content: center; font-style: normal; margin-right: 8px; font-size: 21px; }
-.review-strip { background: var(--ink); color: #eef2e9; text-align: center; font-size: 12px; padding: 8px 18px; }
 .wrap { max-width: 1240px; margin: auto; padding: 0 32px; }
-.hero { padding: 76px 0 82px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 64px; align-items: center; }
+.hero { padding: 96px 0 120px; max-width: 720px; margin-inline: auto; text-align: center; }
+.hero .lead { margin-inline: auto; }
+.hero h1 { margin: 0 0 20px; direction: ltr; unicode-bidi: isolate; }
+.hero-download-state, .verify { margin-inline: auto; }
+.hero .actions { justify-content: center; }
+.hero .verify summary { list-style-position: inside; text-align: center; }
+.hero .verify .note { text-align: center; }
+.proto-note { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
 .eyebrow { font-size: 13px; font-weight: 700; color: var(--green); margin: 0 0 24px; }
 .pill { display: inline-block; border-inline-start: 3px solid var(--green); padding: 0 10px; font-size: 12px; color: var(--muted); font-weight: 600; line-height: 1.7; }
 h1 { font-size: clamp(38px, 4.3vw, 62px); line-height: 1.18; letter-spacing: -1.8px; font-weight: 700; margin: 24px 0; }
@@ -43,6 +49,7 @@ a.button:hover { background: var(--ink); color: white; }
 .hero-download-button svg { width: 26px; height: 26px; flex-shrink: 0; }
 .hero-download-button span { text-align: center; }
 .hero-download-state { font-size: 14px; color: var(--muted); max-width: 560px; margin: 14px 0 0; }
+button.primary:not([disabled]) { cursor: pointer; }
 button[disabled] { background: #55645d; color: #fff; cursor: not-allowed; }
 .note { font-size: 13px; color: var(--muted); }
 /* Pointer metadata: LTR data stays isolated and unbroken (tags, versions,
@@ -50,20 +57,6 @@ button[disabled] { background: #55645d; color: #fff; cursor: not-allowed; }
    the line and never split a version in half. */
 .ptr-ltr { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
 .ptr-sha { direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; word-break: break-all; }
-.workspace-illustration { background: var(--wash); padding: 28px; border-top: 4px solid var(--green); }
-.illustration-label { font-size: 12px; margin: 0 0 22px; color: var(--muted); }
-.mock-window { background: var(--white); border: 1px solid #bac8bb; }
-.mock-top { background: var(--ink); color: #eef2e9; padding: 12px 18px; display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
-.mock-top bdi { color: var(--accent); font-weight: 600; }
-.mock-content { padding: 24px; }
-.mock-content h3 { margin: 4px 0; font-size: 24px; }
-.mock-content > .small { margin-bottom: 24px; }
-.mock-row { display: flex; gap: 14px; align-items: center; border-top: 1px solid var(--line); padding: 14px 0; font-size: 15px; }
-.icon { display: flex; width: 30px; height: 30px; background: var(--wash); align-items: center; justify-content: center; font: 700 14px Arial; color: var(--green); flex-shrink: 0; }
-.icon svg { width: 16px; height: 16px; }
-.brand i svg { width: 16px; height: 16px; }
-.mock-meta { font-size: 12px; color: var(--muted); }
-.mock-foot { border-top: 2px solid var(--ink); color: var(--ink); font-size: 13px; padding: 13px 0 0; margin-top: 8px; }
 .section { padding: 62px 0; border-top: 1px solid var(--line); }
 .section-intro { max-width: 740px; color: var(--muted); }
 .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 42px; margin-top: 36px; }
@@ -119,10 +112,7 @@ footer { border-top: 1px solid var(--line); padding: 28px 0; color: var(--muted)
 bdi, code { direction: ltr; unicode-bidi: isolate; }
 code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow-wrap: anywhere; }
 @media (max-width: 900px) {
-  .hero { gap: 32px; grid-template-columns: 1fr 1fr; }
   h1 { font-size: 43px; }
-  .workspace-illustration { padding: 20px; }
-  .mock-content { padding: 18px; }
   .faq { column-gap: 30px; }
   .doc-layout { gap: 30px; }
 }
@@ -131,9 +121,8 @@ code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow
   .brand { font-size: 22px; }
   header > nav { gap: 22px; margin-top: 8px; }
   nav a { font-size: 13px; }
-  .review-strip { font-size: 11px; padding: 8px 16px; }
-  .wrap { padding: 0 22px; }
-  .hero { padding: 38px 0 44px; grid-template-columns: 1fr; gap: 28px; }
+    .wrap { padding: 0 22px; }
+  .hero { padding: 48px 0 64px; }
   .eyebrow { margin-bottom: 18px; }
   h1 { font-size: clamp(34px, 9.4vw, 48px); letter-spacing: -1.2px; margin: 20px 0; }
   h2 { font-size: 29px; }
@@ -142,7 +131,6 @@ code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow
   .hero-download { margin: 28px 0 4px; }
   .hero-download-button { width: 100%; min-height: 66px; padding: 14px 22px; font-size: 17px; gap: 12px; }
   .hero-download-button svg { width: 22px; height: 22px; }
-  .workspace-illustration { max-width: 480px; width: 100%; margin: auto; padding: 22px; }
   .grid3, .status-grid { grid-template-columns: 1fr; gap: 0; }
   .grid3 { margin-top: 28px; }
   .step { padding: 18px 0 8px; }
@@ -166,15 +154,12 @@ code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow
   .wrap { padding: 0 18px; }
   header { padding-inline: 18px; }
   header > nav { gap: 15px; }
-  .workspace-illustration { padding: 16px; }
-  .mock-content { padding: 18px; }
-  .mock-top { padding: 12px; font-size: 10px; }
   .sidebar nav { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 @media print {
   body { background: white; color: #111; font-size: 11pt; }
-  header, .review-strip, .sidebar, .actions, .skip { display: none; }
+  header, .sidebar, .actions, .skip { display: none; }
   .wrap { max-width: none; padding: 0; }
   .doc-layout { display: block; }
   .doc-section { break-inside: avoid; page-break-inside: avoid; }
@@ -189,3 +174,25 @@ code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow
   .download .eyebrow, .download .note, .download .small, .download .pill { color: #333; }
   footer { font-size: 9pt; }
 }
+
+/* Clean download-first home */
+.verify { margin: 12px 0 0; max-width: 560px; }
+.verify summary { cursor: pointer; font-size: 14px; min-height: 32px; display: list-item; align-content: center; color: var(--muted); }
+.verify .note { margin: 6px 0 0; }
+.doc-download { margin: 20px 0 28px; }
+.steps-list { max-width: 760px; color: var(--muted); font-size: 16px; padding-inline-start: 24px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+h1:focus, h1:focus-visible { outline: none; }
+.docs-jump { display: none; }
+@media (max-width: 700px) {
+  .docs-jump { display: flex; position: sticky; top: 0; z-index: 20; justify-content: space-between; gap: 12px; background: var(--paper); border-bottom: 1px solid var(--line); margin: 0 -22px; padding: 0 22px; }
+  .docs-jump a { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 600; }
+  .doc-layout { gap: 0; }
+  .sidebar { scroll-margin-top: 52px; padding-top: 20px; }
+  .doc-section { scroll-margin-top: 56px; }
+}
+@media (max-width: 360px) { .docs-jump { margin: 0 -18px; padding: 0 18px; } }
+@media print { .docs-jump { display: none; } }
+/* centered hero blocks (must follow the generic .verify / state rules) */
+.hero .hero-download-state, .hero .verify { margin-inline: auto; text-align: center; }
+.hero .proto-note { text-align: center; }

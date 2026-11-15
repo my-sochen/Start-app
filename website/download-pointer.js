@@ -143,11 +143,18 @@
       button.onclick = function () {
         global.location.assign(p.url);
       };
-      if (note) {
+      // Rich CTAs pass els.detail (the body of a collapsed verification
+      // panel): the full metadata goes there and the visible note stays short.
+      const metaTarget = els.detail || note;
+      if (els.detail && note) {
+        note.textContent = "Windows x64 · קובץ ZIP";
+      }
+      if (els.detail && els.detail.parentNode) els.detail.parentNode.hidden = false;
+      if (metaTarget) {
         const size = formatSize(p.size);
         const honesty =
           "הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.";
-        if (typeof note.replaceChildren === "function" && typeof document !== "undefined") {
+        if (typeof metaTarget.replaceChildren === "function" && typeof document !== "undefined") {
           // Real DOM: scoped elements keep LTR data readable and unbreakable
           // (tags/versions never split on narrow screens); only the long hash
           // token is allowed to wrap.
@@ -161,7 +168,7 @@
           if (size) nodes.push(document.createTextNode(" · "), mk("ptr-ltr", size));
           if (p.sha256) nodes.push(document.createTextNode(" · "), mk("ptr-sha", "sha256: " + p.sha256));
           nodes.push(document.createTextNode(" · " + honesty));
-          note.replaceChildren.apply(note, nodes);
+          metaTarget.replaceChildren.apply(metaTarget, nodes);
         } else {
           // Text-only fallback (offline tests): Unicode isolates carry the
           // same bidi protection without markup.
@@ -169,13 +176,17 @@
           if (size) parts.push(ltr(size));
           if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
           parts.push(honesty);
-          note.textContent = parts.join(" · ");
+          metaTarget.textContent = parts.join(" · ");
         }
       }
       return;
     }
     button.disabled = true;
     button.onclick = null;
+    if (els.detail && els.detail.parentNode) {
+      els.detail.textContent = "";
+      els.detail.parentNode.hidden = true;
+    }
     setLabel(
       result.state === "none" ? "אין הורדה זמינה כרגע" : "הורדה לא זמינה"
     );
