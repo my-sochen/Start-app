@@ -260,7 +260,9 @@ t("index loads reader then wire script", () => {
 });
 
 t("wire resolves pointer.json relative to the page (same-origin)", () => {
-  assert.ok(WIRE.includes('new URL("pointer.json", window.location.href)'));
+  assert.ok(WIRE.includes('document.documentElement.getAttribute("data-site-root")'));
+  assert.ok(WIRE.includes('"/pointer.json", window.location.href)'));
+  assert.equal(new URL("../pointer.json", "https://example.test/Start-app/en/index.html").href, "https://example.test/Start-app/pointer.json");
   assert.ok(WIRE.includes("StartAppPointer.load(url)"));
   assert.ok(!WIRE.includes("github.com"), "wire must not hardcode any origin");
 });
@@ -314,7 +316,7 @@ t("public copy never claims a private review stage", () => {
 
 t("reader keeps technical version separate from the simple CTA", () => {
   const reader = readFileSync(join(SITE, "download-pointer.js"), "utf8");
-  assert.ok(reader.includes('setLabel("הורדה ל־Windows")'));
+  assert.ok(reader.includes('setLabel(tr("הורדה ל־Windows"))'));
   assert.ok(reader.includes('mk("ptr-ltr", p.version)'));
   assert.ok(!reader.includes('tagSpan'));
 });

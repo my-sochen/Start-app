@@ -1,4 +1,6 @@
 "use strict";
+function tr(text) { return typeof window !== "undefined" && window.StartAppI18n ? window.StartAppI18n.t(text) : text; }
+
 /*
  * Activation wiring for the prototype download pointer.
  * Loads the same-origin pointer document (pointer.json, deployed atomically
@@ -19,16 +21,16 @@
 (function () {
   var TEXTS = {
     ok: {
-      badge: "גרסת אב-טיפוס זמינה להורדה",
-      heading: "גרסת אב-טיפוס זמינה.",
+      badge: tr("גרסת אב-טיפוס זמינה להורדה"),
+      heading: tr("גרסת אב-טיפוס זמינה."),
     },
     none: {
-      badge: "אין עדיין גרסה מאומתת להורדה",
-      heading: "אין הורדה זמינה כרגע.",
+      badge: tr("אין עדיין גרסה מאומתת להורדה"),
+      heading: tr("אין הורדה זמינה כרגע."),
     },
     invalid: {
-      badge: "לא ניתן לאמת הורדה כרגע",
-      heading: "לא ניתן לאמת הורדה כרגע.",
+      badge: tr("לא ניתן לאמת הורדה כרגע"),
+      heading: tr("לא ניתן לאמת הורדה כרגע."),
     },
   };
   var seq = 0;
@@ -59,7 +61,7 @@
   // the truthful "checking" state before the fetch resolves it.
   function applyLoading() {
     var badge = document.getElementById("availability-badge");
-    if (badge) badge.textContent = "בודק זמינות הורדה…";
+    if (badge) badge.textContent = tr("בודק זמינות הורדה…");
     ctas().forEach(function (button) {
       // Fail closed first: even on an already-enabled CTA (init called again),
       // the button is disabled, the old handler removed and the verification
@@ -73,9 +75,9 @@
       }
       var label = labelOf(button);
       var note = byId(button.getAttribute("aria-describedby"));
-      if (label) label.textContent = "בודק זמינות הורדה…";
-      else button.textContent = "בודק זמינות הורדה…";
-      if (note) note.textContent = "יעד האריזה: Windows x64. בודק אם קיימת גרסת אב-טיפוס מאומתת…";
+      if (label) label.textContent = tr("בודק זמינות הורדה…");
+      else button.textContent = tr("בודק זמינות הורדה…");
+      if (note) note.textContent = tr("יעד האריזה: Windows x64. בודק אם קיימת גרסת אב-טיפוס מאומתת…");
     });
   }
 
@@ -108,7 +110,7 @@
     applyLoading();
     // Same-origin resolution: pointer.json sits next to this page in the
     // deployed artifact; an absolute https URL satisfies load()'s own check.
-    var url = new URL("pointer.json", window.location.href).href;
+    var url = new URL((document.documentElement.getAttribute("data-site-root") || ".") + "/pointer.json", window.location.href).href;
     window.StartAppPointer.load(url).then(function (result) {
       if (mine !== seq) return;
       renderAll(result);

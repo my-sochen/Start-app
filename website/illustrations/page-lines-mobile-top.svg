@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 130" fill="none" stroke="#214fc2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><filter id="hand-line" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency=".025 .04" numOctaves="2" seed="17" result="grain"/><feDisplacementMap in="SourceGraphic" in2="grain" scale=".85" xChannelSelector="R" yChannelSelector="G"/></filter></defs><g filter="url(#hand-line)">
+  <path d="M-12 113C-5 38 71 4 125 30c31 15 45 49 78 47 51-4 77-60 127-39 18 7 28 24 34 42" opacity=".48"/>
+  <g transform="translate(41 41) rotate(-13)"><path d="M0 6V0h26l7 8h37v42H0Z"/><path d="M0 15h70"/></g>
+  <g transform="translate(252 58) rotate(10)"><rect width="43" height="34" rx="3"/><path d="M0 10h43M7 5h.1M13 5h.1"/></g>
+  <circle cx="186" cy="30" r="2"/><path d="M212 100v8m-4-4h8" opacity=".65"/>
+</g></svg>

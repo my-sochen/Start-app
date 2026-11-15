@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html data-site-root=".." dir="ltr" lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="https://my-sochen.github.io/Start-app/fr/docs.html" rel="canonical"/>
+<meta content="Start-app: Guide d'utilisation du prototype d'évaluation, version non stable." name="description"/>
+<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
+<title>Guide de l'utilisateur | Start-app</title>
+<link href="../styles.css" rel="stylesheet"/>
+<link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
+<link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
+<link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
+<link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+<link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+<link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/fr/docs.html" />
+<link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/es/docs.html" />
+<link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+<link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
+  </head>
+<body>
+<a class="skip" href="#main">Passer au contenu</a>
+<header>
+<a aria-label="Start-app, page d'accueil" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+<nav aria-label="navigation principale">
+<a aria-current="page" href="docs.html">Guide d'utilisation</a><a href="index.html#download">Télécharger</a>
+</nav>
+<details class="language-switch"><summary>langue</summary><nav aria-label="Sélection de la langue"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a aria-current="true" dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<main class="wrap" id="main">
+<div class="docs-intro">
+<p class="eyebrow">Guide d'utilisation</p>
+<h1 tabindex="-1">guide Start-app</h1>
+<p class="lead"> Pas à pas : création d'un espace de travail, ajout d'éléments, capture, lancement et sauvegarde - avec de vraies captures d'écran de l'application et avec les limitations qu'il est important de connaître. </p>
+<p class="pill">Un prototype d'évaluation, pas une version stable</p>
+</div>
+<div class="doc-layout">
+<div class="docs-jump">
+<a href="#toc">Les chapitres du guide</a><a href="#main">Retour en haut ↑</a>
+</div>
+<aside aria-label="table des matières" class="sidebar" id="toc">
+<label for="doc-search">Rechercher les chapitres du guide</label><input autocomplete="off" id="doc-search" placeholder="Par exemple : enregistrer ou capturer" type="search"/>
+<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
+<nav aria-label="Les chapitres du guide">
+<a href="#about">qu'est-ce que c'est Start-app</a><a href="#install">Exigences du système et de l'installation</a><a href="#main-screen">L'écran principal : la vue environnement</a><a href="#create">Créer un nouvel environnement de travail</a><a href="#items">Ajouter des éléments manuellement</a><a href="#capture">Capture : numérisation, sélection et duplication</a><a href="#edit">Modification de l'environnement et des éléments</a><a href="#launch">Environnement de lancement et tests avant ouverture</a><a href="#limits">Limites connues</a><a href="#storage">Sauvegarde et stockage local</a><a href="#privacy">La confidentialité en quelques mots</a><a href="#faq">questions fréquemment posées</a>
+</nav>
+<p class="note">La recherche est locale à la page. sans envoyer les données.</p>
+</aside>
+<div>
+<p class="no-results" hidden="" id="no-results"> Aucun épisode trouvé. Essayez un autre mot ou effacez la recherche. </p>
+<section class="doc-section" data-doc="" id="about">
+<span class="doc-kicker">commencer</span>
+<h2>qu'est-ce que c'est Start-app</h2>
+<p> Start-app Enregistre les programmes, dossiers, fichiers et liens sous un seul nom d'environnement. La prochaine fois que vous ouvrirez l'ordinateur, la commande "Exécuter" ouvrira tous les éléments ensemble, sans les sélectionner à nouveau. </p>
+<p> Ce guide accompagne tout le parcours : l'écran principal, la création d'un environnement, l'ajout d'éléments manuellement ou par capture, édition, lancement et sauvegarde. chapitre <a href="#limits">Limites connues</a> Centralisez en un seul endroit tout ce que l’application ne fait pas. </p>
+</section>
+<section class="doc-section" data-doc="" id="install">
+<span class="doc-kicker">commencer</span>
+<h2>Exigences du système et de l'installation</h2>
+<p> La cible du packaging est Windows x64. Il n’existe pas de version Mac ou Linux vérifiée. </p>
+<p> La disponibilité du téléchargement est affichée <a href="index.html#download">sur la page d'accueil</a> Et mis à jour automatiquement : lorsqu'il existe une version prototype vérifiée, il existe un lien de téléchargement, ainsi que le numéro de version, la taille du fichier et son sha256 pour vérification avant l'installation. </p>
+<div class="doc-download">
+<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"> Téléchargement non disponible </button>
+<p aria-live="polite" class="note" id="docs-download-state"> Une version téléchargeable ne peut pas être vérifiée pour le moment. Le téléchargement reste désactivé. </p>
+<details class="verify" hidden="">
+<summary>détails techniques</summary>
+<p class="note" id="docs-verify-body"></p>
+</details>
+</div>
+<h3>Activation après téléchargement</h3>
+<p> Le téléchargement est un fichier ZIP, pas un programme d'installation. Après téléchargement : </p>
+<ol class="steps-list">
+<li>Extrayez tous les fichiers du ZIP dans un dossier.</li>
+<li> Ouvrez le dossier extrait et exécutez le <bdi><code>StartApp.App.exe</code></bdi>.
+              </li>
+<li>Laissez la DLL et les fichiers d'exécution dans le dossier, à côté du fichier.</li>
+</ol>
+<p> L'application inclut son environnement d'exécution, il n'est donc pas nécessaire d'installer .NET séparément. Aucune inscription, compte ou connexion. Les données sont enregistrées dans un fichier local dans<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            </p>
+<p> Ce qui a été testé : ce prototype a été construit en tant qu'application Windows x64 autonome, et a démarré et arrêté avec succès sur un serveur Windows Server 2025 hébergé. Non testé indépendamment sur Windows 11 domestique, et il n’y a pas d’engagement minimum de version Windows. Il n'y a aucune garantie que les avertissements de sécurité ou les alertes du logiciel antivirus n'apparaîtront pas. </p>
+</section>
+<section class="doc-section" data-doc="" id="main-screen">
+<span class="doc-kicker">Écrans</span>
+<h2>L'écran principal : la vue environnement</h2>
+<p> La liste des environnements se trouve en haut de l'écran. Chaque carte affiche le nom, la description, la catégorie, la couleur et l'image choisies, la date de création et la dernière ouverture. La date de dernière ouverture est mise à jour au lancement d'un environnement, et non à l'ouverture d'un élément individuel. </p>
+<p> Chaque carte possède un bouton « Lancer » et un menu « ... » proposant des actions supplémentaires. Sous la liste se trouve un formulaire de création d’un nouvel environnement. Un accès à l’écran de capture se trouve dans le coin. </p>
+<figure class="shot">
+<img alt="Écran principal avec trois cartes d’environnement, une carte colorée indiquant la date de dernière ouverture et un formulaire de création d’environnement en dessous" height="560" loading="lazy" src="../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
+<figcaption> L'écran principal : des cartes d'environnement, dont une carte conçue en couleur, et un formulaire de création d'environnement. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="create">
+<span class="doc-kicker">Écrans</span>
+<h2>Créer un nouvel environnement de travail</h2>
+<p> Dans le formulaire de création, le nom est obligatoire. La catégorie par défaut est « Général » et vous pouvez choisir une couleur et une image pour la carte. La description est facultative. Après l’enregistrement, un message confirme que les informations ont été enregistrées. </p>
+<figure class="shot">
+<img alt="Formulaire complet de création d'environnement : nom, description, catégorie avec valeur par défaut, palette de couleurs et champ d'image, ainsi qu'une ligne d'état dont les détails ont été enregistrés" height="560" loading="lazy" src="../shots/doc-feat-08-overview-after-guard.png" width="900"/>
+<figcaption> Formulaire de création d'environnement : nom, description, catégorie, couleur et image. </figcaption>
+</figure>
+<p> Si vous essayez de lancer un environnement qui ne contient pas encore d'éléments, un message apparaît vous dirigeant vers les détails de l'environnement pour ajouter des éléments. </p>
+<figure class="shot">
+<img alt="Un message d'espace de travail vide au lancement, avec une transition vers les détails de l'environnement" height="560" loading="lazy" src="../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
+<figcaption> Le lancement d'un environnement vide redirige vers l'ajout d'éléments. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="items">
+<span class="doc-kicker">Écrans</span>
+<h2>Ajouter des éléments manuellement</h2>
+<p> Dans l'écran des détails de l'environnement, ajoutez des éléments de quatre types : site, fichier, dossier et logiciel. Chaque article peut recevoir votre propre nom et description. Les chemins locaux nécessitent un chemin Windows complet, et non un court alias logiciel. </p>
+<figure class="shot">
+<img alt="Écran de détails de l'environnement sans éléments, avec une ligne pour ajouter un élément et sélectionner un type" height="560" loading="lazy" src="../shots/doc-feat-01-details-empty.png" width="900"/>
+<figcaption> Écran de détails de l'environnement : la ligne d'ajout et la sélection du type d'élément. </figcaption>
+</figure>
+<p> Les éléments sont regroupés à l'écran par type : sites Web, dossiers, fichiers et logiciels. Chaque ligne possède un bouton d'édition et un menu d'action. </p>
+<figure class="shot">
+<img alt="Les quatre groupes d'éléments au complet : sites Web, dossiers, fichiers et logiciels, avec édition pour chaque ligne" height="560" loading="lazy" src="../shots/doc-feat-22-four-groups.png" width="900"/>
+<figcaption> Les quatre groupes d'éléments : sites, dossiers, fichiers et logiciels. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="capture">
+<span class="doc-kicker">opérations</span>
+<h2>Capture : numérisation, sélection et duplication</h2>
+<p> La capture analyse ce qui est actuellement ouvert : les programmes et l'Explorateur de fichiers Windows, ainsi que dans le navigateur, la barre d'adresse. La source du navigateur connaît Chrome, Edge et Brave ; Il n'existe actuellement aucune matrice de compatibilité complète pour chaque navigateur et version. L'analyse peut prendre jusqu'à 10 secondes. </p>
+<p> Les résultats sont affichés pour la sélection avant d'être enregistrés. Vous pouvez créer un nouvel environnement à partir d'eux ou les ajouter à un environnement existant - avec une recherche qui le localise. </p>
+<figure class="shot">
+<img alt="Écran de capture : recherchez un environnement existant à côté de la liste des éléments identifiés comme actuellement ouverts" height="560" loading="lazy" src="../shots/doc-cap-pick-workspace-search.png" width="900"/>
+<figcaption> Une sélection d'environnement est présente dans la capture, à côté de la liste "ouvrir maintenant". </figcaption>
+</figure>
+<p> Lors de la création d'un nouvel environnement, les éléments sont cochés par défaut. Lors de l'ajout à un environnement existant : sans marquage, l'action est "Tout ajouter" et avec des marquages ​​- "Ajouter la sélection". Les duplications par rapport à ce qui est déjà enregistré dans l'environnement nécessitent une approbation. Les ajouts d’écrans côte à côte restent temporaires jusqu’à ce que vous cliquiez sur Enregistrer. </p>
+<figure class="shot">
+<img alt="L'écran de capture côte à côte avant l'enregistrement : éléments ajoutés et non enregistrés par rapport aux éléments détectés" height="560" loading="lazy" src="../shots/doc-cap-side-by-side-staged.png" width="900"/>
+<figcaption> Côte à côte avant l'enregistrement : rien n'est enregistré tant que vous n'avez pas cliqué sur Enregistrer. </figcaption>
+</figure>
+<p> Un site capturé enregistre également le navigateur à partir duquel il a été trouvé, lorsqu'il peut être identifié. </p>
+<figure class="shot">
+<img alt="Un environnement capturé avec six éléments capturés, les sites enregistrent le navigateur à partir duquel ils ont été trouvés" height="560" loading="lazy" src="../shots/doc-cap-created-from-capture-details.png" width="900"/>
+<figcaption> Un environnement créé par capture, notamment en sauvegardant le navigateur source de chaque site. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="edit">
+<span class="doc-kicker">opérations</span>
+<h2>Modification de l'environnement et des éléments</h2>
+<p> Le menu "..." d'une carte d'environnement propose : Afficher, Lancer, Ajouter un élément, Formater la carte et Modifier la catégorie. </p>
+<figure class="shot">
+<img alt="Menu Actions de la carte d'environnement : Afficher, Lancer, Ajouter un élément, Créer une carte, Modifier une catégorie" height="560" loading="lazy" src="../shots/doc-feat-12-card-actions-menu.png" width="900"/>
+<figcaption>Le menu d'actions d'une carte d'environnement.</figcaption>
+</figure>
+<p> Lors de la conception d'une carte, choisissez une couleur et une image d'arrière-plan. Pour chaque élément, vous pouvez modifier le nom, la description et l'adresse, copier une adresse, la déplacer dans la liste ou la supprimer de l'environnement actuel. "Ouvrir en utilisant" est enregistré dans l'élément à l'intérieur Start-app uniquement, sans modifier les associations par défaut dans Windows. </p>
+<figure class="shot">
+<img alt="Panneau de conception de carte avec palette de couleurs et sélection d'image d'arrière-plan" height="560" loading="lazy" src="../shots/doc-feat-13-design-popup-open.png" width="900"/>
+<figcaption>Conception de la carte : couleur et image de fond.</figcaption>
+</figure>
+<p> Quitter l'édition avec des modifications non enregistrées ouvre un avertissement : enregistrez et quittez, quittez sans enregistrer ou revenez à l'édition. </p>
+<figure class="shot">
+<img alt="Avertissement des modifications non enregistrées avec les options Enregistrer et quitter ou Quitter sans enregistrer" height="560" loading="lazy" src="../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
+<figcaption>Quittez l'avertissement avec les modifications non enregistrées.</figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="launch">
+<span class="doc-kicker">opérations</span>
+<h2>Environnement de lancement et tests avant ouverture</h2>
+<p> La commande "Exécuter" vérifie les éléments avant de les ouvrir et sépare les éléments prêts, manquants, non pris en charge, indisponibles ou nécessitant une décision. Les points qui nécessitent une décision ne font pas l’objet d’un contournement général. Les liens s'ouvrent uniquement en http/https et le logiciel nécessite un chemin complet. </p>
+<figure class="shot">
+<img alt="Le panneau de décision avant l'ouverture avec des avertissements pour chaque élément, les boutons Ouvrir quand même et Annuler, et une précision indiquant que rien n'a encore été ouvert" height="560" loading="lazy" src="../shots/doc-feat-09-decision-panel.png" width="900"/>
+<figcaption> Avant l'ouverture : des avertissements honnêtes pour chaque article, et rien n'est ouvert tant qu'il n'est pas approuvé. </figcaption>
+</figure>
+<p> Après confirmation, l'application envoie à Windows une demande d'ouverture de chaque élément. Il est important de comprendre ce que cela signifie : une requête envoyée ne constitue pas la preuve que la fenêtre souhaitée s'est réellement ouverte. L'application ne peut pas non plus déterminer de manière fiable si l'élément exact est déjà ouvert. La réouverture peut donc créer des doublons. Un élément dont le fichier est introuvable échoue avec un message « fichier introuvable ». </p>
+</section>
+<section class="doc-section" data-doc="" id="limits">
+<span class="doc-kicker">fiabilité</span>
+<h2>Limites connues</h2>
+<ul>
+<li> Il n'y a pas d'identification automatique du document ouvert dans le logiciel ; Un logiciel ouvert ne constitue pas la preuve d'un fichier particulier qui y est ouvert. Les documents sont ajoutés manuellement. </li>
+<li> Il n'y a aucune garantie de récupération du contenu non enregistré ou de placement de la fenêtre. </li>
+<li> « déjà ouvert » n'est pas connu de manière fiable ; La réouverture peut créer des doublons. </li>
+<li> La capture peut basculer ouvertement entre les onglets pour lire les adresses. </li>
+<li> Un résultat de capture partiel ou une liste vide ne signifie pas qu'il n'y a rien d'ouvert. </li>
+<li> Il n'y a pas d'opération de suppression d'environnement dans l'interface ; Vous pouvez supprimer des éléments d'un environnement, mais pas supprimer un environnement entier. </li>
+<li> « Partager vers un autre environnement » peut apparaître mais est inactif. </li>
+</ul>
+</section>
+<section class="doc-section" data-doc="" id="storage">
+<span class="doc-kicker">fiabilité</span>
+<h2>Sauvegarde et stockage local</h2>
+<p> Les espaces de travail sont enregistrés dans un fichier local sur l'ordinateur : <code>%LOCALAPPDATA%\StartApp\store.json</code>. Les modifications ne sont enregistrées que lorsque vous cliquez explicitement sur Enregistrer. </p>
+</section>
+<section class="doc-section" data-doc="" id="privacy">
+<span class="doc-kicker">fiabilité</span>
+<h2>La confidentialité en quelques mots</h2>
+<p> Les données des environnements sont enregistrées localement sur l'ordinateur. L'ouverture d'un lien ou d'un logiciel crée la communication habituelle de cette destination - par exemple, l'ouverture d'un site Web dans un navigateur mène à ce site Web. </p>
+<p> Ce site lui-même n'inclut pas de formulaires, d'analyses, de polices distantes ou de services tiers. </p>
+</section>
+<section class="doc-section" data-doc="" id="faq">
+<span class="doc-kicker">fiabilité</span>
+<h2>questions fréquemment posées</h2>
+<h3>quoi Start-app faire?</h3>
+<p> Enregistre les programmes, dossiers, fichiers et liens sous un seul nom d'environnement et les ouvre tous ensemble avec la commande "Exécuter". </p>
+<h3>Est-ce que tout sera de retour exactement comme avant ?</h3>
+<p> Non garanti. Il n'y a pas de capture automatique des documents ouverts dans les programmes, de récupération du contenu non enregistré ou de promesse de placement de fenêtre. L'ouverture est une demande adressée au système d'exploitation, avec vérifications et rapports préliminaires. </p>
+<h3>Comment ajouter un document ouvert dans un logiciel ?</h3>
+<p> Manuellement : ajoutez le fichier lui-même en tant qu'élément de type de fichier dans les détails de l'environnement. La capture ne le reconnaît pas toute seule depuis le logiciel ouvert. </p>
+<h3>Où sont stockées les informations ?</h3>
+<p> dans un fichier local sur l'ordinateur. Détails dans le chapitre <a href="#storage">Sauvegarde et stockage local</a>.
+            </p>
+</section>
+</div>
+</div>
+</main>
+<footer>
+<div class="wrap footer-row">
+<span><bdi>Start-app</bdi> · Un prototype d'évaluation, pas une version stable</span>
+</div>
+</footer>
+<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
+<script src="../i18n.js"></script><script src="../download-pointer.js"></script>
+<script src="../download-wire.js"></script>
+<script src="../docs.js"></script>
+<script src="../site-nav.js"></script>
+</body>
+</html>

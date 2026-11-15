@@ -1,4 +1,6 @@
 "use strict";
+function tr(text) { return typeof window !== "undefined" && window.StartAppI18n ? window.StartAppI18n.t(text) : text; }
+
 /*
  * Progressive-enhancement client-side navigation between the two real pages
  * (index.html, docs.html) of this site directory. Every link keeps its real
@@ -6,7 +8,8 @@
  * crawler, the browser performs a normal full page load to the same URL.
  *
  * With JavaScript: same-origin clicks between the two pages fetch the target
- * HTML, swap <main>, the review strip, the title, canonical and description,
+ * HTML, swap <main>, the review strip, the title, canonical, description and
+ * reciprocal hreflang alternates,
  * push history, re-run the page initializers (download CTAs via the cached
  * validated pointer result, guide search), reset or restore scroll, move
  * focus to the new page heading and announce it in a polite live region.
@@ -57,7 +60,7 @@
   }
 
   function setCurrentNav(page) {
-    var links = document.querySelectorAll("header nav a");
+    var links = document.querySelectorAll("header > nav a");
     Array.prototype.forEach.call(links, function (a) {
       var u = new URL(a.getAttribute("href"), location.href);
       var isHere = !u.hash && pageOf(u.href) === page;
@@ -79,12 +82,23 @@
       var nxt = doc.head.querySelector(p[0]);
       if (cur && nxt) cur.setAttribute(p[1], nxt.getAttribute(p[1]));
     });
+    // Copy the destination's full reciprocal language set, including x-default.
+    // Replacing the set also removes stale links if a later page changes its locales.
+    document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (link) {
+      link.remove();
+    });
+    doc.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (link) {
+      document.head.appendChild(document.importNode(link, true));
+    });
     var main = document.getElementById("main");
     main.className = doc.getElementById("main").className;
     copyChildren(doc.getElementById("main"), main);
     var strip = document.querySelector(".review-strip");
     var nextStrip = doc.querySelector(".review-strip");
     if (strip && nextStrip) copyChildren(nextStrip, strip);
+    var languageMenu = document.querySelector(".language-switch");
+    var nextLanguageMenu = doc.querySelector(".language-switch");
+    if (languageMenu && nextLanguageMenu) copyChildren(nextLanguageMenu, languageMenu);
     setCurrentNav(page);
     document.body.setAttribute("data-page", page);
     if (window.StartAppDownload) window.StartAppDownload.init();
@@ -106,7 +120,7 @@
       if (!focusEl.hasAttribute("tabindex")) focusEl.setAttribute("tabindex", "-1");
       focusEl.focus({ preventScroll: true });
     }
-    announce("נטען: " + document.title);
+    announce(tr("נטען: ") + document.title);
   }
 
   function flushScroll() {

@@ -1,0 +1,52 @@
+{
+  "sources": [
+    "בראש המסך נמצאת רשימת הסביבות. בכל כרטיס סביבה רואים שם, תיאור, קטגוריה, צבע ותמונת כרטיס שבחרתם, זמן יצירה ופתיחה אחרונה. חותמת הפתיחה האחרונה מתעדכנת בשיגור סביבה, לא בפתיחת אייטם בודד.",
+    "לכל כרטיס כפתור \"שגר\" ותפריט \"...\" עם פעולות נוספות. מתחת לרשימה נמצא טופס יצירת סביבה חדשה, ובפינה כניסה למסך הלכידה.",
+    "בטופס היצירה שם הוא שדה חובה. קטגוריית ברירת המחדל היא \"כללי\", ואפשר לבחור צבע ותמונת כרטיס. התיאור הוא שדה רשות. אחרי השמירה מופיע אישור שהפרטים נשמרו.",
+    "המסך הראשי עם שלושה כרטיסי סביבה, כרטיס מסומן בצבע עם חותמת פתיחה אחרונה, וטופס יצירת סביבה מתחת"
+  ],
+  "expected": {
+    "en": [
+      "At the top of the screen is the list of environments. Each environment card shows its name, description, category, selected color and card image, creation time and last opened time. The last opened timestamp is updated when you launch an environment, not when you open an individual item.",
+      "Each card has a \"Launch\" button and a \"...\" menu with additional actions. Below the list is a form for creating a new environment, and in the corner is an entry to the capture screen.",
+      "In the creation form, the name is required. The default category is \"General\", and you can choose a card color and image. The description is optional. After saving, a confirmation appears that the details have been saved.",
+      "The main screen with three environment cards, a color-coded card showing the last opened timestamp, and an environment creation form below"
+    ],
+    "ru": [
+      "В верхней части экрана находится список сред. На каждой карточке среды указаны название, описание, категория, выбранные цвет и изображение карточки, время создания и последнего открытия. Время последнего открытия обновляется при запуске среды, а не при открытии отдельного элемента.",
+      "На каждой карточке есть кнопка «Запустить» и меню «...» с дополнительными действиями. Под списком находится форма создания новой среды, а в углу - переход к экрану захвата.",
+      "В форме создания название обязательно. Категория по умолчанию - «Общие». Можно выбрать цвет и изображение карточки. Описание необязательно. После сохранения появляется подтверждение, что данные сохранены.",
+      "Главный экран с тремя карточками сред, цветной карточкой со временем последнего открытия и формой создания среды внизу"
+    ],
+    "zh-CN": [
+      "屏幕顶部是环境列表。每张环境卡片显示名称、描述、类别、所选的卡片颜色和图片、创建时间以及上次打开时间。上次打开时间在启动环境时更新，而不是在打开单个项目时更新。",
+      "每张卡片都有一个“启动”按钮和一个包含更多操作的“...”菜单。列表下方是创建新环境的表单，角落里有进入捕获界面的入口。",
+      "在创建表单中，名称为必填项。默认类别为“常规”，您可以选择卡片颜色和图片。描述为选填项。保存后，会显示详细信息已保存的确认消息。",
+      "主界面显示三张环境卡片，其中一张彩色卡片标有上次打开时间，下方是环境创建表单"
+    ],
+    "ja": [
+      "画面上部には環境の一覧があります。各環境カードには、名前、説明、カテゴリ、選択したカードの色と画像、作成日時、最終オープン日時が表示されます。最終オープン日時は、個別のアイテムを開いたときではなく、環境を起動したときに更新されます。",
+      "各カードには「起動」ボタンと、その他の操作を含む「...」メニューがあります。一覧の下には新しい環境を作成するフォームがあり、画面の隅からキャプチャ画面に移動できます。",
+      "作成フォームでは名前は必須です。デフォルトのカテゴリは「一般」で、カードの色と画像を選択できます。説明は任意です。保存すると、詳細が保存されたことを示す確認メッセージが表示されます。",
+      "3つの環境カード、最終オープン日時を表示する色付きカード、その下に環境作成フォームがあるメイン画面"
+    ],
+    "fr": [
+      "La liste des environnements se trouve en haut de l'écran. Chaque carte affiche le nom, la description, la catégorie, la couleur et l'image choisies, la date de création et la dernière ouverture. La date de dernière ouverture est mise à jour au lancement d'un environnement, et non à l'ouverture d'un élément individuel.",
+      "Chaque carte possède un bouton « Lancer » et un menu « ... » proposant des actions supplémentaires. Sous la liste se trouve un formulaire de création d’un nouvel environnement. Un accès à l’écran de capture se trouve dans le coin.",
+      "Dans le formulaire de création, le nom est obligatoire. La catégorie par défaut est « Général » et vous pouvez choisir une couleur et une image pour la carte. La description est facultative. Après l’enregistrement, un message confirme que les informations ont été enregistrées.",
+      "Écran principal avec trois cartes d’environnement, une carte colorée indiquant la date de dernière ouverture et un formulaire de création d’environnement en dessous"
+    ],
+    "es": [
+      "En la parte superior de la pantalla se encuentra la lista de entornos. Cada tarjeta muestra el nombre, la descripción, la categoría, el color y la imagen elegidos, la fecha de creación y la última apertura. La fecha de última apertura se actualiza al iniciar un entorno, no al abrir un elemento individual.",
+      "Cada tarjeta tiene un botón \"Iniciar\" y un menú \"...\" con acciones adicionales. Debajo de la lista hay un formulario para crear un nuevo entorno y en la esquina hay un acceso a la pantalla de captura.",
+      "En el formulario de creación, el nombre es obligatorio. La categoría predeterminada es \"General\" y puede elegir el color y la imagen de la tarjeta. La descripción es opcional. Después de guardar, aparece una confirmación de que los datos se han guardado.",
+      "Pantalla principal con tres tarjetas de entorno, una tarjeta de color con la fecha de última apertura y un formulario de creación de entorno debajo"
+    ],
+    "de": [
+      "Oben auf dem Bildschirm befindet sich die Liste der Umgebungen. Jede Umgebungskarte zeigt den Namen, die Beschreibung, die Kategorie, die gewählte Farbe und das Kartenbild sowie den Erstellungszeitpunkt und den Zeitpunkt des letzten Öffnens. Der Zeitpunkt des letzten Öffnens wird beim Starten einer Umgebung aktualisiert, nicht beim Öffnen eines einzelnen Elements.",
+      "Jede Karte hat eine Schaltfläche „Starten“ und ein Menü „...“ mit weiteren Aktionen. Unter der Liste befindet sich ein Formular zum Erstellen einer neuen Umgebung. In der Ecke führt ein Zugang zur Erfassungsansicht.",
+      "Im Erstellungsformular ist der Name erforderlich. Die Standardkategorie ist „Allgemein“. Sie können eine Kartenfarbe und ein Bild auswählen. Die Beschreibung ist optional. Nach dem Speichern erscheint eine Bestätigung, dass die Angaben gespeichert wurden.",
+      "Hauptbildschirm mit drei Umgebungskarten, einer farbigen Karte mit dem Zeitpunkt des letzten Öffnens und einem Formular zum Erstellen einer Umgebung darunter"
+    ]
+  }
+}
