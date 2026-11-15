@@ -1,8 +1,10 @@
 name: cdp-enumerate-tabs
-# Synthetic connect/enumerate diagnostic. Review candidate: not pushed, not run, no run authority.
-# INTERACTIVE, not read-only and not no-input: synthetic omnibox input (SetValue + one global Enter, residual non-atomic focus race),
-# an exact checkbox toggle in a fresh disposable profile, a strict attributed modal Allow/Deny, helper Target.getTargets only.
-# Disposable fresh hosted runner only, no personal windows. Branch name below is a PROPOSAL pending coordinator reservation.
+# LOCAL observation-only integrated candidate, not authorization to push or run.
+# Existing branch trigger retained as a proposal ONLY. One separately approved atomic
+# update would trigger one run. No workflow_dispatch, no rerun, no automatic retry.
+# Interactive disposable setup: omnibox Enter, exact checkbox enable/guarded disable,
+# ONE explicit inspect activation immediately before handshake helper starts.
+# No consent input, no activation after helper starts, no metadata protocol commands.
 on:
   push:
     branches:
@@ -13,46 +15,51 @@ concurrency:
   group: cdp-enumerate-tabs
   cancel-in-progress: false
 jobs:
-  enumerate:
-    if: ${{ github.event.deleted == false }}
+  observe:
+    if: ${{ github.event.deleted == false && github.event.repository.private == false }}
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
-      # actions/checkout v4.2.2, commit carried over from the reviewed v4 workflow (re-verify against api.github.com before any push)
+      # Reverify pin/live public repo/free standard runner/branch state before any GO.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Author hash gate (script and helper)
+      - name: Exact integrated hash gate
         shell: pwsh
         run: |
           $expected = @{
-            'startapp-cdp-feasibility/enumerate-tabs.ps1' = '2016383f5430a054a8220ce97018123b2c54dd114f67b0e71818abd3318576e7'
-            'startapp-cdp-feasibility/read-targets.mjs'  = 'e3cf9ab79d66fb3841ba04787899eeec6f4272e05c4b3670bbdab22ab4e5b1c7'
+            'startapp-cdp-feasibility/observe-prompt.ps1' = '2e66b300904315f0c208e547308a371c8cd66a0afd672bf5e15cbc748bc140f7'
+            'startapp-cdp-feasibility/observe-socket.mjs' = '34afdce9f341adc42e6ce47043997d4b8d32da7d1baa7e29c13ed0f0322bc444'
+            'startapp-cdp-feasibility/classify-observation.mjs' = '0a590127d21cccc34eea15ca60288f7216ddb0de18e546ed5f2ef02b55a55b93'
+            'startapp-cdp-feasibility/extract-observation.py' = '2aef204911265146230c3535c18f4955d64f52706c37befaf9e9285b6b3bcd08'
+            'startapp-cdp-feasibility/.gitattributes' = 'a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9'
           }
           foreach ($path in $expected.Keys) {
             $actual = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
-            if ($actual -ne $expected[$path]) { Write-Host "HASH_GATE_FAIL $path $actual"; exit 1 }
+            if ($actual -cne $expected[$path]) { Write-Host "HASH_GATE_FAIL $path $actual"; exit 1 }
             Write-Host "HASH_GATE_OK $path $actual"
           }
-      - name: Print runtime versions (unpinned, recorded before classification)
+      - name: Verify PS7 runtime and print versions
         shell: pwsh
         run: |
+          if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Requires PS7/.NET5+ HashData/ToHexString, never Windows PowerShell5.1' }
+          [void][Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([byte[]]@(0)))
           Write-Host "RUNTIME_PWSH $($PSVersionTable.PSVersion)"
           Write-Host "RUNTIME_NODE $(node --version)"
           Write-Host "RUNTIME_OS $([Runtime.InteropServices.RuntimeInformation]::OSDescription)"
-      - name: Enumerate (synthetic navigation, toggle, consent, Target.getTargets, bounded PNG to console)
+      - name: Observe native-owned prompt only (no consent action or metadata)
         id: probe
         shell: pwsh
         run: |
-          $out = Join-Path $env:RUNNER_TEMP 'enum-out'
-          & pwsh -NoProfile -File startapp-cdp-feasibility/enumerate-tabs.ps1 -OutDir $out
+          $out = Join-Path $env:RUNNER_TEMP 'prompt-observation-out'
+          & pwsh -NoProfile -File startapp-cdp-feasibility/observe-prompt.ps1 -OutDir $out
           $code = $LASTEXITCODE
           "child_exit=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "out_dir=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           exit 0
-      - name: Classify (runs only after the probe step completed)
+      - name: Audit observation evidence (never full-gate PASS)
         if: ${{ steps.probe.outcome == 'success' }}
         shell: pwsh
         run: |
-          node startapp-cdp-feasibility/classify-enumerate.mjs "${{ steps.probe.outputs.out_dir }}" "${{ steps.probe.outputs.child_exit }}"
+          node startapp-cdp-feasibility/classify-observation.mjs "${{ steps.probe.outputs.out_dir }}" "${{ steps.probe.outputs.child_exit }}"
           exit $LASTEXITCODE
