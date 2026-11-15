@@ -278,23 +278,43 @@ t("wire resolves state-bearing static copy (badge + heading) per state", () => {
   }
 });
 
-t("state notes wrap over-long tokens instead of overflowing the layout", () => {
+t("pointer metadata wraps only the hash, never the version token", () => {
   const css = readFileSync(join(SITE, "styles.css"), "utf8");
-  assert.ok(/\.hero-download-state \{[^}]*overflow-wrap: anywhere/.test(css), "hero note wraps long tokens");
-  assert.ok(/\.note \{[^}]*overflow-wrap: anywhere/.test(css), "section note wraps long tokens");
+  assert.ok(/\.ptr-sha \{[^}]*overflow-wrap: anywhere/.test(css), "hash token may wrap");
+  assert.ok(/\.ptr-ltr \{[^}]*white-space: nowrap/.test(css), "version/size tokens never split");
+  assert.ok(!/\.note \{[^}]*overflow-wrap/.test(css), "note element no longer breaks every token");
+  assert.ok(!/\.hero-download-state \{[^}]*overflow-wrap/.test(css), "hero note no longer breaks every token");
 });
 
-t("static copy is state-neutral or truthful in every initial state", () => {
+t("hero CTA has distinct enabled vs disabled styling", () => {
+  const css = readFileSync(join(SITE, "styles.css"), "utf8");
+  const base = css.match(/\.hero-download-button \{([^}]*)\}/)[1];
+  assert.ok(base.includes("var(--green)"), "enabled hero uses the design green");
+  assert.ok(!base.includes("not-allowed"), "enabled hero is not styled disabled");
+  assert.ok(/\.hero-download-button\[disabled\] \{[^}]*not-allowed/.test(css), "disabled hero keeps the disabled look");
+});
+
+t("shipped static copy is truthful with JavaScript disabled (no-JS fallback)", () => {
   const desc = INDEX.match(/name="description"\s+content="([^"]*)"/);
   assert.ok(desc, "meta description present");
   assert.ok(!desc[1].includes("הורדה פעילה"), "meta is state-neutral");
-  // Initial (loading) copy must be the truthful "checking" state, not a claim.
-  const checking = "בודק זמינות הורדה";
-  assert.ok(INDEX.includes(checking), "initial CTA copy is the checking state");
-  assert.ok(INDEX.includes("בודק אם קיימת גרסת אב-טיפוס מאומתת"),
-    "initial note copy is the checking state");
+  // Without JavaScript no check can run: the shipped state must be the honest
+  // "cannot verify - download stays off" copy, not a perpetual "checking".
+  assert.ok(INDEX.includes("הורדה לא זמינה"), "static CTA is the disabled truth");
+  assert.ok(INDEX.includes("לא ניתן לאמת כרגע גרסה להורדה"), "static note is the disabled truth");
+  assert.ok(INDEX.includes('<span id="availability-badge">לא ניתן לאמת הורדה כרגע</span>'),
+    "static badge is the disabled truth");
+  assert.ok(INDEX.includes("<noscript>"), "noscript explanation present");
   assert.ok(!INDEX.includes("<h2>אין הורדה זמינה כרגע.</h2>"),
     "static heading does not pre-claim 'none'");
+});
+
+t("wire upgrades to the checking state only when JavaScript runs", () => {
+  assert.ok(WIRE.includes("applyLoading"), "wire has a loading upgrade");
+  assert.ok(WIRE.includes("בודק זמינות הורדה"), "wire sets the checking label");
+  assert.ok(WIRE.includes("בודק אם קיימת גרסת אב-טיפוס מאומתת"), "wire sets the checking note");
+  const iStatic = INDEX.indexOf("הורדה לא זמינה");
+  assert.ok(iStatic > -1, "checking copy must come from the wire, not the shipped HTML");
 });
 
 console.log(passed + " tests passed");

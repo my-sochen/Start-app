@@ -19,7 +19,7 @@
     <a class="skip" href="#main">דילוג לתוכן</a>
     <div class="review-strip">
       תצוגה פרטית לסקירה · אב-טיפוס בתכנון להפצה ·
-      <span id="availability-badge">בודק זמינות הורדה…</span>
+      <span id="availability-badge">לא ניתן לאמת הורדה כרגע</span>
     </div>
     <header>
       <a class="brand" href="index.html" aria-label="Start-app, דף הבית"
@@ -49,11 +49,18 @@
               aria-describedby="hero-download-state"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m6.5 10.5 5.5 5.5 5.5-5.5"/><path d="M4 20h16"/></svg>
-              <span>בודק זמינות הורדה…</span>
+              <span>הורדה לא זמינה</span>
             </button>
             <p id="hero-download-state" class="hero-download-state">
-              יעד האריזה: Windows x64. בודק אם קיימת גרסת אב-טיפוס מאומתת…
+              יעד האריזה: Windows x64. לא ניתן לאמת כרגע גרסה להורדה. ההורדה
+              נשארת כבויה.
             </p>
+            <noscript>
+              <p class="hero-download-state">
+                JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת
+                כבויה.
+              </p>
+            </noscript>
           </div>
           <div class="actions">
             <a class="text-link" href="#how">איך מרכיבים סביבת עבודה ←</a
@@ -153,11 +160,16 @@
           disabled
           aria-describedby="download-state"
         >
-          בודק זמינות הורדה…
+          הורדה לא זמינה
         </button>
         <p id="download-state" class="note">
-          בודק אם קיימת גרסת אב-טיפוס מאומתת…
+          לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.
         </p>
+        <noscript>
+          <p class="note">
+            JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת כבויה.
+          </p>
+        </noscript>
       </section>
       <section class="section faq">
         <p class="eyebrow">03 / שאלות נפוצות</p>

@@ -130,12 +130,33 @@
         global.location.assign(p.url);
       };
       if (note) {
-        const parts = [p.label + " · גרסה " + ltr(p.version)];
         const size = formatSize(p.size);
-        if (size) parts.push(ltr(size));
-        if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
-        parts.push("הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.");
-        note.textContent = parts.join(" · ");
+        const honesty =
+          "הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.";
+        if (typeof note.replaceChildren === "function" && typeof document !== "undefined") {
+          // Real DOM: scoped elements keep LTR data readable and unbreakable
+          // (tags/versions never split on narrow screens); only the long hash
+          // token is allowed to wrap.
+          const mk = function (cls, text) {
+            const span = document.createElement("span");
+            span.className = cls;
+            span.textContent = text;
+            return span;
+          };
+          const nodes = [document.createTextNode(p.label + " · גרסה "), mk("ptr-ltr", p.version)];
+          if (size) nodes.push(document.createTextNode(" · "), mk("ptr-ltr", size));
+          if (p.sha256) nodes.push(document.createTextNode(" · "), mk("ptr-sha", "sha256: " + p.sha256));
+          nodes.push(document.createTextNode(" · " + honesty));
+          note.replaceChildren.apply(note, nodes);
+        } else {
+          // Text-only fallback (offline tests): Unicode isolates carry the
+          // same bidi protection without markup.
+          const parts = [p.label + " · גרסה " + ltr(p.version)];
+          if (size) parts.push(ltr(size));
+          if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
+          parts.push(honesty);
+          note.textContent = parts.join(" · ");
+        }
       }
       return;
     }
