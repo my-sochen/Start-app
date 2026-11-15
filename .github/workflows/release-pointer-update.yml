@@ -1,0 +1,70 @@
+# DORMANT pointer-update workflow. NOT ACTIVE: nothing runs until the owner
+# merges this file, enables Pages (source: GitHub Actions), creates the
+# github-pages environment protection, and sets PROTOTYPE_RELEASE_ENABLE=true.
+# Design: .github/release/POINTER-WORKFLOW-DESIGN.md (guarantees AND limits).
+#
+# Trigger model (PROPOSED dormant design, per author design addendum and
+# reviewer precision - activation is the owner's reviewed code change and
+# merge, never this file's mere presence):
+# - release: [published, unpublished, edited, deleted] - fires ONLY on the
+#   owner's own release actions: publish, withdraw-to-draft, edit, delete.
+#   Every one of them re-runs the selector, so withdrawal/rollback reconciles
+#   automatically to the next-highest qualifying build or the safe "none"
+#   document. No schedule, no push/merge trigger, no recurring watcher.
+# - workflow_dispatch - manual reconciliation and the bootstrap first deploy.
+name: release-pointer-update
+on:
+  workflow_dispatch:
+  release:
+    types: [published, unpublished, edited, deleted]
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-pointer:
+    # Guard: only that the prototype channel is owner-enabled. The release
+    # payload is deliberately NOT filtered by prerelease/tag shape: the
+    # selector re-evaluates the whole CURRENT published set, and a release
+    # EDITED out of the channel (prerelease cleared, tag changed) must still
+    # trigger reconciliation - filtering on the changed release's new shape
+    # would skip that run and strand a stale pointer. Manual dispatch is the
+    # same reconciliation path (bootstrap, asset-level changes).
+    if: vars.PROTOTYPE_RELEASE_ENABLE == 'true'
+    runs-on: ubuntu-latest
+    # deploy-pages convention (auto-created if absent). Protection policy is
+    # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver":
+    # recommended baseline is deployment branches restricted to the default
+    # branch; a required reviewer is possible but with prevent-self-review the
+    # reviewer must differ from whoever publishes/dispatches.
+    environment: github-pages
+    permissions:
+      contents: read      # checkout
+      pages: write        # deploy-pages
+      id-token: write     # deploy-pages OIDC
+    steps:
+      # Trusted reviewed source ONLY: always the default branch, never the
+      # release event's tag/sha. On a release event GITHUB_SHA is the tagged
+      # commit - a bare checkout would let an OLD release roll the website
+      # BACK, and a DELETED tag would fail checkout entirely and block the
+      # withdrawal reconciliation it was meant to run. The workflow file
+      # itself also runs from the default branch on release events; this pins
+      # the site+selector provenance to that same reviewed source. No
+      # gh-pages branch, no second writer.
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Build full site + pointer artifact (fail-closed)
+        run: python3 .github/release/update_pointer.py --repo my-sochen/Start-app --website website --out _site
+      # Any failure above (selector error, missing/incomplete website, api
+      # failure) stops the job BEFORE deployment: the previously deployed
+      # site+pointer stays live untouched. A "no qualifying candidate" result
+      # is NOT a failure - it deploys the safe disabled-download document.
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
