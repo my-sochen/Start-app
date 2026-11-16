@@ -17,7 +17,22 @@
         </CollectionViewSource>
     </Window.Resources>
     <Grid>
-        <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
+                DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="בדוק עדכונים" Command="{Binding CheckCommand}" Padding="8,2" Margin="8,0,0,0"
+                        AutomationProperties.Name="Check for updates"/>
+                <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
+                        Visibility="{Binding UpdateAvailable, Converter={StaticResource B2V}}" AutomationProperties.Name="Open official download"/>
+                <TextBlock Text="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap" FlowDirection="RightToLeft"
+                           AutomationProperties.Name="Update status"/>
+            </DockPanel>
+        </Border>
+        <Grid Grid.Row="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -673,7 +688,7 @@
         </Grid>
 
         <!-- ============ unsaved-changes exit dialog (דיאלוג יציאה עם שינויים שלא נשמרו) ============ -->
-        <Grid Visibility="{Binding UnsavedOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding UnsavedOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
