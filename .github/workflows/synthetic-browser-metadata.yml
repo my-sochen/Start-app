@@ -1,0 +1,52 @@
+name: Synthetic Chrome setup navigation only
+'on':
+  push:
+    branches: ['diag/chrome-setup-navigation-v3']
+    paths:
+      - '.github/workflows/synthetic-browser-metadata.yml'
+      - 'diagnostic-browser/**'
+permissions:
+  contents: read
+concurrency:
+  group: chrome-setup-navigation-v3
+  cancel-in-progress: false
+jobs:
+  chrome:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/diag/chrome-setup-navigation-v3'
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify allocated image and preinstalled SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = Join-Path $PWD 'diagnostic-browser/synthetic-chrome'
+          New-Item -ItemType Directory -Path $out -ErrorAction Stop | Out-Null
+          $sdkCommand = Get-Command dotnet.exe -CommandType Application -ErrorAction SilentlyContinue
+          $sdks = @()
+          $sdkExit = $null
+          if ($null -ne $sdkCommand) { $sdks = @(& $sdkCommand.Path --list-sdks 2>&1 | ForEach-Object { [string]$_ }); $sdkExit = $LASTEXITCODE }
+          @{ imageOS = $env:ImageOS; imageVersion = $env:ImageVersion; runnerOS = $env:RUNNER_OS; runnerArch = $env:RUNNER_ARCH; expectedFamily = 'windows-2025-vs2026'; expectedImage = '20261103.298.1'; sdkPath = $(if ($null -ne $sdkCommand) { $sdkCommand.Path } else { $null }); sdkList = $sdks; sdkExit = $sdkExit; browserBinary = 'NOT_MEASURED_PREFLIGHT' } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $out 'host-preflight.json')
+          if ($env:ImageVersion -cne '20261103.298.1') { throw 'UNSUPPORTED allocated image, no install or pin change' }
+          if ($env:RUNNER_OS -cne 'Windows' -or $env:RUNNER_ARCH -cne 'X64') { throw 'UNSUPPORTED platform' }
+          if ($null -eq $sdkCommand -or $sdkExit -ne 0 -or -not ($sdks -match '^10\.')) { throw 'UNSUPPORTED preinstalled SDK' }
+      - name: Compile exact reviewed candidate
+        shell: pwsh
+        working-directory: diagnostic-browser
+        run: |
+          dotnet build SyntheticLaunch.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed, no runtime' }
+      - name: Synthetic Chrome setup navigation only
+        shell: pwsh
+        working-directory: diagnostic-browser
+        run: ./run-proposed.ps1 -Browser 'chrome'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: synthetic-browser-chrome
+          path: diagnostic-browser/synthetic-chrome/
+          if-no-files-found: warn
+          retention-days: 3
