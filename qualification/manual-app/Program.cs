@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+using System.Windows.Media;
 
 // LOCAL preparation only. No workflow, no automatic run permission. Never invokes capture or opens a target.
 internal static class Program
@@ -21,27 +22,71 @@ internal static class Program
         Directory.CreateDirectory(output);
         var facts = new Dictionary<string, object?> { ["result"] = "INCOMPLETE", ["captureInvoked"] = false, ["browserLaunched"] = false, ["targetsOpened"] = false };
         using var process = Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false })!;
+        string stage = "APP_START";
         try
         {
             var clock = Stopwatch.StartNew();
-            while (clock.ElapsedMilliseconds < 10000) { process.Refresh(); if (process.HasExited) throw new InvalidOperationException("APP_EXITED"); if (process.MainWindowHandle != 0) break; Thread.Sleep(100); }
+            while (clock.ElapsedMilliseconds < 10000) { process.Refresh(); Require(!process.HasExited, "APP_EXITED"); if (process.MainWindowHandle != 0) break; Thread.Sleep(100); }
             process.Refresh(); nint hwnd = process.MainWindowHandle; Require(hwnd != 0, "APP_WINDOW_MISSING");
             AutomationElement Root() { Require(!process.HasExited && Native.GetWindowThreadProcessId(hwnd, out uint pid) != 0 && pid == process.Id, "ORIGINAL_APP_WINDOW_LOST"); return AutomationElement.FromHandle(hwnd); }
-            AutomationElement Find(AutomationElement root, ControlType type, string name)
+            AutomationElement[] Matches(AutomationElement root, ControlType type, string name, bool enabled = true) =>
+                root.FindAll(TreeScope.Descendants, new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, type), new PropertyCondition(AutomationElement.NameProperty, name)))
+                    .Cast<AutomationElement>().Where(x => !x.Current.IsOffscreen && (!enabled || x.Current.IsEnabled) && x.Current.ProcessId == process.Id).ToArray();
+            AutomationElement Find(AutomationElement root, ControlType type, string name, bool enabled = true)
             {
-                var matches = root.FindAll(TreeScope.Descendants, new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, type), new PropertyCondition(AutomationElement.NameProperty, name)))
-                    .Cast<AutomationElement>().Where(x => !x.Current.IsOffscreen && x.Current.IsEnabled).ToArray();
-                Require(matches.Length == 1 && matches[0].Current.ProcessId == process.Id, "EXACT_APP_CONTROL_UNAVAILABLE"); return matches[0];
+                var matches = Matches(root, type, name, enabled);
+                Require(matches.Length == 1, "EXACT_APP_CONTROL_UNAVAILABLE"); return matches[0];
             }
+            bool Unique(AutomationElement root, ControlType type, string name) => Matches(root, type, name).Length == 1;
+            void Wait(Func<bool> condition, string code)
+            {
+                var timer = Stopwatch.StartNew();
+                while (timer.ElapsedMilliseconds < 5000)
+                {
+                    try { if (condition()) return; } catch (ElementNotAvailableException) { }
+                    Thread.Sleep(100);
+                }
+                Require(false, code);
+            }
+            string Value(string name) => ((ValuePattern)Find(Root(), ControlType.Edit, name).GetCurrentPattern(ValuePattern.Pattern)).Current.Value;
             void Invoke(string name) => ((InvokePattern)Find(Root(), ControlType.Button, name).GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-            void Set(string name, string value) => ((ValuePattern)Find(Root(), ControlType.Edit, name).GetCurrentPattern(ValuePattern.Pattern)).SetValue(value);
+            void Set(string name, string value)
+            {
+                ((ValuePattern)Find(Root(), ControlType.Edit, name).GetCurrentPattern(ValuePattern.Pattern)).SetValue(value);
+                Wait(() => Value(name) == value, "EDIT_VALUE_NOT_APPLIED");
+            }
+            stage = "OVERVIEW_READY";
+            Wait(() => Unique(Root(), ControlType.Edit, "Workspace name") && Unique(Root(), ControlType.Button, "Browser help"), "OVERVIEW_NOT_READY");
             Capture(hwnd, process.Id, Path.Combine(output, "01-overview.png"));
+            facts["overviewReady"] = true;
+            stage = "CREATE_WORKSPACE";
             Set("Workspace name", "Manual verification"); Set("Workspace description", "Synthetic local test only"); Invoke("Create workspace");
-            Find(Root(), ControlType.Edit, "Item target");
+            Wait(() => Unique(Root(), ControlType.Edit, "Item target") && Value("Workspace name") == "Manual verification", "CREATE_POSTCONDITION_FAILED");
+            facts["workspaceCreated"] = true;
+            stage = "SELECT_LINK";
+            // Actual XAML: ItemTypes = Enum.GetValues<ItemType>(); Model.cs names the Link enum.
+            var combo = Find(Root(), ControlType.ComboBox, "Item type");
+            var expansion = (ExpandCollapsePattern)combo.GetCurrentPattern(ExpandCollapsePattern.Pattern);
+            expansion.Expand();
+            Wait(() => Unique(combo, ControlType.ListItem, "Link"), "LINK_OPTION_UNAVAILABLE");
+            ((SelectionItemPattern)Find(combo, ControlType.ListItem, "Link").GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+            expansion.Collapse();
+            Wait(() => { var chosen = ((SelectionPattern)combo.GetCurrentPattern(SelectionPattern.Pattern)).Current.GetSelection(); return chosen.Length == 1 && chosen[0].Current.ProcessId == process.Id && chosen[0].Current.Name == "Link"; }, "LINK_SELECTION_FAILED");
+            stage = "ADD_LINK";
             Set("Item target", "https://example.invalid/manual-only"); Set("Item name", "Synthetic manual link"); Invoke("Add");
+            Wait(() => Value("Item target") == "" && Unique(Root(), ControlType.Button, "Synthetic manual link") && Unique(Root(), ControlType.Text, "https://example.invalid/manual-only"), "ADD_LINK_POSTCONDITION_FAILED");
+            facts["manualLinkAdded"] = true;
+            stage = "DETAILS_READY";
             Capture(hwnd, process.Id, Path.Combine(output, "02-details-manual-item.png"));
-            // Save/back uses existing actual application commands. Never click item name or launch buttons.
-            Invoke("Save workspace details"); Invoke("Back");
+            // Creation/add persist immediately; change the synthetic description so details Save is meaningful/enabled.
+            stage = "SAVE_DETAILS";
+            Set("Workspace description", "Synthetic local test saved"); Invoke("Save workspace details");
+            Wait(() => { var save = Matches(Root(), ControlType.Button, "Save workspace details", false); return save.Length == 0 && Unique(Root(), ControlType.Text, "Workspace details saved") && Value("Workspace description") == "Synthetic local test saved"; }, "SAVE_POSTCONDITION_FAILED");
+            facts["detailsSaved"] = true;
+            stage = "BACK_TO_OVERVIEW";
+            Invoke("Back");
+            Wait(() => Unique(Root(), ControlType.Button, "Browser help") && Unique(Root(), ControlType.Button, "Manual verification"), "BACK_POSTCONDITION_FAILED");
+            stage = "OPEN_HELP";
             var help = Find(Root(), ControlType.Button, "Browser help");
             // Invoke may block behind ShowDialog. One background call only; no repeat on timeout.
             var invocation = Task.Run(() => ((InvokePattern)help.GetCurrentPattern(InvokePattern.Pattern)).Invoke());
@@ -54,19 +99,22 @@ internal static class Program
                 if (dialogs.Count == 1) { dialog = dialogs[0]; break; } Thread.Sleep(50);
             }
             Require(dialog != 0, "HELP_WINDOW_MISSING"); var helpRoot = AutomationElement.FromHandle(dialog);
-            Find(helpRoot, ControlType.Text, "Browser capture unavailable");
-            Find(helpRoot, ControlType.Text, "No browser permission needed");
+            stage = "HELP_READY";
+            Wait(() => Unique(helpRoot, ControlType.Text, "Browser capture unavailable") && Unique(helpRoot, ControlType.Text, "No browser permission needed") && Unique(helpRoot, ControlType.Edit, "Chrome settings address"), "HELP_POSTCONDITION_FAILED");
             var chrome = Find(helpRoot, ControlType.Edit, "Chrome settings address");
             Require(((ValuePattern)chrome.GetCurrentPattern(ValuePattern.Pattern)).Current.Value == "chrome://inspect/#remote-debugging", "CHROME_HELP_VALUE_MISMATCH");
             Capture(dialog, process.Id, Path.Combine(output, "03-browser-help.png"));
             // Clipboard is a real bounded effect, only on the disposable runner. Never use external URLs from UI.
+            stage = "COPY_CHROME_ADDRESS";
             ((InvokePattern)Find(helpRoot, ControlType.Button, "Copy Chrome settings address").GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             Require(Clipboard.GetText() == "chrome://inspect/#remote-debugging", "CHROME_COPY_FAILED");
+            stage = "CLOSE_HELP";
             ((InvokePattern)Find(helpRoot, ControlType.Button, "Close browser help").GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             Require(invocation.Wait(2000), "HELP_INVOKE_NOT_SETTLED");
+            Wait(() => !Native.IsWindowVisible(dialog) && Unique(Root(), ControlType.Button, "Browser help"), "CLOSE_HELP_POSTCONDITION_FAILED");
             facts["manualCreateAddSave"] = true; facts["helpCopy"] = true; facts["result"] = "UI_FACTS_PASSED_IMAGES_NEED_PIXEL_REVIEW";
         }
-        catch (Exception ex) { facts["errorType"] = ex.GetType().Name; }
+        catch (Exception ex) { facts["errorType"] = ex.GetType().Name; facts["failureStage"] = stage; facts["errorCode"] = ex is GuardFailure guard ? guard.Code : "UNEXPECTED_EXCEPTION"; }
         finally
         {
             // Exact owned app only. No browser/process enumeration kill. Preserve fresh dummy store for evidence, do not delete it.
@@ -76,7 +124,8 @@ internal static class Program
         }
         return Equals(facts["result"], "UI_FACTS_PASSED_IMAGES_NEED_PIXEL_REVIEW") && Equals(facts["ownedAppTerminated"], true) ? 0 : 3;
     }
-    static void Require(bool ok, string code) { if (!ok) throw new InvalidOperationException(code); }
+    sealed class GuardFailure(string code) : Exception { internal string Code { get; } = code; }
+    static void Require(bool ok, string code) { if (!ok) throw new GuardFailure(code); }
     static void Capture(nint hwnd, int pid, string path)
     {
         Require(Native.GetWindowThreadProcessId(hwnd, out uint actual) != 0 && actual == pid, "CAPTURE_OWNER_STOP");
@@ -87,8 +136,26 @@ internal static class Program
         try
         {
             Require(dc != 0 && memory != 0 && bitmap != 0, "CAPTURE_GDI_STOP"); old = Native.SelectObject(memory, bitmap);
-            Require(Native.BitBlt(memory, 0, 0, w, h, dc, r.Left, r.Top, 0x00CC0020) && Native.GetForegroundWindow() == hwnd, "CAPTURE_CHANGED_STOP");
-            var source = Imaging.CreateBitmapSourceFromHBitmap(bitmap, 0, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions()); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(source)); using var f = File.Create(path); encoder.Save(f);
+            // Bounded render observation after semantic postconditions. Reject a still-white client instead of publishing it.
+            var timer = Stopwatch.StartNew();
+            do
+            {
+                Require(Native.GetForegroundWindow() == hwnd, "CAPTURE_CHANGED_STOP");
+                Require(Native.DwmFlush() == 0, "CAPTURE_COMPOSITOR_STOP");
+                Require(Native.BitBlt(memory, 0, 0, w, h, dc, r.Left, r.Top, 0x00CC0020) && Native.GetForegroundWindow() == hwnd, "CAPTURE_CHANGED_STOP");
+                var source = Imaging.CreateBitmapSourceFromHBitmap(bitmap, 0, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                var pixels = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+                byte[] bytes = new byte[w * h * 4]; pixels.CopyPixels(bytes, w * 4, 0);
+                int ink = 0;
+                for (int y = 45; y < h - 20; y += 3) for (int x = 20; x < w - 20; x += 3)
+                { int i = (y * w + x) * 4; if (bytes[i] < 180 && bytes[i + 1] < 180 && bytes[i + 2] < 180) ink++; }
+                if (ink >= 100)
+                {
+                    var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(source)); using var f = File.Create(path); encoder.Save(f); return;
+                }
+                Thread.Sleep(100);
+            } while (timer.ElapsedMilliseconds < 3000);
+            Require(false, "CAPTURE_CLIENT_NOT_RENDERED");
         }
         finally { if (old != 0) Native.SelectObject(memory, old); if (bitmap != 0) Native.DeleteObject(bitmap); if (memory != 0) Native.DeleteDC(memory); if (dc != 0) Native.ReleaseDC(0, dc); }
     }
@@ -96,6 +163,7 @@ internal static class Program
 internal static class Native
 {
     internal delegate bool EnumProc(nint hwnd, nint arg);
+    [DllImport("dwmapi.dll")] internal static extern int DwmFlush();
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint arg);
     [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
     [DllImport("user32.dll")] internal static extern nint GetWindow(nint hwnd, uint cmd);

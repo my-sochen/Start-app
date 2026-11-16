@@ -1,15 +1,15 @@
 name: Manual actual app and browser help - one bounded run
 'on':
   push:
-    branches: ['diag/manual-app-m3']
+    branches: ['diag/manual-app-m4']
 permissions:
   contents: read
 concurrency:
-  group: manual-app-m3
+  group: manual-app-m4
   cancel-in-progress: false
 jobs:
   manual-app:
-    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/manual-app-m3' && github.run_attempt == 1
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/manual-app-m4' && github.run_attempt == 1
     runs-on: windows-2025-vs2026
     timeout-minutes: 10
     env:
@@ -32,7 +32,7 @@ jobs:
             'src/StartApp.App/MainWindow.xaml.cs'='35B845DE61677CDAED3BEEBD0C20402C2437ED69F375F95CA10A0EC7C66EFE9F'
             'src/StartApp.Core/BrowserCapturePolicy.cs'='07FB0F94FF0B856AE78B352AA0E69EC5B21989D4F6F65FC8CE5E499D458AFED4'
             'tests/StartApp.Core.Tests/BrowserCapturePolicyTests.cs'='0F45D70E3137BFA9D32CA2A7C18756D632ADA9E6AE36718262C75F870CBA7A10'
-            'qualification/manual-app/Program.cs'='23A4F322ED41BA364E092FAF7D0CAC1AA6D64C2248E47BDAB3629FAD3D82D5EF'
+            'qualification/manual-app/Program.cs'='564942B4F74720617838B2348761743E23E99396B6A6390F61D0201F4827111E'
             'qualification/manual-app/ManualApp.csproj'='51DA04AD5BE57198971604815D9F074A5FBBDCCEBBD12FFC73BDE0FD34764724'
             'qualification/manual-app/Preflight.ps1'='CDD9199D36B9C6B71214F750765927F613C45DB59DFE4C965A4DA7879525D4D9'
           }
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always() && steps.evidence.outputs.upload == 'true'
         with:
-          name: manual-app-m3-${{ github.sha }}
+          name: manual-app-m4-${{ github.sha }}
           retention-days: 3
           path: |
             manual-app-restore.txt
