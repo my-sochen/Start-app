@@ -1,0 +1,10 @@
+{
+  ".gitattributes": "4c2cfa54dbf2dc32804dcad415c192169e221f596d3e10b6882042655a354631",
+  "PROPOSAL.md": "ccc29cc52ce00d2b517516a54790f2fc683cd5fece7a7eab10a53adfd4a2187e",
+  "Qualify.cs": "b7e79ae11dd6c243bc94236d13c1e085372db584058bf495d70b0d8ef893391c",
+  "Run-LocalOnly.ps1": "01e3a786dd349d96dc65b4654a97d774edbf8ee0441fda78ed61a840106df208",
+  "canonical-expression-evidence.txt": "fcc70cfb0ec1922c78d8a77802e3edc7feb7cbad8c64ceed96c5d86494bd2fb6",
+  "cases.json": "92ed0e25e9b1f1fe285ffe4010be4ab32d02ad57d3f1fb1c417dcd95e0217f94",
+  "golden-net10.0.15.jsonl": "5d499b7eaf69a222446a7f21200e76b422fbee36dae64dd5b173fc9094bbbee1",
+  "inputs-sha256.json": "1ccb09b69114542c1a89e2211ad2e15297a4a4b889935ea1111fa2fcee2895a8"
+}
