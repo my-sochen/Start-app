@@ -92,7 +92,10 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             Status = UpdateAvailable ? $"זמין עדכון {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
         }
         catch (OperationCanceledException) { if (!_disposed) Status = "בדיקת העדכונים לא הסתיימה בזמן. אפשר לנסות שוב ידנית."; }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException or System.IO.IOException)
+        // A future source may fail with an adapter-specific exception. The optional
+        // check must fail closed without a faulted command or a stuck checking label.
+        // Do not turn runtime-fatal failures into a normal network error.
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
         { if (!_disposed) Status = "לא ניתן לבדוק עדכונים כרגע. הגרסה הנוכחית ממשיכה לעבוד."; }
         finally { if (!_disposed) IsBusy = false; }
     }

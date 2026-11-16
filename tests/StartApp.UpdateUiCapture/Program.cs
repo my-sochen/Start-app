@@ -40,6 +40,7 @@ internal static class Program
                 foreach (var width in new[] { 900, 720 })
                 {
                     window.Width = width;
+                    await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-inactive");
                     var opened = new List<string>();
                     using var available = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(Patch)), "1.0.0", uri => opened.Add(uri.AbsoluteUri));
@@ -51,10 +52,12 @@ internal static class Program
                     if (opened.Count != 1 || opened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Synthetic handoff target mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = failure; await failure.CheckAsync();
+                    await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-failure");
                     var gate = new TaskCompletionSource<ApprovedUpdate?>();
                     using var busy = new UpdateViewModel(new SyntheticSource(_ => gate.Task), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = busy; var pending = busy.CheckAsync();
+                    await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-busy");
                     gate.SetResult(null); await pending;
                     row.DataContext = window.Updates;
@@ -82,6 +85,6 @@ internal static class Program
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var stream = File.Create(Path.Combine(output, name + ".png"))) encoder.Save(stream);
         var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
-        Evidence.Add(new { state = name, width, height, buttons, rendering = "Actual WPF content at 96dpi; excludes native titlebar/taskbar; synthetic update source and browser sink" });
+        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, buttons, rendering = "Actual WPF content at 96dpi; excludes native titlebar/taskbar; synthetic update source and browser sink" });
     }
 }

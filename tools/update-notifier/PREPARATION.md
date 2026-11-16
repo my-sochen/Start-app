@@ -24,4 +24,4 @@ The existing prototype pointer is unsuitable as owner-approval evidence: declare
 
 ## Validation at this revision
 
-214 presentation tests pass, including 23 new update cases. WPF/Windows-targeted semantic cross-build succeeds on Linux. Neither is visual verification or actual Windows use. Actual rendered UI has not yet been inspected, so layout readiness remains open. Existing hosted Windows automation is a possible evidence route after exact review, not additional interactive peer QA.
+215 presentation tests pass, including 24 new update cases. WPF/Windows-targeted semantic cross-build succeeds on Linux. Neither is visual verification or actual Windows use. Actual rendered UI has not yet been inspected, so layout readiness remains open. Existing hosted Windows automation is a possible evidence route after exact review, not additional interactive peer QA.

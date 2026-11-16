@@ -317,7 +317,7 @@
         </Grid>
 
         <!-- ============ capture screen (מסך לכידה): open-now list on one side; new-workspace form, workspace search or the chosen workspace on the other ============ -->
-        <Grid Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
+        <Grid Grid.RowSpan="2" Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Top">
                     <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CaptureCloseCommand}" Padding="8,2" AutomationProperties.Name="Close capture" ToolTip="Close capture"/>
@@ -454,7 +454,7 @@
         </Grid>
 
         <!-- duplicate warning for ONE dragged item -->
-        <Grid Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MaxWidth="480">
                 <StackPanel>
                     <TextBlock Text="{Binding CaptureDupSingleMessage}" TextWrapping="Wrap" Margin="0,0,0,10"/>
@@ -467,7 +467,7 @@
         </Grid>
 
         <!-- ONE grouped dialog for the duplicates of an add-all / add-selected -->
-        <Grid Visibility="{Binding CaptureDupGroupPending, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding CaptureDupGroupPending, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340" MaxWidth="520">
                 <StackPanel>
                     <TextBlock Text="Already in this workspace" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
@@ -484,7 +484,7 @@
         </Grid>
 
         <!-- ============ empty-workspace dialog (דיאלוג סביבת עבודה ריקה) ============ -->
-        <Grid Visibility="{Binding EmptyWorkspaceOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding EmptyWorkspaceOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="300">
                 <StackPanel>
                     <TextBlock Text="סביבת עבודה ריקה" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
@@ -498,7 +498,7 @@
         </Grid>
 
         <!-- ============ address popup (פופאפ עריכת כתובת) ============ -->
-        <Grid Visibility="{Binding AddressEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding AddressEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
@@ -516,7 +516,7 @@
         </Grid>
 
         <!-- ============ open-with popup (פופאפ פתח באמצעות) ============ -->
-        <Grid Visibility="{Binding OpenWithOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding OpenWithOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
@@ -535,7 +535,7 @@
 
         <!-- ============ existing-resource picker (בחר מסביבות קיימות): items only, four type buttons,
              original resource names (site address under the name), search, usage-count sort ============ -->
-        <Grid Visibility="{Binding PickerOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding PickerOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="460">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
@@ -572,7 +572,7 @@
         </Grid>
 
         <!-- ============ card design popup (פופאפ עיצוב כרטיס) ============ -->
-        <Grid Visibility="{Binding DesignEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding DesignEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
@@ -620,7 +620,7 @@
         </Grid>
 
         <!-- ============ category popup (פופאפ עריכת קטגוריה) ============ -->
-        <Grid Visibility="{Binding CategoryEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
+        <Grid Grid.RowSpan="2" Visibility="{Binding CategoryEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">

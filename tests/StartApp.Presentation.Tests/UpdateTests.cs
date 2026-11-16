@@ -85,4 +85,14 @@ public sealed class UpdateTests
         using var vm = new UpdateViewModel(Candidate("1.0.1"), "1.0.0", _ => throw new InvalidOperationException());
         await vm.CheckAsync(); vm.DownloadCommand.Execute(null); Assert.Contains(UpdateViewModel.OfficialWebsite, vm.Status);
     }
+    [Fact] public async Task Adapter_specific_failure_is_honest_and_does_not_fault_command()
+    {
+        var source = new Source { Read = _ => throw new NotSupportedException("synthetic adapter failure") };
+        using var vm = new UpdateViewModel(source, "1.0.0", _ => throw new Exception());
+        vm.CheckCommand.Execute(null); await vm.CurrentCheck;
+        Assert.False(vm.IsBusy); Assert.False(vm.UpdateAvailable);
+        Assert.DoesNotContain("בודק", vm.Status); Assert.Contains("לא ניתן לבדוק", vm.Status);
+        Assert.True(vm.CheckCommand.CanExecute(null));
+    }
+
 }
