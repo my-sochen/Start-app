@@ -25,6 +25,7 @@
 
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
             <DockPanel Margin="8" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
+                <Button DockPanel.Dock="Top" Content="הגדרות דפדפן" Click="BrowserHelp_Click" AutomationProperties.Name="Browser help" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6"/>
                 <Button DockPanel.Dock="Top" Content="לכידה ▾" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6" AutomationProperties.Name="Capture"
                         Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                     <Button.ContextMenu>

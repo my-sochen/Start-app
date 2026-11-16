@@ -19,7 +19,7 @@ public partial class App : Application
             CrashLogger.Attach(Path.Combine(dir, "crash.log"), this); // evidence only; never marks anything handled
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
-        var vm = new MainViewModel(_store, launcher, preflight, capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
+        var vm = new MainViewModel(_store, launcher, preflight, capturer: BrowserCapturePolicy.Compose(new WindowsOpenItemCapturer()));
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
         new MainWindow { DataContext = vm }.Show();
@@ -27,7 +27,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e) { _store?.Dispose(); base.OnExit(e); }
 }
 
-/// <summary>Site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab
+/// <summary>LEGACY DORMANT: NOT composed into the application. Historical site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab
 /// in turn (then restoring the tab the user was on) so every tab's address is captured, not just the active one. A browser extension
 /// (prototype bridge proven on Edge only, not decided) would avoid the visible tab switching.</summary>
 public sealed class BrowserAddressBarCapturer : IOpenItemCapturer

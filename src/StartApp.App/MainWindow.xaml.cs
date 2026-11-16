@@ -6,6 +6,7 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
 {
+    private void BrowserHelp_Click(object sender, RoutedEventArgs e) => new BrowserHelpWindow { Owner = this }.ShowDialog();
     private bool _closeApproved;
     private MainViewModel? _hooked;
     public MainWindow()
