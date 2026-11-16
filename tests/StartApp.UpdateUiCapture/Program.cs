@@ -36,7 +36,7 @@ internal static class Program
             try
             {
                 // Find the real production update row via its existing view-model type.
-                var row = Descendants(window).OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
+                var row = ((Grid)window.Content).Children.OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
                 foreach (var width in new[] { 900, 720 })
                 {
                     window.Width = width;
