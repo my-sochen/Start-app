@@ -1,0 +1,69 @@
+name: Manual actual app and browser help - one bounded run
+'on':
+  push:
+    branches: ['diag/manual-app-m2']
+permissions:
+  contents: read
+concurrency:
+  group: manual-app-m2
+  cancel-in-progress: false
+jobs:
+  manual-app:
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/manual-app-m2' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 10
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify exact candidate and harness source before build or effects
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected=@{
+            'src/StartApp.App/App.xaml.cs'='17DE2F1F9F405D03F5C31CBFEA8BC915473329343F9F67090EEC8C1D09ED7C0B'
+            'src/StartApp.App/BrowserHelpWindow.xaml'='43178D221287B121B551EA6ED500A032370B73670EAE9E025AF16201095B4AB0'
+            'src/StartApp.App/BrowserHelpWindow.xaml.cs'='A062C507E73BEF05E260D7B965C697D659C42D282CAF6B7DA50CB46A4F2F82BA'
+            'src/StartApp.App/MainWindow.xaml'='C7F848D108B9C22DF065AEB936277268DB8165B09B0BB898493F4D269002826E'
+            'src/StartApp.App/MainWindow.xaml.cs'='35B845DE61677CDAED3BEEBD0C20402C2437ED69F375F95CA10A0EC7C66EFE9F'
+            'src/StartApp.Core/BrowserCapturePolicy.cs'='07FB0F94FF0B856AE78B352AA0E69EC5B21989D4F6F65FC8CE5E499D458AFED4'
+            'tests/StartApp.Core.Tests/BrowserCapturePolicyTests.cs'='0F45D70E3137BFA9D32CA2A7C18756D632ADA9E6AE36718262C75F870CBA7A10'
+            'qualification/manual-app/Program.cs'='23A4F322ED41BA364E092FAF7D0CAC1AA6D64C2248E47BDAB3629FAD3D82D5EF'
+            'qualification/manual-app/ManualApp.csproj'='51DA04AD5BE57198971604815D9F074A5FBBDCCEBBD12FFC73BDE0FD34764724'
+            'qualification/manual-app/Preflight.ps1'='CDD9199D36B9C6B71214F750765927F613C45DB59DFE4C965A4DA7879525D4D9'
+          }
+          foreach($name in $expected.Keys){if((Get-Item -LiteralPath $name).Length -gt 256KB -or (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -cne $expected[$name]){throw 'SOURCE_INTEGRITY_STOP'}}
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path qualification/manual-app/Preflight.ps1).Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count){throw 'PREFLIGHT_PARSE_STOP'}
+      - name: Full compile and tests, then actual owned manual app only
+        shell: pwsh
+        run: ./qualification/manual-app/Preflight.ps1
+      - name: Bound exact evidence allowlist
+        if: always()
+        id: evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $allowed=@{'manual-app-restore.txt'=2MB;'manual-app-build.txt'=2MB;'manual-app-tests.txt'=2MB;'manual-harness-build.txt'=2MB;'manual-app-evidence/manual-result.json'=16KB;'manual-app-evidence/01-overview.png'=4MB;'manual-app-evidence/02-details-manual-item.png'=4MB;'manual-app-evidence/03-browser-help.png'=4MB}
+          $found=$false
+          foreach($name in $allowed.Keys){if(Test-Path -LiteralPath $name -PathType Leaf){if((Get-Item -LiteralPath $name).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
+          if($found){'upload=true' >> $env:GITHUB_OUTPUT}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && steps.evidence.outputs.upload == 'true'
+        with:
+          name: manual-app-m2-${{ github.sha }}
+          retention-days: 3
+          path: |
+            manual-app-restore.txt
+            manual-app-build.txt
+            manual-app-tests.txt
+            manual-harness-build.txt
+            manual-app-evidence/manual-result.json
+            manual-app-evidence/01-overview.png
+            manual-app-evidence/02-details-manual-item.png
+            manual-app-evidence/03-browser-help.png
