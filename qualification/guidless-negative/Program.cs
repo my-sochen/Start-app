@@ -241,7 +241,7 @@ internal static class Program
     private static int? RecognizeStatus(byte[] header)
     {
         int end = Array.IndexOf(header, (byte)13);
-        if (end < 13 || end > 1024 || end + 1 >= header.Length || header[end + 1] != 10) return null;
+        if (end < 13 || end > 8190 || end + 1 >= header.Length || header[end + 1] != 10) return null;
         string line = Encoding.ASCII.GetString(header, 0, end);
         if (!line.All(c => c is >= ' ' and <= '~') || !line.StartsWith("HTTP/1.1 ", StringComparison.Ordinal) ||
             !line[9..12].All(char.IsAsciiDigit) || line[12] != ' ') return null;
@@ -332,6 +332,9 @@ internal static class Program
         { bool rejected = false; try { ParseEndpoint(Encoding.ASCII.GetBytes(f)); } catch (InvalidOperationException) { rejected = true; } Test(rejected); }
         Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\nBadField\r\n\r\n")) == 101);
         Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\n")) == 101);
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 " + new string('A', 2048) + "\r\nBadField\r\n\r\n")) == 101);
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 " + new string('A', 8177) + "\r\n")) == 101);
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 " + new string('A', 8179))) is null);
         Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101x\r\n\r\n")) is null);
         bool malformed404Rejected = false;
         try { ParseStatus(Encoding.ASCII.GetBytes("HTTP/1.1 404 Not Found\r\nBadField\r\n\r\n")); } catch (InvalidOperationException) { malformed404Rejected = true; }
