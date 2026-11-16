@@ -115,23 +115,64 @@ internal static partial class Program
                 }
                 catch (Exception ex) { facts["offError"] = Code(ex); }
             }
+            string cleanupStage = "TERMINATE_OWNED_JOB";
+            facts["dummyRootRemoved"] = !rootCreated;
             try
             {
                 if (!job.IsInvalid)
                 {
-                    Win(Native.TerminateJobObject(job, 0)); var wait = Stopwatch.StartNew(); uint active;
-                    do { Win(Native.QueryInformationJobObject(job, 1, out var accounting, (uint)Marshal.SizeOf<Native.BasicAccounting>(), out _)); active = accounting.ActiveProcesses; if (active == 0) break; Thread.Sleep(50); } while (wait.Elapsed < TimeSpan.FromSeconds(5));
-                    facts["activeAfterCleanup"] = active; cleanup = active == 0 && (process is null || Native.WaitForSingleObject(process, 0) == 0);
+                    var cleanupClock = Stopwatch.StartNew();
+                    Win(Native.TerminateJobObject(job, 0));
+                    cleanupStage = "WAIT_OWNED_JOB_AND_ORIGINAL_PROCESS";
+                    int decision;
+                    do
+                    {
+                        uint? processWait = null;
+                        if (process is not null)
+                        {
+                            uint observedWait = Native.WaitForSingleObject(process, 0);
+                            // Capture immediately, before any other native call. Only meaningful on WAIT_FAILED.
+                            if (observedWait == uint.MaxValue) facts["processWaitError"] = Marshal.GetLastWin32Error();
+                            processWait = observedWait; facts["processWaitRaw"] = observedWait;
+                        }
+                        Win(Native.QueryInformationJobObject(job, 1, out var accounting, (uint)Marshal.SizeOf<Native.BasicAccounting>(), out _));
+                        long elapsed = cleanupClock.ElapsedMilliseconds;
+                        facts["activeAfterCleanup"] = accounting.ActiveProcesses;
+                        facts["cleanupElapsedMs"] = elapsed;
+                        facts["originalProcessHandlePresent"] = process is not null;
+                        decision = CleanupDecision(accounting.ActiveProcesses, processWait, process is not null, elapsed);
+                        if (decision != 0) break;
+                        Thread.Sleep((int)Math.Min(50, Math.Max(1, 5000 - elapsed)));
+                    } while (true);
+                    cleanup = decision == 1;
+                    if (!cleanup) facts["cleanupError"] = decision == 2 ? "PROCESS_WAIT_FAILED_OR_UNEXPECTED" : "CLEANUP_WAIT_BUDGET_EXHAUSTED";
                 }
-                if (facts.TryGetValue("errorCode", out var failure) && Equals(failure, "CREATED_ROOT_CLEANUP_UNVERIFIED")) cleanup = false;
-                if (cleanup && rootCreated) { RejectReparseChain(root); DeleteOwnedTree(root); cleanup &= !Directory.Exists(root); }
+                if (facts.TryGetValue("errorCode", out var launchFailure) && Equals(launchFailure, "CREATED_ROOT_CLEANUP_UNVERIFIED")) cleanup = false;
+                // Never delete the dummy root until BOTH observations prove termination.
+                if (cleanup && rootCreated)
+                {
+                    cleanupStage = "DELETE_OWNED_ROOT";
+                    RejectReparseChain(root); DeleteOwnedTree(root);
+                    facts["dummyRootRemoved"] = !Directory.Exists(root);
+                    cleanup &= !Directory.Exists(root);
+                }
+                if (!cleanup && !facts.ContainsKey("cleanupError")) facts["cleanupError"] = "OWNED_CLEANUP_UNVERIFIED";
             }
-            catch { cleanup = false; }
+            catch { cleanup = false; facts["cleanupError"] = "OWNED_CLEANUP_STAGE_FAILED"; }
+            facts["cleanupStage"] = cleanupStage;
             process?.Dispose(); facts["cleanup"] = cleanup ? "OWNED_JOB_EMPTY_ROOT_REMOVED" : "UNVERIFIED";
             facts["result"] = screenshot && cleanup && Equals(facts["Off"], "READBACK_OFF") ? "IMAGES_ACQUIRED_PENDING_PIXEL_INSPECTION" : "INCOMPLETE_IMAGES_MAY_EXIST";
             try { using var f = new FileStream(Path.Combine(output, "result.json"), FileMode.CreateNew, FileAccess.Write, FileShare.None); JsonSerializer.Serialize(f, facts, new JsonSerializerOptions { WriteIndented = true }); } catch { returnCode = 3; }
         }
         return returnCode == 0 && screenshot && cleanup && Equals(facts["Off"], "READBACK_OFF") ? 0 : 3;
+    }
+    // Pure state only. 0=pending, 1=both proven, 2=terminal wait failure/unexpected, 3=budget exhausted.
+    private static int CleanupDecision(uint active, uint? processWait, bool hasProcess, long elapsedMs)
+    {
+        if (hasProcess && processWait != 0 && processWait != 258) return 2;
+        if (elapsedMs > 5000) return 3;
+        if (active == 0 && (!hasProcess || processWait == 0)) return 1;
+        return elapsedMs >= 5000 ? 3 : 0;
     }
     private static int returnCode;
     private static string Code(Exception ex) => ex is InvalidOperationException && ex.Message.Length <= 80 && ex.Message.All(c => c is >= 'A' and <= 'Z' or >= '0' and <= '9' or '_') ? ex.Message : ex.GetType().Name;
