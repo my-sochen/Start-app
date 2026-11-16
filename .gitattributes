@@ -1,0 +1,19 @@
+
+# Icon validation byte-hash inputs: independent of runner autocrlf.
+qualification/icon/Verify.ps1 text eol=lf
+qualification/icon/Preflight.ps1 text eol=lf
+qualification/icon/README.md text eol=lf
+tools/portable-entry/Create-DesktopShortcut.ps1 text eol=lf
+tools/portable-entry/package.ps1 text eol=lf
+tools/portable-entry/build.cmd text eol=lf
+tools/portable-entry/launcher.rc text eol=lf
+tests/portable-entry/verify-windows.ps1 text eol=lf
+tests/portable-entry/OwnedTree.cs text eol=lf
+src/StartApp.App/MainWindow.xaml text eol=lf
+src/StartApp.App/StartApp.App.csproj text eol=lf
+src/StartApp.App/Assets/start-app-ufo.svg text eol=lf
+src/StartApp.App/App.xaml.cs text eol=lf
+tools/portable-entry/launcher.c text eol=lf
+tools/portable-entry/launcher-path.h text eol=lf
+tests/portable-entry/path-test.c text eol=lf
+tests/portable-entry/probe.c text eol=lf

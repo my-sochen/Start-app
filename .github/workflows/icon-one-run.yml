@@ -1,0 +1,77 @@
+name: UFO icon one bounded Windows validation
+'on':
+  push:
+    branches: ['diag/icon-one-run-a1']
+permissions:
+  contents: read
+concurrency:
+  group: icon-one-run-a1
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/icon-one-run-a1' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 10
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Exact reviewed source before effects
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected=@{
+            'src/StartApp.App/App.xaml.cs'='0E8AD2A82553FF18999761E6B2D2470E2B304E094AE29A01A7D842FA61927F0F'
+            'src/StartApp.App/MainWindow.xaml'='2C94FFA17D558B165601CE9F4C7616C063B245F330A8EDD33686D86063823338'
+            'src/StartApp.App/StartApp.App.csproj'='4B53AB69DED02110D83E995D4CBEFAA967F2FA0646B1CCD42CDD16C1E0E473C9'
+            'src/StartApp.App/Assets/start-app-ufo.ico'='BD384EA78933307A5BE01C47BF950B0976D0BF44AEE341FA5CE81674913E7577'
+            'src/StartApp.App/Assets/start-app-ufo.svg'='EDD799ECE55A5FEE396A82F55DF75C88FBE32AA87E633E8A13BC1E4AACC714AF'
+            'tools/portable-entry/Create-DesktopShortcut.ps1'='99707702F6A8AB3496E8378A60E64362A8A29F4CDBFD5195943DC2307B573FCE'
+            'tools/portable-entry/package.ps1'='3DAA8EA40E1D6A3CC8BE41739C973ACEFA2885D54B85CCC66A46B09009990F40'
+            'tools/portable-entry/build.cmd'='B294D236743816D354C6D547166CFBDB90A079CA18A5E5442541789D6D9A5656'
+            'tools/portable-entry/launcher.rc'='4813763B3C488CD9CEF3FF1CD16E0BF23E0A35A552D6273DBDE9D7174DFF57EE'
+            'tools/portable-entry/launcher.c'='6786C1C93B716A462F5AEE4E5510643C0E0972573C419D1704C496AC665C6C19'
+            'tools/portable-entry/launcher-path.h'='667EE92652D606FDA75ED89376026598B391227923A0A4F377D042EC480A33E8'
+            'tests/portable-entry/verify-windows.ps1'='A6763D5556F699CB30A56FD61CD4A3EA9DFA4F65DB1EB9596BA2A691A4D7B536'
+            'tests/portable-entry/OwnedTree.cs'='F1035CE6F5B84E8ED2BD9089166A3A68488A68116BCDB5A6E5AE667A9292A77B'
+            'tests/portable-entry/path-test.c'='67AFFF7E8436038B073C9FF9F528773B90A29DD6A21C4AE7D912E6952331DA70'
+            'tests/portable-entry/probe.c'='C9D3FC77F4D3D8AC1C65F8A4D17899E52BD4FFA957221AA741DEBF0AD6A926EE'
+            'qualification/icon/Verify.ps1'='41ED2A2AEF7C0DC3F5BF707DC9445D5081F7A4EA98F5F95375F5815F61E00EA3'
+            'qualification/icon/Preflight.ps1'='A3DA914AD6A9E239914964A79F79AB752A309D16A9B8FC92B9774E3FFF0EA896'
+          }
+          foreach($name in ($expected.Keys|Sort-Object)){
+            if((Get-Item -LiteralPath $name).Length -gt 256KB){throw 'SOURCE_SIZE_STOP'}
+            $actual=(Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash
+            if($actual -cne $expected[$name]){throw ('SOURCE_INTEGRITY_STOP '+$name)}
+          }
+      - name: Parse build test and inspect owned app plus disposable shortcut
+        shell: pwsh
+        run: ./qualification/icon/Preflight.ps1
+      - name: Bound exact evidence allowlist
+        if: always()
+        id: evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $allowed=@{'icon-tests.txt'=2MB;'icon-publish.txt'=2MB;'diag/icon-result.json'=16KB;'diag/portable-entry-result.json'=16KB;'diag/portable-cleanup-errors.txt'=16KB;'out-images/portable-entry-actual-app.png'=4MB;'out-images/portable-entry-missing-folder.png'=4MB;'out-images/icon-shell-contact-sheet.png'=4MB}
+          $found=$false
+          foreach($name in $allowed.Keys){if(Test-Path -LiteralPath $name -PathType Leaf){if((Get-Item -LiteralPath $name).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
+          if($found){'upload=true' >> $env:GITHUB_OUTPUT}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && steps.evidence.outputs.upload == 'true'
+        with:
+          name: ufo-icon-a1-${{ github.sha }}
+          retention-days: 3
+          path: |
+            icon-tests.txt
+            icon-publish.txt
+            diag/icon-result.json
+            diag/portable-entry-result.json
+            diag/portable-cleanup-errors.txt
+            out-images/portable-entry-actual-app.png
+            out-images/portable-entry-missing-folder.png
+            out-images/icon-shell-contact-sheet.png
