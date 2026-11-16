@@ -1,0 +1,180 @@
+{
+  "cases": [
+    {
+      "id": "ascii",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "hebrew",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "\u05d1\u05d3\u05d9\u05e7\u05ea \u05d7\u05dc\u05d5\u05df",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "supplementary",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "\ud83d\ude00\ud801\udc00",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "html-and-quote",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "<>&'\"+`",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "control-escape",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "\u0000\t\r\n\b\f\\/",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "unicode-boundary",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "\u2028\u2029\u3000\u00a0\ue000",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "max-int-and-negative-hwnd",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 2147483647,
+          "NativeWindowHandle": -2147483648
+        }
+      ]
+    },
+    {
+      "id": "empty-all-strings",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "",
+          "ClassName": "",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "normalization-composed",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "\u00e9",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "normalization-decomposed",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "e\u0301",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        }
+      ]
+    },
+    {
+      "id": "ordered-tree",
+      "rows": [
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 456
+        },
+        {
+          "parent": 0,
+          "type": "ControlType.Text",
+          "Name": "second",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 0
+        },
+        {
+          "parent": -1,
+          "type": "ControlType.Window",
+          "Name": "third",
+          "ClassName": "Chrome_WidgetWin_1",
+          "AutomationId": "",
+          "ProcessId": 123,
+          "NativeWindowHandle": 789
+        }
+      ]
+    },
+    {
+      "id": "empty-array-wire-only",
+      "rows": []
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+SOURCE EVIDENCE ONLY. Not executable, not a build input, not a project/assembly reference.
+E12 source head ffb8ace0fad14aa5a422d4ba0ab9762ac4dd29f1
+Path diagnostic-browser/SyntheticOperator.cs
+SHA256 c0ea485bc820650d22315d80b91d6434b026fab638dab9d961e3e8c9346e2038
+
+255:             EmitStep("STRICT_SHAPE_GETTERS_BEGIN");
+256:             string shape = JsonSerializer.Serialize(Enumerable.Range(0,nodes.Length).Select(i => { var c = nodes[i].Current; return new {
+257:                 parent = sample.Parents[i], type = c.ControlType.ProgrammaticName, c.Name, c.ClassName, c.AutomationId, c.ProcessId, c.NativeWindowHandle }; }));
+258:             shapeDigest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(shape)));
+259:         } else EmitStep("STRICT_SHAPE_NOT_REQUIRED_FOR_THIS_SAMPLE");
