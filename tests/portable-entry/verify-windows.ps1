@@ -1,5 +1,10 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Fixed product data is permitted only in the explicitly disposable hosted CI context.
+# These environment assertions are a safety guard, not security against a malicious caller.
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or -not $IsWindows) {
+ throw 'Portable app smoke requires a disposable GitHub-hosted Windows runner; local profiles are refused'
+}
 New-Item -ItemType Directory -Force diag, out-images | Out-Null
 $repo = $PWD.Path
 $root = Join-Path $env:RUNNER_TEMP ('Start-app portable ' + [guid]::NewGuid().ToString('N'))
@@ -11,7 +16,6 @@ $checks = [Collections.Generic.List[string]]::new()
 # photograph any existing data, even if a runner image unexpectedly contains it.
 $dataRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'StartApp'
 if(Test-Path -LiteralPath $dataRoot){throw 'Existing app data found; refusing synthetic screenshot run'}
-$ownedData = $false
 $child=$null
 function Assert-True([bool]$condition, [string]$name) {
     if (-not $condition) { throw "FAIL: $name" }
@@ -31,6 +35,8 @@ Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient,
 Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public static class PortableWindow {
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]public static extern bool CreateDirectoryW(string path,IntPtr attributes);
+
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int L,T,R,B; }
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int w,int z,uint f);
@@ -144,8 +150,8 @@ try {
     $actual = Join-Path $root 'real app עברית'
     & "$repo/tools/portable-entry/package.ps1" -Payload "$repo/app-payload" -Launcher "$repo/portable-build/Start-app.exe" -Destination $actual
     Assert-True (-not (Compare-Object (Payload-Hashes "$repo/app-payload") (Payload-Hashes (Join-Path $actual 'App')))) 'intact candidate payload hash and file list'
-    New-Item -ItemType Directory -Path $dataRoot | Out-Null
-    $ownedData=$true
+    # Native creation fails atomically if another writer acquired this path first.
+    if(-not [PortableWindow]::CreateDirectoryW($dataRoot,[IntPtr]::Zero)){throw ('Refusing app-data acquisition: Win32 error '+[Runtime.InteropServices.Marshal]::GetLastWin32Error())}
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $dataRoot 'store.json'))) 'synthetic empty app data before launch'
     $launcher=Start-Owned (Join-Path $actual 'Start-app.exe') $decoy.FullName
     $child=$null
@@ -180,14 +186,9 @@ finally {
     # Job handles are retained from suspended creation, before any child exists.
     # Covers failures before discovery, not just successfully discovered PIDs.
     $cleanupErrors=@()
-    try {
-        foreach($tree in $owned){try{$tree.StopAndDispose()}catch{$cleanupErrors+=$_.Exception.Message}}
-        if($null -ne $child){$child.Dispose()}
-    }
-    finally {
-        if($ownedData -and (Test-Path -LiteralPath $dataRoot)){
-            try{Remove-Item -LiteralPath $dataRoot -Recurse -Force}catch{$cleanupErrors+=$_.Exception.Message}
-        }
-    }
+    foreach($tree in $owned){try{$tree.StopAndDispose()}catch{$cleanupErrors+=$_.Exception.Message}}
+    if($null -ne $child){try{$child.Dispose()}catch{$cleanupErrors+=$_.Exception.Message}}
+    # Do not delete the fixed data path, even after successful acquisition. Other writers
+    # may have added contents; disposable hosted-VM teardown owns final removal.
     if($cleanupErrors.Count){$cleanupErrors | Set-Content diag/portable-cleanup-errors.txt;throw ($cleanupErrors -join '; ')}
 }
