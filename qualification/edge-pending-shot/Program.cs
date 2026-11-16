@@ -48,14 +48,17 @@ internal static partial class Program
                 Thread.Sleep(100);
             } while (ready.Elapsed < TimeSpan.FromSeconds(10));
             Require(hwnd != 0, "NO_OWNED_BROWSER_HWND");
-            // CLI internal-URL launch is a candidate, NOT assumed supported. Exact UI readback required.
+            facts["setupStage"] = "WAIT_OWNED_BLANK_OMNIBOX";
+            NavigateOwnedBlank(hwnd, process, pid, birth, exe, job, facts);
+            facts["setupStage"] = "WAIT_EXACT_INSPECT_OFF";
             InspectControl? initial = null; ready.Restart();
             do
             {
-                try { initial = ReadInspect(hwnd, process, pid, birth, exe, job, ToggleState.Off); break; }
-                catch (InvalidOperationException ex) when (ex.Message is "EXACT_INSPECT_ADDRESS_MISSING" or "CHECKBOX_MISSING") { Thread.Sleep(100); }
+                try { initial = ReadInspect(hwnd, process, pid, birth, exe, job, ToggleState.Off, facts); break; }
+                catch (InvalidOperationException ex) when (ex.Message is "EXACT_INSPECT_ADDRESS_MISSING" or "CHECKBOX_MISSING") { facts["lastReadinessCode"] = ex.Message; Thread.Sleep(100); }
             } while (ready.Elapsed < TimeSpan.FromSeconds(5));
             Require(initial is not null, "INSPECT_NOT_READY_STOP");
+            facts["setupStage"] = "EXACT_INSPECT_OFF_CONFIRMED";
             var control = initial!;
             Capture(hwnd, pid, Path.Combine(output, "01-edge-setting-off.png"));
             Require(ReadInspect(hwnd, process, pid, birth, exe, job, ToggleState.Off).State == ToggleState.Off, "BEFORE_ON_STOP");
@@ -95,7 +98,15 @@ internal static partial class Program
             } while (ready.Elapsed < TimeSpan.FromSeconds(5));
             Require(screenshot, "PENDING_DIALOG_UNAVAILABLE");
         }
-        catch (Exception ex) { facts["errorType"] = ex.GetType().Name; facts["errorCode"] = Code(ex); }
+        catch (Exception ex)
+        {
+            facts["errorType"] = ex.GetType().Name; facts["errorCode"] = Code(ex);
+            if (!onAttempted && hwnd != 0)
+            {
+                try { ValidateProcess(process!, pid, birth, exe, job); Capture(hwnd, pid, Path.Combine(output, "00-edge-readiness-failure.png")); facts["readinessFailureImage"] = "ACQUIRED_PENDING_PIXEL_INSPECTION"; }
+                catch (Exception captureError) { facts["readinessFailureImageError"] = Code(captureError); }
+            }
+        }
         finally
         {
             socket?.Dispose(); endpoint?.Dispose();
@@ -194,23 +205,63 @@ internal static partial class Program
         foreach (var prop in new[] { AutomationElement.NameProperty, AutomationElement.AutomationIdProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty, AutomationElement.ControlTypeProperty }) cache.Add(prop);
         using (cache.Activate()) return AutomationElement.FromHandle(hwnd).FindAll(TreeScope.Descendants, condition);
     }
-    private static InspectControl ReadInspect(nint hwnd, SafeProcessHandle process, uint pid, long birth, string exe, SafeFileHandle job, ToggleState expected)
+    private static void NavigateOwnedBlank(nint hwnd, SafeProcessHandle process, uint pid, long birth, string exe, SafeFileHandle job, Dictionary<string, object?> facts)
+    {
+        AutomationElement BlankBox()
+        {
+            ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
+            var edits = Scoped(hwnd, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+            Require(edits.Count <= 8, "BLANK_EDIT_CAP_STOP"); facts["blankEditCount"] = edits.Count;
+            var boxes = edits.Cast<AutomationElement>().Where(e => e.Current.ClassName == "OmniboxViewViews" &&
+                e.TryGetCurrentPattern(ValuePattern.Pattern, out object? p) && p is ValuePattern v && v.Current.Value == "about:blank").ToArray();
+            facts["exactBlankOmniboxCount"] = boxes.Length;
+            Require(boxes.Length <= 1, "BLANK_OMNIBOX_AMBIGUOUS_STOP"); Require(boxes.Length == 1, "BLANK_OMNIBOX_MISSING");
+            var box = boxes[0]; Require(box.Current.ProcessId == pid && box.Current.IsEnabled && !box.Current.IsOffscreen, "BLANK_OMNIBOX_OWNER_OR_STATE_STOP"); return box;
+        }
+        AutomationElement? selected = null; var ready = Stopwatch.StartNew();
+        do { try { selected = BlankBox(); break; } catch (InvalidOperationException ex) when (ex.Message == "BLANK_OMNIBOX_MISSING") { facts["lastReadinessCode"] = ex.Message; Thread.Sleep(100); } }
+        while (ready.ElapsedMilliseconds < 5000);
+        Require(selected is not null, "BLANK_OMNIBOX_NOT_READY_STOP");
+        facts["setupStage"] = "ONE_OWNED_ACTIVATION";
+        Require(Shot.SetForegroundWindow(hwnd), "NAV_ACTIVATION_FAILED");
+        ready.Restart();
+        while (Shot.GetForegroundWindow() != hwnd && ready.ElapsedMilliseconds < 2000) { BlankBox(); Thread.Sleep(50); }
+        Require(Shot.GetForegroundWindow() == hwnd && Automation.Compare(selected, BlankBox()), "NAV_FOREGROUND_OR_IDENTITY_STOP");
+        facts["setupStage"] = "ONE_OWNED_OMNIBOX_FOCUS"; selected!.SetFocus();
+        Require(Shot.GetForegroundWindow() == hwnd && Automation.Compare(AutomationElement.FocusedElement, selected) && Automation.Compare(selected, BlankBox()), "NAV_FOCUS_OR_IDENTITY_STOP");
+        Require(selected.TryGetCurrentPattern(ValuePattern.Pattern, out object? pattern) && pattern is ValuePattern, "NAV_VALUE_PATTERN_STOP");
+        var value = (ValuePattern)pattern!; Require(!value.Current.IsReadOnly && value.Current.Value == "about:blank", "NAV_VALUE_STOP");
+        ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
+        facts["setupStage"] = "ONE_EXACT_INSPECT_SETVALUE"; value.SetValue(Inspect);
+        Require(value.Current.Value == Inspect && Shot.GetForegroundWindow() == hwnd && Automation.Compare(AutomationElement.FocusedElement, selected), "NAV_BEFORE_ENTER_STOP");
+        ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
+        Require(IntPtr.Size == 8 && Marshal.SizeOf<Shot.Input>() == 40 && Marshal.OffsetOf<Shot.Input>(nameof(Shot.Input.Data)).ToInt32() == 8 && Marshal.OffsetOf<Shot.KeyboardUnion>(nameof(Shot.KeyboardUnion.Flags)).ToInt32() == 4, "INPUT_ABI_STOP");
+        var keys = new[] { new Shot.Input { Type = 1, Data = new Shot.KeyboardUnion { Key = 13 } }, new Shot.Input { Type = 1, Data = new Shot.KeyboardUnion { Key = 13, Flags = 2 } } };
+        facts["setupStage"] = "ONE_EXACT_INSPECT_ENTER_PAIR"; uint sent = Shot.SendInput(2, keys, Marshal.SizeOf<Shot.Input>()); facts["navigationInputCount"] = sent;
+        Require(sent == 2, "PARTIAL_INPUT_STOP_NO_RETRY");
+    }
+    private static InspectControl ReadInspect(nint hwnd, SafeProcessHandle process, uint pid, long birth, string exe, SafeFileHandle job, ToggleState expected, Dictionary<string, object?>? readiness = null)
     {
         ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
         var edits = Scoped(hwnd, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
         Require(edits.Count <= 8, "EDIT_COUNT_STOP"); int exact = 0;
+        if (readiness is not null) readiness["inspectEditCount"] = edits.Count;
         foreach (AutomationElement e in edits)
-            if (e.TryGetCurrentPattern(ValuePattern.Pattern, out object? p) && p is ValuePattern v && v.Current.Value == Inspect) exact++;
+            if (e.Current.ClassName == "OmniboxViewViews" && e.TryGetCurrentPattern(ValuePattern.Pattern, out object? p) && p is ValuePattern v && v.Current.Value == Inspect) exact++;
+        if (readiness is not null) readiness["exactInspectOmniboxCount"] = exact;
         Require(exact <= 1, "AMBIGUOUS_INSPECT_ADDRESS_STOP");
         Require(exact == 1, "EXACT_INSPECT_ADDRESS_MISSING");
         var checks = Scoped(hwnd, new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.CheckBox),
             new PropertyCondition(AutomationElement.NameProperty, "Allow remote debugging for this browser instance"),
             new PropertyCondition(AutomationElement.AutomationIdProperty, "remote-debugging-enabled")));
+        if (readiness is not null) readiness["inspectCheckboxCount"] = checks.Count;
         Require(checks.Count <= 1, "CHECKBOX_AMBIGUOUS_STOP");
         Require(checks.Count == 1, "CHECKBOX_MISSING"); var box = checks[0];
         object? obj = null;
         Require(box.Cached.IsEnabled && !box.Cached.IsOffscreen && box.TryGetCurrentPattern(TogglePattern.Pattern, out obj) && obj is TogglePattern, "CHECKBOX_NOT_ACTIONABLE");
-        var state = ((TogglePattern)obj!).Current.ToggleState; Require(state == expected, "CHECKBOX_STATE_MISMATCH");
+        var state = ((TogglePattern)obj!).Current.ToggleState;
+        if (readiness is not null) { readiness["inspectCheckboxOff"] = state == ToggleState.Off; readiness["inspectCheckboxOn"] = state == ToggleState.On; }
+        Require(state == expected, "CHECKBOX_STATE_MISMATCH");
         ValidateWindow(hwnd, pid); return new InspectControl(box, state);
     }
     private static bool BelongsToRoot(nint candidate, nint root, uint pid)
@@ -268,6 +319,10 @@ internal static partial class Program
 }
 internal static class Shot
 {
+    [DllImport("user32.dll")] internal static extern uint SendInput(uint count, Input[] input, int size);
+    [StructLayout(LayoutKind.Explicit, Size = 40)] internal struct Input { [FieldOffset(0)] public uint Type; [FieldOffset(8)] public KeyboardUnion Data; }
+    [StructLayout(LayoutKind.Explicit, Size = 32)] internal struct KeyboardUnion { [FieldOffset(0)] public ushort Key; [FieldOffset(4)] public uint Flags; }
+
     internal delegate bool EnumProc(nint hwnd, nint arg);
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint arg);
     [DllImport("user32.dll")] internal static extern bool IsWindow(nint hwnd);

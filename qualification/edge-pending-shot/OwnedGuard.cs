@@ -17,7 +17,7 @@ internal static partial class Program
     private static void Win(bool ok) { if (!ok) throw new Win32Exception(Marshal.GetLastWin32Error()); }
     private static (SafeProcessHandle, uint, long) Launch(string exe, string root, SafeFileHandle job)
     {
-        string[] args = { exe, "--user-data-dir=" + root, "--no-first-run", "--no-default-browser-check", "edge://inspect/#remote-debugging" };
+        string[] args = { exe, "--user-data-dir=" + root, "--no-first-run", "--no-default-browser-check", "about:blank" };
         Require(args.All(x => !x.Contains('"') && !x.Contains('\0') && !x.EndsWith('\\')), "ARGUMENT_STOP");
         var command = new StringBuilder(string.Join(" ", args.Select(x => "\"" + x + "\"")));
         var startup = new Native.Startup { Cb = (uint)Marshal.SizeOf<Native.Startup>() };

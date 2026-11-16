@@ -1,16 +1,16 @@
 name: Edge pending native dialog screenshots only
 'on':
   push:
-    branches: ['diag/edge-pending-shot-s3']
+    branches: ['diag/edge-pending-shot-s4']
     paths: ['.gitattributes', '.github/workflows/edge-pending-shot.yml', 'qualification/edge-pending-shot/**']
 permissions:
   contents: read
 concurrency:
-  group: edge-pending-shot-s3
+  group: edge-pending-shot-s4
   cancel-in-progress: false
 jobs:
   negative:
-    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/edge-pending-shot-s3' && github.run_attempt == 1
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/edge-pending-shot-s4' && github.run_attempt == 1
     runs-on: windows-2025-vs2026
     timeout-minutes: 5
     env:
@@ -32,8 +32,8 @@ jobs:
           $ErrorActionPreference='Stop'
           $expected = @{
             'Preflight.ps1'='98C6792E42B90F730CB0AF2B5DAF5C22957D3A23FC9E3572E4E149A0FB25AA0A'
-            'OwnedGuard.cs'='9D4C62523E8EA5C9D91F275749A32858D69D8BB811155694C5F76206F1838301'
-            'Program.cs'='B4C2544A9C93A3C16B143E1AE1A31F8CA3B3E0792257BF3F55FD7303D5969828'
+            'OwnedGuard.cs'='9ED2D0366839F91EC2857F2A3FDD5687CF13DEB9F94E11501E8DD249917C909A'
+            'Program.cs'='29737AC3A3FCE736B2E2FC63A86CB89A97E8346AF818944E728B6B53C39A034E'
             'EdgePendingShot.csproj'='F691598CDDE9E8E80421EF877F3DC3BE665251A1982CC88061721C0BC926CA05'
           }
           foreach($name in $expected.Keys){if((Get-Item -LiteralPath $name).Length -gt 64KB -or (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -cne $expected[$name]){throw 'SOURCE_INTEGRITY_STOP'}}
@@ -52,15 +52,16 @@ jobs:
         working-directory: qualification/edge-pending-shot
         run: |
           $ErrorActionPreference='Stop'
-          $allowed=@{'inventory.json'=16KB;'result.json'=32KB;'compile.txt'=1MB;'completion.json'=4KB;'preflight-error-type.txt'=1KB;'01-edge-setting-off.png'=4MB;'02-edge-setting-on.png'=4MB;'03-edge-pending-native-dialog.png'=4MB;'04-edge-setting-off-after.png'=4MB}
+          $allowed=@{'00-edge-readiness-failure.png'=4MB;'inventory.json'=16KB;'result.json'=32KB;'compile.txt'=1MB;'completion.json'=4KB;'preflight-error-type.txt'=1KB;'01-edge-setting-off.png'=4MB;'02-edge-setting-on.png'=4MB;'03-edge-pending-native-dialog.png'=4MB;'04-edge-setting-off-after.png'=4MB}
           $found=$false
           foreach($name in $allowed.Keys){$p=Join-Path evidence $name;if(Test-Path -LiteralPath $p -PathType Leaf){if((Get-Item -LiteralPath $p).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
           if($found){'upload=true' >> $env:GITHUB_OUTPUT}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always() && steps.evidence.outputs.upload == 'true'
         with:
-          name: edge-pending-shot-s3-${{ github.sha }}
+          name: edge-pending-shot-s4-${{ github.sha }}
           path: |
+            qualification/edge-pending-shot/evidence/00-edge-readiness-failure.png
             qualification/edge-pending-shot/evidence/inventory.json
             qualification/edge-pending-shot/evidence/result.json
             qualification/edge-pending-shot/evidence/01-edge-setting-off.png
