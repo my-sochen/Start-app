@@ -1,0 +1,69 @@
+name: Negative GUIDLESS flag-mode compatibility only
+'on':
+  push:
+    branches: ['diag/guidless-negative-n1']
+    paths: ['.github/workflows/guidless-negative.yml', 'qualification/guidless-negative/**']
+permissions:
+  contents: read
+concurrency:
+  group: guidless-negative-n1
+  cancel-in-progress: false
+jobs:
+  negative:
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/guidless-negative-n1' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 5
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /qualification/guidless-negative/
+      - name: Verify exact sources and PowerShell syntax before any diagnostic process
+        shell: pwsh
+        working-directory: qualification/guidless-negative
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected = @{
+            'Preflight.ps1'='052865F2C78D1D55BC7024BCA8058D4B3EFB08C9CDED9BF5C60EDD8F38F4DA3E'
+            'Program.cs'='5598FBD90FFA93904B049579EB500B47A21A68348404692EF8620A039F8CC622'
+            'GuidlessNegative.csproj'='48DD15A3F4FFAA7358AEADAB36283627126616A930DF3E1E987DBAD8FACC9CEB'
+          }
+          foreach($name in $expected.Keys){if((Get-Item -LiteralPath $name).Length -gt 64KB -or (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -cne $expected[$name]){throw 'SOURCE_INTEGRITY_STOP'}}
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path Preflight.ps1).Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count){throw 'PREFLIGHT_PARSE_STOP'}
+      - name: One bounded negative-only observation per browser, no retries
+        timeout-minutes: 3
+        shell: pwsh
+        working-directory: qualification/guidless-negative
+        run: ./Preflight.ps1
+      - name: Bound evidence allowlist, never profiles or binaries
+        if: always()
+        id: evidence
+        shell: pwsh
+        working-directory: qualification/guidless-negative
+        run: |
+          $ErrorActionPreference='Stop'
+          $allowed=@{'inventory.json'=16KB;'chrome-result.json'=32KB;'edge-result.json'=32KB;'compile.txt'=1MB;'completion.json'=4KB;'preflight-error-type.txt'=1KB}
+          $found=$false
+          foreach($name in $allowed.Keys){$p=Join-Path evidence $name;if(Test-Path -LiteralPath $p -PathType Leaf){if((Get-Item -LiteralPath $p).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
+          if($found){'upload=true' >> $env:GITHUB_OUTPUT}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && steps.evidence.outputs.upload == 'true'
+        with:
+          name: guidless-negative-n1-${{ github.sha }}
+          path: |
+            qualification/guidless-negative/evidence/inventory.json
+            qualification/guidless-negative/evidence/chrome-result.json
+            qualification/guidless-negative/evidence/edge-result.json
+            qualification/guidless-negative/evidence/compile.txt
+            qualification/guidless-negative/evidence/completion.json
+            qualification/guidless-negative/evidence/preflight-error-type.txt
+          if-no-files-found: warn
+          retention-days: 3
