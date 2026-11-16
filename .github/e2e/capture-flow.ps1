@@ -982,7 +982,7 @@ try {
         # Explicit waits total at most 5s + 0.5s + 0.5s retry; OS launch/kill/filesystem are not bounded.
         $diagnosticWorker = $null; $diagnosticOutcome = 'not-started'
         $diagnosticPath = Join-Path $PWD 'diag/chrome-fixture-readiness-failure.json'
-        $workerPath = Join-Path $env:RUNNER_TEMP ('chrome-failure-' + [Guid]::NewGuid().ToString('N') + '.json')
+        $workerPath = $null
         $workerStopped = $false
         $workerCode = @'
 $ErrorActionPreference = 'Stop'
@@ -1019,22 +1019,51 @@ try {
 }
 '@
         try {
-          $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''"))
-          $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-          $startInfo.FileName = (Join-Path $PSHOME 'pwsh.exe')
-          $startInfo.UseShellExecute = $false; $startInfo.CreateNoWindow = $true
-          $startInfo.ArgumentList.Add('-NoProfile'); $startInfo.ArgumentList.Add('-NonInteractive')
-          $startInfo.ArgumentList.Add('-EncodedCommand')
-          $startInfo.ArgumentList.Add([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($workerCode)))
-          $diagnosticWorker = [System.Diagnostics.Process]::Start($startInfo)
-          $workerStopped = $diagnosticWorker.WaitForExit(5000)
-          if ($workerStopped) { $diagnosticOutcome = "exited-$($diagnosticWorker.ExitCode)" }
+          # Fail closed before process creation. Require existing, distinct, non-reparse directories.
+          # Disallow either directory being an ancestor of the other, not only diag/out-images.
+          $safeTemp = $false; $diagnosticOutcome = 'skipped-temp-path-unverified'
+          if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) { $diagnosticOutcome = 'skipped-temp-missing' }
           else {
-            $diagnosticOutcome = 'collection-timeout'
-            $diagnosticWorker.Kill($true)
-            $workerStopped = $diagnosticWorker.WaitForExit(500)
+            $tempDir = Get-Item -LiteralPath $env:RUNNER_TEMP -Force -ErrorAction Stop
+            $workDir = Get-Item -LiteralPath $PWD.ProviderPath -Force -ErrorAction Stop
+            if (-not $tempDir.PSIsContainer -or -not $workDir.PSIsContainer -or
+                $tempDir.PSProvider.Name -ne 'FileSystem' -or $workDir.PSProvider.Name -ne 'FileSystem') {
+              $diagnosticOutcome = 'skipped-temp-or-workspace-not-filesystem-directory'
+            } else {
+              $pathLinks = $false
+              foreach ($directory in @($tempDir, $workDir)) {
+                for ($ancestor = $directory; $null -ne $ancestor; $ancestor = $ancestor.Parent) {
+                  if (($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $pathLinks = $true; break }
+                }
+              }
+              $tempRoot = [IO.Path]::GetFullPath($tempDir.FullName).TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+              $workRoot = [IO.Path]::GetFullPath($workDir.FullName).TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+              if ($pathLinks) { $diagnosticOutcome = 'skipped-temp-or-workspace-reparse-path' }
+              elseif ($tempRoot.StartsWith($workRoot, [StringComparison]::OrdinalIgnoreCase) -or
+                      $workRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                $diagnosticOutcome = 'skipped-temp-workspace-overlap'
+              } else { $safeTemp = $true }
+            }
           }
-        } catch { $diagnosticOutcome = 'parent-error-' + $_.Exception.GetType().Name }
+          if ($safeTemp) {
+            $workerPath = Join-Path $tempRoot ('chrome-failure-' + [Guid]::NewGuid().ToString('N') + '.json')
+            $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''"))
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = (Join-Path $PSHOME 'pwsh.exe')
+            $startInfo.UseShellExecute = $false; $startInfo.CreateNoWindow = $true
+            $startInfo.ArgumentList.Add('-NoProfile'); $startInfo.ArgumentList.Add('-NonInteractive')
+            $startInfo.ArgumentList.Add('-EncodedCommand')
+            $startInfo.ArgumentList.Add([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($workerCode)))
+            $diagnosticWorker = [System.Diagnostics.Process]::Start($startInfo)
+            $workerStopped = $diagnosticWorker.WaitForExit(5000)
+            if ($workerStopped) { $diagnosticOutcome = "exited-$($diagnosticWorker.ExitCode)" }
+            else {
+              $diagnosticOutcome = 'collection-timeout'
+              $diagnosticWorker.Kill($true)
+              $workerStopped = $diagnosticWorker.WaitForExit(500)
+            }
+          }
+        } catch { $diagnosticOutcome = 'skipped-or-parent-error-' + $_.Exception.GetType().Name }
         finally {
           if ($diagnosticWorker) {
             try {
@@ -1067,7 +1096,7 @@ try {
           }
         } catch { $diagnosticOutcome = 'worker-artifact-read-or-promote-error-' + $_.Exception.GetType().Name }
         finally {
-          if ($workerStopped -or -not $diagnosticWorker) {
+          if ($workerPath -and ($workerStopped -or -not $diagnosticWorker)) {
             try { Remove-Item -LiteralPath $workerPath -Force -ErrorAction Stop }
             catch { if (Test-Path -LiteralPath $workerPath) { $diagnosticOutcome += '-partial-cleanup-error' } }
           }
