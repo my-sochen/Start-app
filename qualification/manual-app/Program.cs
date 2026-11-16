@@ -100,7 +100,44 @@ internal static class Program
             }
             Require(dialog != 0, "HELP_WINDOW_MISSING"); var helpRoot = AutomationElement.FromHandle(dialog);
             stage = "HELP_READY";
-            Wait(() => Unique(helpRoot, ControlType.Text, "Browser capture unavailable") && Unique(helpRoot, ControlType.Text, "No browser permission needed") && Unique(helpRoot, ControlType.Edit, "Chrome settings address"), "HELP_POSTCONDITION_FAILED");
+            try
+            {
+                Wait(() => Unique(helpRoot, ControlType.Text, "Browser capture unavailable") && Unique(helpRoot, ControlType.Text, "No browser permission needed") && Unique(helpRoot, ControlType.Edit, "Chrome settings address"), "HELP_POSTCONDITION_FAILED");
+            }
+            catch (GuardFailure failure) when (failure.Code == "HELP_POSTCONDITION_FAILED")
+            {
+                // Failure-only observation. Never dump UIA text/tree or let diagnostics replace the original guard.
+                try
+                {
+                    Require(Native.GetWindowThreadProcessId(dialog, out uint helpPid) != 0 && helpPid == process.Id && Native.GetWindow(dialog, 4) == hwnd && Native.IsWindowVisible(dialog), "HELP_DIAGNOSTIC_OWNER_STOP");
+                    facts["helpTitleMatchesExpected"] = helpRoot.Current.Name == "עזרה והגדרות דפדפן";
+                    facts["helpClassMatchesExpected"] = helpRoot.Current.ClassName.StartsWith("HwndWrapper[StartApp.App", StringComparison.Ordinal);
+                    object Describe(ControlType type, string name)
+                    {
+                        var found = helpRoot.FindAll(TreeScope.Descendants, new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, type), new PropertyCondition(AutomationElement.NameProperty, name))).Cast<AutomationElement>().ToArray();
+                        var own = found.Where(x => x.Current.ProcessId == process.Id).ToArray();
+                        return new { totalExactCount = found.Length, samePidCount = own.Length, visibleEnabledCount = own.Count(x => !x.Current.IsOffscreen && x.Current.IsEnabled), sample = own.Take(3).Select(x =>
+                        {
+                            var c = x.Current; var rect = c.BoundingRectangle;
+                            double? Bounded(double n) => double.IsFinite(n) && Math.Abs(n) <= 16384 ? Math.Round(n, 1) : null;
+                            return new { offscreen = c.IsOffscreen, enabled = c.IsEnabled, rectFiniteBounded = Bounded(rect.X).HasValue && Bounded(rect.Y).HasValue && Bounded(rect.Width).HasValue && Bounded(rect.Height).HasValue, x = Bounded(rect.X), y = Bounded(rect.Y), width = Bounded(rect.Width), height = Bounded(rect.Height) };
+                        }).ToArray() };
+                    }
+                    facts["helpHeading"] = Describe(ControlType.Text, "Browser capture unavailable");
+                    facts["helpDisclaimer"] = Describe(ControlType.Text, "No browser permission needed");
+                    facts["helpChromeAddress"] = Describe(ControlType.Edit, "Chrome settings address");
+                }
+                catch (Exception diagnostic) { facts["helpDiagnosticErrorCode"] = diagnostic is GuardFailure guard ? guard.Code : "HELP_DIAGNOSTIC_UNAVAILABLE"; }
+                try
+                {
+                    // Existing third evidence slot, explicitly a failed-readiness view, not successful help verification.
+                    Require(Native.GetWindow(dialog, 4) == hwnd && Native.IsWindowVisible(dialog), "HELP_FAILURE_IMAGE_OWNER_STOP");
+                    Capture(dialog, process.Id, Path.Combine(output, "03-browser-help.png"));
+                    facts["helpFailureImageCaptured"] = true;
+                }
+                catch (Exception image) { facts["helpFailureImageCaptured"] = false; facts["helpFailureImageErrorCode"] = image is GuardFailure guard ? guard.Code : "HELP_FAILURE_IMAGE_UNAVAILABLE"; }
+                throw;
+            }
             var chrome = Find(helpRoot, ControlType.Edit, "Chrome settings address");
             Require(((ValuePattern)chrome.GetCurrentPattern(ValuePattern.Pattern)).Current.Value == "chrome://inspect/#remote-debugging", "CHROME_HELP_VALUE_MISMATCH");
             Capture(dialog, process.Id, Path.Combine(output, "03-browser-help.png"));
