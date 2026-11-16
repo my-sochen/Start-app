@@ -235,10 +235,22 @@ internal static partial class Program
         facts["setupStage"] = "ONE_EXACT_INSPECT_SETVALUE"; value.SetValue(Inspect);
         Require(value.Current.Value == Inspect && Shot.GetForegroundWindow() == hwnd && Automation.Compare(AutomationElement.FocusedElement, selected), "NAV_BEFORE_ENTER_STOP");
         ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
-        Require(IntPtr.Size == 8 && Marshal.SizeOf<Shot.Input>() == 40 && Marshal.OffsetOf<Shot.Input>(nameof(Shot.Input.Data)).ToInt32() == 8 && Marshal.OffsetOf<Shot.KeyboardUnion>(nameof(Shot.KeyboardUnion.Flags)).ToInt32() == 4, "INPUT_ABI_STOP");
-        var keys = new[] { new Shot.Input { Type = 1, Data = new Shot.KeyboardUnion { Key = 13 } }, new Shot.Input { Type = 1, Data = new Shot.KeyboardUnion { Key = 13, Flags = 2 } } };
-        facts["setupStage"] = "ONE_EXACT_INSPECT_ENTER_PAIR"; uint sent = Shot.SendInput(2, keys, Marshal.SizeOf<Shot.Input>()); facts["navigationInputCount"] = sent;
-        Require(sent == 2, "PARTIAL_INPUT_STOP_NO_RETRY");
+        // Explicit HWND procedure messages, NOT global keyboard-state injection. Browser handling is unproven.
+        // Timeout/failure may still mean processed; never retry or issue fallback navigation.
+        void SendOwnedEnter(uint message, nint parameters, string stage)
+        {
+            ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
+            Require(Shot.GetForegroundWindow() == hwnd && Automation.Compare(AutomationElement.FocusedElement, selected), "NAV_BEFORE_HWND_MESSAGE_STOP");
+            facts["setupStage"] = stage;
+            nint sent = Shot.SendMessageTimeoutW(hwnd, message, (nuint)13, parameters, 0x0002 | 0x0020, 1000, out _);
+            int error = sent == 0 ? Marshal.GetLastWin32Error() : 0;
+            facts[stage + "Delivered"] = sent != 0;
+            if (sent == 0) facts["navigationMessageError"] = error;
+            Require(sent != 0, "HWND_MESSAGE_FAILED_OR_TIMED_OUT_UNCERTAIN_NO_RETRY");
+        }
+        SendOwnedEnter(0x0100, (nint)0x001C0001, "ONE_OWNED_HWND_KEYDOWN");
+        SendOwnedEnter(0x0101, unchecked((nint)(long)0xC01C0001), "ONE_OWNED_HWND_KEYUP");
+
     }
     private static InspectControl ReadInspect(nint hwnd, SafeProcessHandle process, uint pid, long birth, string exe, SafeFileHandle job, ToggleState expected, Dictionary<string, object?>? readiness = null)
     {
@@ -319,10 +331,7 @@ internal static partial class Program
 }
 internal static class Shot
 {
-    [DllImport("user32.dll")] internal static extern uint SendInput(uint count, Input[] input, int size);
-    [StructLayout(LayoutKind.Explicit, Size = 40)] internal struct Input { [FieldOffset(0)] public uint Type; [FieldOffset(8)] public KeyboardUnion Data; }
-    [StructLayout(LayoutKind.Explicit, Size = 32)] internal struct KeyboardUnion { [FieldOffset(0)] public ushort Key; [FieldOffset(4)] public uint Flags; }
-
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern nint SendMessageTimeoutW(nint hwnd, uint message, nuint wParam, nint lParam, uint flags, uint timeout, out nuint result);
     internal delegate bool EnumProc(nint hwnd, nint arg);
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint arg);
     [DllImport("user32.dll")] internal static extern bool IsWindow(nint hwnd);
