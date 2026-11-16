@@ -1,0 +1,136 @@
+{
+  "status": "Local review candidate only; not adopted or integrated",
+  "source": {
+    "file": "original.svg",
+    "sha256": "edd799ece55a5fee396a82f55df75c88fbe32aa87e633e8a13bc1e4aacc714af",
+    "bytes": 833,
+    "provenance": "Original attachment delivered via verified +972584258084; peer reports src/StartApp.App/Assets/start-app-ufo.svg at DEV26e4f73. Repository provenance not independently fetched in this local-only task."
+  },
+  "candidate": {
+    "file": "start-app-ufo-contrast.svg",
+    "sha256": "1a5b1ab78ed15a7eb905936b370adb043555ceab0e97c86b3d874412fdb3325b",
+    "bytes": 1744,
+    "geometry": "All six foreground path attribute dictionaries identical to original. Six background path d strings identical in original order. Original root attributes unchanged.",
+    "change": "Duplicate same six paths behind original with white stroke width 2.1. No blur, filter, fill, transform, geometry edit, background tile or viewBox change. Original navy #142743 width 1.2 and final path width 1.7 retained.",
+    "proposal_equivalence": "XML attribute sequence equivalent to supplied thin-halo proposal SHA256523da7b7244e74b29422428e0ff5ddc4177cd330bf4f0df199b8d5c143a34367; serialization differs."
+  },
+  "rasters": [
+    {
+      "file": "start-app-ufo-contrast-16.png",
+      "dimensions": [
+        16,
+        16
+      ],
+      "alpha_bbox": [
+        1,
+        1,
+        16,
+        16
+      ],
+      "sha256": "66656cc9c548957996d8e291e3b57f1925a48c9e86e857fc4d58faccb51a82b1"
+    },
+    {
+      "file": "start-app-ufo-contrast-20.png",
+      "dimensions": [
+        20,
+        20
+      ],
+      "alpha_bbox": [
+        1,
+        1,
+        19,
+        20
+      ],
+      "sha256": "61bdf2d2eda48ab155db39b36262dc2358b17c67805957e24338f31e9221f0f7"
+    },
+    {
+      "file": "start-app-ufo-contrast-24.png",
+      "dimensions": [
+        24,
+        24
+      ],
+      "alpha_bbox": [
+        1,
+        1,
+        23,
+        24
+      ],
+      "sha256": "226139373c57f9ba72b67705be18e78ed531133b275cf590a512b95913306cb4"
+    },
+    {
+      "file": "start-app-ufo-contrast-32.png",
+      "dimensions": [
+        32,
+        32
+      ],
+      "alpha_bbox": [
+        2,
+        2,
+        30,
+        31
+      ],
+      "sha256": "862b2bf98b2200dd2875ecaddc34d67be5f53c1fd2d3d4c58fb7893fa9069ae4"
+    },
+    {
+      "file": "start-app-ufo-contrast-48.png",
+      "dimensions": [
+        48,
+        48
+      ],
+      "alpha_bbox": [
+        3,
+        3,
+        45,
+        47
+      ],
+      "sha256": "a6ccc33a385106cdc18a7fa2c16c0a0f789b049705219e2af13d50692939b88b"
+    },
+    {
+      "file": "start-app-ufo-contrast-64.png",
+      "dimensions": [
+        64,
+        64
+      ],
+      "alpha_bbox": [
+        4,
+        3,
+        60,
+        63
+      ],
+      "sha256": "b316bca2e4833e9343d745c081c0a641e6c30578972ee007862a6f94909f914e"
+    },
+    {
+      "file": "start-app-ufo-contrast-128.png",
+      "dimensions": [
+        128,
+        128
+      ],
+      "alpha_bbox": [
+        8,
+        7,
+        120,
+        125
+      ],
+      "sha256": "c6b2e16d9c30b53abe0866a330c0518bf57e746b3e2d6a98ed36a8c3d9815cfb"
+    },
+    {
+      "file": "start-app-ufo-contrast-256.png",
+      "dimensions": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        16,
+        15,
+        240,
+        249
+      ],
+      "sha256": "c70ba2559768940aaa09910f48b192f0b31c13a71238ebd5e2a9a7031a8dd422"
+    }
+  ],
+  "verification": {
+    "renderer": "Local Chrome SVG rasterization; transparent RGBA PNGs",
+    "visual": "Inspected light and #202020 comparison at 16,20,24,32,48,64,128px and standalone256px render. White under-stroke restores dark-background outline without blur; fine detail remains weak at16-24px.",
+    "unverified": "Actual Windows shortcut/app shell rendering, ICO conversion, other graphics engines and device behavior. Yehonatan review and counterpart integration remain pending."
+  }
+}

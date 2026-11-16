@@ -1,4 +1,6 @@
-# UFO icon candidate - preparation snapshot
+# UFO icon provenance - historical preparation snapshot
+
+CURRENT CORRECTION: The paragraphs below describe the pre-contrast icon and its historical evidence, not the current contrast asset. The app-only white under-stroke correction, author provenance, rebuilt ICO hashes and remaining native-validation limits are recorded in provenance/CONTRAST.md and contrast-integration.json. The website and resource wiring remain unchanged. Historical native evidence below does not verify the new contrast bytes.
 
 The preparation and evidence paragraphs below describe the local pre-native snapshot, not the current validation status. Later native Windows validation ran on diagnostic descendant bf7e2777b94557a917f15aed8a30d152a920e857 of product a138173cb3e40e13cf237ec98afee36d84f17298: https://github.com/my-sochen/Start-app/actions/runs/43906770848 . It passed native launcher/resource build, baseline tests, actual WPF startup/clean close and disposable shortcut field/refusal/icon-resolution checks. The diagnostic-only files are excluded from the product branch. No personal Desktop was changed; real Desktop lookup, shortcut activation, consumer Windows11/SmartScreen and dark-theme/taskbar/cache refresh remain unverified.
 
