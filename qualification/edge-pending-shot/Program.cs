@@ -240,7 +240,27 @@ internal static partial class Program
         void SendOwnedEnter(uint message, nint parameters, string stage)
         {
             ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
-            Require(Shot.GetForegroundWindow() == hwnd && Automation.Compare(AutomationElement.FocusedElement, selected), "NAV_BEFORE_HWND_MESSAGE_STOP");
+            bool foregroundMatches = Shot.GetForegroundWindow() == hwnd;
+            bool omniboxFocused = Automation.Compare(AutomationElement.FocusedElement, selected);
+            facts[stage + "ForegroundMatches"] = foregroundMatches;
+            facts[stage + "OmniboxFocused"] = omniboxFocused;
+            if (message == 0x0100)
+                Require(foregroundMatches && omniboxFocused, "NAV_BEFORE_HWND_KEYDOWN_STOP");
+            else
+            {
+                // Navigation may itself move focus. KEYUP remains addressed to the original HWND,
+                // never a modal HWND, never global input or a blind compensating key.
+                bool visible = Shot.IsWindowVisible(hwnd), enabled = Shot.IsWindowEnabled(hwnd);
+                bool ownedModal = false;
+                bool enumerationComplete = Shot.EnumWindows((h, _) => { if (h != hwnd && Shot.IsWindowVisible(h) && BelongsToRoot(h, hwnd, pid)) ownedModal = true; return !ownedModal; }, 0);
+                facts[stage + "WindowEnumerationComplete"] = enumerationComplete;
+                Require(enumerationComplete || ownedModal, "NAV_KEYUP_WINDOW_ENUMERATION_UNVERIFIED");
+                facts[stage + "WindowVisible"] = visible; facts[stage + "WindowEnabled"] = enabled;
+                facts[stage + "OwnedModalPresent"] = ownedModal;
+                Require(visible && enabled && !ownedModal, "NAV_BEFORE_HWND_KEYUP_WINDOW_OR_MODAL_STOP");
+                ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
+            }
+            facts[stage + "GuardPassed"] = true;
             facts["setupStage"] = stage;
             nint sent = Shot.SendMessageTimeoutW(hwnd, message, (nuint)13, parameters, 0x0002 | 0x0020, 1000, out _);
             int error = sent == 0 ? Marshal.GetLastWin32Error() : 0;
@@ -336,6 +356,7 @@ internal static class Shot
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint arg);
     [DllImport("user32.dll")] internal static extern bool IsWindow(nint hwnd);
     [DllImport("user32.dll")] internal static extern bool IsWindowVisible(nint hwnd);
+    [DllImport("user32.dll")] internal static extern bool IsWindowEnabled(nint hwnd);
     [DllImport("user32.dll")] internal static extern nint GetWindow(nint hwnd, uint cmd);
     [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(nint hwnd);
     [DllImport("user32.dll")] internal static extern nint GetForegroundWindow();
