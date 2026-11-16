@@ -1,0 +1,12 @@
+{
+  ".gitattributes": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da",
+  "Compile-Only.ps1": "a11f655b8f80c7af5840c8d96d42f4232f33d47b946a9aa2fbff343c66d8163d",
+  "GlobalUsings.cs": "1722fce7429bf6a97267a9630d97326c94eb1eb1a16667d8c9d7884ac983e398",
+  "adapter-Transport.cs": "264157417d6543c51021458edbf7c6273e61a0170766244485530ff048c18799",
+  "adapter-WindowsObservationSource.cs": "326328784a383c7f49faed95da12f58d16e65ee876e232a67028afe73992e98a",
+  "inputs-sha256.json": "f871c2a0e805cb1db95c1ac31253479a5bc6130a894eb862a4100682f07c49f3",
+  "src-Acquisition.cs": "d5a5b05f7da2ef2d9e65c519ecc3d92005420c7427b77abb7774e744d602e008",
+  "src-CanonicalShape.cs": "b3c0f1c917fda677f93d7cbaf8db1506016a068157d5f8b9be1945d6b525d175",
+  "src-Contracts.cs": "f3437fa60641d39b010238b040b0294986d82696a1ce939b0fdfa1d361087f1e",
+  "uia-source-UiaTransport.cs": "fce44e204b5591ed90fbd20b50a913410985f80a7e29f39e5a0a92f5ea6965d9"
+}

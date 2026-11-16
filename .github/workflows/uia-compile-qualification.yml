@@ -1,0 +1,99 @@
+name: Prospective direct UIA source compile-only qualification
+'on':
+  push:
+    branches: ['diag/uia-compile-q3']
+    paths:
+      - '.github/workflows/uia-compile-qualification.yml'
+      - 'qualification/uia-compile/**'
+permissions:
+  contents: read
+concurrency:
+  group: uia-compile-q3
+  cancel-in-progress: false
+jobs:
+  qualify:
+    # Public standard hosted Windows runner only. No paid/private execution or reruns.
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/uia-compile-q3' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 5
+    steps:
+      - name: Checkout only qualification source, no application or historical helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /qualification/uia-compile/
+      - name: Verify platform, source manifest and script syntax
+        shell: pwsh
+        working-directory: qualification/uia-compile
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -cne 'Windows' -or $env:RUNNER_ARCH -cne 'X64') { throw 'PLATFORM_STOP' }
+          # Current image is measured prospectively, deliberately NOT pinned to E12.
+          if (-not $env:ImageOS -or -not $env:ImageVersion) { throw 'IMAGE_IDENTITY_MISSING_STOP' }
+          $expected = '1671DF5731A57F7093014C9BEEAB32DD6D33E8B8D77B5766D00AA94E4D3A974F'
+          $transport = [ordered]@{ outcome='PREFLIGHT'; code=$null; files=@(); gitConfig=@(); attributes=@() }
+          try {
+            $manifestFile = Get-Item FULL-MANIFEST.json
+            if ($manifestFile.Length -gt 256KB) { throw 'MANIFEST_SIZE_STOP' }
+            $actual = (Get-FileHash FULL-MANIFEST.json -Algorithm SHA256).Hash
+            $transport.files += @{ name='FULL-MANIFEST.json'; expected=$expected; actual=$actual; bytes=$manifestFile.Length }
+            if ($actual -cne $expected) { throw 'MANIFEST_STOP' }
+            $manifest = Get-Content FULL-MANIFEST.json -Raw | ConvertFrom-Json
+            if (@($manifest.PSObject.Properties).Count -gt 32) { throw 'MANIFEST_COUNT_STOP' }
+            foreach ($p in $manifest.PSObject.Properties) {
+              if ($p.Name -notmatch '^[A-Za-z0-9_.-]+$') { throw 'MANIFEST_PATH_STOP' }
+              $file = Get-Item -LiteralPath $p.Name
+              if ($file.Length -gt 2MB) { throw 'SOURCE_SIZE_STOP' }
+              $hash = (Get-FileHash -LiteralPath $p.Name -Algorithm SHA256).Hash.ToLowerInvariant()
+              $transport.files += @{ name=$p.Name; expected=$p.Value; actual=$hash; bytes=$file.Length }
+              if ($hash -cne $p.Value) { throw 'SOURCE_HASH_STOP' }
+            }
+            $tokens = $null; $errors = $null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path Compile-Only.ps1).Path,[ref]$tokens,[ref]$errors)
+            if ($errors.Count) { throw 'SCRIPT_PARSE_STOP' }
+          } catch {
+            $reason = 'UNEXPECTED_PREFLIGHT_EXCEPTION'
+            if ($_.Exception.Message -cmatch '^[A-Z][A-Z0-9_]{0,95}$') { $reason=$_.Exception.Message }
+            $transport.code=$reason; $transport.outcome='STOP'
+            # Read-only fixed config/attribute evidence, never config values outside these EOL keys.
+            $transport.gitConfig = @(git config --show-origin --get-regexp '^core\.(autocrlf|eol|safecrlf)$' 2>&1 | Select-Object -First 16 | ForEach-Object { ([string]$_).Substring(0,[Math]::Min(512,([string]$_).Length)) })
+            $transport.attributes = @(git -C ../.. check-attr text eol filter working-tree-encoding -- qualification/uia-compile/FULL-MANIFEST.json 2>&1 | Select-Object -First 16 | ForEach-Object { ([string]$_).Substring(0,[Math]::Min(512,([string]$_).Length)) })
+            $output=Join-Path $PWD 'qualification-output'
+            New-Item -ItemType Directory -Path $output -ErrorAction Stop | Out-Null
+            $report=$transport | ConvertTo-Json -Depth 8 -Compress
+            if ([Text.Encoding]::UTF8.GetByteCount($report) -gt 64KB) { $report='{"outcome":"STOP","code":"TRANSPORT_REPORT_CAP"}' }
+            $report | Set-Content (Join-Path $output 'completion.json') -Encoding utf8NoBOM
+            throw $reason
+          }
+      - name: One offline library compile, never execute output
+        timeout-minutes: 2
+        shell: pwsh
+        working-directory: qualification/uia-compile
+        run: ./Compile-Only.ps1
+      - name: Bound evidence files before upload
+        id: evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'qualification/uia-compile/qualification-output'
+          if (-not (Test-Path $root -PathType Container)) { 'No qualification output'; exit 0 }
+          $allowed = @('inventory.json','compile.txt','completion.json')
+          $files = @(Get-ChildItem $root -File | Where-Object { $_.Name -in $allowed })
+          if ($files.Count -eq 0) { 'No permitted evidence'; exit 0 }
+          if (@($files | Where-Object { $_.Length -gt 2MB }).Count -gt 0) { throw 'EVIDENCE_SIZE_STOP_NO_UPLOAD' }
+          'upload=true' >> $env:GITHUB_OUTPUT
+      - name: Upload only bounded qualification evidence
+        if: always() && steps.evidence.outputs.upload == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: prospective-uia-compile-q3-${{ github.sha }}
+          path: |
+            qualification/uia-compile/qualification-output/inventory.json
+            qualification/uia-compile/qualification-output/compile.txt
+            qualification/uia-compile/qualification-output/completion.json
+          if-no-files-found: warn
+          retention-days: 3
