@@ -889,7 +889,7 @@ try {
   # we wait for is identity-bound to THIS launch through the unique profile path in the process command line,
   # which survives a launcher->browser process handoff. Readiness is polled and bounded, and requires BOTH
   # fixture tabs with their actual URLs (each tab selected and read, then the original tab restored), so a
-  # failure here is capture evidence, not ambiguous fixture initialization. A missing executable or a timeout
+  # failure here is fixture readiness evidence, not proof of app capture failure. A missing executable or a timeout
   # is a hard failure with process/window diagnostics, never a skip and never an Edge substitute.
   $chromeExe = $null
   foreach ($cand in @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")) { if (-not $chromeExe -and (Test-Path $cand)) { $chromeExe = $cand } }
@@ -977,6 +977,102 @@ try {
         $procDiag = (@(ChromeFixturePids | ForEach-Object { "pid=$_" }) -join ',')
         $launchState = ''; try { $launchState = "launchedHasExited=$($chrome.HasExited)"; if ($chrome.HasExited) { $launchState += " exitCode=$($chrome.ExitCode)" } } catch { $launchState = "launchedStateError=$_" }
         Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
+        # Failure-only, fixture-profile-bound metadata. No titles, unrelated process metadata or pixels.
+        # UIA/CIM run in a disposable child; parent waits at most 5s for collection, then terminates it.
+        # Explicit waits total at most 5s + 0.5s + 0.5s retry; OS launch/kill/filesystem are not bounded.
+        $diagnosticWorker = $null; $diagnosticOutcome = 'not-started'
+        $diagnosticPath = Join-Path $PWD 'diag/chrome-fixture-readiness-failure.json'
+        $workerPath = Join-Path $env:RUNNER_TEMP ('chrome-failure-' + [Guid]::NewGuid().ToString('N') + '.json')
+        $workerStopped = $false
+        $workerCode = @'
+$ErrorActionPreference = 'Stop'
+try {
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  $profile = '__PROFILE__'; $output = '__OUTPUT__'
+  $owned = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -OperationTimeoutSec 2 |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) } | Select-Object -First 20 |
+    ForEach-Object { [ordered]@{ pid = $_.ProcessId; parentPid = $_.ParentProcessId } })
+  $ids = @($owned | ForEach-Object { $_.pid })
+  $windows = New-Object System.Collections.ArrayList
+  $errors = New-Object System.Collections.ArrayList
+  $A = [System.Windows.Automation.AutomationElement]
+  $roots = $A::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $roots) {
+    try {
+      $pidOfWindow = $window.Current.ProcessId
+      if ($ids -notcontains $pidOfWindow) { continue }
+      if ($windows.Count -ge 20) { break }
+      $wc = $window.Current
+      [void]$windows.Add([ordered]@{ pid = $pidOfWindow; hwnd = $wc.NativeWindowHandle;
+        isWindow = ($wc.ControlType -eq [System.Windows.Automation.ControlType]::Window);
+        offscreen = $wc.IsOffscreen; rect = "$($wc.BoundingRectangle)";
+        positiveArea = ($wc.BoundingRectangle.Width -gt 0 -and $wc.BoundingRectangle.Height -gt 0) })
+    } catch { if ($errors.Count -lt 5) { [void]$errors.Add($_.Exception.GetType().Name) } }
+  }
+  [ordered]@{ status = 'collected'; fixtureProcesses = $owned; fixtureWindows = $windows.ToArray();
+    readErrors = $errors.ToArray(); maxProcesses = 20; maxWindows = 20; maxErrors = 5; processCapReached = ($owned.Count -eq 20); windowCapReached = ($windows.Count -eq 20);
+    scope = 'Failure-time fixture-profile snapshot only, not readiness poll history. No titles or raw command lines.' } |
+    ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 $output
+} catch {
+  [ordered]@{ status = 'worker-error'; errorType = $_.Exception.GetType().Name } |
+    ConvertTo-Json | Out-File -Encoding utf8 '__OUTPUT__'
+}
+'@
+        try {
+          $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''"))
+          $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+          $startInfo.FileName = (Join-Path $PSHOME 'pwsh.exe')
+          $startInfo.UseShellExecute = $false; $startInfo.CreateNoWindow = $true
+          $startInfo.ArgumentList.Add('-NoProfile'); $startInfo.ArgumentList.Add('-NonInteractive')
+          $startInfo.ArgumentList.Add('-EncodedCommand')
+          $startInfo.ArgumentList.Add([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($workerCode)))
+          $diagnosticWorker = [System.Diagnostics.Process]::Start($startInfo)
+          $workerStopped = $diagnosticWorker.WaitForExit(5000)
+          if ($workerStopped) { $diagnosticOutcome = "exited-$($diagnosticWorker.ExitCode)" }
+          else {
+            $diagnosticOutcome = 'collection-timeout'
+            $diagnosticWorker.Kill($true)
+            $workerStopped = $diagnosticWorker.WaitForExit(500)
+          }
+        } catch { $diagnosticOutcome = 'parent-error-' + $_.Exception.GetType().Name }
+        finally {
+          if ($diagnosticWorker) {
+            try {
+              if (-not $workerStopped) {
+                if (-not $diagnosticWorker.HasExited) { $diagnosticWorker.Kill($true) }
+                $workerStopped = $diagnosticWorker.WaitForExit(500)
+              }
+              # A successful Kill or Dispose is not proof of termination.
+              $workerStopped = $workerStopped -or $diagnosticWorker.HasExited
+            } catch { $workerStopped = $false }
+            finally { try { $diagnosticWorker.Dispose() } catch { $diagnosticOutcome += '-dispose-error' } }
+            if (-not $workerStopped) { $diagnosticOutcome += '-termination-unconfirmed' }
+          }
+        }
+        # A survivor can write only to a unique runner-temp path, never diag/ or upload paths.
+        # Promotion requires confirmed exit, parseable JSON and an explicit worker status.
+        try {
+          if ($workerStopped -and $diagnosticOutcome -eq 'exited-0') {
+            if (-not (Test-Path -LiteralPath $workerPath)) { $diagnosticOutcome = 'worker-artifact-missing' }
+            else {
+              $workerResult = Get-Content -LiteralPath $workerPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+              if ($workerResult.status -eq 'collected') {
+                Move-Item -LiteralPath $workerPath -Destination $diagnosticPath -Force -ErrorAction Stop
+                $diagnosticOutcome = 'collected-json-promoted'
+              } elseif ($workerResult.status -eq 'worker-error') {
+                Move-Item -LiteralPath $workerPath -Destination $diagnosticPath -Force -ErrorAction Stop
+                $diagnosticOutcome = 'worker-error-json-promoted'
+              } else { $diagnosticOutcome = 'worker-artifact-invalid-status' }
+            }
+          }
+        } catch { $diagnosticOutcome = 'worker-artifact-read-or-promote-error-' + $_.Exception.GetType().Name }
+        finally {
+          if ($workerStopped -or -not $diagnosticWorker) {
+            try { Remove-Item -LiteralPath $workerPath -Force -ErrorAction Stop }
+            catch { if (Test-Path -LiteralPath $workerPath) { $diagnosticOutcome += '-partial-cleanup-error' } }
+          }
+        }
+        Info 'chrome fixture failure metadata collection' $diagnosticOutcome
       } else {
         Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
         $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
