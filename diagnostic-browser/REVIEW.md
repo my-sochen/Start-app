@@ -1,0 +1,11 @@
+# Local V11 fixture observation proposal, not compiled or run
+
+Purpose: settle actual UIA known-fixture address representation and window readiness, not navigate, capture browser metadata, or authorize later actions. Baseline exact V10 commit93a749318e7177880ab7087dd625d85a0d06e194. No workflow included; no push/runtime permission.
+
+Only accepted mode --fixture-observe-only and Chrome. Existing synthetic A/B plus C window launches, fixed signature/version/image and job controls unchanged. Operator now contains only job membership/enumeration, bounded readonly classification and screenshots. Removed all action/inspect/toggle/keyboard PInvoke/endpoint helpers. No focus, SetValue, Enter, tab switch, consent, socket or metadata code in operator.
+
+Observations immediately, at least2s and at least10s after operator entry. Each saves actual whole disposable VM pixels and bounded job-owned window/omnibox states. Times can be later due to UIA work; external60s helper timeout unchanged. Classification only exact ordinal comparisons against internally known A/B/C AbsoluteUri, LocalPath, forward-slash LocalPath and URI with file:// stripped. Multiple identical known variants yield combined labels. These are hypotheses to distinguish provider representation, not claims that Chrome uses them. No raw observed value or unknown URL/title emitted. All other values remain OTHER_VALUE_REDACTED. No normalization or action predicate exists. Fixed records do not grant identity or permission. StartupObservation errors are recorded best effort, not thrown; outer operator exception path additionally requests failure PNG/observation. External helper kill cannot produce failure screenshot.
+
+Cleanup unchanged deliberately to avoid bundling unrelated lifecycle changes: success path explicit job terminate plus active-count-zero; exception path closes kill-on-close job but does not witness zero. Therefore failures still CLEANUP NOT_CONFIRMED, never infer termination from jobClosed. Readiness/pixel absence remains unresolved, not a fixture PASS just because process returns0. Raw fixture paths remain present in existing launcher root fields and synthetic screenshots, never personal sources.
+
+No managed compilation available locally; static review only. No broad source refresh, no new runtime candidate branch or workflow. Review packet only.
