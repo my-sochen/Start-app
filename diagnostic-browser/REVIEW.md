@@ -1,0 +1,13 @@
+# V12 local setup-only correction, review only
+
+Exact baseline V10 commit93a749318e7177880ab7087dd625d85a0d06e194. No push or runtime approval. Proposed branch diag/chrome-setup-navigation-v2; current DEV base only if later verified. Flat source/project/PS/doc to diagnostic-browser/, workflow retains repository path.
+
+Concrete basis: V11 run https://github.com/my-sochen/Start-app/actions/runs/43785656850 exact165b60e06e1878e8f75fa4c69efcc6a681cf248a produced A_LOCAL_PATH_FORWARD_SLASH and C_LOCAL_PATH_FORWARD_SLASH in all3 records, noerrors, same exact Chrome156.0.8078.80/image. Artifact https://nightly.link/my-sochen/Start-app/actions/artifacts/14190246732.zip digest422aa50940a98c1ba0d19b99052829cd4c7b0b9d654350b2b1a8f8c7ba991c72. Does not retrospectively locate V10 TimeoutException.
+
+Only recipient selector correction: derive ONE exact expected C string new Uri(syntheticC).LocalPath.Replace(backslash,slash), then ordinal exact equality in both original selectors. No transformation of observed value, no acceptance of alternative forms/titles/active window, no readiness or job guard weakening. Unknown observation values remain redacted. Same C replacement, not preserved A/B/C capture fixture.
+
+Essential ordered fixed-code stage files around C match, foreground/focus, SetValue, exact inspect readback, single Enter return/count and Inspect await; best-effort failure-stage fixed code WAIT_C_TIMEOUT vs WAIT_INSPECT_TIMEOUT plus failure PNG/observation. No raw URL/value/message/stack in new journal. Journal write failure stops before subsequent action. File writes are not fsync or atomic evidence of effects; REQUESTED without return means effect uncertain; returned2 does not prove recipient. Journal I/O between checks and input increases timing gap, not a race fix. Global SendInput focus/recipient TOCTOU and nonrollback partial keys remain, accepted only if separately approved for empty disposable synthetic VM. No recovery keys/retry.
+
+Existing Chromeonly mode, signed fixed binary/version/image/SDK guards, job containment, foreground/focus/readback and INPUT ABI checks unchanged. No Toggle/Allow/socket/metadata call path or Edge runtime. Cleanup unchanged: normal job terminate/countzero; exception closes job but zero unconfirmed. Timeout/kill/failure screenshot best effort, UIA can block.
+
+Workflow only branch/ref/concurrency changed from V10 to v2, same existing preflight/timeouts/artifact plumbing and pins. Single push starts one run; concurrency not one-attempt lock. No DEVTESTMAIN/release/site changes. Only local static checks available, no managed compile or Windows execution claimed.
