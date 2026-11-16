@@ -205,6 +205,14 @@ internal static partial class Program
         foreach (var prop in new[] { AutomationElement.NameProperty, AutomationElement.AutomationIdProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty, AutomationElement.ControlTypeProperty }) cache.Add(prop);
         using (cache.Activate()) return AutomationElement.FromHandle(hwnd).FindAll(TreeScope.Descendants, condition);
     }
+    // New KEYUP negative guard only; other helpers retain their original semantics.
+    private static int OwnerStep(bool pidQuerySucceeded, uint observedPid, uint originalPid, bool isRoot, int depth)
+    {
+        if (!pidQuerySucceeded || observedPid == 0) return 2;
+        if (observedPid != originalPid) return 0;
+        if (isRoot) return 1;
+        return depth >= 8 ? 2 : -1;
+    }
     private static void NavigateOwnedBlank(nint hwnd, SafeProcessHandle process, uint pid, long birth, string exe, SafeFileHandle job, Dictionary<string, object?> facts)
     {
         AutomationElement BlankBox()
@@ -241,22 +249,41 @@ internal static partial class Program
         {
             ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
             bool foregroundMatches = Shot.GetForegroundWindow() == hwnd;
-            bool omniboxFocused = Automation.Compare(AutomationElement.FocusedElement, selected);
             facts[stage + "ForegroundMatches"] = foregroundMatches;
-            facts[stage + "OmniboxFocused"] = omniboxFocused;
+            bool? omniboxFocused = null;
+            try { omniboxFocused = Automation.Compare(AutomationElement.FocusedElement, selected); }
+            catch { facts[stage + "FocusSampleStatus"] = "UNAVAILABLE"; }
+            if (omniboxFocused.HasValue) { facts[stage + "FocusSampleStatus"] = "AVAILABLE"; facts[stage + "OmniboxFocused"] = omniboxFocused.Value; }
             if (message == 0x0100)
-                Require(foregroundMatches && omniboxFocused, "NAV_BEFORE_HWND_KEYDOWN_STOP");
+                Require(foregroundMatches && omniboxFocused == true, "NAV_BEFORE_HWND_KEYDOWN_STOP");
             else
             {
-                // Navigation may itself move focus. KEYUP remains addressed to the original HWND,
-                // never a modal HWND, never global input or a blind compensating key.
+                // Focus may change during navigation. Native guards, not focus availability, authorize this HWND-local KEYUP.
                 bool visible = Shot.IsWindowVisible(hwnd), enabled = Shot.IsWindowEnabled(hwnd);
-                bool ownedModal = false;
-                bool enumerationComplete = Shot.EnumWindows((h, _) => { if (h != hwnd && Shot.IsWindowVisible(h) && BelongsToRoot(h, hwnd, pid)) ownedModal = true; return !ownedModal; }, 0);
+                bool ownedModal = false, unresolved = false;
+                int Classify(nint candidate)
+                {
+                    for (int depth = 0; ; depth++)
+                    {
+                        uint thread = Native.GetWindowThreadProcessId(candidate, out uint ownerPid);
+                        int state = OwnerStep(thread != 0, ownerPid, pid, candidate == hwnd, depth);
+                        if (state != -1) return state;
+                        candidate = Shot.GetWindow(candidate, 4);
+                        // NULL owner means the observed native ownership chain ended, not root membership.
+                        if (candidate == 0) return 0;
+                    }
+                }
+                bool enumerationComplete = Shot.EnumWindows((h, _) =>
+                {
+                    if (h == hwnd || !Shot.IsWindowVisible(h)) return true;
+                    int relation = Classify(h);
+                    ownedModal |= relation == 1; unresolved |= relation == 2;
+                    return !ownedModal && !unresolved;
+                }, 0);
                 facts[stage + "WindowEnumerationComplete"] = enumerationComplete;
-                Require(enumerationComplete || ownedModal, "NAV_KEYUP_WINDOW_ENUMERATION_UNVERIFIED");
                 facts[stage + "WindowVisible"] = visible; facts[stage + "WindowEnabled"] = enabled;
-                facts[stage + "OwnedModalPresent"] = ownedModal;
+                facts[stage + "OwnedModalPresent"] = ownedModal; facts[stage + "OwnershipUnresolved"] = unresolved;
+                Require(enumerationComplete && !unresolved, "NAV_KEYUP_WINDOW_CLASSIFICATION_UNVERIFIED");
                 Require(visible && enabled && !ownedModal, "NAV_BEFORE_HWND_KEYUP_WINDOW_OR_MODAL_STOP");
                 ValidateProcess(process, pid, birth, exe, job); ValidateWindow(hwnd, pid);
             }
