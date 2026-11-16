@@ -5,12 +5,19 @@ param(
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+# Fixed product data is permitted only in the explicitly disposable hosted CI context.
+# These environment assertions are a safety guard, not security against a malicious caller.
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or -not $IsWindows) {
+ throw 'Portable app smoke requires a disposable GitHub-hosted Windows runner; local profiles are refused'
+}
 # This is only a smoke run of the extracted ARCHIVE, not a copy staged elsewhere.
 Add-Type -Path $OwnershipHelper
 Add-Type -AssemblyName System.Drawing, UIAutomationClient, UIAutomationTypes, System.Windows.Forms
 Add-Type -TypeDefinition @'
 using System;using System.Runtime.InteropServices;
 public static class CandidateWindow {
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]public static extern bool CreateDirectoryW(string path,IntPtr attributes);
+
  [StructLayout(LayoutKind.Sequential)]public struct R{public int L,T,Rt,B;}
  [DllImport("user32.dll")]public static extern bool SetProcessDPIAware();
  [DllImport("user32.dll")]public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int w,int z,uint f);
@@ -28,8 +35,8 @@ $target=Join-Path (Join-Path $root 'App') 'StartApp.App.exe'
 if(-not (Test-Path -LiteralPath $entry -PathType Leaf)){throw 'Missing top-level launcher'}
 if(-not (Test-Path -LiteralPath $target -PathType Leaf)){throw 'Missing payload app'}
 $data=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'StartApp'
-if(Test-Path -LiteralPath $data){throw 'Refusing smoke over existing app data'}
-New-Item -ItemType Directory -Path $data | Out-Null
+# Native creation fails atomically if anything already occupies the data path.
+if(-not [CandidateWindow]::CreateDirectoryW($data,[IntPtr]::Zero)){throw ('Refusing app-data acquisition: Win32 error '+[Runtime.InteropServices.Marshal]::GetLastWin32Error())}
 New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
 $tree=$null;$child=$null;$cleanup=@()
 try {
@@ -70,7 +77,9 @@ try {
  if(-not $tree.Process.WaitForExit(10000) -or $tree.Process.ExitCode -ne 0){throw 'Launcher did not exit cleanly'}
  @{status='pass';scope='Exact extracted candidate archive only; human pixels pending';sha=$env:GITHUB_SHA} | ConvertTo-Json | Set-Content (Join-Path $EvidenceDirectory 'portable-candidate-smoke.json')
 }finally{
- try{if($null -ne $tree){try{$tree.StopAndDispose()}catch{$cleanup+=$_.Exception.Message}};if($null -ne $child){$child.Dispose()}}
- finally{try{Remove-Item -LiteralPath $data -Recurse -Force}catch{$cleanup+=$_.Exception.Message}}
+ if($null -ne $tree){try{$tree.StopAndDispose()}catch{$cleanup+=$_.Exception.Message}}
+ if($null -ne $child){try{$child.Dispose()}catch{$cleanup+=$_.Exception.Message}}
+ # Never recursively delete the fixed shared data path: a later writer may own contents.
+ # Synthetic data remains on this disposable VM until the hosted runner is torn down.
  if($cleanup.Count){throw ($cleanup -join '; ')}
 }
