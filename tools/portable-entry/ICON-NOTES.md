@@ -1,4 +1,6 @@
-# UFO icon candidate - local only
+# UFO icon candidate - preparation snapshot
+
+The preparation and evidence paragraphs below describe the local pre-native snapshot, not the current validation status. Later native Windows validation ran on diagnostic descendant bf7e2777b94557a917f15aed8a30d152a920e857 of product a138173cb3e40e13cf237ec98afee36d84f17298: https://github.com/my-sochen/Start-app/actions/runs/43906770848 . It passed native launcher/resource build, baseline tests, actual WPF startup/clean close and disposable shortcut field/refusal/icon-resolution checks. The diagnostic-only files are excluded from the product branch. No personal Desktop was changed; real Desktop lookup, shortcut activation, consumer Windows11/SmartScreen and dark-theme/taskbar/cache refresh remain unverified.
 
 Independent base DEV 03c887e8fbd89ae69cb44d200bf2deabbe9f1605. No browser-help/R2 safety tradeoff or M5 diagnostic code is included. No website edit, remote push, release or desktop change occurred.
 
