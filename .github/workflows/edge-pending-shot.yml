@@ -1,0 +1,74 @@
+name: Edge pending native dialog screenshots only
+'on':
+  push:
+    branches: ['diag/edge-pending-shot-s1']
+    paths: ['.gitattributes', '.github/workflows/edge-pending-shot.yml', 'qualification/edge-pending-shot/**']
+permissions:
+  contents: read
+concurrency:
+  group: edge-pending-shot-s1
+  cancel-in-progress: false
+jobs:
+  negative:
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/edge-pending-shot-s1' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 5
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.gitattributes
+            /qualification/edge-pending-shot/
+      - name: Verify exact sources and PowerShell syntax before any diagnostic process
+        shell: pwsh
+        working-directory: qualification/edge-pending-shot
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected = @{
+            'Preflight.ps1'='98C6792E42B90F730CB0AF2B5DAF5C22957D3A23FC9E3572E4E149A0FB25AA0A'
+            'OwnedGuard.cs'='7A38CA6D6C36CA3617F0B6408CDEA1CCE60B83225C5480FF4D047041B391F8F6'
+            'Program.cs'='E604550EE05648F8B3D97B0C32AF1AC38C509FB332F7A12A13E1197364B4A852'
+            'EdgePendingShot.csproj'='F691598CDDE9E8E80421EF877F3DC3BE665251A1982CC88061721C0BC926CA05'
+          }
+          foreach($name in $expected.Keys){if((Get-Item -LiteralPath $name).Length -gt 64KB -or (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -cne $expected[$name]){throw 'SOURCE_INTEGRITY_STOP'}}
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path Preflight.ps1).Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count){throw 'PREFLIGHT_PARSE_STOP'}
+      - name: One owned Edge pending dialog, NEVER Allow/CDP, no retries
+        timeout-minutes: 3
+        shell: pwsh
+        working-directory: qualification/edge-pending-shot
+        run: ./Preflight.ps1
+      - name: Bound evidence allowlist, never profiles or binaries
+        if: always()
+        id: evidence
+        shell: pwsh
+        working-directory: qualification/edge-pending-shot
+        run: |
+          $ErrorActionPreference='Stop'
+          $allowed=@{'inventory.json'=16KB;'result.json'=32KB;'compile.txt'=1MB;'completion.json'=4KB;'preflight-error-type.txt'=1KB;'01-edge-setting-off.png'=4MB;'02-edge-setting-on.png'=4MB;'03-edge-pending-native-dialog.png'=4MB;'04-edge-setting-off-after.png'=4MB}
+          $found=$false
+          foreach($name in $allowed.Keys){$p=Join-Path evidence $name;if(Test-Path -LiteralPath $p -PathType Leaf){if((Get-Item -LiteralPath $p).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
+          if($found){'upload=true' >> $env:GITHUB_OUTPUT}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && steps.evidence.outputs.upload == 'true'
+        with:
+          name: edge-pending-shot-s1-${{ github.sha }}
+          path: |
+            qualification/edge-pending-shot/evidence/inventory.json
+            qualification/edge-pending-shot/evidence/result.json
+            qualification/edge-pending-shot/evidence/01-edge-setting-off.png
+            qualification/edge-pending-shot/evidence/02-edge-setting-on.png
+            qualification/edge-pending-shot/evidence/03-edge-pending-native-dialog.png
+            qualification/edge-pending-shot/evidence/04-edge-setting-off-after.png
+            qualification/edge-pending-shot/evidence/compile.txt
+            qualification/edge-pending-shot/evidence/completion.json
+            qualification/edge-pending-shot/evidence/preflight-error-type.txt
+          if-no-files-found: warn
+          retention-days: 3
