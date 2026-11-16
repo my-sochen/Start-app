@@ -48,11 +48,14 @@ internal static class Program
             nint dialog = 0; clock.Restart();
             while (clock.ElapsedMilliseconds < 5000)
             {
-                Native.EnumWindows((h, _) => { if (h != hwnd && Native.GetWindowThreadProcessId(h, out uint pid) != 0 && pid == process.Id && Native.GetWindow(h, 4) == hwnd && Native.IsWindowVisible(h)) dialog = h; return true; }, 0);
-                if (dialog != 0) break; Thread.Sleep(50);
+                var dialogs = new List<nint>();
+                Require(Native.EnumWindows((h, _) => { if (h != hwnd && Native.GetWindowThreadProcessId(h, out uint pid) != 0 && pid == process.Id && Native.GetWindow(h, 4) == hwnd && Native.IsWindowVisible(h)) dialogs.Add(h); return true; }, 0), "HELP_ENUMERATION_FAILED");
+                Require(dialogs.Count <= 1, "HELP_WINDOW_AMBIGUOUS");
+                if (dialogs.Count == 1) { dialog = dialogs[0]; break; } Thread.Sleep(50);
             }
             Require(dialog != 0, "HELP_WINDOW_MISSING"); var helpRoot = AutomationElement.FromHandle(dialog);
             Find(helpRoot, ControlType.Text, "Browser capture unavailable");
+            Find(helpRoot, ControlType.Text, "No browser permission needed");
             var chrome = Find(helpRoot, ControlType.Edit, "Chrome settings address");
             Require(((ValuePattern)chrome.GetCurrentPattern(ValuePattern.Pattern)).Current.Value == "chrome://inspect/#remote-debugging", "CHROME_HELP_VALUE_MISMATCH");
             Capture(dialog, process.Id, Path.Combine(output, "03-browser-help.png"));
