@@ -8,7 +8,9 @@ if not defined VSROOT exit /b 1
 call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat"
 if errorlevel 1 exit /b 1
 if not exist portable-build mkdir portable-build
-cl /nologo /std:c17 /utf-8 /W4 /WX /O2 /MT /guard:cf /Foportable-build\launcher.obj tools\portable-entry\launcher.c /Feportable-build\Start-app.exe /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /guard:cf user32.lib
+rc /nologo /fo portable-build\launcher.res tools\portable-entry\launcher.rc
+if errorlevel 1 exit /b 1
+cl /nologo /std:c17 /utf-8 /W4 /WX /O2 /MT /guard:cf /Foportable-build\launcher.obj tools\portable-entry\launcher.c portable-build\launcher.res /Feportable-build\Start-app.exe /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT /guard:cf user32.lib
 if errorlevel 1 exit /b 1
 cl /nologo /std:c17 /utf-8 /W4 /WX /MT /Foportable-build\path-test.obj tests\portable-entry\path-test.c /Feportable-build\path-test.exe
 if errorlevel 1 exit /b 1
