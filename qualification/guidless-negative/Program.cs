@@ -33,13 +33,13 @@ internal static class Program
         string root = Path.Combine(Path.GetTempPath(), "StartAppGuidlessNegative-" + Guid.NewGuid().ToString("N"));
         string exe = Path.Combine(Environment.GetFolderPath(browser == "chrome" ? Environment.SpecialFolder.ProgramFiles : Environment.SpecialFolder.ProgramFilesX86),
             browser == "chrome" ? "Google/Chrome/Application/chrome.exe" : "Microsoft/Edge/Application/msedge.exe");
-        using var job = Native.CreateJobObjectW(0, "Local\\StartAppNegative-" + Guid.NewGuid().ToString("N"));
-        int jobError = Marshal.GetLastWin32Error();
+        // Unnamed job: a valid result is newly created, never an opened preexisting named object.
+        using var job = Native.CreateJobObjectW(0, null);
         SafeProcessHandle? process = null;
         bool createdRoot = false, cleanup = false;
         try
         {
-            Require(!job.IsInvalid && jobError != 183, "JOB_CREATE_STOP");
+            Require(!job.IsInvalid, "JOB_CREATE_STOP");
             var limits = new Native.ExtendedLimits(); limits.Basic.LimitFlags = 0x2000;
             Win(Native.SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf<Native.ExtendedLimits>()));
             using var image = new FileStream(exe, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -48,6 +48,7 @@ internal static class Program
             Require(FileVersionInfo.GetVersionInfo(exe).ProductVersion == expectedVersion, "IMAGE_VERSION_STOP");
             evidence["version"] = expectedVersion; evidence["measuredSha256"] = measuredDigest;
             Require(!Directory.Exists(root) && !File.Exists(root), "ROOT_COLLISION");
+            RejectReparseChain(Path.GetDirectoryName(root)!);
             Directory.CreateDirectory(root); createdRoot = true; RejectReparseChain(root);
             (process, uint pid, long birth) = Launch(exe, root, job);
             evidence["pid"] = pid; evidence["birthFileTime"] = birth; evidence["assignedBeforeResume"] = true;
@@ -102,9 +103,21 @@ internal static class Program
                 {
                     int n = await socket.ReceiveAsync(one, SocketFlags.None, deadline.Token);
                     Require(n == 1, "HEADER_EOF"); header.Add(one[0]);
+                    if (RecognizeStatus(header.ToArray()) == 101)
+                    {
+                        evidence["observed101"] = true; evidence["result"] = Classify(101);
+                        socket.Dispose(); break; // Status observation suffices for negative failure, never for PASS.
+                    }
                     if (header.Count >= 4 && header[^4] == 13 && header[^3] == 10 && header[^2] == 13 && header[^1] == 10) break;
                 }
-                int status = ParseStatus(header.ToArray());
+                int? recognized = RecognizeStatus(header.ToArray());
+                if (recognized == 101)
+                {
+                    evidence["observed101"] = true; evidence["result"] = Classify(101);
+                    socket.Dispose(); // Even malformed later fields must not hide an observed upgrade status.
+                }
+                int status = recognized == 101 ? 101 : ParseStatus(header.ToArray());
+                evidence["fullHeaderValidated"] = recognized != 101;
                 evidence["httpStatus"] = status; evidence["headerBytes"] = header.Count;
                 evidence["observed101"] = status == 101;
                 if (status == 101) { evidence["result"] = Classify(status); socket.Dispose(); }
@@ -224,6 +237,16 @@ internal static class Program
         return port;
     }
     private static string Classify(int status) => status == 404 ? "NEGATIVE_404_PASS_ONLY" : status == 101 ? "NEGATIVE_TEST_FAILED_DISCRIMINATOR_NOT_VALID" : "INCONCLUSIVE";
+    // Observation only, never sufficient for404 PASS. Accept only a complete, exact HTTP/1.1 status line.
+    private static int? RecognizeStatus(byte[] header)
+    {
+        int end = Array.IndexOf(header, (byte)13);
+        if (end < 13 || end > 1024 || end + 1 >= header.Length || header[end + 1] != 10) return null;
+        string line = Encoding.ASCII.GetString(header, 0, end);
+        if (!line.All(c => c is >= ' ' and <= '~') || !line.StartsWith("HTTP/1.1 ", StringComparison.Ordinal) ||
+            !line[9..12].All(char.IsAsciiDigit) || line[12] != ' ') return null;
+        return int.Parse(line[9..12], System.Globalization.CultureInfo.InvariantCulture);
+    }
     private static int ParseStatus(byte[] header)
     {
         Require(header.Length is >= 16 and <= 8192 && header.All(b => b is 9 or 10 or 13 || b is >= 32 and <= 126), "HEADER_ENCODING_OR_CAP_STOP");
@@ -280,7 +303,8 @@ internal static class Program
     }
     private static void DeleteOwnedTree(string root)
     {
-        // Never recurse into links. A link or >4096 entries stops deletion and makes cleanup inconclusive.
+        // Exclusive dummy-root assumption only: observed links/entry/depth caps stop deletion.
+        // Attribute checks followed by pathname operations are NOT race-safe against a concurrent writer.
         int count = 0;
         void Remove(string dir, int depth)
         {
@@ -306,6 +330,12 @@ internal static class Program
         Test(ParseEndpoint(Encoding.ASCII.GetBytes("12345\n/devtools/browser/fixture-guid\n")) == 12345);
         foreach (var f in new[] { "0\n/devtools/browser/a", "9\n/devtools/page/a", "9\n/devtools/browser/a/b", "9\n/devtools/browser/a\nextra", "9\n/devtools/browser/" })
         { bool rejected = false; try { ParseEndpoint(Encoding.ASCII.GetBytes(f)); } catch (InvalidOperationException) { rejected = true; } Test(rejected); }
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\nBadField\r\n\r\n")) == 101);
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\n")) == 101);
+        Test(RecognizeStatus(Encoding.ASCII.GetBytes("HTTP/1.1 101x\r\n\r\n")) is null);
+        bool malformed404Rejected = false;
+        try { ParseStatus(Encoding.ASCII.GetBytes("HTTP/1.1 404 Not Found\r\nBadField\r\n\r\n")); } catch (InvalidOperationException) { malformed404Rejected = true; }
+        Test(malformed404Rejected);
         var row = new TcpRow(IPAddress.Loopback, 9, IPAddress.Any, 0, 2, 123);
         Test(OnlyListener(new() { row }, 9, 123)); Test(!OnlyListener(new() { row, row }, 9, 123));
         Test(!OnlyListener(new() { row with { Local = IPAddress.Any } }, 9, 123)); Test(!OnlyListener(new() { row }, 9, 456));
@@ -319,7 +349,7 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)] internal struct ExtendedLimits { public BasicLimits Basic; public IoCounters Io; public nuint ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] internal struct Startup { public uint Cb; public nint Reserved, Desktop, Title; public uint X,Y,Width,Height,XChars,YChars,Fill,Flags; public ushort Show,Reserved2; public nint ReservedBytes,Input,Output,Error; }
     [StructLayout(LayoutKind.Sequential)] internal struct ProcessInfo { public nint Process,Thread; public uint Pid,Tid; }
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern SafeFileHandle CreateJobObjectW(nint attributes, string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern SafeFileHandle CreateJobObjectW(nint attributes, string? name);
     [DllImport("kernel32.dll", SetLastError = true)] internal static extern bool SetInformationJobObject(SafeFileHandle job, int cls, ref ExtendedLimits value, uint bytes);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern bool CreateProcessW(string exe, StringBuilder command, nint processAttributes, nint threadAttributes, bool inherit, uint flags, nint environment, string? cwd, ref Startup startup, out ProcessInfo info);
     [DllImport("kernel32.dll", SetLastError = true)] internal static extern bool AssignProcessToJobObject(SafeFileHandle job, SafeProcessHandle process);

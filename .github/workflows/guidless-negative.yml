@@ -1,16 +1,16 @@
 name: Negative GUIDLESS flag-mode compatibility only
 'on':
   push:
-    branches: ['diag/guidless-negative-n1']
-    paths: ['.github/workflows/guidless-negative.yml', 'qualification/guidless-negative/**']
+    branches: ['diag/guidless-negative-n2']
+    paths: ['.gitattributes', '.github/workflows/guidless-negative.yml', 'qualification/guidless-negative/**']
 permissions:
   contents: read
 concurrency:
-  group: guidless-negative-n1
+  group: guidless-negative-n2
   cancel-in-progress: false
 jobs:
   negative:
-    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/guidless-negative-n1' && github.run_attempt == 1
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/guidless-negative-n2' && github.run_attempt == 1
     runs-on: windows-2025-vs2026
     timeout-minutes: 5
     env:
@@ -23,6 +23,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout-cone-mode: false
           sparse-checkout: |
+            /.gitattributes
             /qualification/guidless-negative/
       - name: Verify exact sources and PowerShell syntax before any diagnostic process
         shell: pwsh
@@ -31,7 +32,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $expected = @{
             'Preflight.ps1'='052865F2C78D1D55BC7024BCA8058D4B3EFB08C9CDED9BF5C60EDD8F38F4DA3E'
-            'Program.cs'='5598FBD90FFA93904B049579EB500B47A21A68348404692EF8620A039F8CC622'
+            'Program.cs'='4F0F70F949A3D96C2DAD2362950004AF34537833C947B97C3E7881CB86783165'
             'GuidlessNegative.csproj'='48DD15A3F4FFAA7358AEADAB36283627126616A930DF3E1E987DBAD8FACC9CEB'
           }
           foreach($name in $expected.Keys){if((Get-Item -LiteralPath $name).Length -gt 64KB -or (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -cne $expected[$name]){throw 'SOURCE_INTEGRITY_STOP'}}
@@ -57,7 +58,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always() && steps.evidence.outputs.upload == 'true'
         with:
-          name: guidless-negative-n1-${{ github.sha }}
+          name: guidless-negative-n2-${{ github.sha }}
           path: |
             qualification/guidless-negative/evidence/inventory.json
             qualification/guidless-negative/evidence/chrome-result.json
