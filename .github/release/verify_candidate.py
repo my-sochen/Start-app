@@ -71,9 +71,14 @@ def main():
             t = z.read(prefix + "PROTOTYPE-NOTICE.txt").decode("utf-8-sig")
             need(a.sha in t and a.version in t, "notice must name both sha and version")
         if a.layout == "portable":
-            need(set(n for n in names if "/" not in n) == {"Start-app.exe", "START-HERE.txt"}, "portable root must contain only Start-app.exe and START-HERE.txt")
+            required_root = {"Start-app.exe", "START-HERE.txt"}
+            # Optional helper is copied by the icon feature's packager, never executed here.
+            # Keep older portable-v1 archives valid; allow this exact root filename only.
+            allowed_root = required_root | {"Create-DesktopShortcut.ps1"}
+            root = {n for n in names if "/" not in n}
+            need(required_root <= root <= allowed_root, "portable root must contain Start-app.exe and START-HERE.txt, with only optional Create-DesktopShortcut.ps1")
             need("App/StartApp.App.exe" in names, "portable ZIP lacks actual app under App/")
-            need(all(n in ("Start-app.exe", "START-HERE.txt") or n.startswith("App/") for n in names), "unexpected portable ZIP entry")
+            need(all(n in allowed_root or n.startswith("App/") for n in names), "unexpected portable ZIP entry")
             need(mf.get("layout") == "portable-v1", "portable manifest layout missing")
         else:
             need(sum(n == "StartApp.App.exe" for n in names) == 1, "ZIP must contain StartApp.App.exe at its root")
