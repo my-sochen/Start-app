@@ -106,8 +106,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           $output = Join-Path $env:RUNNER_TEMP ("update-capture-" + [guid]::NewGuid().ToString('N'))
           if (Test-Path $output) { throw 'capture output already exists; refusing reuse' }
+          $destination = Join-Path $PWD 'out-images/update-states'
+          if (Test-Path $destination) { throw 'capture destination already exists; refusing nested copy/reuse' }
           $binary = Join-Path $PWD 'tests/StartApp.UpdateUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
-          # Bounded child lifetime, only this process is terminated on timeout. No
+          # Bounded child lifetime; only this capture process tree is terminated. No
           # machine-wide cleanup or real LOCALAPPDATA access by this test program.
           $capture = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '"') -PassThru
           try {
@@ -117,7 +119,7 @@ jobs:
             }
             if ($capture.ExitCode -ne 0) { throw "capture exited $($capture.ExitCode)" }
           } finally {
-            if (Test-Path $output) { Copy-Item -Path $output -Destination out-images/update-states -Recurse }
+            if (Test-Path $output) { Copy-Item -Path $output -Destination $destination -Recurse }
             $capture.Dispose()
           }
           $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
