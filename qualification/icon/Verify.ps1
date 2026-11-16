@@ -2,6 +2,7 @@
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $repo=$PWD.Path
+@{status='running';stage='INHERITED_PORTABLE';sha=$env:GITHUB_SHA}|ConvertTo-Json|Set-Content diag/icon-result.json
 & "$repo/tests/portable-entry/verify-windows.ps1"
 # Existing verifier proves owned app startup/close, launcher paths/refusal/cleanup and actual frame PNG.
 $root=Join-Path $env:RUNNER_TEMP ('icon-only-'+[guid]::NewGuid().ToString('N'))

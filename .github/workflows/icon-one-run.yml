@@ -40,8 +40,8 @@ jobs:
             'tests/portable-entry/OwnedTree.cs'='F1035CE6F5B84E8ED2BD9089166A3A68488A68116BCDB5A6E5AE667A9292A77B'
             'tests/portable-entry/path-test.c'='67AFFF7E8436038B073C9FF9F528773B90A29DD6A21C4AE7D912E6952331DA70'
             'tests/portable-entry/probe.c'='C9D3FC77F4D3D8AC1C65F8A4D17899E52BD4FFA957221AA741DEBF0AD6A926EE'
-            'qualification/icon/Verify.ps1'='41ED2A2AEF7C0DC3F5BF707DC9445D5081F7A4EA98F5F95375F5815F61E00EA3'
-            'qualification/icon/Preflight.ps1'='A3DA914AD6A9E239914964A79F79AB752A309D16A9B8FC92B9774E3FFF0EA896'
+            'qualification/icon/Verify.ps1'='BA5CB6A5CFA9F3B32B7F1A7ACA005E51AE0C7DBB8F9F2B7B482B4E015665D563'
+            'qualification/icon/Preflight.ps1'='5640C04FF30AF918ED292803D4A08C2EC578A9374D9526641EC1D08293C5F8C4'
           }
           foreach($name in ($expected.Keys|Sort-Object)){
             if((Get-Item -LiteralPath $name).Length -gt 256KB){throw 'SOURCE_SIZE_STOP'}
@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $allowed=@{'icon-tests.txt'=2MB;'icon-publish.txt'=2MB;'diag/icon-result.json'=16KB;'diag/portable-entry-result.json'=16KB;'diag/portable-cleanup-errors.txt'=16KB;'out-images/portable-entry-actual-app.png'=4MB;'out-images/portable-entry-missing-folder.png'=4MB;'out-images/icon-shell-contact-sheet.png'=4MB}
+          $allowed=@{'icon-tests.txt'=2MB;'icon-publish.txt'=2MB;'diag/icon-result.json'=16KB;'diag/icon-preflight-result.json'=16KB;'diag/portable-entry-result.json'=16KB;'diag/portable-cleanup-errors.txt'=16KB;'out-images/portable-entry-actual-app.png'=4MB;'out-images/portable-entry-missing-folder.png'=4MB;'out-images/icon-shell-contact-sheet.png'=4MB}
           $found=$false
           foreach($name in $allowed.Keys){if(Test-Path -LiteralPath $name -PathType Leaf){if((Get-Item -LiteralPath $name).Length -gt $allowed[$name]){throw 'ARTIFACT_CAP_STOP_NO_UPLOAD'};$found=$true}}
           if($found){'upload=true' >> $env:GITHUB_OUTPUT}
@@ -70,6 +70,7 @@ jobs:
             icon-tests.txt
             icon-publish.txt
             diag/icon-result.json
+            diag/icon-preflight-result.json
             diag/portable-entry-result.json
             diag/portable-cleanup-errors.txt
             out-images/portable-entry-actual-app.png
