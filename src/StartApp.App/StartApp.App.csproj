@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets/start-app-ufo.ico</ApplicationIcon>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets/start-app-ufo.ico" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\StartApp.Presentation\StartApp.Presentation.csproj" />
     <ProjectReference Include="..\StartApp.Platform.Windows\StartApp.Platform.Windows.csproj" />

@@ -1,0 +1,48 @@
+{
+  "candidate_base": "03c887e8fbd89ae69cb44d200bf2deabbe9f1605",
+  "source_main": "38262167d390650d16e3cb003243769ec542e454",
+  "design_commit": "ebcce87ae130cbb78dc0a720c88c452ca9b9b6f3",
+  "files": {
+    "website/index.html": {
+      "main_git_blob": "f73f3de431208f9c2f68f748451073afbe9663d2",
+      "sha256": "3fef2840366a78b77aecd165e34c5b159f6300ce45bc6b00a5d93f4bf31971b4",
+      "same_bytes_as_design_commit": true
+    },
+    "website/styles.css": {
+      "main_git_blob": "02ccb3bdcacdca9fe1a3fddf72d3c8fc60eb2d00",
+      "sha256": "9a7002c9b75ffada8b775965b709dd124c2c6f5de3da8f52915748a72666f994",
+      "same_bytes_as_design_commit": true
+    }
+  },
+  "original_svg_sha256": "49bd3e28977f55b2a13753a8ab40f8d59cd65d096fd8de71eedb76d1dea76b47",
+  "candidate_svg_sha256": "edd799ece55a5fee396a82f55df75c88fbe32aa87e633e8a13bc1e4aacc714af",
+  "root_original": {
+    "viewBox": "0 0 32 32",
+    "fill": "none",
+    "stroke": "currentColor",
+    "stroke-width": "1.2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round"
+  },
+  "root_candidate": {
+    "viewBox": "0 0 32 32",
+    "fill": "none",
+    "stroke": "#142743",
+    "stroke-width": "1.2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round"
+  },
+  "all_six_path_attributes_equal": true,
+  "source_path_count": 6,
+  "candidate_extra_rects": [],
+  "css_exact_excerpts": [
+    "  --ink: #142743;",
+    "  --accent: #a9cffd;",
+    ".brand i { display: inline-flex; background: var(--ink); color: var(--accent); width: 29px; height: 29px; align-items: center; justify-content: center; font-style: normal; margin-right: 8px; font-size: 21px; }",
+    ".brand i { margin-right: 0; flex-shrink: 0; }",
+    ".brand i { background: transparent; color: var(--ink); }"
+  ],
+  "base_contains_same_artwork": false,
+  "computed_css_rule": "styles.css:231 .brand i { background: transparent; color: var(--ink); }",
+  "supersedes": "1469fb1 incorrectly used superseded CSS colors"
+}
