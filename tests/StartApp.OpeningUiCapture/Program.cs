@@ -14,7 +14,7 @@ using StartApp.Storage.Json;
 
 // Separate Windows-only test executable. Real product MainWindow/BAML, isolated synthetic store and adapters.
 // No real resource launches, real App.OnStartup or full-page network requests.
-internal static class Program
+internal static partial class Program
 {
     private sealed class Launcher : IItemLauncher
     {
@@ -36,6 +36,7 @@ internal static class Program
     private static void Check(string name, bool ok) { Checks.Add(new { name, ok }); if (!ok) throw new Exception(name); }
     [STAThread] private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--readiness") return Readiness(args[1]);
         if (args.Length == 2 && args[0] == "--native-duplicate") return NativeDuplicate(args[1]);
         if (!OperatingSystem.IsWindows() || args.Length != 1) return 2;
         var output = Path.GetFullPath(args[0]); if (Directory.Exists(output) || File.Exists(output)) return 3;
