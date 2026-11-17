@@ -49,9 +49,6 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
     }
     private CaptureScan ScanCore(CancellationToken cancellationToken)
     {
-        // An editable omnibox, even stable on the selected tab, is not committed navigation evidence.
-        // Keep this route Unknown until an approved source can prove the actual document URL.
-        if (_exactEvidence) return new(Array.Empty<CapturedItem>(), new[] { "Committed browser URL evidence is unavailable; duplicate state remains Unknown" });
         using var focus = new ScanFocusLease(cancellationToken);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
@@ -104,11 +101,25 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                 if (edit is null) continue;
                 var value = (System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
                 var seen = new HashSet<string>(StringComparer.Ordinal);
-                // The address bar always shows the ACTIVE tab's address, so each read below follows a real tab selection.
+                // Read the active tab's editable address text after tab selection; it is not committed-document evidence.
                 void Collect(System.Windows.Automation.AutomationElement? tab, string? before = null)
                 {
                     var address = value.Current.Value;
-                    var site = CaptureRules.SiteFromAddressText(address);
+                    if (_exactEvidence)
+                    {
+                        if (tab is null || ExactObservedUrl.Key(address) is null || (before is not null && address == before)) return;
+                        // Prototype policy approved Nov 17: accept stable selected-tab omnibox evidence, including the
+                        // disclosed risk of typed-but-unsubmitted text. This does NOT prove a committed document URL.
+                        // Stability checks reduce transient reads, not that accepted semantic limitation.
+                        for (int read = 0; read < 3; read++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!focus.CanContinue || tab.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern selected || !selected.Current.IsSelected) return;
+                            System.Threading.Thread.Sleep(100);
+                            if (value.Current.Value != address) return;
+                        }
+                    }
+                    var site = _exactEvidence ? address : CaptureRules.SiteFromAddressText(address);
                     if (site is null || !seen.Add(site)) return;
                     var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
                     items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));

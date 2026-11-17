@@ -12,8 +12,8 @@ internal sealed class LiveOpenSnapshot : IOpenSnapshotSource
     {
         var sources = new List<IOpenItemCapturer>();
         if (selected.Any(i => i.Type is ItemType.Program or ItemType.Folder)) sources.Add(new WindowsOpenItemCapturer());
-        // BrowserAddressBarCapturer reads editable text, not committed document URLs. It must never feed Open positives.
-        // Links remain Unknown. The comparator is ready for a future approved committed-document source.
+        // Approved prototype exception: stable editable omnibox evidence can be typed but unsubmitted.
+        if (selected.Any(i => i.Type == ItemType.Link)) sources.Add(new BrowserAddressBarCapturer(exactEvidence: true));
         if (sources.Count == 0) return new NoOpenStateDetection();
         var source = new CompositeCapturer(sources.ToArray());
         if (Interlocked.CompareExchange(ref _active,1,0) != 0) return new NoOpenStateDetection();

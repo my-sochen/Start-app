@@ -50,8 +50,6 @@ internal static class Program
         {
             try
             {
-                var browserGuard = new BrowserAddressBarCapturer(exactEvidence: true).Scan();
-                Check("editable omnibox route cannot confirm a committed URL", browserGuard.Items.Count == 0 && browserGuard.Notes.Any(x=>x.Contains("Unknown")));
                 foreach (var (width,height) in new[]{(900,560),(720,400),(1100,750)})
                 {
                     window.Width=width; window.Height=height;
