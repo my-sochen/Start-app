@@ -1,16 +1,68 @@
 {
   "scope": "shared pure fixtures, not approval/publication proof",
   "ordering": [
-    {"newer":"0.2.0-proto.1","older":"0.1.0-proto.99"},
-    {"newer":"0.1.1-proto.1","older":"0.1.0-proto.99"},
-    {"newer":"1.0.0","older":"1.0.0-proto.99"},
-    {"newer":"1.0.0-proto.10","older":"1.0.0-proto.9"}
+    {
+      "newer": "0.2.0-proto.1",
+      "older": "0.1.0-proto.99"
+    },
+    {
+      "newer": "0.1.1-proto.1",
+      "older": "0.1.0-proto.99"
+    },
+    {
+      "newer": "1.0.0",
+      "older": "1.0.0-proto.99"
+    },
+    {
+      "newer": "1.0.0-proto.10",
+      "older": "1.0.0-proto.9"
+    },
+    {
+      "newer": "999999999.999999999.999999999-proto.999999999",
+      "older": "999999999.999999999.999999999-proto.999999998"
+    }
   ],
-  "invalid_versions": ["01.0.0","1.0","v1.0.0","1.0.0-beta.1","1.0.0-proto.01","1.0.0\n"],
+  "invalid_versions": [
+    "01.0.0",
+    "1.0",
+    "v1.0.0",
+    "1.0.0-beta.1",
+    "1.0.0-proto.01",
+    "1.0.0\n",
+    "1000000000.0.0",
+    "1.1000000000.0",
+    "1.0.1000000000",
+    "1.0.0-proto.1000000000",
+    "11111111111111111111111111111111111111111111111111111111111111111",
+    "1.0.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
   "selection": [
-    {"installed":"0.1.0-proto.1","eligible":["0.1.0-proto.99","0.2.0-proto.1"],"expected":"0.2.0-proto.1"},
-    {"installed":"0.2.0-proto.1","eligible":["0.1.0-proto.99"],"expected":null},
-    {"installed":"0.1.0","eligible":["0.2.0-proto.1"],"expected":null},
-    {"installed":"0.1.0-proto.1","eligible":[],"expected":null}
+    {
+      "installed": "0.1.0-proto.1",
+      "eligible": [
+        "0.1.0-proto.99",
+        "0.2.0-proto.1"
+      ],
+      "expected": "0.2.0-proto.1"
+    },
+    {
+      "installed": "0.2.0-proto.1",
+      "eligible": [
+        "0.1.0-proto.99"
+      ],
+      "expected": null
+    },
+    {
+      "installed": "0.1.0",
+      "eligible": [
+        "0.2.0-proto.1"
+      ],
+      "expected": null
+    },
+    {
+      "installed": "0.1.0-proto.1",
+      "eligible": [],
+      "expected": null
+    }
   ]
 }

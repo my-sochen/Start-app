@@ -24,6 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="../../tools/update-notifier/design/*.json" Link="update-fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../tools/update-notifier/design/catalog.synthetic.example.json;../../tools/update-notifier/design/version-selection.fixtures.json" Link="update-fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

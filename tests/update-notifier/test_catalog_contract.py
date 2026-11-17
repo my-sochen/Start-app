@@ -20,6 +20,9 @@ class CatalogTests(unittest.TestCase):
                     max_age=timedelta(days=1), max_lifetime=timedelta(days=1))
         opts.update(policy)
         return c.parse_catalog(raw if raw is not None else json.dumps(self.doc if doc is None else doc).encode(), **opts)
+    def test_explicit_revision_floor(self):
+        self.assertEqual(len(self.parse(minimum_revision=1)),1)
+        with self.assertRaises(c.InvalidCatalog):self.parse(minimum_revision=2)
     def test_shared_golden_fixtures(self):
         f=json.loads((PATH.parent / 'version-selection.fixtures.json').read_text())
         for pair in f['ordering']:

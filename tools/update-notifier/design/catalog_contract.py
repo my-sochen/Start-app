@@ -61,7 +61,7 @@ class Record:
     approval_record_id: str
 
 
-def parse_catalog(raw, *, now, max_bytes, max_records, max_age, max_lifetime):
+def parse_catalog(raw, *, now, max_bytes, max_records, max_age, max_lifetime, minimum_revision=None):
     """Validate a synthetic proposed catalog, not the publisher's authority.
 
     All size/freshness bounds are explicit caller policy. This draft chooses no
@@ -81,6 +81,8 @@ def parse_catalog(raw, *, now, max_bytes, max_records, max_age, max_lifetime):
         raise InvalidCatalog('unknown or missing envelope fields')
     if type(doc['schema']) is not int or doc['schema'] != 1 or not _positive_integer(doc['revision']):
         raise InvalidCatalog('schema/revision')
+    if minimum_revision is not None and (not _positive_integer(minimum_revision) or doc['revision'] < minimum_revision):
+        raise InvalidCatalog('invalid revision floor or rollback')
     if doc['channel'] != 'prototype':
         raise InvalidCatalog('unsupported channel')
     generated, expires = _time(doc['generated_utc']), _time(doc['expires_utc'])
