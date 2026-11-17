@@ -436,7 +436,24 @@ try {
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
   Assert 'reopened capture-new form has empty design fields' ((ValOf (NamedEdit 'Capture card color')) -eq '' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
-  Assert 'REAL rescan after discard: the three Edge tabs are listed again' (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*'))) ($names -join ' | ')
+  $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
+  Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
+  if (-not $rescanComplete) {
+    # Read-only post-failure fixture evidence, not a retry or a relaxed completeness assertion.
+    $fw = EdgeWindow
+    if ($fw) {
+      $ft = @($fw.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      Info 'failed rescan fixture state (no tab switching)' ("tabs=$($ft.Count) selected=$(EdgeSelectedTabIndex) activeAddress=$(BrowserWinUrl $fw)")
+    }
+    ShotRaw 'rescan-missing-tab-before-diagnostics'
+    $notice = AnyByName 'Notification'
+    if ($notice) {
+      foreach ($group in @($notice.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))))) {
+        try { $group.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { }
+      }
+      Info 'failed rescan notification details' ((@($notice.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit)))) | ForEach-Object { ValOf $_ }) -join ' | ')
+    }
+  }
   Assert 'reopened form: every row ticked by default again' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
   $npRow = CheckByLike '*Notepad*'
   if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
@@ -622,11 +639,21 @@ try {
   SetText $prog 'C:\Windows\notepad.exe'
   $cb = AnyByName 'Set as default'; [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
   $npBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $sourceTicksBeforeOpen = @((Checks) | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
   $c = ClickBtn 'Open with chosen program' 900; Assert 'staged open-with go clicked' ($c -eq 'ok') $c
   if (Btn 'Confirm duplicate choices') {
-    foreach ($check in @(UiaAll $CT::CheckBox)) { [void](EnsureToggle $check 'explicit staged duplicate reopen choice' $true) }
+    # Only opening-decision choices, never source capture checkboxes behind the modal.
+    $duplicateList = AnyByName 'Confirmed duplicate list'
+    Assert 'staged duplicate decision list found' ($null -ne $duplicateList) ''
+    if ($duplicateList) {
+      $reopenChecks = @($duplicateList.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox))))
+      Assert 'staged duplicate decision has reopen choices' ($reopenChecks.Count -gt 0) ''
+      foreach ($check in $reopenChecks) { [void](EnsureToggle $check 'explicit staged duplicate reopen choice' $true) }
+    }
     $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'staged duplicate choices accepted' ($c -eq 'ok') $c
   }
+  $sourceTicksAfterOpen = @((Checks) | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
+  Assert 'staged reopen choices never change source capture tick state' ($sourceTicksAfterOpen -eq $sourceTicksBeforeOpen) ("before=$sourceTicksBeforeOpen after=$sourceTicksAfterOpen")
   Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
   $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
