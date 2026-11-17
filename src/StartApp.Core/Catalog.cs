@@ -58,6 +58,16 @@ public sealed class Catalog
     /// <summary>Explicit absolute Windows path (drive or UNC share). Pure string rule; no filesystem access.</summary>
     public static bool IsAbsoluteWindowsPath(string v) => AbsWin.IsMatch(v);
 
+    /// <summary>Folder targets may also be a drive root or a UNC share root. Keep this separate from executable/image
+    /// path validation: accepting a folder root must not make it a valid launch program. No saved text is rewritten.</summary>
+    public static bool IsAbsoluteWindowsFolderPath(string v)
+    {
+        if (IsAbsoluteWindowsPath(v)) return true;
+        var root = WinFolderRoot.Match(v);
+        return root.Success && root.Groups["server"].Value is not ("." or "..") && root.Groups["share"].Value is not ("." or "..");
+    }
+    private static readonly System.Text.RegularExpressions.Regex WinFolderRoot = new(@"\A(?:[A-Za-z]:\\|\\\\(?<server>[^\\/:*?""<>|\x00-\x1f]+)\\(?<share>[^\\/:*?""<>|\x00-\x1f]+)\\?)\z", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static readonly System.Text.RegularExpressions.Regex AbsWin = new(@"^([A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\).+", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>Executable identity = one explicit absolute Windows path chosen by the user. No aliases, no arguments, no command-line parsing
     /// (characters like &amp; are legal in paths and are not special here). Existence/authorization is a future platform-adapter concern.

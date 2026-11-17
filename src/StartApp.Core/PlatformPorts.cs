@@ -114,7 +114,7 @@ public static class CaptureRules
     {
         if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var u) || !u.IsFile) return null;
         var p = u.LocalPath;
-        return Catalog.IsAbsoluteWindowsPath(p) ? p : null;
+        return Catalog.IsAbsoluteWindowsFolderPath(p) ? p : null;
     }
 
     /// <summary>Browsers hide the scheme in the address bar. Accepts only a single token that parses as an http(s) URL after adding https:// when no scheme is shown; anything else (search text, internal pages) is not a site.</summary>

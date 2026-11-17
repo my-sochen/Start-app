@@ -77,7 +77,8 @@ public static class PreflightRules
             if (!IsHttpScheme(item.Target)) return new(PreflightState.Unsupported, "only http and https links are opened; this link stays saved but is not opened");
             if (LinkFormProblem(item.Target) is { } lp) return new(PreflightState.NeedsDecision, "ambiguous link form, not opened: " + lp);
         }
-        if ((item.Type is ItemType.File or ItemType.Folder) && !Catalog.IsAbsoluteWindowsPath(item.Target))
+        if ((item.Type == ItemType.File && !Catalog.IsAbsoluteWindowsPath(item.Target)) ||
+            (item.Type == ItemType.Folder && !Catalog.IsAbsoluteWindowsFolderPath(item.Target)))
             return new(PreflightState.Unsupported, "file and folder targets must be saved as full paths");
         var le = Catalog.ValidateLaunch(item.Type, launch);
         if (le is not null) return new(PreflightState.Unsupported, le);
