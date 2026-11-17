@@ -109,14 +109,18 @@ internal static class Program
     private static void Capture(Window window, string output, string name)
     {
         window.UpdateLayout();
-        var content = (FrameworkElement)window.Content;
-        var width = checked((int)Math.Ceiling(content.ActualWidth)); var height = checked((int)Math.Ceiling(content.ActualHeight));
-        if (width < 420 || height < 240) throw new Exception("Invalid content render bounds");
+        // Render the window visual root, not its margin/RTL-transformed child.
+        // The root includes the actual opaque window background and preserves
+        // inherited RTL transforms, avoiding clipped/mirrored child-only renders.
+        var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
+        var popup = window is UpdateAvailableWindow;
+        if (width < (popup ? 460 : 720) || height < (popup ? 260 : 400))
+            throw new Exception($"Invalid window render bounds: {width}x{height}");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(content);
+        bitmap.Render(window);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using (var stream = File.Create(Path.Combine(output, name + ".png"))) encoder.Save(stream);
-        var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
-        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, buttons, rendering = "Actual WPF content at 96dpi; excludes native titlebar/taskbar; synthetic update source and browser sink" });
+        var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית" || s == "עדכון - פתח הורדה רשמית" || s == "לא עכשיו")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
+        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, buttons, rendering = "Actual WPF window visual root at 96dpi; native titlebar/taskbar not captured; synthetic update source and browser sink" });
     }
 }
