@@ -6,6 +6,10 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
 {
+    // Deliberately unconfigured until an owner-approved publication source and
+    // stamped installed-version contract are reviewed. No request on startup.
+    public UpdateViewModel Updates { get; } = new(new InactiveUpdateSource(), null,
+        uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); });
     private bool _closeApproved;
     private MainViewModel? _hooked;
     public MainWindow()
@@ -13,7 +17,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContextChanged += (_, _) => Hook();
         Loaded += (_, _) => Hook();
-        Closed += (_, _) => Detach();
+        Closed += (_, _) => { Detach(); Updates.Dispose(); };
     }
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
