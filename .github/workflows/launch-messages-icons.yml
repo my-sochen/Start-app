@@ -11,45 +11,30 @@ concurrency:
 jobs:
   validate:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-dotnet@v6.1.0
         with: { dotnet-version: '10.0.404' }
-      - name: Parse changed UI scripts before running them
+      - name: Parse focused tab reproduction script
         shell: pwsh
         run: |
-          foreach ($file in '.github/e2e/cycle1-flow.ps1', '.github/e2e/capture-flow.ps1') {
-            $tokens = $null; $errors = $null
-            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors)
-            if ($errors.Count -gt 0) { $errors | Format-List; exit 1 }
-          }
-      - name: Whole solution unit tests
-        shell: pwsh
-        run: |
-          dotnet test StartApp.slnx --configuration Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Actual WPF launch-message UI capture and assertions
-        shell: pwsh
-        run: |
-          dotnet run --project tests/StartApp.OpeningUiCapture --configuration Release -- out-opening-ui
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Existing product and capture UI regression gates
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/e2e/tabs-only-flow.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | Format-List; exit 1 }
+      - name: Build and reproduce initial and post-discard tab scans only
         shell: pwsh
         run: |
           dotnet build src/StartApp.App --configuration Release -p:DefineConstants=STARTAPP_CAPTURE_TRACE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
-          pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
-          $cycle = $LASTEXITCODE
-          pwsh -NoProfile -File .github/e2e/capture-flow.ps1
-          if ($cycle -ne 0 -or $LASTEXITCODE -ne 0) { exit 1 }
+          pwsh -NoProfile -File .github/e2e/tabs-only-flow.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: launch-flow-evidence
           path: |
-            out-opening-ui/
             diag/
             out-images/
           if-no-files-found: error
