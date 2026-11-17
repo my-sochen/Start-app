@@ -881,21 +881,7 @@ public sealed partial class MainViewModel : ObservableBase
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
     private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
     {
-        var elapsed = System.Diagnostics.Stopwatch.StartNew();
-        var detector = _detector;
-        using var observationStop = CancellationTokenSource.CreateLinkedTokenSource(token);
-        if (_detector is IOpenSnapshotSource source)
-        {
-            var observation = source.ObserveAsync(snapshot.Where(x => x.Item is not null).Select(x => x.Item!).ToArray(), observationStop.Token);
-            if (await Task.WhenAny(observation, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true) == observation)
-                detector = await observation.ConfigureAwait(true);
-            else
-            {
-                observationStop.Cancel(); detector = new NoOpenStateDetection();
-                _ = observation.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-            }
-            if (gen != _generation || token.IsCancellationRequested) return;
-        }
+        var detector = _detector is IOpenSnapshotSource ? new NoOpenStateDetection() : _detector;
         var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
         var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
         var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = 0; // results[] is written by workers and read once at the deadline: both under gate
@@ -918,7 +904,7 @@ public sealed partial class MainViewModel : ObservableBase
             workers.Add(Worker());
         }
         var all = Task.WhenAll(workers);
-        await Task.WhenAny(all, Task.Delay(elapsed.Elapsed < OpenCheckTimeout ? OpenCheckTimeout - elapsed.Elapsed : TimeSpan.Zero, token)).ConfigureAwait(true);
+        await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
         // Workers still running at the deadline are not awaited, but a fault they hit is still observed exactly once: either thrown here or reported through ReportLate.
         _ = all.ContinueWith(t => { var late = Volatile.Read(ref fault) ?? t.Exception?.GetBaseException(); if (late != null && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(late); }, TaskScheduler.Default);
         (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
@@ -932,7 +918,6 @@ public sealed partial class MainViewModel : ObservableBase
         }
         if (gen != _generation || token.IsCancellationRequested) return;
         stop.Cancel();
-        IsChecking = false;
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
         for (int i = 0; i < snapshot.Count; i++)
         {
@@ -940,6 +925,24 @@ public sealed partial class MainViewModel : ObservableBase
             if (r is { } ok) plan.Add(ok);
             else plan.Add((snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, "פריט חסר", ""), snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
         }
+        // A detector timeout means Unknown, never failed preflight. Observe only items already found Ready,
+        // once, with a separate bounded wait. This may add time but cannot turn detector uncertainty into a skipped valid item.
+        if (_detector is IOpenSnapshotSource source && plan.Any(p => p.Finding.State == PreflightState.Ready))
+        {
+            using var observationStop = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var observation = source.ObserveAsync(plan.Where(p => p.Finding.State == PreflightState.Ready).Select(p => p.Item).ToArray(), observationStop.Token);
+            IOpenStateDetector observed;
+            if (await Task.WhenAny(observation, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true) == observation)
+                observed = await observation.ConfigureAwait(true);
+            else
+            {
+                observationStop.Cancel(); observed = new NoOpenStateDetection();
+                _ = observation.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            }
+            if (gen != _generation || token.IsCancellationRequested) return;
+            plan = plan.Select(p => (p.Item, p.Launch, p.Finding, p.Finding.State == PreflightState.Ready ? observed.Detect(p.Item, p.Launch) : OpenState.Unknown)).ToList();
+        }
+        IsChecking = false;
         var confirmed = plan.Select((p, i) => (p, i)).Where(x => x.p.Finding.State == PreflightState.Ready && x.p.Dup == OpenState.Open).ToList();
         if (confirmed.Count == 0) { await LaunchAsync(plan); return; }
         _pendingOpen = plan;

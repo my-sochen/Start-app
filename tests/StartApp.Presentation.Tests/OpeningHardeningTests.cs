@@ -64,4 +64,22 @@ public class OpeningHardeningTests
         vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;vm.NewName=" ";vm.CaptureCreateCommand.Execute(null);Assert.NotEmpty(vm.CreateError);Assert.False(vm.ToastVisible);
         vm.NewName="valid";vm.NewWorkspaceColor="bad";vm.CaptureCreateCommand.Execute(null);Assert.NotEmpty(vm.CreateError);Assert.False(vm.ToastVisible);Assert.True(vm.IsCaptureNew);
     }
+    private sealed class NeverSnapshot:IOpenSnapshotSource
+    {
+        public bool Cancelled;
+        public OpenState Detect(Item item,LaunchConfig? launch)=>OpenState.Unknown;
+        public async Task<IOpenStateDetector> ObserveAsync(IReadOnlyCollection<Item> selected,CancellationToken token)
+        {
+            try { await Task.Delay(10000,token); }
+            catch(OperationCanceledException){Cancelled=true;}
+            return new NoOpenStateDetection();
+        }
+    }
+    [Fact] public async Task SnapshotTimeoutOnlyMeansUnknown_ReadyItemsStillLaunch()
+    {
+        using var repo=Repo(2);var snapshot=new NeverSnapshot();var l=new Launcher();
+        var vm=new MainViewModel(repo,l,new Ready(),snapshot){OpenCheckTimeout=TimeSpan.FromMilliseconds(100)};
+        vm.OpenWorkspaceCommand.Execute(null);vm.ConfirmSelectionCommand.Execute(null);await vm.OpenTask;
+        Assert.Equal(2,l.Count);Assert.All(vm.LastOpeningResults,r=>Assert.Equal(OpeningOutcome.RequestSent,r.Outcome));Assert.False(vm.OpenDecisionPending);
+    }
 }
