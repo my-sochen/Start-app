@@ -118,9 +118,23 @@ internal static class Program
             throw new Exception($"Invalid window render bounds: {width}x{height}");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(window);
-        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        // Window.ActualWidth/Height include nonclient space not painted by WPF.
+        // Find every painted pixel. Only discard wholly transparent TRAILING
+        // rows/columns, never content, leading space or a partly painted strip.
+        var pixels = new byte[checked(width * height * 4)];
+        bitmap.CopyPixels(pixels, checked(width * 4), 0);
+        var paintedWidth = 0; var paintedHeight = 0;
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+                if (pixels[(y * width + x) * 4 + 3] != 0)
+                { paintedWidth = Math.Max(paintedWidth, x + 1); paintedHeight = Math.Max(paintedHeight, y + 1); }
+        // Refuse empty/implausible captures rather than hide a rendering failure.
+        if (paintedWidth < width - 40 || paintedHeight < height - 80 || paintedWidth == 0 || paintedHeight == 0)
+            throw new Exception($"Unexpected painted bounds: {paintedWidth}x{paintedHeight} within {width}x{height}");
+        var painted = new CroppedBitmap(bitmap, new Int32Rect(0, 0, paintedWidth, paintedHeight));
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(painted));
         using (var stream = File.Create(Path.Combine(output, name + ".png"))) encoder.Save(stream);
         var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית" || s == "עדכון - פתח הורדה רשמית" || s == "לא עכשיו")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
-        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, buttons, rendering = "Actual WPF window visual root at 96dpi; native titlebar/taskbar not captured; synthetic update source and browser sink" });
+        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, paintedWidth, paintedHeight, buttons, rendering = "Actual WPF window visual root at 96dpi; only wholly transparent trailing nonclient strips omitted; native titlebar/taskbar not captured; synthetic update source and browser sink" });
     }
 }
