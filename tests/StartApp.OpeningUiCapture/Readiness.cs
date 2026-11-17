@@ -57,7 +57,7 @@ internal static partial class Program
     {
         public PreflightFinding Check(Item item, LaunchConfig? launch) => new(PreflightState.Missing, "C:\\controlled-test\\" + new string('x', 220) + "\\מסמך.txt\n" + string.Concat(Enumerable.Repeat("פרטים ארוכים לבדיקה בלבד. ", 16)));
     }
-    private static int Readiness(string directory)
+    private static int Readiness(string directory, bool includeIcons = true)
     {
         if (!OperatingSystem.IsWindows()) return 2;
         var output = Path.GetFullPath(directory);
@@ -77,6 +77,8 @@ internal static partial class Program
         {
             try
             {
+                if (includeIcons)
+                {
                 // Real HTTP loader and image decoder, local controlled origins only. Never external private data.
                 var bitmap = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[] { 0, 140, 40, 255, 0, 140, 40, 255, 0, 140, 40, 255, 0, 140, 40, 255 }, 8);
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -105,7 +107,10 @@ internal static partial class Program
                 var icons = new Window { Width = 720, Height = 400, Title = "Controlled icon evidence" };
                 icons.Content = new StackPanel { Children = { new TextBlock { Text = "Controlled same-origin favicon and unavailable fallback" }, new Image { Source = icon, Width = 40, Height = 40 }, new Image { Source = TargetIconLoader.Fallback("Link"), Width = 40, Height = 40 } } };
                 icons.Show(); await Idle(icons); Capture(icons, output, "controlled-http-icon-and-fallback"); icons.Close();
-                vm.OpenWorkspaceCommand.Execute(null); vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                }
+                vm.OpenWorkspaceCommand.Execute(null); await Idle(window);
+                if (!includeIcons) Capture(window, output, "long-rtl-selection-720");
+                vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
                 vm.ToastDetailsCommand.Execute(null); await Idle(window);
                 foreach (var expander in Descendants(window).OfType<Expander>().Where(x => x.IsVisible)) expander.IsExpanded = true;
                 await Idle(window); Capture(window, output, "long-rtl-expanded-720");
