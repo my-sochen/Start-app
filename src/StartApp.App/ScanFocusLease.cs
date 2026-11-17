@@ -2,7 +2,8 @@ using System.Runtime.InteropServices;
 
 namespace StartApp.App;
 
-/// <summary>Conservative best-effort capture-only focus return. Any input or unknown foreground permanently revokes it.
+/// <summary>Conservative best-effort foreground-window return only. Never gates tab traversal or tab restoration.
+/// Any input or unknown foreground permanently revokes foreground-return permission.
 /// Never used after item launch. The native APIs can refuse focus changes, so this is not a focus restoration guarantee.</summary>
 internal sealed class ScanFocusLease : IDisposable
 {
