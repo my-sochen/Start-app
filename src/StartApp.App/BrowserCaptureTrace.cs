@@ -8,6 +8,10 @@ internal static class BrowserCaptureTrace
     private static readonly object Gate = new();
     private static int _records;
     private static long _scans;
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct LastInput { public uint Size; public uint Tick; }
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInput input);
 #endif
     [Conditional("STARTAPP_CAPTURE_TRACE")]
     public static void Begin(ref long scan)
@@ -15,6 +19,20 @@ internal static class BrowserCaptureTrace
 #if STARTAPP_CAPTURE_TRACE
         scan = System.Threading.Interlocked.Increment(ref _scans);
         Write(scan, "begin");
+#endif
+    }
+    [Conditional("STARTAPP_CAPTURE_TRACE")]
+    public static void SampleInput(long scan, string stage, int index = -1)
+    {
+#if STARTAPP_CAPTURE_TRACE
+        try
+        {
+            var input = new LastInput { Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<LastInput>() };
+            var ok = GetLastInputInfo(ref input);
+            // count is the raw unsigned tick reinterpreted as signed, never a key or pointer coordinate.
+            Write(scan, stage, index: index, count: unchecked((int)input.Tick), flag: ok);
+        }
+        catch { /* diagnostic sampling must not fail capture */ }
 #endif
     }
     [Conditional("STARTAPP_CAPTURE_TRACE")]

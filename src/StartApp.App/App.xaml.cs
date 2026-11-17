@@ -52,7 +52,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
         long traceScan = 0;
         BrowserCaptureTrace.Begin(ref traceScan);
         BrowserCaptureTrace.Write(traceScan, "mode-exact", flag: _exactEvidence);
-        using var focus = new ScanFocusLease(cancellationToken);
+        using var focus = new ScanFocusLease(cancellationToken, traceScan);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
         // item's default browser (spec Nov 11). The path can be unreadable (e.g. an elevated browser); the site is still
@@ -161,10 +161,12 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                         var before = value.Current.Value;
                         if (!focus.CanContinue) break;
                         BrowserCaptureTrace.Write(traceScan, "select-call", index: traceTab);
+                        BrowserCaptureTrace.SampleInput(traceScan, "input-before-select", index: traceTab);
                         // Diagnostic I/O can block too. Renew permission immediately before the native write.
                         cancellationToken.ThrowIfCancellationRequested();
                         if (!focus.CanContinue) break;
                         sip.Select();
+                        BrowserCaptureTrace.SampleInput(traceScan, "input-after-select", index: traceTab);
                         BrowserCaptureTrace.Write(traceScan, "select-return", index: traceTab);
                         var until = DateTime.UtcNow.AddMilliseconds(400);
                         while (DateTime.UtcNow < until)

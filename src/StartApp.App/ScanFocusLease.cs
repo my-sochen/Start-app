@@ -15,30 +15,54 @@ internal sealed class ScanFocusLease : IDisposable
     private readonly IntPtr _origin = GetForegroundWindow();
     private readonly HashSet<IntPtr> _observed = new();
     private readonly uint? _input;
+#if STARTAPP_CAPTURE_TRACE
+    private readonly long _traceScan;
+#endif
     private readonly bool _originIsUs;
     private bool _revoked;
     private readonly CancellationToken _cancellation;
-    public ScanFocusLease(CancellationToken cancellation = default)
+    public ScanFocusLease(CancellationToken cancellation = default, long traceScan = 0)
     {
         _cancellation = cancellation;
+#if STARTAPP_CAPTURE_TRACE
+        _traceScan = traceScan;
+#endif
         _input = Input(); GetWindowThreadProcessId(_origin, out var pid); _originIsUs = pid == Environment.ProcessId;
         _observed.Add(_origin);
+        TraceInput("input-baseline", _input);
     }
     private static uint? Input() { var input = new LastInput { Size = (uint)Marshal.SizeOf<LastInput>() }; return GetLastInputInfo(ref input) ? input.Tick : null; }
+    [System.Diagnostics.Conditional("STARTAPP_CAPTURE_TRACE")]
+    private void TraceInput(string stage, uint? tick)
+    {
+#if STARTAPP_CAPTURE_TRACE
+        BrowserCaptureTrace.Write(_traceScan, stage, count: unchecked((int)(tick ?? 0)), flag: tick.HasValue);
+#endif
+    }
     public bool CanContinue
     {
         get
         {
             if (_revoked || _cancellation.IsCancellationRequested) return false;
             var foreground = GetForegroundWindow();
-            if (_input is null || Input() != _input || foreground == IntPtr.Zero || !_observed.Contains(foreground))
+            // Preserve the original short-circuit: no second native read when the baseline failed.
+            var currentInput = _input is null ? null : Input();
+            if (_input is null || currentInput != _input || foreground == IntPtr.Zero || !_observed.Contains(foreground))
             {
                 _revoked = true;
-                // Scalar reason only; do not re-read input or focus for diagnostics.
-                BrowserCaptureTrace.Write(0, _input is null ? "focus-input-unavailable" : foreground == IntPtr.Zero ? "focus-zero" : !_observed.Contains(foreground) ? "focus-unobserved" : "focus-input-changed");
+                // Trace the exact read that revoked permission, never a diagnostic re-read.
+                TraceInput("input-at-revocation", currentInput);
+                TraceRevocation(_input is null ? "focus-input-unavailable" : currentInput is null ? "focus-input-read-failed" : currentInput != _input ? "focus-input-changed" : foreground == IntPtr.Zero ? "focus-zero" : "focus-unobserved");
             }
             return !_revoked;
         }
+    }
+    [System.Diagnostics.Conditional("STARTAPP_CAPTURE_TRACE")]
+    private void TraceRevocation(string stage)
+    {
+#if STARTAPP_CAPTURE_TRACE
+        BrowserCaptureTrace.Write(_traceScan, stage);
+#endif
     }
     public void ObserveBrowser(IntPtr hwnd) { if (CanContinue) _observed.Add(hwnd); }
     public void Dispose()

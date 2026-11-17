@@ -4,6 +4,18 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.For
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
 $script:shot = 0; $runId = $env:GITHUB_RUN_ID
+# Controlled-runner scalar timeline only. Bounded append attempts, no names/URLs/input content.
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class InputTraceNative { [StructLayout(LayoutKind.Sequential)] public struct LastInput { public uint Size; public uint Tick; } [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LastInput input); }'
+$script:phaseTraceCount = 0
+function TracePhase($stage) {
+  if ($script:phaseTraceCount++ -ge 512) { return }
+  try {
+    $li = New-Object InputTraceNative+LastInput
+    $li.Size = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($li)
+    $ok = [InputTraceNative]::GetLastInputInfo([ref]$li)
+    "$([Environment]::TickCount64) stage=$stage inputTick=$($li.Tick) inputRead=$ok" | Out-File -Append -Encoding utf8 diag/harness-phase-trace.txt
+  } catch { }
+}
 function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
 function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = $true; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
 function CurWin() { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))); if ($ws.Count -eq 0) { return $null }; $named = @($ws | Where-Object { $_.Current.Name }); if ($named.Count -gt 0) { return $named[0] }; return $ws[0] }
@@ -27,14 +39,17 @@ function DumpState($why) {
   } catch { "DUMP failed: $_" | Tee-Object -Append diag/errors.txt }
 }
 function Shot($state) {
+  TracePhase 'shot-before-cursor-and-window'
   [void][W]::SetCursorPos(5, 5); if ($p.MainWindowHandle -ne 0) { [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) }; Start-Sleep -Milliseconds 400
   $f = "out-images/cap-$state.png"
   $w0 = CurWin; if ($null -eq $w0) { "no app window for $state" | Tee-Object -Append diag/errors.txt; return }
   $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
   if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
   $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  TracePhase 'shot-after-capture'
 }
 function ShotRaw($state) {
+  TracePhase 'shot-raw-before-cursor'
   # Evidence shot with NO window-raise: captures whatever is actually on screen over the app region.
   [void][W]::SetCursorPos(5, 5)
   $f = "out-images/cap-$state.png"
@@ -42,6 +57,7 @@ function ShotRaw($state) {
   $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
   if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
   $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  TracePhase 'shot-after-capture'
 }
 function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { $w0 = CurWin; if ($null -eq $w0) { if ($t -eq 2) { "UIA window gone for pid $($p.Id): appHasExited=$($p.HasExited) mainWindowHandle=$($p.MainWindowHandle)" | Out-File -Append diag/uia-liveness.txt; return @() }; Start-Sleep -Milliseconds 400; continue }; try { return $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $ct))) } catch { if ($t -eq 2) { "UIA read failed after retries: $($_.Exception.Message) | appHasExited=$(if ($p) { $p.HasExited } else { "no-process" }) mainWindowHandle=$(if ($p) { $p.MainWindowHandle } else { "-" })" | Out-File -Append diag/uia-liveness.txt; throw }; Start-Sleep -Milliseconds 400 } } }
 function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
@@ -153,11 +169,13 @@ function DragRowToStage($like, $label) {
   $rr = $row.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle
   $sx = [int]($rr.X + $rr.Width * 0.65); $sy = [int]($rr.Y + $rr.Height / 2)
   $tx = [int]($wr.X + $wr.Width * 0.25); $ty = [int]($wr.Y + $wr.Height * 0.55)
+  TracePhase 'drag-before-input'
   [void][W]::SetCursorPos($sx, $sy); Start-Sleep -Milliseconds 250
   [W]::mouse_event(0x02, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 250
   for ($i = 1; $i -le 12; $i++) { [void][W]::SetCursorPos([int]($sx + ($tx - $sx) * $i / 12), [int]($sy + ($ty - $sy) * $i / 12)); Start-Sleep -Milliseconds 60 }
   Start-Sleep -Milliseconds 350
   [W]::mouse_event(0x04, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 700
+  TracePhase 'drag-after-input'
 }
 function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
 function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
@@ -264,9 +282,11 @@ function ScrollStaged([int]$delta) {
   $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address')))))
   if ($null -eq $anchor) { return }
   $r = $anchor.Current.BoundingRectangle; if ($r.Width -le 0) { return }
+  TracePhase 'scroll-before-input'
   [void][W]::SetCursorPos([int]($r.X + [Math]::Min(200, $r.Width / 2)), [int]($r.Y + $r.Height / 2)); Start-Sleep -Milliseconds 150
   $d = if ($delta -lt 0) { [uint32](4294967296 + $delta) } else { [uint32]$delta }
   [W]::mouse_event(0x0800, 0, 0, $d, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 450
+  TracePhase 'scroll-after-input'
 }
 function StagedAddrsDeep() {
   # The staged list is virtualized: UIA only returns rendered rows. Wheel through the panel and union what renders.
@@ -286,9 +306,12 @@ function OpenCaptureMenu($item) {
   $mi = $null; for ($i = 0; $i -lt 20; $i++) { $mi = MenuItemByName $item; if ($mi) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $mi) { return "menu item '$item' not found" }
   MenuInsideWindow "capture dropdown ($item)"
+  TracePhase 'capture-menu-before-invoke'
   if (-not (InvokeEl $mi "capture menu item $item")) { return 'invoke failed' }
+  TracePhase 'capture-menu-after-invoke'
   $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()  # the scan now runs off the UI thread with a visible scanning state
   while ($swS.Elapsed.TotalMilliseconds -lt 1500) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
+  TracePhase 'capture-menu-after-status-poll'
   return 'ok'
 }
 try {
@@ -976,16 +999,23 @@ try {
       $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
       $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
       while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
+        TracePhase 'chrome-window-lookup-start'
         $w = ChromeFixtureWin
+        TracePhase 'chrome-window-lookup-end'
         if ($w) {
           $csawWin = $true
+          TracePhase 'chrome-tab-enumeration-start'
           $tabs = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+          TracePhase 'chrome-tab-enumeration-end'
           if ($tabs.Count -gt $csawTabs) { $csawTabs = $tabs.Count }
           $tabTitles = (@($tabs | ForEach-Object { try { $_.Current.Name } catch { '?' } }) -join ' | ')
+          TracePhase 'chrome-title-reads-end'
           if ($tabs.Count -gt 3) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
           if ($tabs.Count -eq 3) {
             $origTab = $null
+            TracePhase 'chrome-original-selection-start'
             foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $origTab = $t } } catch { } }
+            TracePhase 'chrome-original-selection-end'
             try {
               # Round-robin short per-tab slices under the one shared 20s deadline: a mismatching tab can no
               # longer consume the whole budget before the other tab is ever read (run 43490152034 starved tab1).
@@ -993,6 +1023,7 @@ try {
               while ((Get-Date) -lt $deadlineC -and -not ($ok[0] -and $ok[1] -and $ok[2])) {
                 foreach ($ti in 0..2) {
                   if ($ok[$ti] -or (Get-Date) -ge $deadlineC) { continue }
+                  TracePhase 'chrome-per-tab-proof-start'
                   $tabAttempts[$ti]++
                   $slice = (Get-Date).AddSeconds(3); if ($slice -gt $deadlineC) { $slice = $deadlineC }
                   $ok[$ti] = ChromeTabExpectHost $w $tabs[$ti] $expectedHosts[$ti] $ti $slice
