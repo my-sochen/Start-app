@@ -8,14 +8,16 @@ $script:shot = 0; $runId = $env:GITHUB_RUN_ID
 # Controlled-runner scalar timeline only. Bounded append attempts, no names/URLs/input content.
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class InputTraceNative { [StructLayout(LayoutKind.Sequential)] public struct LastInput { public uint Size; public uint Tick; } [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LastInput input); }'
 $script:phaseTraceCount = 0
+$script:inputProbeFailures = 0
 function TracePhase($stage) {
-  if ($script:phaseTraceCount++ -ge 512) { return }
+  if ($script:phaseTraceCount++ -ge 512) { $script:inputProbeFailures++; return }
   try {
     $li = New-Object InputTraceNative+LastInput
     $li.Size = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($li)
     $ok = [InputTraceNative]::GetLastInputInfo([ref]$li)
+    if (-not $ok) { $script:inputProbeFailures++ }
     "$([Environment]::TickCount64) stage=$stage inputTick=$($li.Tick) inputRead=$ok" | Out-File -Append -Encoding utf8 diag/harness-phase-trace.txt
-  } catch { }
+  } catch { $script:inputProbeFailures++ }
 }
 function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
 function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = $true; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
@@ -229,6 +231,7 @@ try {
   # Fixed experiment, not retry-until-green: three idle controls followed by three fixture-only Selects.
   # No product is running yet. Only scalar tick/success/stage data in TracePhase; this cannot identify an actor.
   if (-not $edgeReady) { throw 'Three-tab fixture readiness required before focused probes' }
+  $script:inputProbeFailures = 0
   foreach ($probeIndex in 0..2) { TracePhase 'probe-idle-before'; Start-Sleep -Milliseconds 150; TracePhase 'probe-idle-after' }
   $probeWindow = EdgeWindow
   $probeTabs = @($probeWindow.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
@@ -240,6 +243,8 @@ try {
     Start-Sleep -Milliseconds 150
     TracePhase 'probe-select-after-settle'
   }
+  Assert 'fixture-only input samples are available (otherwise comparison is inconclusive)' ($script:inputProbeFailures -eq 0) ("failedSamples=$($script:inputProbeFailures)")
+  if ($script:inputProbeFailures -gt 0) { Info 'fixture-only input comparison' 'INCONCLUSIVE: at least one input sample failed; idle/Select timing must not be interpreted' }
   # Regression (PR19 review): restore must also work when the user's tab is NOT first in UIA enumeration -
   # the old code discovered the original tab inside the mutating loop and lost it. Move the ONE verified
   # fixture window (same captured HWND) to its middle tab (index 1 of the three example.* tabs) before the
@@ -307,6 +312,8 @@ try {
   Shot 'capture-new-design-unsaved-guard'
   $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discard the design-only capture-new form' ($c -eq 'ok') $c
   Assert 'capture screen closed after discard' (-not (WaitText 'Open now' 2)) ''
+  $rescanTabBefore = EdgeSelectedTabIndex
+  Info 'rescan pre-scan selected fixture tab' "index=$rescanTabBefore"
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
@@ -314,6 +321,25 @@ try {
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
+  # Always gather as-found selection, without switching tabs, even when all hosts were collected.
+  $rescanTabAfter = EdgeSelectedTabIndex
+  $traceLines = @(Get-Content $env:STARTAPP_CAPTURE_TRACE_PATH -ErrorAction SilentlyContinue)
+  $lastBegin = -1
+  $beginCount = 0
+  for ($traceIndex = 0; $traceIndex -lt $traceLines.Count; $traceIndex++) { if ($traceLines[$traceIndex] -match ' stage=begin ') { $lastBegin = $traceIndex; $beginCount++ } }
+  $rescanTrace = if ($lastBegin -ge 0) { @($traceLines[$lastBegin..($traceLines.Count - 1)]) } else { @() }
+  $rescanTraceAvailable = $beginCount -eq 2 -and $traceLines.Count -lt 512 -and @($rescanTrace | Where-Object { $_ -match ' stage=input-baseline ' }).Count -eq 1
+  $rescanRevoked = @($rescanTrace | Where-Object { $_ -match ' stage=focus-(input-unavailable|input-read-failed|input-changed|zero|unobserved|stop-)' }).Count -gt 0
+  $rescanEnded = @($rescanTrace | Where-Object { $_ -match ' stage=end ' }).Count -gt 0
+  Info 'rescan post-scan selection and guard evidence' ("before=$rescanTabBefore after=$rescanTabAfter traceAvailable=$rescanTraceAvailable traceEnd=$rescanEnded revocationObserved=$rescanRevoked hostsComplete=$rescanComplete")
+  if ($rescanRevoked) {
+    Info 'rescan restoration expectation' 'REVOKED: no cleanup write is expected after guard revocation; selection is as-found evidence, not restoration PASS'
+  } elseif ($rescanTraceAvailable -and $rescanEnded -and $rescanComplete) {
+    Assert 'completed rescan without observed revocation restores its pre-scan selected tab' ($rescanTabBefore -ge 0 -and $rescanTabAfter -eq $rescanTabBefore) ("before=$rescanTabBefore after=$rescanTabAfter; no revocation observed in available trace")
+  } else {
+    Assert 'rescan restoration evidence is conclusive' $false 'INCONCLUSIVE: missing usable trace/end/complete hosts without an observed revocation; no restoration claim'
+  }
+
   if (-not $rescanComplete) {
     # Read-only post-failure fixture evidence, not a retry or a relaxed completeness assertion.
     $fw = EdgeWindow
