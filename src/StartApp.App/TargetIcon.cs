@@ -67,7 +67,7 @@ internal static class TargetIconLoader
         {
             ImageSource? result = null;
             try { result = request.Type == "Link" ? await WebIcon(request.Target) : LocalIcon(request.Target); }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Runtime.InteropServices.ExternalException or HttpRequestException or OperationCanceledException or InvalidOperationException or System.Security.SecurityException or FormatException) { }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Runtime.InteropServices.ExternalException or HttpRequestException or OperationCanceledException or InvalidOperationException or System.Security.SecurityException or FormatException) { }
             finally
             {
                 lock (Gate)
