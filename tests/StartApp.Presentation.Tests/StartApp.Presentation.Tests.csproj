@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -23,4 +23,7 @@
     <ProjectReference Include="..\..\src\StartApp.Storage.Json\StartApp.Storage.Json.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="../../tools/update-notifier/design/*.json" Link="update-fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
