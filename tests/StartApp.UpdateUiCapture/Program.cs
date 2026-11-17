@@ -85,6 +85,8 @@ internal static class Program
             throw new Exception("Manual check must not remain in main top bar");
         if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
             throw new Exception("Exact versions/settings section missing");
+        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == updates.InstalledVersionDisplay))
+            throw new Exception("Installed version display missing");
         Capture(settings, output, name); settings.Close();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

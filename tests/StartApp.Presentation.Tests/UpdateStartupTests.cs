@@ -14,6 +14,25 @@ public sealed class UpdateStartupTests
         await vm.CheckOnStartupOnceAsync();await vm.CheckOnStartupOnceAsync();Assert.Equal(1,s.Calls);
         await vm.CheckAsync();Assert.Equal(2,s.Calls);
     }
+    private sealed class GatedSource : IApprovedUpdateSource
+    {
+        public int Calls;
+        public readonly TaskCompletionSource<ApprovedUpdate?> Gate = new();
+        public Task<ApprovedUpdate?> ReadAsync(CancellationToken cancellationToken) { Calls++; return Gate.Task; }
+    }
+    [Fact] public async Task Manual_in_flight_does_not_consume_startup_attempt()
+    {
+        var s = new GatedSource(); using var vm = new UpdateViewModel(s, "1.0.0", _ => {});
+        var manual = vm.CheckAsync(); await vm.CheckOnStartupOnceAsync(); Assert.Equal(1, s.Calls);
+        s.Gate.SetResult(null); await manual;
+        await vm.CheckOnStartupOnceAsync(); await vm.CheckOnStartupOnceAsync(); Assert.Equal(2, s.Calls);
+    }
+    [Theory][InlineData(null, "גרסה מותקנת: זהות הבנייה טרם אומתה")][InlineData("1.0.0", "גרסה מותקנת: 1.0.0")]
+    public void Installed_version_display_is_truthful(string? version, string expected)
+    {
+        using var vm = new UpdateViewModel(new Source(), version, _ => {});
+        Assert.Equal(expected, vm.InstalledVersionDisplay);
+    }
     [Fact] public async Task Inactive_startup_never_reads()
     {
         var s=new Source();using var vm=new UpdateViewModel(s,null,_=>{});

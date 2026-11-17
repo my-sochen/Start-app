@@ -17,6 +17,8 @@
                    AutomationProperties.Name="Versions and updates section"/>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
+                <TextBlock Text="{Binding InstalledVersionDisplay}" TextWrapping="Wrap" Margin="0,0,0,12"
+                           AutomationProperties.Name="Installed version"/>
                 <TextBlock Text="בדיקת גרסאות מאושרות. ההורדה באתר הרשמי וההתקנה ידנית."
                            TextWrapping="Wrap" Margin="0,0,0,12"/>
                 <Button Content="בדוק עדכונים" Command="{Binding CheckCommand}" Padding="12,6"
