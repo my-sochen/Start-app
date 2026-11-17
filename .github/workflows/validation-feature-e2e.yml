@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
@@ -97,6 +97,34 @@ jobs:
         run: |
           dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
           if ($LASTEXITCODE -ne 0) { 'BUILD FAILED' | Out-File -Append diag/errors.txt; exit 1 }
+      - name: Synthetic update state captures (no network or real browser)
+        shell: pwsh
+        run: |
+          python tests/update-notifier/test_overlay_rows.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          dotnet build tests/StartApp.UpdateUiCapture/StartApp.UpdateUiCapture.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $output = Join-Path $env:RUNNER_TEMP ("update-capture-" + [guid]::NewGuid().ToString('N'))
+          if (Test-Path $output) { throw 'capture output already exists; refusing reuse' }
+          $destination = Join-Path $PWD 'out-images/update-states'
+          if (Test-Path $destination) { throw 'capture destination already exists; refusing nested copy/reuse' }
+          $binary = Join-Path $PWD 'tests/StartApp.UpdateUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          # Bounded child lifetime; only this capture process tree is terminated. No
+          # machine-wide cleanup or real LOCALAPPDATA access by this test program.
+          $capture = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '"') -PassThru
+          try {
+            if (-not $capture.WaitForExit(60000)) {
+              $capture.Kill($true)
+              throw 'synthetic WPF capture timed out'
+            }
+            if ($capture.ExitCode -ne 0) { throw "capture exited $($capture.ExitCode)" }
+          } finally {
+            if (Test-Path $output) { Copy-Item -Path $output -Destination $destination -Recurse }
+            $capture.Dispose()
+          }
+          $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
+          if ($pngs.Count -ne 8) { throw "Expected eight WPF state images, found $($pngs.Count)" }
+          if (-not (Test-Path out-images/update-states/capture-evidence.json)) { throw 'capture metadata missing' }
       - name: Cycle-1 flow UI run (hard - a failing step fails this job)
         shell: pwsh
         run: |
