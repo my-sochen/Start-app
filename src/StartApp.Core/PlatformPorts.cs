@@ -39,6 +39,8 @@ public sealed record CaptureScan(IReadOnlyList<CapturedItem> Items, IReadOnlyLis
 
 /// <summary>Port: lists what is open on the machine at this moment (לכידה). Implementations must never guess: only what the OS or the app itself reported.</summary>
 public interface IOpenItemCapturer { CaptureScan Scan(); }
+/// <summary>Optional cancellation between OS reads. Cannot abort a call already blocked inside an OS API.</summary>
+public interface ICooperativeCapturer : IOpenItemCapturer { CaptureScan Scan(CancellationToken cancellationToken); }
 
 /// <summary>No detection available (tests, non-Windows).</summary>
 public sealed class NoCapture : IOpenItemCapturer
@@ -47,14 +49,16 @@ public sealed class NoCapture : IOpenItemCapturer
 }
 
 /// <summary>Runs several sources and merges them; one failing source never hides the others (its failure is reported as a note).</summary>
-public sealed class CompositeCapturer(params IOpenItemCapturer[] sources) : IOpenItemCapturer
+public sealed class CompositeCapturer(params IOpenItemCapturer[] sources) : ICooperativeCapturer
 {
-    public CaptureScan Scan()
+    public CaptureScan Scan() => Scan(CancellationToken.None);
+    public CaptureScan Scan(CancellationToken cancellationToken)
     {
         var items = new List<CapturedItem>(); var notes = new List<string>();
         foreach (var s in sources)
         {
-            try { var r = s.Scan(); items.AddRange(r.Items); notes.AddRange(r.Notes); }
+            cancellationToken.ThrowIfCancellationRequested();
+            try { var r = s is ICooperativeCapturer cooperative ? cooperative.Scan(cancellationToken) : s.Scan(); items.AddRange(r.Items); notes.AddRange(r.Notes); }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException)
             { notes.Add(s.GetType().Name + " failed: " + e.GetType().Name); }
         }

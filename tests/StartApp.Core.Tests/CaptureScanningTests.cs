@@ -41,4 +41,30 @@ public class CaptureScanningTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(() => CaptureScanning.BoundedAsync(new Boom(), TimeSpan.FromSeconds(5)));
     }
+    private sealed class Cooperative : ICooperativeCapturer
+    {
+        public readonly ManualResetEventSlim Entered = new();
+        public readonly ManualResetEventSlim Cancelled = new();
+        public CaptureScan Scan() => throw new Exception("noncooperative path called");
+        public CaptureScan Scan(CancellationToken token)
+        {
+            Entered.Set(); token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+            if (token.IsCancellationRequested) Cancelled.Set();
+            token.ThrowIfCancellationRequested();
+            return new(Array.Empty<CapturedItem>(), Array.Empty<string>());
+        }
+    }
+    [Fact] public async Task DeadlineSignalsCooperativeCancellation_NotOnlyStopsWaiting()
+    {
+        var source = new Cooperative();
+        var scan = await CaptureScanning.BoundedAsync(source, TimeSpan.FromMilliseconds(100));
+        Assert.Empty(scan.Items); Assert.True(source.Cancelled.Wait(5000));
+    }
+    [Fact] public async Task CallerCancellationPropagatesIntoCooperativeScan()
+    {
+        var source = new Cooperative(); using var cancel = new CancellationTokenSource();
+        var scan = CaptureScanning.BoundedAsync(source, TimeSpan.FromSeconds(5), cancel.Token);
+        Assert.True(source.Entered.Wait(5000)); cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => scan); Assert.True(source.Cancelled.Wait(5000));
+    }
 }

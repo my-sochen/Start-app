@@ -76,7 +76,7 @@ public class CaptureAsyncScanTests
         Assert.True(vm.CaptureCloseCommand.CanExecute(null));                         // the screen never froze
     }
 
-    [Fact] public async Task Stuck_scans_do_not_accumulate_forever__after_two_unreturned_scans_no_new_one_starts()
+    [Fact] public async Task Stuck_scan_prevents_any_overlapping_native_scan()
     {
         using var repo = new JsonStore(Tmp()); var cap = new BlockingCapturer();      // the gate stays closed: every scan hangs until the test ends
         var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: cap) { ScanMinVisible = TimeSpan.Zero, ScanTimeout = TimeSpan.FromMilliseconds(80) };
@@ -85,16 +85,16 @@ public class CaptureAsyncScanTests
             vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // scan 1 hangs -> times out, abandoned
             Assert.Contains(vm.CaptureNotes, n => n.Contains("took too long"));
             vm.CaptureCloseCommand.Execute(null);
-            vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // scan 2 hangs -> times out, abandoned
+            vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // prior scan is still active: no second native call
             vm.CaptureCloseCommand.Execute(null);
-            vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // two calls still stuck: no third scan starts
+            vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // prior scan still active: no third native call
             // The VM caps outstanding tasks, including queued workers. The 80ms
             // timeout does not guarantee Task.Run has entered Scan on a busy runner.
             // Wait for dispatch, not scan completion, with a separate hard bound.
             var dispatch = System.Diagnostics.Stopwatch.StartNew();
-            while (Volatile.Read(ref cap.ScanCalls) < 2 && dispatch.Elapsed < TimeSpan.FromSeconds(10))
+            while (Volatile.Read(ref cap.ScanCalls) < 1 && dispatch.Elapsed < TimeSpan.FromSeconds(10))
                 await Task.Delay(20);
-            Assert.Equal(2, Volatile.Read(ref cap.ScanCalls));
+            Assert.Equal(1, Volatile.Read(ref cap.ScanCalls));
             Assert.Contains(vm.CaptureNotes, n => n.Contains("no new scan was started"));
             Assert.False(vm.IsScanning); Assert.True(vm.CaptureOpen);                 // the screen itself stays usable
         }
