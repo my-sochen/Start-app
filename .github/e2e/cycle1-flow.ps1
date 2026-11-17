@@ -382,7 +382,16 @@ try {
     $invoked = @(InvokeEl $upBtn 'upload image button')[-1]
     if (-not $invoked) { Shot 'picker-failure'; throw 'upload image button invocation failed' }
     $dlgHwnd = [IntPtr]::Zero; $extra = 0; $hits = @()
-    for ($t = 0; $t -lt 25 -and $dlgHwnd -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $hits = @(FindPickers); if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 } }
+    # First native common-dialog startup may outlast the former five-second
+    # budget on a cold runner. Wait for identity-bound readiness, never click
+    # again. This is a test readiness bound, not a product performance PASS.
+    $pickerReady = [Diagnostics.Stopwatch]::StartNew()
+    while ($pickerReady.Elapsed -lt [TimeSpan]::FromSeconds(30) -and $dlgHwnd -eq [IntPtr]::Zero) {
+      Start-Sleep -Milliseconds 200
+      $hits = @(FindPickers)
+      if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 }
+    }
+    Info 'first native picker readiness elapsed (not a performance gate)' ("elapsedMs=$($pickerReady.ElapsedMilliseconds) deadlineMs=30000 singleInvoke=True")
     $opened = $dlgHwnd -ne [IntPtr]::Zero
     Assert 'native picker opened on upload click' $opened (AppWindowDump)
     if (-not $opened) { Shot 'picker-failure'; throw 'picker open detection failed after one upload click' }
