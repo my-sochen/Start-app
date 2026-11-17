@@ -16,7 +16,7 @@ public sealed record ItemRow(string InstanceId, string ItemId, string Name, stri
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
 /// read-only state with a message; nothing is written until the user decides (no silent reset).</summary>
-public sealed class MainViewModel : ObservableBase
+public sealed partial class MainViewModel : ObservableBase
 {
     private readonly IStoreRepository _repo;
     private readonly IItemLauncher _launcher;
@@ -30,7 +30,7 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<ItemRow> Items { get; } = new();
     private readonly List<RelayCommand> _commands = new();
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
-    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); }
+    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); Raise(nameof(CanBackToOpeningSelection)); }
     public ICommand CreateWorkspaceCommand { get; }
     /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
     public ICommand OpenDetailsCommand { get; }
@@ -178,20 +178,21 @@ public sealed class MainViewModel : ObservableBase
     public ObservableCollection<string> OpenReport { get; } = new();
     public bool OpenDecisionPending => _pendingOpen != null;
     /// <summary>Label of the confirm button. When every item is skipped by policy, confirming only shows the report, so it says so.</summary>
-    public string ConfirmLabel => _pendingOpen != null && _pendingOpen.All(p => NeverLaunched(p.Finding.State)) ? "Show report" : "Open anyway";
+    public string ConfirmLabel => "המשך לפתיחה";
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
-    public bool ShowOpenPanel => _pendingOpen != null || _isChecking || _isLaunching;
+    public bool ShowOpenPanel => _isChecking || _isLaunching;
     public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
 
     public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
         InitCaptureCommands();
+        InitOpeningCommands();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
         // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
-        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching);
+        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
@@ -199,7 +200,7 @@ public sealed class MainViewModel : ObservableBase
         ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
-        OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching);
+        OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
         EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
@@ -209,7 +210,7 @@ public sealed class MainViewModel : ObservableBase
         CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
         CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
         OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
-        OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching);
+        OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CloseOpenWithCommand = Cmd(_ => CloseOpenWith(), _ => OpenWithOpen);
         MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
         MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
@@ -260,13 +261,13 @@ public sealed class MainViewModel : ObservableBase
         CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
-        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching);
+        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
-        CancelOpenCommand = Cmd(_ => { var launching = IsLaunching; ClearPending(); if (!launching) Status = "Open cancelled, nothing was opened"; }, _ => _pendingOpen != null || IsChecking || IsLaunching);
+        CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _pendingOpen != null || IsChecking || IsLaunching);
         Reload();
     }
 
-    private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
+    private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
     public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
@@ -274,8 +275,8 @@ public sealed class MainViewModel : ObservableBase
     // open with its fields. Safety does not rest on the selection staying put: saves validate the
     // workspace+instance captured when the form opened, and dirty forms block workspace switches and row
     // deletion, so a preserved form can neither crash nor silently retarget.
-    public string Status { get => _status; private set => Set(ref _status, value); }
-    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); RaiseCommands(); } }
+    public string Status { get => _status; private set { Set(ref _status, value); PresentLegacyStatus(value); } }
+    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); RaiseCommands(); } }
     public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
     public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value); ClearDup(); RaiseCommands(); } }
     private ItemType _newType = ItemType.File; private string _newTarget = "";
@@ -352,7 +353,7 @@ public sealed class MainViewModel : ObservableBase
         if (_addressStaged is { } sa)
         {
             var errS = Catalog.ValidateTarget(sa.Type, EditAddress);
-            if (errS != null) { Status = "Not saved: " + errS; return false; }
+            if (errS != null) { FieldError("address", "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + errS); return false; }
             sa.Target = EditAddress; Status = "Address updated on the staged item (saved to the workspace on שמור)"; AddressEditOpen = false;
             return true;
         }
@@ -362,7 +363,7 @@ public sealed class MainViewModel : ObservableBase
         var m = wsA?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing; your address is still in the form"; return false; }
         var err = Catalog.ValidateTarget(it.Type, EditAddress);
-        if (err != null) { Status = "Not saved: " + err; return false; }
+        if (err != null) { FieldError("address", "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + err); return false; }
         // The change applies to the captured workspace only, for every type including sites: ReplaceTargetLocal re-points this one
         // instance at the new address; the same item in other workspaces and other instances here keep their own address.
         var ok = Apply(c =>
@@ -453,7 +454,7 @@ public sealed class MainViewModel : ObservableBase
     private bool SaveDesign()
     {
         var color = DesignColor.Trim(); var image = DesignImagePath.Trim();
-        if (color.Length > 0 && Catalog.ValidateColor(color) is { } ce) { Status = "Not saved: " + ce; return false; }
+        if (color.Length > 0 && Catalog.ValidateColor(color) is { } ce) { FieldError("design", "הצבע אינו תקין. הזינו צבע בצורה #RRGGBB.", "Not saved: " + ce); return false; }
         var ok = Apply(c => c.SetCardDesign(_designWsId, color.Length == 0 ? null : color, image.Length == 0 ? null : image));
         if (ok) { Status = "Card design saved"; DesignEditOpen = false; }
         return ok;
@@ -522,10 +523,12 @@ public sealed class MainViewModel : ObservableBase
     }
     private void AddCategory()
     {
+        if (Catalog.ValidateCategoryName(NewCategoryName) is { } categoryError) { FieldError("category", "שם הקטגוריה אינו תקין. הזינו שם באורך עד 100 תווים ללא תווי בקרה.", "Not saved: " + categoryError); return; }
         if (Apply(c => c.AddCustomCategory(NewCategoryName))) { NewCategoryName = ""; Status = "Category added"; }
     }
     private void SaveRenameCategory()
     {
+        if (Catalog.ValidateCategoryName(RenameCategoryText) is { } categoryError) { FieldError("category", "שם הקטגוריה אינו תקין. הזינו שם באורך עד 100 תווים ללא תווי בקרה.", "Not saved: " + categoryError); return; }
         if (Apply(c => c.RenameCustomCategory(_renameOld, RenameCategoryText))) { RenameCategoryOpen = false; Status = "Category renamed"; }
     }
     private void BeginDeleteCategory(CategoryRow row)
@@ -620,7 +623,7 @@ public sealed class MainViewModel : ObservableBase
     }
     private bool SaveItemEdit()
     {
-        if (string.IsNullOrWhiteSpace(EditItemName)) { Status = "Not saved: item name is required"; return false; }
+        if (string.IsNullOrWhiteSpace(EditItemName)) { FieldError("item", "חסר שם לפריט. הזינו שם כדי לשמור.", "Not saved: item name is required"); return false; }
         // Validate against the workspace+instance captured when the editor opened, never the current
         // selection (PR19 review: the row can be deleted or the view switched while the editor is open).
         // A missing target never throws and never silently retargets: the typed changes stay in the form
@@ -628,6 +631,9 @@ public sealed class MainViewModel : ObservableBase
         var ws = _current.Workspaces.FirstOrDefault(w => w.Id == _editItemWsId);
         if (ws is null || !ws.Items.Any(x => (x.Id ?? x.ItemId) == _editItemId))
         { Status = "Not saved: this item was removed; your changes are still in the form - cancel the edit or add the item again"; return false; }
+        var editedItem = _current.Items.GetValueOrDefault(ws.Items.First(x => (x.Id ?? x.ItemId) == _editItemId).ItemId);
+        if (editedItem is not null && (Catalog.ValidateTarget(editedItem.Type, EditItemTarget) ?? Catalog.ValidateDescription(EditItemDescription)) is { } itemError)
+        { FieldError("item", "בדקו את כתובת הפריט ואת התיאור לפני השמירה.", "Not saved: " + itemError); return false; }
         var targetChanged = EditItemTarget != _origItemTarget;
         var ok = Apply(c =>
         {
@@ -662,18 +668,9 @@ public sealed class MainViewModel : ObservableBase
     }
     private void OpenOneCore(string name, Item it, LaunchConfig? launch)
     {
-        var f = PreflightRules.CheckForm(it, launch) ?? _preflight?.Check(it, launch) ?? new PreflightFinding(PreflightState.Ready);
-        if (NeverLaunched(f.State)) { Status = name + ": skipped, not opened (" + f.Detail + ")"; return; }
-        var gen = ++_generation;
-        OpenTask = Guard(gen, OpenOneAsync(it, launch, name, gen));
-    }
-    private async Task OpenOneAsync(Item it, LaunchConfig? launch, string name, int gen)
-    {
-        var r = await Task.Run(() => _launcher.Launch(it, launch)).ConfigureAwait(true);
-        if (gen != _generation) return;
-        // No TouchLastOpened here: the settled card field "פתיחה אחרונה" is the workspace's last launch (שגר);
-        // no source defines a single-item open as stamping it, so it does not.
-        Status = r.Status == LaunchStatus.Started ? name + ": open request sent (not proof it loaded)" : name + ": failed (" + (r.Detail ?? r.Status.ToString()) + ")";
+        ClearPending(); OpeningChoices.Clear(); _singleOpening = true; _openWsId = "";
+        var copy = it with { Name = name };
+        StartSelectedCheck(new() { (new Membership(it.Id, Launch: launch), copy) });
     }
 
     // ---- navigation and the details screen (פרטי סביבה) ----
@@ -730,7 +727,8 @@ public sealed class MainViewModel : ObservableBase
     private bool SaveDetails()
     {
         var id = Selected!.Id; var n = EditName; var d = EditDescription; var cat = EditCategory;
-        if (string.IsNullOrWhiteSpace(n)) { Status = "Not saved: workspace name is required"; return false; }
+        if (string.IsNullOrWhiteSpace(n)) { FieldError("details", "חסר שם לסביבה. הזינו שם כדי לשמור.", "Not saved: workspace name is required"); return false; }
+        if (Catalog.ValidateDescription(d) is { } detailError) { FieldError("details", "התיאור אינו תקין. הזינו עד 500 תווים ללא תווי בקרה.", "Not saved: " + detailError); return false; }
         var ok = Apply(c => c.UpdateWorkspace(id, n, d, cat == Workspace.DefaultCategory ? null : cat)); // the default stays the default, not an explicit value
         if (ok) { Status = "Workspace details saved"; RaiseDirty(); Raise(nameof(CreatedAtText)); }
         return ok;
@@ -773,7 +771,7 @@ public sealed class MainViewModel : ObservableBase
     {
         var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id; var desc = NewDescription; var name = NewItemName;
         var err = Catalog.ValidateTarget(type, target) ?? Catalog.ValidateDescription(desc) ?? Catalog.ValidateInstanceName(string.IsNullOrWhiteSpace(name) ? null : name);
-        if (err != null) { Status = "Not added: " + err; return; }
+        if (err != null) { FieldError("add", "פרטי האייטם אינם תקינים. בדקו את הכתובת בהתאם לסוג, את השם ואת התיאור.", "Not added: " + err); return; }
         if (!force && new Catalog(_current).HasTarget(wsId, type, target))
         {
             _pendingDup = true; Raise(nameof(DuplicatePending)); RaiseCommands();
@@ -799,8 +797,9 @@ public sealed class MainViewModel : ObservableBase
     private void Create()
     {
         var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory;
+        if (string.IsNullOrWhiteSpace(n) || Catalog.ValidateDescription(d) is not null) { FieldError("create", "הזינו שם לסביבה ותיאור באורך עד 500 תווים.", "Not created: invalid workspace fields"); return; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
-        if (ValidateCreateDesign(color, image) is { } de) { Status = "Not created: " + de; return; }
+        if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return; }
         string? id = null;
         if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
         {
@@ -823,11 +822,11 @@ public sealed class MainViewModel : ObservableBase
 
     private bool Apply(Action<Catalog> change)
     {
-        try { Show(_repo.Mutate(change)); Status = ""; return true; }
-        catch (StoreLockedException e) { Status = e.Message; }
+        try { Show(_repo.Mutate(change)); _saveFailed = false; Raise(nameof(SaveBlocked)); ClearFieldErrors(); Status = ""; return true; }
+        catch (StoreLockedException e) { SaveFailure(e.Message, "הנתונים בשימוש. סגרו חלון נוסף של התוכנה ונסו לשמור שוב. השינויים לא נשמרו."); }
         catch (StoreCorruptException e) { ReadOnly = true; Status = "Data file is invalid and was left untouched: " + e.Message; }
         catch (StoreTooNewException e) { ReadOnly = true; Status = e.Message; }
-        catch (Exception e) when (e is IOException or InvalidOperationException or ArgumentException or UnauthorizedAccessException) { Status = "Save failed, nothing was changed: " + e.Message; }
+        catch (Exception e) when (e is IOException or InvalidOperationException or ArgumentException or UnauthorizedAccessException) { SaveFailure(e.Message); _status = "Save failed, nothing was changed: " + e.Message; Raise(nameof(Status)); }
         return false;
     }
 
@@ -839,6 +838,7 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Overall time allowed for the pre-open checks. Items still unchecked after this are reported as "could not be checked", never as fine.</summary>
     public TimeSpan OpenCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
     private const int CheckWorkers = 4;
+    private int _activeCheckWorkers;
     private int _generation; private CancellationTokenSource? _checkCts; private bool _isChecking;
     private CancellationTokenSource? _launchCts; private bool _isLaunching;
     public bool IsLaunching { get => _isLaunching; private set { Set(ref _isLaunching, value); RaiseCommands(); } }
@@ -849,21 +849,31 @@ public sealed class MainViewModel : ObservableBase
     private string _openWsId = "";
     private void Open()
     {
-        ClearPending(); OpenReport.Clear();
+        ClearPending();
         if (Selected!.Items.Count == 0) { EmptyWorkspaceOpen = true; return; }
-        _openWsId = Selected!.Id;
-        // Snapshot semantics: what is checked and opened is the saved state at the moment Open was pressed; the store file is not watched.
-        var snapshot = Selected!.Items.Select(m => (m, Item: _current.Items.TryGetValue(m.ItemId, out var it) ? it : null)).ToList();
+        _openWsId = Selected.Id; _singleOpening = false;
+        OpeningChoices.Clear();
+        foreach (var m in Selected.Items)
+        {
+            _current.Items.TryGetValue(m.ItemId, out var it);
+            OpeningChoices.Add(new OpeningChoice(m, it, RaiseCommands));
+        }
+        SelectionPending = true; RaiseCommands();
+    }
+
+    private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
+    {
+        SelectionPending = false; _pendingOpen = null; ReopenChoices.Clear();
         _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
-        IsChecking = true; Status = "Checking items before opening...";
+        IsChecking = true;
         OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, _checkCts.Token));
     }
 
-    private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it)
+    private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it, IOpenStateDetector detector)
     {
         if (it is null) return (new Item(m.ItemId, ItemType.File, "(missing item " + m.ItemId + ")", ""), m.Launch, new(PreflightState.Unsupported, "the saved item record is missing from the catalog"), OpenState.NotOpen);
         var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
-        var dup = f.State == PreflightState.Unsupported ? OpenState.NotOpen : _detector.Detect(it, m.Launch);
+        var dup = f.State != PreflightState.Ready ? OpenState.Unknown : detector.Detect(it, m.Launch);
         return (it, m.Launch, f, dup);
     }
 
@@ -871,22 +881,44 @@ public sealed class MainViewModel : ObservableBase
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
     private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
     {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var detector = _detector;
+        using var observationStop = CancellationTokenSource.CreateLinkedTokenSource(token);
+        if (_detector is IOpenSnapshotSource source)
+        {
+            var observation = source.ObserveAsync(snapshot.Where(x => x.Item is not null).Select(x => x.Item!).ToArray(), observationStop.Token);
+            if (await Task.WhenAny(observation, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true) == observation)
+                detector = await observation.ConfigureAwait(true);
+            else
+            {
+                observationStop.Cancel(); detector = new NoOpenStateDetection();
+                _ = observation.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            }
+            if (gen != _generation || token.IsCancellationRequested) return;
+        }
         var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
         var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
         var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = 0; // results[] is written by workers and read once at the deadline: both under gate
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
-            while (!stop.Token.IsCancellationRequested)
+            try { while (!stop.Token.IsCancellationRequested)
             {
                 var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
-                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item); lock (gate) { if (!published) results[i] = r; } }
+                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, detector); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
                 { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) { Interlocked.CompareExchange(ref fault, e, null); stop.Cancel(); bool late; lock (gate) late = published; if (late && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(e); return; } // after the deadline nobody awaits this worker: report now, not when all workers finish // a programming bug is not "unavailable": stop and surface it
-            }
+            } }
+            finally { Interlocked.Decrement(ref _activeCheckWorkers); }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        var all = Task.WhenAll(Enumerable.Range(0, Math.Min(CheckWorkers, snapshot.Count)).Select(_ => Worker()));
-        await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
+        var workers = new List<Task>();
+        for (int i = 0; i < Math.Min(CheckWorkers, snapshot.Count); i++)
+        {
+            if (Interlocked.Increment(ref _activeCheckWorkers) > CheckWorkers) { Interlocked.Decrement(ref _activeCheckWorkers); break; }
+            workers.Add(Worker());
+        }
+        var all = Task.WhenAll(workers);
+        await Task.WhenAny(all, Task.Delay(elapsed.Elapsed < OpenCheckTimeout ? OpenCheckTimeout - elapsed.Elapsed : TimeSpan.Zero, token)).ConfigureAwait(true);
         // Workers still running at the deadline are not awaited, but a fault they hit is still observed exactly once: either thrown here or reported through ReportLate.
         _ = all.ContinueWith(t => { var late = Volatile.Read(ref fault) ?? t.Exception?.GetBaseException(); if (late != null && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(late); }, TaskScheduler.Default);
         (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
@@ -906,19 +938,16 @@ public sealed class MainViewModel : ObservableBase
         {
             var r = done[i];
             if (r is { } ok) plan.Add(ok);
-            else if (snapshot[i].Item is { } it) plan.Add((it, snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
+            else plan.Add((snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, "פריט חסר", ""), snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
         }
-        var bad = plan.Where(p => p.Finding.State != PreflightState.Ready || p.Dup != OpenState.NotOpen).ToList();
-        if (bad.Count == 0) { await LaunchAsync(plan); return; }
+        var confirmed = plan.Select((p, i) => (p, i)).Where(x => x.p.Finding.State == PreflightState.Ready && x.p.Dup == OpenState.Open).ToList();
+        if (confirmed.Count == 0) { await LaunchAsync(plan); return; }
         _pendingOpen = plan;
-        foreach (var b in bad) OpenProblems.Add($"{b.Item.Name}: {Describe(b.Finding, b.Dup)}");
-        var skipped = bad.Count(b => NeverLaunched(b.Finding.State)); var confirmable = bad.Count - skipped;
-        var onlyUnknown = bad.Count(b => !NeverLaunched(b.Finding.State) && b.Finding.State == PreflightState.Ready && b.Dup == OpenState.Unknown);
-        var msg = new List<string>();
-        if (skipped > 0) msg.Add($"{skipped} {(skipped == 1 ? "item" : "items")} will be skipped.");
-        if (confirmable > 0) msg.Add($"{confirmable} {(confirmable == 1 ? "item" : "items")} can be opened after your confirmation" + (onlyUnknown > 0 ? $" (for {onlyUnknown} we only cannot tell whether {(onlyUnknown == 1 ? "it is" : "they are")} already open)." : "."));
-        msg.Add("Nothing has been opened yet.");
-        Status = string.Join(" ", msg);
+        foreach (var x in confirmed)
+        {
+            ReopenChoices.Add(new ReopenChoice(x.i, x.p.Item));
+            OpenProblems.Add(x.p.Item.Name + ": כבר פתוח");
+        }
         Raise(nameof(OpenDecisionPending)); RaiseCommands();
     }
 
@@ -934,7 +963,13 @@ public sealed class MainViewModel : ObservableBase
         return string.Join("; ", parts);
     }
 
-    private void ConfirmOpen() { var plan = _pendingOpen!; ClearPending(); var gen = ++_generation; OpenTask = Guard(gen, LaunchAsync(plan)); }
+    private void ConfirmOpen()
+    {
+        var plan = _pendingOpen!;
+        var declined = ReopenChoices.Where(x => !x.IsChecked).Select(x => x.PlanIndex).ToHashSet();
+        _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); RaiseCommands();
+        var gen = ++_generation; OpenTask = Guard(gen, LaunchAsync(plan, declined));
+    }
 
     /// <summary>The last unexpected error that arrived after its operation was already over (late worker fault) and had no <see cref="UnexpectedError"/> subscriber.</summary>
     public Exception? LateError { get; private set; }
@@ -958,43 +993,42 @@ public sealed class MainViewModel : ObservableBase
         }
     }
 
-    private static bool NeverLaunched(PreflightState s) => s is PreflightState.Unsupported or PreflightState.NeedsDecision;
+    private static bool NeverLaunched(PreflightState s) => s is PreflightState.Missing or PreflightState.Unavailable or PreflightState.Unsupported or PreflightState.NeedsDecision;
 
     /// <summary>Starts items one after another on a background worker (Process.Start can block). Cancel stops FURTHER items only: requests already sent cannot be undone
     /// and are reported. A start call that is blocked in the OS cannot be interrupted; only the single launch worker is ever held by it.</summary>
-    private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan)
+    private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null)
     {
-        OpenReport.Clear(); _launchCts = new CancellationTokenSource(); var cts = _launchCts; IsLaunching = true; Status = "Opening items...";
-        var res = new List<(string Line, int Ok, int Refused, int NotTried)>(); // filled by the worker; read only after it finished
-        Exception? fault = null;
+        _launchCts = new CancellationTokenSource(); var cts = _launchCts; IsLaunching = true;
+        var results = new List<OpeningResult>(); Exception? fault = null;
         await Task.Run(() =>
         {
-            try { foreach (var p in plan)
+            try { for (int i = 0; i < plan.Count; i++)
             {
-                if (cts.IsCancellationRequested) { res.Add(($"{p.Item.Name}: not attempted (cancelled before this item)", 0, 0, 1)); continue; }
-                if (NeverLaunched(p.Finding.State)) { res.Add(($"{p.Item.Name}: skipped, not opened ({p.Finding.Detail})", 0, 1, 0)); continue; }
+                var p = plan[i];
+                if (cts.IsCancellationRequested) { results.Add(new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה.")); continue; }
+                if (declined?.Contains(i) == true) { results.Add(new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. בחרת שלא לפתוח שוב.")); continue; }
+                if (NeverLaunched(p.Finding.State)) { results.Add(new(p.Item, OpeningOutcome.Skipped, SkipExplanation(p.Finding), p.Finding.Detail)); continue; }
                 var r = _launcher.Launch(p.Item, p.Launch);
-                if (r.Status == LaunchStatus.Started)
-                    res.Add(($"{p.Item.Name}: open request sent (not proof it loaded)" + (p.Dup == OpenState.Open ? "; was already open (confirmed), so this may be a duplicate" : p.Dup == OpenState.Unknown ? "; could not tell if it was already open, so it may be a duplicate" : ""), 1, 0, 0));
-                else res.Add(($"{p.Item.Name}: failed ({r.Detail ?? r.Status.ToString()})", 0, 0, 0));
+                results.Add(r.Status == LaunchStatus.Started
+                    ? new(p.Item, OpeningOutcome.RequestSent, "בקשת הפתיחה נשלחה. אין בכך אישור שהפריט נטען.")
+                    : new(p.Item, OpeningOutcome.Failed, "בקשת הפתיחה נכשלה. בדקו את הכתובת, ההרשאות והתוכנה שנבחרה ונסו שוב.", r.Detail ?? r.Status.ToString()));
             } }
-            catch (Exception e) { fault = e; } // keep the partial results, then surface the bug below
+            catch (Exception e) { fault = e; }
         }).ConfigureAwait(true);
-        if (fault != null) foreach (var p in plan.Skip(res.Count)) res.Add(($"{p.Item.Name}: not attempted (stopped by an unexpected error)", 0, 0, 1));
-        var lines = res;
-        int ok = lines.Sum(l => l.Ok), refused = lines.Sum(l => l.Refused), notTried = lines.Sum(l => l.NotTried);
-        foreach (var l in lines) OpenReport.Add(l.Line);
-        if (ok > 0) Apply(c => c.TouchLastOpened(_openWsId)); // the card's "last opened" is set only after a real open request went out, on the workspace that was opened even if the selection moved since
-        IsLaunching = false;
+        if (fault != null) foreach (var p in plan.Skip(results.Count)) results.Add(new(p.Item, OpeningOutcome.Failed, "לא נפתח: הפעולה נעצרה בגלל תקלה.", fault.GetType().Name));
+        OpenReport.Clear(); LastOpeningResults.Clear();
+        foreach (var r in results.OrderBy(r => r.IsProblem ? 0 : 1)) { LastOpeningResults.Add(r); OpenReport.Add(r.Name + ": " + r.Message); }
+        var sent = results.Count(r => r.Outcome == OpeningOutcome.RequestSent);
+        var stampSaved = sent == 0 || _singleOpening || Apply(c => c.TouchLastOpened(_openWsId));
+        IsLaunching = false; Raise(nameof(HasLastOpeningResults));
+        var hasProblems = results.Any(r => r.IsProblem);
+        if (!stampSaved)
+            ShowToast($"נשלחו {sent} בקשות פתיחה, אך זמן הפתיחה האחרונה לא נשמר. בדקו הרשאות ונסו לשמור שוב.", true, ToastTechnicalDetails, opening: true);
+        else ShowToast(hasProblems ? $"נשלחו {sent} בקשות פתיחה מתוך {plan.Count}. יש פריטים שלא נפתחו; אפשר לעיין בפרטים." : $"נשלחו {sent} בקשות פתיחה.", hasProblems, opening: true);
         if (fault != null) ExceptionDispatchInfo.Capture(fault).Throw();
-        var failed = plan.Count - ok - refused - notTried;
-        var parts = new List<string>();
-        if (refused > 0) parts.Add($"{refused} skipped by policy");
-        if (failed > 0) parts.Add($"{failed} could not be started");
-        if (notTried > 0) parts.Add($"{notTried} not attempted because you cancelled; requests already sent cannot be undone");
-        Status = parts.Count == 0 ? $"Open requests sent for {ok} {(ok == 1 ? "item" : "items")}"
-            : $"Open requests sent for {ok} of {plan.Count} items ({string.Join(", ", parts)})";
     }
+
     // ---- capture (לכידה, settled Nov 12 07:14-07:45): scan what is open now, show it read-only (checkbox, original name, address under it),
     // add to a NEW workspace (create form, items checked by default) or to an EXISTING one side by side. Staged additions are NOT saved until
     // שמור; the snapshot survives workspace changes and saves; X resets it. Duplicates: one warning per drag, one grouped dialog for add-all/selected. ----
@@ -1037,7 +1071,7 @@ public sealed class MainViewModel : ObservableBase
         public bool IsProgram => Type == ItemType.Program;
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
-    public sealed record CaptureExistingRow(string Name, string Target, string Group);
+    public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File");
     /// <summary>One duplicate in the grouped dialog; the user ticks which ones to add anyway (none ticked by default).</summary>
     public sealed class DupChoice : ObservableBase
     {
@@ -1078,7 +1112,7 @@ public sealed class MainViewModel : ObservableBase
     /// <summary>Background Scan() calls that have not returned yet (hung or just slow). A stuck COM/UIA call cannot be aborted, only
     /// abandoned - so abandonment is bounded: while <see cref="MaxOpenScans"/> scans have not come back, no new one starts.</summary>
     private int _openScans;
-    private const int MaxOpenScans = 2;
+    private const int MaxOpenScans = 1;
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
     public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
     public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
@@ -1116,9 +1150,9 @@ public sealed class MainViewModel : ObservableBase
     private bool CaptureIdle => !_dupGroup && _dupSingle == null;
     private void InitCaptureCommands()
     {
-        CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview);
-        CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview);
-        AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null);
+        CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
         CaptureAddCommand = Cmd(_ => AddCaptured(), _ => IsCaptureSide && CaptureRows.Count > 0 && CaptureIdle && !ReadOnly);
         CaptureDropCommand = Cmd(p => DropCaptured((CaptureRow)p!), p => p is CaptureRow && IsCaptureSide && CaptureIdle && !ReadOnly);
@@ -1138,7 +1172,7 @@ public sealed class MainViewModel : ObservableBase
         StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly && !ItemEditDirty && !AddressEditDirty);
         StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
-        CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Status = "Not added, nothing was changed"; RaiseCommands(); }, _ => _dupSingle != null);
+        CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); }, _ => _dupSingle != null);
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
         CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _dupGroup);
     }
@@ -1189,7 +1223,13 @@ public sealed class MainViewModel : ObservableBase
             if (gen != _scanGen) return;
         }
         foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
-        foreach (var n in scan.Notes) CaptureNotes.Add(n);
+        foreach (var n in scan.Notes)
+        {
+            // This adapter emits one fixed capabilities paragraph. It belongs in help, not a routine warning list.
+            if (n.StartsWith("Sites: scans open browser tabs", StringComparison.Ordinal) || n == "Files: documents open inside programs are not detected by the current version") continue;
+            CaptureNotes.Add(n);
+        }
+        if (CaptureNotes.Count > 0) ShowToast("הלכידה הושלמה עם מגבלה או תקלה. ייתכן שחסרים פריטים; אפשר להוסיף ידנית או לנסות שוב.", true, string.Join(Environment.NewLine, CaptureNotes));
         IsScanning = false;
         Raise(nameof(CaptureAddLabel)); RaiseCommands();
         Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
@@ -1209,7 +1249,7 @@ public sealed class MainViewModel : ObservableBase
         CaptureWorkspaceItems.Clear();
         var w = _current.Workspaces.FirstOrDefault(x => x.Id == _capWsId); if (w is null) return;
         foreach (var m in w.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 4).ThenBy(x => x.i))
-            if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type)));
+            if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type), it.Type.ToString()));
     }
     private bool IsCaptureDuplicate(CaptureRow r) =>
         new Catalog(_current).HasTarget(_capWsId, r.Type, r.Target) || StagedRows.Any(s => s.Type == r.Type && s.Target == r.Target);
@@ -1285,11 +1325,12 @@ public sealed class MainViewModel : ObservableBase
         i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? new LaunchConfig(Browser: i.Browser) : null;
     private bool CreateFromCapture()
     {
-        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory; string? id = null;
+        var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory;
+        if (string.IsNullOrWhiteSpace(n) || Catalog.ValidateDescription(d) is not null) { FieldError("create", "הזינו שם לסביבה ותיאור באורך עד 500 תווים.", "Not created: invalid workspace fields"); return false; } string? id = null;
         var chosen = CaptureRows.Where(r => r.IsChecked).Select(r => r.Item).ToList();
         if (string.IsNullOrWhiteSpace(n)) { Status = "Not created: workspace name is required"; return false; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
-        if (ValidateCreateDesign(color, image) is { } de) { Status = "Not created: " + de; return false; }
+        if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return false; }
         foreach (var i in chosen)
         {
             var err = Catalog.ValidateTarget(i.Type, i.Target) ?? Catalog.ValidateLaunch(i.Type, RetainedBrowserLaunch(i));
@@ -1313,7 +1354,7 @@ public sealed class MainViewModel : ObservableBase
     {
         if (IsCaptureNew)
         {
-            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return false; }
+            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; FieldError("create", "חסר שם לסביבה. הזינו שם כדי לשמור.", "Not saved: workspace name is required"); return false; }
             return CreateFromCapture();
         }
         return SaveStaged();

@@ -6,8 +6,6 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
         <local:ColorBrushConverter x:Key="ColorBrush"/>
-        <local:ProgramIconConverter x:Key="ProgramIcon"/>
-        <local:ProgramHasIconConverter x:Key="ProgramHasIcon"/>
         <local:CardBrushConverter x:Key="CardBrush"/>
         <local:FrameThicknessConverter x:Key="FrameThickness"/>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
@@ -84,7 +82,7 @@
                         <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload create image"/>
                         <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Create card image path" ToolTip="Full path of the uploaded image"/>
                     </DockPanel>
-                    <Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2"/>
+                    <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2"/>
                 </StackPanel>
                 <ListBox ItemsSource="{Binding Workspaces}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
@@ -146,6 +144,7 @@
                         <TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
                         <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Workspace name"/>
                     </DockPanel>
+                    <TextBlock Text="{Binding DetailsError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                     <DockPanel Margin="0,4,0,0">
                         <TextBlock DockPanel.Dock="Left" Text="Category" Width="80" VerticalAlignment="Center"/>
                         <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding EditCategory}" MinWidth="140" HorizontalAlignment="Left" AutomationProperties.Name="Workspace category"/>
@@ -173,6 +172,7 @@
                             <TextBlock DockPanel.Dock="Left" Text="Address" Width="80" VerticalAlignment="Center"/>
                             <TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
                         </DockPanel>
+                    <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="Save" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
                                     Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
@@ -192,6 +192,7 @@
                         <Button DockPanel.Dock="Right" Content="Add" Command="{Binding AddItemCommand}" Margin="4,0,0,0" Padding="12,2"/>
                         <TextBox x:Name="TargetBox" Text="{Binding NewTarget, UpdateSourceTrigger=PropertyChanged}" MinWidth="120" Margin="4,0,0,0" AutomationProperties.Name="Item target"/>
                     </DockPanel>
+                    <TextBlock Text="{Binding AddItemError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                     <DockPanel Margin="0,4,0,0">
                         <TextBlock DockPanel.Dock="Left" Text="Name (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox Text="{Binding NewItemName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Item name"/>
@@ -231,7 +232,7 @@
                                 <Button Grid.Column="0" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
                                         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" HorizontalAlignment="Left" Cursor="Hand"
                                         ToolTip="Open this item" Padding="0">
-                                    <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                                    <StackPanel Orientation="Horizontal"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="112" Foreground="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></StackPanel>
                                 </Button>
                                 <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
@@ -260,32 +261,7 @@
                                     </Button>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
-                                    <!-- the program the item opens with, when one was chosen (התוכנה שבה האייטם נפתח, אם רלוונטי).
-                                         Icon + short name replaces the long path (settled Nov 14); the full path stays in the tooltip and
-                                         in the open-with popup, and a missing/unreadable exe icon falls back to the full-path text.
-                                         A plain StackPanel has no UIA peer, so the accessible contract lives on the exposed TextBlock:
-                                         its content is the UIA name, AutomationProperties.HelpText carries the full path for assistive
-                                         tech, and the tooltip keeps the visual hover (gate evidence: name/tooltip on the panel never
-                                         surfaced). Run bindings stay explicit OneWay (Run.Text defaults TwoWay, gate failure 43641855227). -->
-                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Program}">
-                                        <Image Source="{Binding Program, Converter={StaticResource ProgramIcon}}" Width="14" Height="14" Margin="0,0,4,1" VerticalAlignment="Center"/>
-                                        <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}" AutomationProperties.HelpText="{Binding Program, Mode=OneWay}">
-                                            <Run Text="Opens with: "/><Run Text="{Binding ProgramDisplayName, Mode=OneWay}"/>
-                                        </TextBlock>
-                                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
-                                            <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding Program, Converter={StaticResource ProgramHasIcon}}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        </Style.Triggers></Style></StackPanel.Style>
-                                    </StackPanel>
-                                    <TextBlock Foreground="DarkSlateGray" FontSize="11" Margin="0,0,8,2" ToolTip="{Binding Program}">
-                                        <Run Text="Opens with: "/><Run Text="{Binding Program, Mode=OneWay}"/>
-                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
-                                            <DataTrigger Binding="{Binding Program}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding Program}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                            <DataTrigger Binding="{Binding Program, Converter={StaticResource ProgramHasIcon}}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                        </Style.Triggers></Style></TextBlock.Style>
-                                    </TextBlock>
+                                    <local:ProgramIconView Program="{Binding Program}"/>
                                     <TextBlock Text="{Binding Description}" ToolTip="{Binding Description}" Foreground="Gray" FontStyle="Italic" TextTrimming="CharacterEllipsis" Margin="0,0,8,2">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Visible"/><Style.Triggers>
                                             <DataTrigger Binding="{Binding Description}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -299,33 +275,28 @@
                 </ListView>
             </DockPanel>
 
-            <!-- shared bottom area: preflight panel, report, status -->
+            <!-- Progress is nonmodal; completed results are opened only by explicit user choice. -->
             <StackPanel Grid.Row="1" Margin="8,0,8,8">
-                <StackPanel Visibility="{Binding ShowOpenPanel, Converter={StaticResource B2V}}" Margin="0,4,0,0">
-                    <TextBlock Text="Problems found before opening:" FontWeight="SemiBold" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
-                    <ListBox ItemsSource="{Binding OpenProblems}" MaxHeight="64" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <Button Content="{Binding ConfirmLabel}" Command="{Binding ConfirmOpenAnywayCommand}" Padding="8,2" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}"/>
-                        <Button Content="Cancel" Command="{Binding CancelOpenCommand}" Padding="8,2" Margin="8,0,0,0"/>
-                    </StackPanel>
+                <StackPanel Visibility="{Binding ShowOpenPanel, Converter={StaticResource B2V}}" Orientation="Horizontal">
+                    <TextBlock Text="בודק או שולח בקשות פתיחה..." VerticalAlignment="Center"/>
+                    <Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="10,2" Margin="8,0"/>
                 </StackPanel>
-                <ListBox ItemsSource="{Binding OpenReport}" MaxHeight="64" Margin="0,4,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.Style><Style TargetType="ListBox"><Style.Triggers><DataTrigger Binding="{Binding OpenReport.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ListBox.Style>
-                </ListBox>
-                <TextBlock Text="{Binding Status}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                <Button Content="תוצאות הפתיחה האחרונות" Command="{Binding ShowLastOpeningResultsCommand}" HorizontalAlignment="Right" Padding="10,3" Visibility="{Binding HasLastOpeningResults, Converter={StaticResource B2V}}" AutomationProperties.Name="Last opening results"/>
             </StackPanel>
         </Grid>
 
+        <Border Grid.Row="0" Panel.ZIndex="100" Background="#FFF2D5" BorderBrush="#B48629" BorderThickness="1" Padding="10" Visibility="{Binding SaveBlocked, Converter={StaticResource B2V}}" FlowDirection="RightToLeft">
+            <TextBlock Text="{Binding SaveBlockedMessage}" TextWrapping="Wrap"/>
+        </Border>
+
         <!-- ============ capture screen (מסך לכידה): open-now list on one side; new-workspace form, workspace search or the chosen workspace on the other ============ -->
-        <Grid Grid.RowSpan="2" Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
+        <Grid Grid.Row="1" Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
             <DockPanel Margin="8">
                 <DockPanel DockPanel.Dock="Top">
                     <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CaptureCloseCommand}" Padding="8,2" AutomationProperties.Name="Close capture" ToolTip="Close capture"/>
                     <TextBlock Text="לכידה" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
                 </DockPanel>
-                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CaptureNotes}" Margin="0,2,0,6">
-                    <ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Gray" FontSize="11" TextWrapping="Wrap"/></DataTemplate></ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <Expander DockPanel.Dock="Top" Header="מה ניתן ללכוד?" FlowDirection="RightToLeft" Margin="0,3,0,6"><TextBlock Text="הלכידה קוראת חלונות ולשוניות נגישים בלבד ואינה רשימה מלאה של כל מה שפתוח. בדיקת לשוניות עשויה להחליף ביניהן לרגע. מסמכים פתוחים בתוך תוכנות אינם מזוהים באופן כללי. דפדפנים וגרסאות שונים, חלונות מוגנים ולשוניות לא פעילות עשויים לא להיקרא. אותו אתר בכמה דפדפנים מופיע בנפרד לכל דפדפן. הדפדפן נשמר כשזוהה; הפרופיל אינו נשמר. אפשר להוסיף פריטים ידנית." TextWrapping="Wrap"/></Expander>
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
@@ -362,7 +333,7 @@
                                 <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload capture image"/>
                                 <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture card image path" ToolTip="Full path of the uploaded image"/></DockPanel>
                             <TextBlock Text="Only the ticked items on the right are added." Foreground="Gray" FontSize="11" Margin="0,6,0,0"/>
-                            <Button Content="Create workspace from capture" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
+                            <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="Create workspace from capture" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
                         </StackPanel>
 
                         <DockPanel Visibility="{Binding IsCapturePick, Converter={StaticResource B2V}}">
@@ -390,7 +361,7 @@
                             <TextBlock DockPanel.Dock="Top" Text="Drag items here or use the add button. Nothing is saved until שמור." Foreground="Gray" FontSize="11" Margin="0,2,0,4"/>
                             <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace">
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate><StackPanel><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/></TextBlock><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
+                                    <DataTemplate><StackPanel><DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/></TextBlock></DockPanel><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
@@ -417,7 +388,7 @@
                                                         </ContextMenu>
                                                     </Button.ContextMenu>
                                                 </Button>
-                                                <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="6,0"/>
                                             </DockPanel>
                                             <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
                                             <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description" Margin="0,2,0,0"/>
@@ -442,7 +413,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Label}">
-                                        <StackPanel><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/><Run Text="{Binding BrowserSuffix, Mode=OneWay}" Foreground="Gray"/></TextBlock>
+                                        <StackPanel><DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/><Run Text="{Binding BrowserSuffix, Mode=OneWay}" Foreground="Gray"/></TextBlock></DockPanel>
                                             <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis"/></StackPanel>
                                     </CheckBox>
                                 </DataTemplate>
@@ -506,6 +477,7 @@
                         <TextBlock Text="עריכת כתובת" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBox Text="{Binding EditAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Full address"/>
+                    <TextBlock Text="{Binding AddressError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                         <Button Content="העתק" Command="{Binding CopyFullAddressCommand}" Padding="12,2" AutomationProperties.Name="Copy full address"/>
                         <Button Content="שמור" Command="{Binding SaveAddressCommand}" Padding="12,2" Margin="8,0,0,0"
@@ -556,7 +528,7 @@
                                 <Button DockPanel.Dock="Right" Content="בחר" Padding="8,0" Margin="4,0,0,0" AutomationProperties.Name="Pick resource"
                                         Command="{Binding DataContext.PickResourceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}"/>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel>
                                     <!-- sites also show the address under the name (settled); other types show the name only -->
                                     <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
@@ -580,7 +552,7 @@
                         <TextBlock Text="עיצוב כרטיס" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <!-- preview: same color/frame rule as the card, bound to the unsaved values -->
-                    <local:PreviewBorder Height="90" CornerRadius="4" Margin="0,0,0,8" BorderBrush="{Binding DesignColor, Converter={StaticResource ColorBrush}}"
+                    <TextBlock Text="{Binding DesignError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><local:PreviewBorder Height="90" CornerRadius="4" Margin="0,0,0,8" BorderBrush="{Binding DesignColor, Converter={StaticResource ColorBrush}}"
                             AutomationProperties.Name="Card design preview">
                         <local:PreviewBorder.BorderThickness>
                             <Binding Path="DesignImagePath" Converter="{StaticResource FrameThickness}"/>
@@ -627,7 +599,7 @@
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Padding="6,0" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
                         <TextBlock Text="ערוך קטגוריה" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
-                    <TextBlock Text="{Binding CurrentCategoryName, StringFormat='Current: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='Current: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
                     <ListBox ItemsSource="{Binding CategoryRows}" MaxHeight="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Category list">
                         <ListBox.ItemTemplate><DataTemplate>
                             <DockPanel>
@@ -646,7 +618,7 @@
                                 </Button>
                                 <Button DockPanel.Dock="Right" Content="בחר" Padding="6,0" Margin="4,0,0,0" AutomationProperties.Name="Pick category"
                                         Command="{Binding DataContext.PickCategoryCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}"/>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel>
                             </DockPanel>
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
@@ -703,5 +675,35 @@
                 </StackPanel>
             </Border>
         </Grid>
+        <Grid Grid.RowSpan="2" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding SelectionPending, Converter={StaticResource B2V}}">
+            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="620" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10"><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelOpenCommand}" AutomationProperties.Name="Close opening selection"/><TextBlock Text="מה לפתוח בסביבה?" FontSize="18" FontWeight="SemiBold"/></DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0"><Button Content="שגר" Command="{Binding ConfirmSelectionCommand}" Padding="16,4" AutomationProperties.Name="Confirm opening selection"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4" Margin="8,0"/></StackPanel>
+                    <ListBox ItemsSource="{Binding OpeningChoices}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Opening selection">
+                        <ListBox.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name}"><DockPanel Margin="0,3"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextWrapping="Wrap" FlowDirection="LeftToRight"/></StackPanel></DockPanel></CheckBox></DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+        <Grid Grid.RowSpan="2" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}">
+            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="620" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8"><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelOpenCommand}" AutomationProperties.Name="Close confirmed duplicates"/><TextBlock Text="הפריטים האלה כבר פתוחים" FontSize="18" FontWeight="SemiBold"/></DockPanel><TextBlock Text="סמנו רק את מה שתרצו לפתוח שוב. עדיין לא נשלחה בקשת פתיחה." TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0"><Button Content="המשך לפתיחה" Command="{Binding ConfirmOpenAnywayCommand}" Padding="12,4" AutomationProperties.Name="Confirm duplicate choices"/><Button Content="חזרה לבחירה" Command="{Binding BackToOpeningSelectionCommand}" Padding="12,4" Margin="8,0" Visibility="{Binding CanBackToOpeningSelection, Converter={StaticResource B2V}}"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4"/></StackPanel>
+                    <ListBox ItemsSource="{Binding ReopenChoices}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Confirmed duplicate list"><ListBox.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name}"><DockPanel Margin="0,3"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextWrapping="Wrap" FlowDirection="LeftToRight"/></StackPanel></DockPanel></CheckBox></DataTemplate></ListBox.ItemTemplate></ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+        <Grid Grid.RowSpan="2" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding LastResultsOpen, Converter={StaticResource B2V}}">
+            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="660" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+                <DockPanel><DockPanel DockPanel.Dock="Top" Margin="0,0,0,10"><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CloseLastOpeningResultsCommand}" AutomationProperties.Name="Close last opening results"/><TextBlock Text="תוצאות הפתיחה האחרונות" FontSize="18" FontWeight="SemiBold"/></DockPanel>
+                    <ListBox ItemsSource="{Binding LastOpeningResults}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Opening results"><ListBox.ItemTemplate><DataTemplate><DockPanel Margin="0,4"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0" VerticalAlignment="Top"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Message}" TextWrapping="Wrap"/><Expander Header="פרטים טכניים" Margin="0,3,0,0"><StackPanel><TextBlock Text="{Binding TechnicalDetails}" TextWrapping="Wrap" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding DataContext.CopyTechnicalDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding TechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel></DockPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+        <Border Grid.RowSpan="2" Panel.ZIndex="20" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" Padding="12" Width="480" MaxHeight="250" Background="#FFF9EB" BorderBrush="#B48629" BorderThickness="1" Visibility="{Binding ToastVisible, Converter={StaticResource B2V}}" FlowDirection="RightToLeft" AutomationProperties.Name="Notification">
+            <StackPanel><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding DismissToastCommand}" AutomationProperties.Name="Dismiss notification"/><TextBlock Text="{Binding ToastMessage}" TextWrapping="Wrap" Margin="0,0,8,0"/></DockPanel><Button Content="תוצאות הפתיחה" Command="{Binding ToastDetailsCommand}" HorizontalAlignment="Right" Margin="0,5,0,0" Visibility="{Binding ToastHasOpeningResults, Converter={StaticResource B2V}}"/><Expander Header="פרטים טכניים"><StackPanel><TextBox Text="{Binding ToastTechnicalDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding CopyTechnicalDetailsCommand}" CommandParameter="{Binding ToastTechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel>
+        </Border>
     </Grid>
 </Window>

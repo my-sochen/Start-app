@@ -19,7 +19,7 @@ public partial class App : Application
             CrashLogger.Attach(Path.Combine(dir, "crash.log"), this); // evidence only; never marks anything handled
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
-        var vm = new MainViewModel(_store, launcher, preflight, capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
+        var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
         new MainWindow { DataContext = vm }.Show();
@@ -30,15 +30,26 @@ public partial class App : Application
 /// <summary>Site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab
 /// in turn (then restoring the tab the user was on) so every tab's address is captured, not just the active one. A browser extension
 /// (prototype bridge proven on Edge only, not decided) would avoid the visible tab switching.</summary>
-public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
+public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
 {
+    private readonly bool _exactEvidence;
+    public BrowserAddressBarCapturer(bool exactEvidence = false) { _exactEvidence = exactEvidence; }
     private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase) { "chrome", "msedge", "brave" };
     private delegate bool EnumProc(IntPtr h, IntPtr l);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
-    public CaptureScan Scan()
+    private static readonly SemaphoreSlim ScanGate = new(1, 1);
+    public CaptureScan Scan() => Scan(CancellationToken.None);
+    public CaptureScan Scan(CancellationToken cancellationToken)
     {
+        if (!ScanGate.Wait(0)) return new(Array.Empty<CapturedItem>(), new[] { "A browser scan is still active; no overlapping scan was started" });
+        try { return ScanCore(cancellationToken); }
+        finally { ScanGate.Release(); }
+    }
+    private CaptureScan ScanCore(CancellationToken cancellationToken)
+    {
+        using var focus = new ScanFocusLease();
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
         // item's default browser (spec Nov 11). The path can be unreadable (e.g. an elevated browser); the site is still
@@ -46,6 +57,7 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
         var paths = new Dictionary<int, string?>();
         foreach (var p in System.Diagnostics.Process.GetProcesses())
         {
+            // Process handles must still be disposed even after cancellation; don't throw before finally.
             try
             {
                 if (!Browsers.Contains(p.ProcessName)) continue;
@@ -63,6 +75,9 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
         // Only browser windows are touched through UI Automation (never this app's own window, which would deadlock on the UI thread).
         foreach (var (hwnd, pid) in handles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!focus.CanContinue) { notes.Add("Browser scan stopped after user activity or an uncertain focus change"); break; }
+            focus.ObserveBrowser(hwnd);
             var browserPath = paths.TryGetValue(pid, out var bp) ? bp : null;
             System.Windows.Automation.AutomationElement? originallySelected = null;
             try
@@ -85,17 +100,30 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                 }
                 if (edit is null) continue;
                 var value = (System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seen = new HashSet<string>(StringComparer.Ordinal);
                 // The address bar always shows the ACTIVE tab's address, so each read below follows a real tab selection.
-                void Collect()
+                void Collect(System.Windows.Automation.AutomationElement? tab, string? before = null)
                 {
-                    var site = CaptureRules.SiteFromAddressText(value.Current.Value);
+                    var address = value.Current.Value;
+                    if (_exactEvidence)
+                    {
+                        if (tab is null || ExactObservedUrl.Key(address) is null || (before is not null && address == before)) return;
+                        // A changed address alone is not proof it belongs to the newly selected tab. Require that same tab to
+                        // remain selected and the same complete address across a bounded stability window, with no user input.
+                        for (int read = 0; read < 3; read++)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!focus.CanContinue || tab.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern selected || !selected.Current.IsSelected) return;
+                            System.Threading.Thread.Sleep(100);
+                            if (value.Current.Value != address) return;
+                        }
+                    }
+                    var site = _exactEvidence ? address : CaptureRules.SiteFromAddressText(address);
                     if (site is null || !seen.Add(site)) return;
                     var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
                     items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
                     if (browserPath is null) unidentifiedSites++;
                 }
-                Collect(); // the tab the user is looking at
                 var tabs = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.TabItem));
                 // Snapshot the user's active tab BEFORE any Select(): the first Select below deselects it,
@@ -110,21 +138,28 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
                 }
+                Collect(originallySelected);
                 foreach (System.Windows.Automation.AutomationElement t in tabs)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!focus.CanContinue) break;
                     try
                     {
                         if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern sip) continue;
                         if (sip.Current.IsSelected) continue; // the active tab was already captured by the first Collect()
                         var before = value.Current.Value;
+                        if (!focus.CanContinue) break;
                         sip.Select();
                         var until = DateTime.UtcNow.AddMilliseconds(400);
                         while (DateTime.UtcNow < until)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!focus.CanContinue) break;
                             System.Threading.Thread.Sleep(50);
                             try { if (value.Current.Value != before) break; } catch (System.Windows.Automation.ElementNotAvailableException) { break; }
                         }
-                        Collect();
+                        if (!focus.CanContinue) break;
+                        Collect(t, before);
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
                 }
@@ -132,9 +167,9 @@ public sealed class BrowserAddressBarCapturer : IOpenItemCapturer
             catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
             finally
             {
-                // Leave the user's browser exactly as found: re-select the tab that was active before the
-                // scan, even when the scan throws (an unexpected exception type still restores, then escapes).
-                if (originallySelected != null)
+                // Best effort only: restore the original tab unless input or uncertain focus revoked permission.
+                // Cancellation stops further collection, but safe cleanup may still restore the original selection.
+                if (originallySelected != null && focus.CanContinue)
                     try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
             }

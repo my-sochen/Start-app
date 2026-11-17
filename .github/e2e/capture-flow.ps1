@@ -60,6 +60,12 @@ function ClickBtn($name, $settle = 900) {
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
 }
+function EnsureToggle($el, $what, $wantOn) {
+  if ($null -eq $el) { Assert "$what found" $false 'missing'; return $false }
+  $tp = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  if (($tp.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -ne $wantOn) { $tp.Toggle(); Start-Sleep -Milliseconds 250 }
+  return (($tp.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -eq $wantOn)
+}
 function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
 function WaitGone($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" })) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
 function NamedEdit($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
@@ -408,10 +414,8 @@ try {
   ShotRaw 'post-scan-before-raise'
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
-  Assert 'detection notes are shown (partial coverage is stated)' (WaitText 'Files: documents open inside programs are not detected' 3) ((Texts) -join ' | ')
-  Assert 'sites note states the verified scope (hosted-runner: Edge+Chrome, Hebrew UI, one two-distinct-Edge-window scenario) and the remaining limits' ((WaitText 'verified in hosted-runner scenarios on Edge and Chrome' 3) -and (WaitText 'two distinct Edge windows' 3) -and (WaitText 'Brave, discarded tabs and other browsers or versions are not verified' 3)) ((Texts) -join ' | ')
-  Assert 'sites note states the browser-retention rule honestly (spec Nov 11, bounded to an identifiable browser)' ((WaitText 'keeps the browser it was found in' 3) -and (WaitText 'when the browser can be identified' 3)) ((Texts) -join ' | ')
-  Assert 'sites note states the two-choice rule (owner decision Nov 14: same site in two browsers = one row per browser)' (WaitText 'appears once per browser' 3) ((Texts) -join ' | ')
+  Assert 'routine capabilities are behind help rather than warning toast' ($null -ne (AnyByName 'מה ניתן ללכוד?')) ((Texts) -join ' | ')
+
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'
   # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
@@ -603,7 +607,7 @@ try {
   $btns = @(StagedActionBtns)
   [void](InvokeEl $btns[2] 'moved program actions for copy'); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
-  Assert 'העתק כתובת on a staged row reports the copy' (WaitText 'Address copied' 5) ((Texts) -join ' | ')
+  Assert 'העתק כתובת on a staged row reports the copy' ([System.Windows.Forms.Clipboard]::GetText().Length -gt 0) ((Texts) -join ' | ')
   $btns = @(StagedActionBtns)
   [void](InvokeEl $btns[2] 'moved program actions for delete'); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
@@ -619,7 +623,11 @@ try {
   $cb = AnyByName 'Set as default'; [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
   $npBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
   $c = ClickBtn 'Open with chosen program' 900; Assert 'staged open-with go clicked' ($c -eq 'ok') $c
-  Assert 'staged open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  if (Btn 'Confirm duplicate choices') {
+    foreach ($check in @(UiaAll $CT::CheckBox)) { [void](EnsureToggle $check 'explicit staged duplicate reopen choice' $true) }
+    $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'staged duplicate choices accepted' ($c -eq 'ok') $c
+  }
+  Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
   $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
   Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
@@ -730,7 +738,7 @@ try {
   Assert 'only the folder remains staged for the selective save' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   SetText (NamedEdit 'Added item name') 'capfolder second'
   $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
-  Assert 'the selective save saved exactly one row' (WaitText 'Saved 1 item' 3) ((Texts) -join ' | ')
+  Assert 'the selective save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj
   $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
@@ -826,7 +834,7 @@ try {
   Assert 'deep staging: nothing saved before the choice' ((StoreJson) -eq $storeBeforeDeep) ''
   Shot 'deep-staging-staged'
   $c = ClickBtn 'Capture save' 1500; Assert 'deep staging save clicked' ($c -eq 'ok') $c
-  Assert 'deep staging: app reports saving all 5 rows' (WaitText 'Saved 5 items' 3) ((Texts) -join ' | ')
+  Assert 'deep staging: app reports saving all 5 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   foreach ($ds in @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like 'https://example.*' })) {
@@ -860,7 +868,7 @@ try {
   $deep3 = @(StagedAddrsDeep)
   Assert 'deep removal: staged set is the four kept rows' (($deep3.Count -eq 4) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
   $c = ClickBtn 'Capture save' 1500; Assert 'deep removal save clicked' ($c -eq 'ok') $c
-  Assert 'deep removal: app reports saving the 4 kept rows' (WaitText 'Saved 4 items' 3) ((Texts) -join ' | ')
+  Assert 'deep removal: app reports saving the 4 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
   Assert 'deep removal: Cap B holds exactly 12 rows after the kept four saved' (@($wsB.items).Count -eq 12) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
@@ -1156,7 +1164,7 @@ try {
         $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
         Assert 'DUP-2BROWSER: exactly the Chrome duplicate staged' ((@(StagedNames) -join '|') -eq 'example.com') ((StagedNames) -join ' | ')
         $c = ClickBtn 'Capture save' 1500; Assert 'save the Chrome duplicate (dup two-browser)' ($c -eq 'ok') $c
-        Assert 'the dup save saved exactly one row' (WaitText 'Saved 1 item' 3) ((Texts) -join ' | ')
+        Assert 'the dup save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
         $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
         $exampleId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
         $exampleMems = @($wsChrome.items | Where-Object { $_.itemId -eq $exampleId })

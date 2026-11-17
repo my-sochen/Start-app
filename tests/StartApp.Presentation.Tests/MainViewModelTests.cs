@@ -29,8 +29,8 @@ public class MainViewModelTests
         var p = Tmp(); using var repo = new JsonStore(p);
         repo.Mutate(c => { var w = c.CreateWorkspace("w"); var i = c.GetOrAddItem(ItemType.File, "f", "C:\\a.txt"); c.AddToWorkspace(w.Id, i.Id); });
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); Assert.True(vm.OpenDecisionPending); vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Contains("0 of 1", vm.Status);
+        vm.OpenWorkspaceCommand.Execute(null); vm.ConfirmSelectionCommand.Execute(null); vm.OpenTask.Wait(); Assert.False(vm.OpenDecisionPending);
+        Assert.Equal(OpeningOutcome.Failed, Assert.Single(vm.LastOpeningResults).Outcome); Assert.True(vm.ToastPersistent);
     }
 
     [Fact] public void AddItem_Persists_ReusesSharedItem_AndRejectsInvalidWithoutTrimming()

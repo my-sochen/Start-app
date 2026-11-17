@@ -7,7 +7,10 @@ public static class CaptureScanning
 {
     public static async Task<CaptureScan> BoundedAsync(IOpenItemCapturer capturer, TimeSpan timeout, CancellationToken cancel = default, Action? scanSettled = null)
     {
-        var scan = Task.Run(() => capturer.Scan());
+        var stop = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        // Dispose only when the native work actually settles, not when the caller stops waiting.
+        var scan = Task.Run(() => capturer is ICooperativeCapturer cooperative ? cooperative.Scan(stop.Token) : capturer.Scan());
+        _ = scan.ContinueWith(_ => stop.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         // Fires when the underlying Scan() call returns in ANY state - including long after a timeout abandoned it. This is what
         // lets the caller bound abandoned threads: the call itself is never aborted (impossible safely), only stopped being waited on.
         if (scanSettled != null) _ = scan.ContinueWith(_ => scanSettled(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -15,6 +18,7 @@ public static class CaptureScanning
         var done = await Task.WhenAny(scan, limit).ConfigureAwait(false);
         if (done == scan) return await scan; // finished in time; a source failure propagates to the caller's handler
         _ = scan.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted); // abandoned, never unobserved
+        try { stop.Cancel(); } catch (ObjectDisposedException) { }
         cancel.ThrowIfCancellationRequested();
         return new CaptureScan(Array.Empty<CapturedItem>(), new[] { "The scan took too long and was stopped; items can still be added by hand or by scanning again" });
     }
