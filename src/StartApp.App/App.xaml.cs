@@ -49,6 +49,9 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
     }
     private CaptureScan ScanCore(CancellationToken cancellationToken)
     {
+        // An editable omnibox, even stable on the selected tab, is not committed navigation evidence.
+        // Keep this route Unknown until an approved source can prove the actual document URL.
+        if (_exactEvidence) return new(Array.Empty<CapturedItem>(), new[] { "Committed browser URL evidence is unavailable; duplicate state remains Unknown" });
         using var focus = new ScanFocusLease(cancellationToken);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
@@ -105,20 +108,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                 void Collect(System.Windows.Automation.AutomationElement? tab, string? before = null)
                 {
                     var address = value.Current.Value;
-                    if (_exactEvidence)
-                    {
-                        if (tab is null || ExactObservedUrl.Key(address) is null || (before is not null && address == before)) return;
-                        // A changed address alone is not proof it belongs to the newly selected tab. Require that same tab to
-                        // remain selected and the same complete address across a bounded stability window, with no user input.
-                        for (int read = 0; read < 3; read++)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            if (!focus.CanContinue || tab.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern selected || !selected.Current.IsSelected) return;
-                            System.Threading.Thread.Sleep(100);
-                            if (value.Current.Value != address) return;
-                        }
-                    }
-                    var site = _exactEvidence ? address : CaptureRules.SiteFromAddressText(address);
+                    var site = CaptureRules.SiteFromAddressText(address);
                     if (site is null || !seen.Add(site)) return;
                     var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
                     items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
@@ -170,7 +160,12 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                 // Best effort only: restore the original tab unless input or uncertain focus revoked permission.
                 // Cancelled/timed-out snapshots also revoke cleanup writes, preventing a late return after a caller has moved on.
                 if (originallySelected != null && focus.CanContinue)
-                    try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
+                    try
+                    {
+                        var restore = (System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern);
+                        // Pattern acquisition may block. Recheck immediately before the native write, not just before acquisition.
+                        if (!cancellationToken.IsCancellationRequested && focus.CanContinue) restore.Select();
+                    }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
             }
         }
