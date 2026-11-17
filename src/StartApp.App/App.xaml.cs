@@ -161,6 +161,9 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                         var before = value.Current.Value;
                         if (!focus.CanContinue) break;
                         BrowserCaptureTrace.Write(traceScan, "select-call", index: traceTab);
+                        // Diagnostic I/O can block too. Renew permission immediately before the native write.
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (!focus.CanContinue) break;
                         sip.Select();
                         BrowserCaptureTrace.Write(traceScan, "select-return", index: traceTab);
                         var until = DateTime.UtcNow.AddMilliseconds(400);
