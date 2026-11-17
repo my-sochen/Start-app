@@ -137,6 +137,36 @@ jobs:
           $env:GITHUB_SHA = $env:SHA
           pwsh -NoProfile -File .github/e2e/capture-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Real drive-root acceptance (feature branch only, disposable hosted desktop)
+        if: github.ref == 'refs/heads/fix/folder-root-paths'
+        shell: pwsh
+        env:
+          STARTAPP_ROOT_ACCEPTANCE: hosted-disposable-desktop-only
+        run: |
+          $env:GITHUB_SHA = $env:SHA
+          dotnet build tests/StartApp.RootAcceptance/StartApp.RootAcceptance.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $output = Join-Path $PWD 'out-images/root-acceptance'
+          $scratch = Join-Path $env:RUNNER_TEMP ('startapp-root-' + [guid]::NewGuid().ToString('N'))
+          if ((Test-Path $output) -or (Test-Path $scratch)) { throw 'root acceptance paths must be new' }
+          $binary = Join-Path $PWD 'tests/StartApp.RootAcceptance/bin/Release/net10.0-windows/StartApp.RootAcceptance.exe'
+          $child = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '" "' + $scratch + '"') -PassThru -RedirectStandardOutput 'diag/root-acceptance-stdout.txt' -RedirectStandardError 'diag/root-acceptance-stderr.txt'
+          try {
+            if (-not $child.WaitForExit(180000)) {
+              $child.Kill($true)
+              'Root acceptance timed out; child killed only. Explorer cleanup is unverified; disposable runner will be discarded.' | Out-File -Append diag/errors.txt
+              throw 'root acceptance timed out'
+            }
+            if ($child.ExitCode -ne 0) { throw "root acceptance failed ($($child.ExitCode))" }
+            $rows = @(Get-Content (Join-Path $output 'root-assertions.json') -Raw | ConvertFrom-Json)
+            if (-not $rows.Count -or @($rows | Where-Object { -not $_.Ok }).Count -or -not @($rows | Where-Object { $_.Name -eq 'FLOW-COMPLETE' -and $_.Detail -eq $env:SHA }).Count) { throw 'root assertion completion gate failed' }
+            foreach ($image in 'first-root.png','reopened-root.png') {
+              if (-not (Test-Path (Join-Path $output $image))) { throw "missing $image" }
+            }
+            $remaining = @(Get-Content (Join-Path $output 'owned-windows-remaining.json') -Raw | ConvertFrom-Json)
+            if ($remaining.Count) { throw 'owned Explorer windows remain' }
+            if (Test-Path $scratch) { throw 'scratch directory remains' }
+          } finally { $child.Dispose() }
       - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
         if: always()
         shell: pwsh
