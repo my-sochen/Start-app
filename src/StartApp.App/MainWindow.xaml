@@ -24,8 +24,8 @@
         <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
                 DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
             <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" Content="בדוק עדכונים" Command="{Binding CheckCommand}" Padding="8,2" Margin="8,0,0,0"
-                        AutomationProperties.Name="Check for updates"/>
+                <Button DockPanel.Dock="Right" Content="הגדרות" Click="Settings_Click" Padding="8,2" Margin="8,0,0,0"
+                        AutomationProperties.Name="Settings"/>
                 <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
                         Visibility="{Binding UpdateAvailable, Converter={StaticResource B2V}}" AutomationProperties.Name="Open official download"/>
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap" FlowDirection="RightToLeft"

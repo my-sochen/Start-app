@@ -134,6 +134,18 @@ try {
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
   $script:mainHwnd = $p.MainWindowHandle
+  # Prior synthetic owned-window captures can change Windows' cascade position.
+  # Move only this known app HWND into the runner screen before pixel probes.
+  # Keep size/Z-order/activation and retain every existing crop-containment gate.
+  if (-not [W]::SetWindowPos($script:mainHwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0015)) { throw 'cannot position the test app inside the runner screen' }
+  Start-Sleep -Milliseconds 400
+  $positioned = New-Object W+R
+  if (-not [W]::GetWindowRect($script:mainHwnd, [ref]$positioned)) { throw 'cannot verify positioned test app rectangle' }
+  $screenBounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $insideScreen = $positioned.L -ge $screenBounds.Left -and $positioned.T -ge $screenBounds.Top -and $positioned.Rt -le $screenBounds.Right -and $positioned.B -le $screenBounds.Bottom
+  Assert 'test app positioned fully inside runner screen before pixel probes' $insideScreen ("window=$($positioned.L),$($positioned.T),$($positioned.Rt),$($positioned.B) screen=$screenBounds")
+  if (-not $insideScreen) { throw 'test app does not fit runner screen' }
+
   Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
   Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
@@ -370,7 +382,16 @@ try {
     $invoked = @(InvokeEl $upBtn 'upload image button')[-1]
     if (-not $invoked) { Shot 'picker-failure'; throw 'upload image button invocation failed' }
     $dlgHwnd = [IntPtr]::Zero; $extra = 0; $hits = @()
-    for ($t = 0; $t -lt 25 -and $dlgHwnd -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $hits = @(FindPickers); if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 } }
+    # First native common-dialog startup may outlast the former five-second
+    # budget on a cold runner. Wait for identity-bound readiness, never click
+    # again. This is a test readiness bound, not a product performance PASS.
+    $pickerReady = [Diagnostics.Stopwatch]::StartNew()
+    while ($pickerReady.Elapsed -lt [TimeSpan]::FromSeconds(30) -and $dlgHwnd -eq [IntPtr]::Zero) {
+      Start-Sleep -Milliseconds 200
+      $hits = @(FindPickers)
+      if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 }
+    }
+    Info 'first native picker readiness elapsed (not a performance gate)' ("elapsedMs=$($pickerReady.ElapsedMilliseconds) deadlineMs=30000 singleInvoke=True")
     $opened = $dlgHwnd -ne [IntPtr]::Zero
     Assert 'native picker opened on upload click' $opened (AppWindowDump)
     if (-not $opened) { Shot 'picker-failure'; throw 'picker open detection failed after one upload click' }

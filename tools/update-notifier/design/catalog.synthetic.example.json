@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "revision": 1,
+  "generated_utc": "2026-11-17T00:00:00Z",
+  "expires_utc": "2026-11-18T00:00:00Z",
+  "channel": "prototype",
+  "releases": [
+    {
+      "version": "0.2.0-proto.1",
+      "tag": "v0.2.0-proto.1",
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "release_id": 1,
+      "asset_id": 1,
+      "asset": "StartApp-win-x64.zip",
+      "size": 123,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "layout": "portable-v1",
+      "approval_record_id": "synthetic-approval-not-real"
+    }
+  ]
+}
