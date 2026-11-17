@@ -45,6 +45,7 @@ internal static class Program
         });
         var launcher = new Launcher(); var vm = new MainViewModel(store, launcher, new Preflight(), new Detector());
         window.DataContext = vm;
+        vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
         window.ContentRendered += async (_, _) =>
         {
             try
@@ -83,6 +84,10 @@ internal static class Program
                     Check("validation stays inline",vm.AddItemError.Length>0 && !vm.ToastVisible);
                     Capture(window,output,$"{width}-inline-error");
                 }
+                vm.BackCommand.Execute(null);
+                vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = " "; vm.CaptureCreateCommand.Execute(null); await Idle(window);
+                Check("capture invalid name is visible in real XAML", Descendants(window).OfType<TextBlock>().Any(x=>x.IsVisible && x.Text==vm.CreateError && x.Text.Length>0));
+                Capture(window,output,"capture-inline-error");
                 // Actual local executable icon success and invalid-path fallback. No URLs are displayed in this harness.
                 var iconWindow = new Window { Width=720,Height=400,Title="Icon evidence" };
                 var icon=new TargetIcon {Target=Environment.ProcessPath!,ItemType="Program",Width=40,Height=40};

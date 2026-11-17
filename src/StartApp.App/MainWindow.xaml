@@ -231,7 +231,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Button Grid.Column="0" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
                                         Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" HorizontalAlignment="Left" Cursor="Hand"
-                                        ToolTip="Open this item" Padding="0">
+                                        ToolTip="Open this item" Padding="0" AutomationProperties.Name="{Binding Name}">
                                     <StackPanel Orientation="Horizontal"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="112" Foreground="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/></StackPanel>
                                 </Button>
                                 <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>

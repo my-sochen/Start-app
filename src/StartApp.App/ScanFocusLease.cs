@@ -17,8 +17,10 @@ internal sealed class ScanFocusLease : IDisposable
     private readonly uint? _input;
     private readonly bool _originIsUs;
     private bool _revoked;
-    public ScanFocusLease()
+    private readonly CancellationToken _cancellation;
+    public ScanFocusLease(CancellationToken cancellation = default)
     {
+        _cancellation = cancellation;
         _input = Input(); GetWindowThreadProcessId(_origin, out var pid); _originIsUs = pid == Environment.ProcessId;
         _observed.Add(_origin);
     }
@@ -27,7 +29,7 @@ internal sealed class ScanFocusLease : IDisposable
     {
         get
         {
-            if (_revoked) return false;
+            if (_revoked || _cancellation.IsCancellationRequested) return false;
             var foreground = GetForegroundWindow();
             if (_input is null || Input() != _input || foreground == IntPtr.Zero || !_observed.Contains(foreground)) _revoked = true;
             return !_revoked;

@@ -49,7 +49,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
     }
     private CaptureScan ScanCore(CancellationToken cancellationToken)
     {
-        using var focus = new ScanFocusLease();
+        using var focus = new ScanFocusLease(cancellationToken);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
         // item's default browser (spec Nov 11). The path can be unreadable (e.g. an elevated browser); the site is still
@@ -168,7 +168,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
             finally
             {
                 // Best effort only: restore the original tab unless input or uncertain focus revoked permission.
-                // Cancellation stops further collection, but safe cleanup may still restore the original selection.
+                // Cancelled/timed-out snapshots also revoke cleanup writes, preventing a late return after a caller has moved on.
                 if (originallySelected != null && focus.CanContinue)
                     try { ((System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern)).Select(); }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
