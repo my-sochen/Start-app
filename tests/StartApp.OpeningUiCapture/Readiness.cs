@@ -84,8 +84,17 @@ internal static partial class Program
                 using var valid = new IconServer(200, data.ToArray());
                 using var sink = new IconServer(200, data.ToArray());
                 using var redirect = new IconServer(302, Array.Empty<byte>(), $"Location: {sink.Origin}/redirected\r\n");
-                using var headerLarge = new IconServer(200, new byte[262145]);
-                using var streamLarge = new IconServer(200, new byte[262145], length: false);
+                // Establish that these exact oversized bytes decode with the product's decode settings.
+                // Otherwise null could merely mean invalid image data, not an enforced byte limit.
+                var decodableOversize = new byte[262145]; data.ToArray().CopyTo(decodableOversize, 0);
+                using (var proof = new MemoryStream(decodableOversize))
+                {
+                    var decoded = new BitmapImage(); decoded.BeginInit(); decoded.CacheOption = BitmapCacheOption.OnLoad;
+                    decoded.DecodePixelWidth = 20; decoded.StreamSource = proof; decoded.EndInit(); decoded.Freeze();
+                    Check("exact oversized fixture independently decodes with product settings", decoded.PixelWidth > 0 && decodableOversize.Length > 262144);
+                }
+                using var headerLarge = new IconServer(200, decodableOversize);
+                using var streamLarge = new IconServer(200, decodableOversize, length: false);
                 var icon = await TargetIconLoader.Get(valid.Origin + "/private/document?token=synthetic#fragment", "Link");
                 Check("real local HTTP favicon decodes", icon is BitmapSource);
                 Check("only origin favicon requested, no saved path/query or private headers", valid.Requests == 1 && valid.OnlyFavicon && valid.NoPrivateHeaders);
