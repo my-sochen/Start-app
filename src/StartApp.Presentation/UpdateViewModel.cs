@@ -51,23 +51,44 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private readonly TimeSpan _timeout;
     private bool _disposed;
     private bool _busy;
+    private bool _startupCheckStarted;
     private bool _available;
     private string _status;
     public bool IsBusy { get => _busy; private set { Set(ref _busy, value); CheckCommand.Raise(); } }
     public bool UpdateAvailable { get => _available; private set { Set(ref _available, value); DownloadCommand.Raise(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
+    public string InstalledVersionDisplay { get; }
     public RelayCommand CheckCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public Task CurrentCheck { get; private set; } = Task.CompletedTask;
+    public event Action? StartupUpdateAvailable;
 
     public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null)
     {
         _source = source; _current = UpdateVersion.Parse(installedVersion); _openBrowser = openBrowser;
+        InstalledVersionDisplay = _current is null ? "גרסה מותקנת: זהות הבנייה טרם אומתה" : $"גרסה מותקנת: {installedVersion}";
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
         if (_timeout <= TimeSpan.Zero || _timeout > TimeSpan.FromSeconds(30)) throw new ArgumentOutOfRangeException(nameof(timeout));
         _status = _current is null ? "בדיקת עדכונים תופעל לאחר אישור מקור הגרסאות וזהות הבנייה." : "בדיקת עדכונים זמינה לפי בקשה.";
         CheckCommand = new(_ => CurrentCheck = CheckAsync(), _ => !_disposed && !IsBusy && _current is not null);
         DownloadCommand = new(_ => OpenDownload(), _ => !_disposed && UpdateAvailable);
+    }
+
+    // One discovery attempt per application updater instance, not per Settings
+    // opening or repeated Window.Loaded event. Inactive identity still reads zero.
+    public Task CheckOnStartupOnceAsync()
+    {
+        if (_disposed || _startupCheckStarted) return Task.CompletedTask;
+        // An in-flight manual check must not consume the startup-only attempt.
+        if (IsBusy) return CurrentCheck;
+        _startupCheckStarted = true;
+        return CurrentCheck = CheckStartupAsync();
+    }
+
+    private async Task CheckStartupAsync()
+    {
+        await CheckAsync();
+        if (!_disposed && UpdateAvailable) StartupUpdateAvailable?.Invoke();
     }
 
     public async Task CheckAsync()

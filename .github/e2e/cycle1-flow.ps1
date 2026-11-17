@@ -134,6 +134,18 @@ try {
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
   $script:mainHwnd = $p.MainWindowHandle
+  # Prior synthetic owned-window captures can change Windows' cascade position.
+  # Move only this known app HWND into the runner screen before pixel probes.
+  # Keep size/Z-order/activation and retain every existing crop-containment gate.
+  if (-not [W]::SetWindowPos($script:mainHwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0015)) { throw 'cannot position the test app inside the runner screen' }
+  Start-Sleep -Milliseconds 400
+  $positioned = New-Object W+R
+  if (-not [W]::GetWindowRect($script:mainHwnd, [ref]$positioned)) { throw 'cannot verify positioned test app rectangle' }
+  $screenBounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $insideScreen = $positioned.L -ge $screenBounds.Left -and $positioned.T -ge $screenBounds.Top -and $positioned.Rt -le $screenBounds.Right -and $positioned.B -le $screenBounds.Bottom
+  Assert 'test app positioned fully inside runner screen before pixel probes' $insideScreen ("window=$($positioned.L),$($positioned.T),$($positioned.Rt),$($positioned.B) screen=$screenBounds")
+  if (-not $insideScreen) { throw 'test app does not fit runner screen' }
+
   Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
   Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')

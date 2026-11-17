@@ -76,7 +76,7 @@ public class CaptureAsyncScanTests
         Assert.True(vm.CaptureCloseCommand.CanExecute(null));                         // the screen never froze
     }
 
-    [Fact] public void Stuck_scans_do_not_accumulate_forever__after_two_unreturned_scans_no_new_one_starts()
+    [Fact] public async Task Stuck_scans_do_not_accumulate_forever__after_two_unreturned_scans_no_new_one_starts()
     {
         using var repo = new JsonStore(Tmp()); var cap = new BlockingCapturer();      // the gate stays closed: every scan hangs until the test ends
         var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: cap) { ScanMinVisible = TimeSpan.Zero, ScanTimeout = TimeSpan.FromMilliseconds(80) };
@@ -88,7 +88,13 @@ public class CaptureAsyncScanTests
             vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // scan 2 hangs -> times out, abandoned
             vm.CaptureCloseCommand.Execute(null);
             vm.CaptureNewCommand.Execute(null); ScanDone(vm);                         // two calls still stuck: no third scan starts
-            Assert.Equal(2, cap.ScanCalls);
+            // The VM caps outstanding tasks, including queued workers. The 80ms
+            // timeout does not guarantee Task.Run has entered Scan on a busy runner.
+            // Wait for dispatch, not scan completion, with a separate hard bound.
+            var dispatch = System.Diagnostics.Stopwatch.StartNew();
+            while (Volatile.Read(ref cap.ScanCalls) < 2 && dispatch.Elapsed < TimeSpan.FromSeconds(10))
+                await Task.Delay(20);
+            Assert.Equal(2, Volatile.Read(ref cap.ScanCalls));
             Assert.Contains(vm.CaptureNotes, n => n.Contains("no new scan was started"));
             Assert.False(vm.IsScanning); Assert.True(vm.CaptureOpen);                 // the screen itself stays usable
         }

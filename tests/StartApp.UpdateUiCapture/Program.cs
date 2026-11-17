@@ -42,23 +42,28 @@ internal static class Program
                     window.Width = width;
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-inactive");
+                    CaptureSettings(window, window.Updates, output, $"{width}-settings-inactive", width);
                     var opened = new List<string>();
                     using var available = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(Patch)), "1.0.0", uri => opened.Add(uri.AbsoluteUri));
                     row.DataContext = available;
                     await available.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-available");
+                    CaptureSettings(window, available, output, $"{width}-settings-available", width);
+                    CapturePopup(window, available, output, $"{width}-startup-popup", width);
                     available.DownloadCommand.Execute(null);
                     if (opened.Count != 1 || opened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Synthetic handoff target mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = failure; await failure.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-failure");
+                    CaptureSettings(window, failure, output, $"{width}-settings-failure", width);
                     var gate = new TaskCompletionSource<ApprovedUpdate?>();
                     using var busy = new UpdateViewModel(new SyntheticSource(_ => gate.Task), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = busy; var pending = busy.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-busy");
+                    CaptureSettings(window, busy, output, $"{width}-settings-busy", width);
                     gate.SetResult(null); await pending;
                     row.DataContext = window.Updates;
                 }
@@ -69,6 +74,33 @@ internal static class Program
         };
         return app.Run(window);
     }
+    private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
+    {
+        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460, Height = 300 };
+        popup.Show(); popup.UpdateLayout();
+        var buttons = Descendants(popup).OfType<Button>().ToArray();
+        if (!buttons.Any(b => ReferenceEquals(b.Command, updates.DownloadCommand) && b.IsEnabled))
+            throw new Exception("Popup official update button missing or disabled");
+        if (!buttons.Any(b => b.Content as string == "לא עכשיו")) throw new Exception("Popup dismissal missing");
+        Capture(popup, output, name); popup.Close();
+        if (!updates.UpdateAvailable) throw new Exception("Popup dismissal changed update state");
+    }
+    private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
+    {
+        // Actual settings XAML, shared synthetic VM. Closing this owned window
+        // must not dispose the shared updater or make a second network call.
+        var settings = new UpdateSettingsWindow(updates) { Owner = owner, Width = width, Height = 400 };
+        settings.Show(); settings.UpdateLayout();
+        var buttons = Descendants(settings).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
+        if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
+        if (Descendants(owner).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
+            throw new Exception("Manual check must not remain in main top bar");
+        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
+            throw new Exception("Exact versions/settings section missing");
+        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == updates.InstalledVersionDisplay))
+            throw new Exception("Installed version display missing");
+        Capture(settings, output, name); settings.Close();
+    }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
@@ -77,14 +109,32 @@ internal static class Program
     private static void Capture(Window window, string output, string name)
     {
         window.UpdateLayout();
-        var content = (FrameworkElement)window.Content;
-        var width = checked((int)Math.Ceiling(content.ActualWidth)); var height = checked((int)Math.Ceiling(content.ActualHeight));
-        if (width < 600 || height < 300) throw new Exception("Invalid content render bounds");
+        // Render the window visual root, not its margin/RTL-transformed child.
+        // The root includes the actual opaque window background and preserves
+        // inherited RTL transforms, avoiding clipped/mirrored child-only renders.
+        var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
+        var popup = window is UpdateAvailableWindow;
+        if (width < (popup ? 460 : 720) || height < (popup ? 260 : 400))
+            throw new Exception($"Invalid window render bounds: {width}x{height}");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(content);
-        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        bitmap.Render(window);
+        // Window.ActualWidth/Height include nonclient space not painted by WPF.
+        // Find every painted pixel. Only discard wholly transparent TRAILING
+        // rows/columns, never content, leading space or a partly painted strip.
+        var pixels = new byte[checked(width * height * 4)];
+        bitmap.CopyPixels(pixels, checked(width * 4), 0);
+        var paintedWidth = 0; var paintedHeight = 0;
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+                if (pixels[(y * width + x) * 4 + 3] != 0)
+                { paintedWidth = Math.Max(paintedWidth, x + 1); paintedHeight = Math.Max(paintedHeight, y + 1); }
+        // Refuse empty/implausible captures rather than hide a rendering failure.
+        if (paintedWidth < width - 40 || paintedHeight < height - 80 || paintedWidth == 0 || paintedHeight == 0)
+            throw new Exception($"Unexpected painted bounds: {paintedWidth}x{paintedHeight} within {width}x{height}");
+        var painted = new CroppedBitmap(bitmap, new Int32Rect(0, 0, paintedWidth, paintedHeight));
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(painted));
         using (var stream = File.Create(Path.Combine(output, name + ".png"))) encoder.Save(stream);
-        var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
-        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, buttons, rendering = "Actual WPF content at 96dpi; excludes native titlebar/taskbar; synthetic update source and browser sink" });
+        var buttons = Descendants(window).OfType<Button>().Where(b => b.Content is string s && (s == "בדוק עדכונים" || s == "פתח הורדה רשמית" || s == "עדכון - פתח הורדה רשמית" || s == "לא עכשיו")).Select(b => new { text = b.Content, enabled = b.IsEnabled, visible = b.IsVisible, width = b.ActualWidth }).ToArray();
+        Evidence.Add(new { state = name, requestedWindowWidth = window.Width, actualWindowWidth = window.ActualWidth, minimumWindowWidth = window.MinWidth, width, height, paintedWidth, paintedHeight, buttons, rendering = "Actual WPF window visual root at 96dpi; only wholly transparent trailing nonclient strips omitted; native titlebar/taskbar not captured; synthetic update source and browser sink" });
     }
 }

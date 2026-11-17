@@ -16,7 +16,7 @@ The existing prototype pointer is unsuitable as owner-approval evidence: declare
 
 ## Before activation
 
-1. Settle a reviewed per-release owner-approval mechanism. Recommended: an explicit publication allowlist binding version/tag, commit and artifact identity, updated only for the owner's approved publication. Alternative: a tightly controlled owner-only publication step with equivalent auditable evidence. Neither mechanism has been chosen by the user yet; a JSON `approved: true` asserted by an arbitrary source is not proof.
+1. Settle a reviewed per-release owner-approval mechanism. Recommended: an explicit publication allowlist binding version/tag, commit and artifact identity, updated only for the owner's approved publication. Alternative: a tightly controlled owner-only publication step with equivalent auditable evidence. The owner accepted the per-release exact approval rule on 2026-11-17 at 06:55:48; the technical record/control mechanism still needs review; a JSON `approved: true` asserted by an arbitrary source is not proof.
 2. Choose and verify the exact HTTPS source and hosting/control model. Source adapter must bound time and response bytes, reject redirects to unapproved sources, validate schema/identity/channel, and fail closed. Do not reuse GitHub `latest` for prereleases or select DEV/TEST artifacts.
 3. Stamp every distributed patch/build with a unique version and commit identity. Define rollback/revocation handling before automatic startup notification.
 4. Add adapter tests using synthetic data, then actual Windows UI evidence for status wrapping, min-window width, disabled/available/failure states, browser handoff, close-during-check and regression coverage. No real download or browser opening should occur in synthetic CI tests.
@@ -24,4 +24,4 @@ The existing prototype pointer is unsuitable as owner-approval evidence: declare
 
 ## Validation at this revision
 
-215 presentation tests pass, including 24 new update cases. WPF/Windows-targeted semantic cross-build succeeds on Linux. Neither is visual verification or actual Windows use. Actual rendered UI has not yet been inspected, so layout readiness remains open. Existing hosted Windows automation is a possible evidence route after exact review, not additional interactive peer QA.
+The inactive baseline completed feature run 60, DEV run 61 and TEST run 62. TEST run 62 (43990661707, attempt 1, commit d2806060b16c8377a5cbe5ea9dc274f8dcc964db) received independent bounded evidence QA: actual package hashes, 287 cycle + 337 capture assertions, eight synthetic WPF states at 900/720 and native inactive packaged-app pixels. This is hosted 96 DPI evidence, not physical Windows 11, all DPI, real feed/browser handoff or distribution/install E2E. New adapter work needs its own tests and review. See design/INTEGRATION-CONTRACT-DRAFT.md for preparation only; its proposals are not approved activation settings.
