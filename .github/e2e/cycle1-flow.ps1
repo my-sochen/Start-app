@@ -200,7 +200,7 @@ try {
   Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
   # 3b. item row: clicking the name opens that one item only (spec שורה של אייטם: לחיצה על השם פותחת)
   $npB = NotepadCount
-  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'ok.txt: open request sent' 15)) ((Texts) -join ' | ')
+  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'נשלחו 1 בקשות פתיחה' 15)) ((Texts) -join ' | ')
   $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
   Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -227,7 +227,7 @@ try {
   $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
   Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
   SetText $addr 'https://edited.example/'
-  $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (WaitText 'Address saved' 10)) ((Texts) -join ' | ')
+  $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (-not (NamedEdit 'Full address'))) ((Texts) -join ' | ')
   Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\.example' -and (StoreJson) -match 'example\.com') (StoreJson)
   # 3e. פופאפ פתח באמצעות: per-instance הגדר כברירת מחדל, then the open uses the chosen program
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
@@ -238,7 +238,7 @@ try {
   $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''
   [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
   # kill the launched notepad BEFORE the row evidence: the harness launch hands it the link target as a file
   # argument, and notepad's own "filename syntax is incorrect" modal would obscure the row in the screenshots
@@ -273,7 +273,7 @@ try {
   SetText $prog 'C:\Windows\notepad.exe'
   $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
   $c = ClickBtn 'Open with chosen program' 900; Assert 'restore open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request after restore' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'open-with sent the request after restore' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'store.json restored to notepad.exe' (-not ((StoreJson) -match 'notepad2')) (StoreJson)
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue  # same modal hygiene before the row evidence
   Start-Sleep -Milliseconds 500
@@ -300,30 +300,33 @@ try {
   $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
   Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
   Shot 'overview-after-guard'
-  # 6. open flow from details: preflight, cancel, open anyway
+  # 6. Nov17 two-stage open: initial all-selected choice before any checks; cancel sends nothing.
   $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
   [void](InvokeEl $card 'workspace card'); Start-Sleep -Milliseconds 900
   Assert 'details reopened from card' (WaitText 'Created:' 10) ''
   $npBefore = NotepadCount
-  $c = ClickBtn 'שגר' 2500; Assert 'open clicked' ($c -eq 'ok') $c
-  Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-  Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
+  $c = ClickBtn 'שגר' 800; Assert 'open clicked' ($c -eq 'ok') $c
+  Assert 'initial item selection is shown before checks' (WaitText 'מה לפתוח בסביבה' 10) ((Texts) -join ' | ')
   Shot 'decision-panel'
-  $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c
-  Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
-  Start-Sleep -Seconds 2
-  Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
-  $c = ClickBtn 'שגר' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
-  Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-  $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
-  Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')
-  Assert 'report: link open request sent' (WaitText 'example.com' 10) ((ListLines) -join ' || ')
-  Assert 'report: missing file failed honestly' (WaitText 'missing.txt: failed' 10) ((ListLines) -join ' || ')
-  Info 'open report' ((ListLines) -join ' || ')
+  $c = ClickBtn 'Close opening selection' 800; Assert 'selection X cancels before checks' ($c -eq 'ok') $c
+  Start-Sleep -Seconds 1
+  Assert 'no notepad started after preconfirmation cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
+  $c = ClickBtn 'שגר' 800; Assert 'open clicked again' ($c -eq 'ok') $c
+  $c = ClickBtn 'Confirm opening selection' 900; Assert 'selected-only check confirmed' ($c -eq 'ok') $c
+  # Existing targets may already be open. Only a confirmed duplicate panel, never an Unknown panel, asks again.
+  $dupUntil = [Diagnostics.Stopwatch]::StartNew()
+  while ($dupUntil.Elapsed.TotalSeconds -lt 25 -and -not (Btn 'Confirm duplicate choices') -and -not (Btn 'Last opening results')) { Start-Sleep -Milliseconds 200 }
+  if (Btn 'Confirm duplicate choices') {
+    foreach ($check in @(UiaAll $CT::CheckBox)) { [void](EnsureToggle $check 'explicit duplicate reopen choice' $true) }
+    $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'confirmed duplicate choices accepted' ($c -eq 'ok') $c
+  }
+  $c = ClickBtn 'Last opening results' 1000; Assert 'results explicitly opened' ($c -eq 'ok') $c
+  Assert 'report honestly says request sent' (WaitText 'בקשת הפתיחה נשלחה' 30) ((Texts) -join ' | ')
+  Assert 'report includes missing target and skip reason' ((WaitText 'missing.txt' 10) -and (WaitText 'לא נמצא בכתובת השמורה' 10)) ((Texts) -join ' | ')
   $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }
   Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) "before=$npBefore after=$npAfter"
   Shot 'after-open-anyway'
-  Start-Sleep -Milliseconds 800
+  $c = ClickBtn 'Close last opening results' 500; Assert 'results closed explicitly' ($c -eq 'ok') $c
   Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)
   # 7. empty workspace: open shows the dialog, go-to-details button leads to details
   $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
@@ -2675,13 +2678,13 @@ public static class WinCap {
   SetText (NamedEdit 'Create card color') 'notacolor'
   $storeBeforeBad = StoreJson
   $c = ClickBtn 'Create workspace' 900; Assert 'create with an invalid color clicked' ($c -eq 'ok') $c
-  Assert 'invalid color refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'invalid color refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
   Assert 'refused create changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
   Assert 'refused create keeps the typed values for correction' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq 'notacolor') ("name=$(ValOf (NamedEdit 'Workspace name')) color=$(ValOf (NamedEdit 'Create card color'))")
   SetText (NamedEdit 'Create card color') ''
   SetText (NamedEdit 'Create card image path') 'not-a-path'
   $c = ClickBtn 'Create workspace' 900; Assert 'create with a malformed image path clicked' ($c -eq 'ok') $c
-  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
   Assert 'refused create (image) changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
   SetText (NamedEdit 'Create card image path') ''
   $sw = Btn '#FDE68A'; Assert 'create palette swatch present with its color as the automation name' ($null -ne $sw) ''

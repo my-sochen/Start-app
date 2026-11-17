@@ -1,60 +1,31 @@
-using System.Drawing;
-using System.Globalization;
 using System.Windows;
-using System.Windows.Data;
-using System.Windows.Interop;
+using System.Windows.Automation;
+using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using StartApp.Presentation;
 
 namespace StartApp.App;
 
-/// <summary>
-/// Icon for the program a row opens with (icon + name display, settled Nov 14). The icon is extracted from the exe
-/// once per path and cached (frozen, so the binding can read it on the UI thread). Any failure - missing exe,
-/// unreadable icon - yields null, and the row falls back to the full-path text (the settled fallback).
-/// </summary>
-public static class ProgramIconCache
+/// <summary>Saved OpenWith program identity, distinct from the item's target icon. Bounded background lookup, never UI-thread extraction.</summary>
+public sealed class ProgramIconView : StackPanel
 {
-    private static readonly object Gate = new();
-    private static readonly Dictionary<string, ImageSource?> Cache = new();
-
-    public static ImageSource? ForPath(string? program)
+    public static readonly DependencyProperty ProgramProperty = DependencyProperty.Register(nameof(Program), typeof(string), typeof(ProgramIconView), new PropertyMetadata(null, Changed));
+    public string? Program { get => (string?)GetValue(ProgramProperty); set => SetValue(ProgramProperty, value); }
+    private readonly Image _icon = new() { Width = 14, Height = 14, Margin = new Thickness(0,0,4,1) };
+    private readonly TextBlock _label = new() { FontSize = 11, Foreground = Brushes.DarkSlateGray, Margin = new Thickness(0,0,8,2) };
+    private int _generation;
+    public ProgramIconView() { Orientation = Orientation.Horizontal; Children.Add(_icon); Children.Add(_label); Loaded += (_,_) => Refresh(); Unloaded += (_,_) => _generation++; }
+    private static void Changed(DependencyObject obj, DependencyPropertyChangedEventArgs args) => ((ProgramIconView)obj).Refresh();
+    private async void Refresh()
     {
-        if (string.IsNullOrWhiteSpace(program)) return null;
-        var key = program.Trim();
-        lock (Gate)
-        {
-            if (Cache.TryGetValue(key, out var cached)) return cached;
-            var extracted = Extract(key);
-            Cache[key] = extracted;
-            return extracted;
-        }
+        var gen = ++_generation; var path = Program;
+        Visibility = string.IsNullOrWhiteSpace(path) ? Visibility.Collapsed : Visibility.Visible;
+        _icon.Source = null; _icon.Visibility = Visibility.Collapsed;
+        _label.Text = "Opens with: " + path; _label.ToolTip = path; AutomationProperties.SetHelpText(_label, path ?? "");
+        if (!IsLoaded || string.IsNullOrWhiteSpace(path)) return;
+        var icon = await TargetIconLoader.Get(path, "Program");
+        if (gen != _generation || !IsLoaded || icon is null) return;
+        _icon.Source = icon; _icon.Visibility = Visibility.Visible;
+        _label.Text = "Opens with: " + ProgramDisplayNames.Resolve(path);
     }
-
-    private static ImageSource? Extract(string path)
-    {
-        try
-        {
-            using var icon = Icon.ExtractAssociatedIcon(path);
-            if (icon is null) return null;
-            var bmp = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromWidthAndHeight(16, 16));
-            bmp.Freeze();
-            return bmp;
-        }
-        catch { return null; }
-    }
-}
-
-/// <summary>Path -> cached exe icon (null when unreadable).</summary>
-public sealed class ProgramIconConverter : IValueConverter
-{
-    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture) => ProgramIconCache.ForPath(value as string);
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
-}
-
-/// <summary>Path -> whether an exe icon is readable (drives the icon panel vs full-path-text fallback).</summary>
-public sealed class ProgramHasIconConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => ProgramIconCache.ForPath(value as string) is not null;
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }

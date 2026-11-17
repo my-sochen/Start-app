@@ -37,7 +37,7 @@ public class ItemRowActionsTests
         await vm.OpenTask;
         var call = Assert.Single(launcher.Calls);
         Assert.Equal("C:\\a.txt", call.Item.Target);
-        Assert.Equal("first: open request sent (not proof it loaded)", vm.Status);
+        Assert.Equal(OpeningOutcome.RequestSent, Assert.Single(vm.LastOpeningResults).Outcome);
         // פתיחה אחרונה is the workspace's last launch (שגר); a single-item open does not stamp it.
         Assert.Null(repo.Load().Workspaces.Single(w => w.Id == wsId).LastOpenedAt);
     }
@@ -48,7 +48,7 @@ public class ItemRowActionsTests
         var vm = VmWithItem(repo, launcher, out _);
         vm.OpenItemCommand.Execute(vm.Items.Single());
         await vm.OpenTask;
-        Assert.Equal("first: failed (file not found)", vm.Status);
+        Assert.Equal(OpeningOutcome.Failed, Assert.Single(vm.LastOpeningResults).Outcome); Assert.Equal("file not found", vm.LastOpeningResults[0].TechnicalDetails);
         Assert.Null(repo.Load().Workspaces.Single().LastOpenedAt);
     }
 
