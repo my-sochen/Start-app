@@ -36,6 +36,7 @@ internal static class Program
     private static void Check(string name, bool ok) { Checks.Add(new { name, ok }); if (!ok) throw new Exception(name); }
     [STAThread] private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--native-duplicate") return NativeDuplicate(args[1]);
         if (!OperatingSystem.IsWindows() || args.Length != 1) return 2;
         var output = Path.GetFullPath(args[0]); if (Directory.Exists(output) || File.Exists(output)) return 3;
         Directory.CreateDirectory(output);
@@ -114,6 +115,58 @@ internal static class Program
                 File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(0);
             }
             catch(Exception e){File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));app.Shutdown(1);}
+        };
+        return app.Run(window);
+    }
+    // Focused acceptance: real default browser observation, real WPF dialog, recording launch boundary.
+    private static int NativeDuplicate(string directory)
+    {
+        if (!OperatingSystem.IsWindows()) return 2;
+        var output = Path.GetFullPath(directory);
+        if (Directory.Exists(output) || File.Exists(output)) return 3;
+        Directory.CreateDirectory(output);
+        var app = new Application();
+        using var store = new JsonStore(Path.Combine(output, "isolated-store", "store.json"));
+        store.Mutate(c =>
+        {
+            var ws = c.CreateWorkspace("בדיקת זיהוי קישור פתוח");
+            c.AddToWorkspace(ws.Id, c.GetOrAddItem(ItemType.Link, "קישור שכבר פתוח", "https://example.com/").Id);
+            c.AddToWorkspace(ws.Id, c.GetOrAddItem(ItemType.Link, "עמוד אחר שלא נפתח", "https://example.com/native-acceptance-not-open").Id);
+        });
+        var launcher = new Launcher();
+        var vm = new MainViewModel(store, launcher, detector: new LiveOpenSnapshot());
+        var window = new MainWindow { DataContext = vm, Width = 900, Height = 560 };
+        vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
+        window.ContentRendered += async (_, _) =>
+        {
+            try
+            {
+                vm.OpenWorkspaceCommand.Execute(null);
+                Check("native initial selection all checked", vm.SelectionPending && vm.OpeningChoices.Count == 2 && vm.OpeningChoices.All(x => x.IsChecked));
+                vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                Check("native matching URL reaches duplicate dialog", vm.OpenDecisionPending);
+                Check("only exact matching page is duplicate and default unchecked", vm.ReopenChoices.Count == 1 && vm.ReopenChoices[0].Item.Target == "https://example.com/" && !vm.ReopenChoices[0].IsChecked);
+                Check("no launch before duplicate choice", launcher.Sent.Count == 0);
+                Check("native dialog editable-address limitation visible", Descendants(window).OfType<TextBlock>().Any(x => x.IsVisible && x.Text.Contains("כתובת שטרם נפתחה")));
+                Capture(window, output, "native-duplicate-default");
+                vm.BackToOpeningSelectionCommand.Execute(null); await Idle(window);
+                Check("native back preserves both selections without launch", vm.SelectionPending && vm.OpeningChoices.Count == 2 && vm.OpeningChoices.All(x => x.IsChecked) && launcher.Sent.Count == 0);
+                vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                Check("native recheck still detects only matching page", vm.OpenDecisionPending && vm.ReopenChoices.Count == 1 && !vm.ReopenChoices[0].IsChecked);
+                vm.ConfirmOpenAnywayCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                Check("default skip does not send open URL to launch boundary", launcher.Sent.SequenceEqual(new[] { "https://example.com/native-acceptance-not-open" }));
+                Check("default skip outcome is explicit", vm.LastOpeningResults.Any(x => x.Outcome == OpeningOutcome.DeclinedReopen));
+                vm.OpenWorkspaceCommand.Execute(null); vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                Check("native override begins unchecked", vm.OpenDecisionPending && vm.ReopenChoices.Count == 1 && !vm.ReopenChoices[0].IsChecked);
+                vm.ReopenChoices[0].IsChecked = true; await Idle(window);
+                Capture(window, output, "native-duplicate-explicit-override");
+                vm.ConfirmOpenAnywayCommand.Execute(null); await vm.OpenTask; await Idle(window);
+                Check("explicit override sends matching URL once", launcher.Sent.Count(x => x == "https://example.com/") == 1);
+                Check("different-page launch boundary reached once per confirmed operation", launcher.Sent.Count(x => x == "https://example.com/native-acceptance-not-open") == 2);
+                app.Shutdown(0);
+            }
+            catch (Exception e) { File.WriteAllText(Path.Combine(output, "error.txt"), e.ToString()); app.Shutdown(1); }
+            finally { File.WriteAllText(Path.Combine(output, "checks.json"), JsonSerializer.Serialize(Checks, new JsonSerializerOptions { WriteIndented = true })); }
         };
         return app.Run(window);
     }

@@ -16,25 +16,26 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-dotnet@v6.1.0
         with: { dotnet-version: '10.0.404' }
-      - name: Parse focused tab reproduction script
+      - name: Parse focused native duplicate acceptance script
         shell: pwsh
         run: |
           $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/e2e/tabs-only-flow.ps1'), [ref]$tokens, [ref]$errors)
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/e2e/native-duplicate-flow.ps1'), [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | Format-List; exit 1 }
-      - name: Build and reproduce initial and post-discard tab scans only
+      - name: Build and verify native duplicate evidence and choice behavior
         shell: pwsh
         run: |
-          dotnet build src/StartApp.App --configuration Release -p:DefineConstants=STARTAPP_CAPTURE_TRACE
+          dotnet build tests/StartApp.OpeningUiCapture --configuration Release -p:DefineConstants=STARTAPP_CAPTURE_TRACE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
-          pwsh -NoProfile -File .github/e2e/tabs-only-flow.ps1
+          pwsh -NoProfile -File .github/e2e/native-duplicate-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: launch-flow-evidence
           path: |
+            out-native-duplicate/
             diag/
             out-images/
           if-no-files-found: error
