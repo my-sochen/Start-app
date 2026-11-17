@@ -50,6 +50,7 @@ internal static class Program
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-available");
                     CaptureSettings(window, available, output, $"{width}-settings-available", width);
+                    CapturePopup(window, available, output, $"{width}-startup-popup", width);
                     available.DownloadCommand.Execute(null);
                     if (opened.Count != 1 || opened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Synthetic handoff target mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
@@ -72,6 +73,17 @@ internal static class Program
             catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
+    }
+    private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
+    {
+        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460, Height = 300 };
+        popup.Show(); popup.UpdateLayout();
+        var buttons = Descendants(popup).OfType<Button>().ToArray();
+        if (!buttons.Any(b => ReferenceEquals(b.Command, updates.DownloadCommand) && b.IsEnabled))
+            throw new Exception("Popup official update button missing or disabled");
+        if (!buttons.Any(b => b.Content as string == "לא עכשיו")) throw new Exception("Popup dismissal missing");
+        Capture(popup, output, name); popup.Close();
+        if (!updates.UpdateAvailable) throw new Exception("Popup dismissal changed update state");
     }
     private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
@@ -99,7 +111,7 @@ internal static class Program
         window.UpdateLayout();
         var content = (FrameworkElement)window.Content;
         var width = checked((int)Math.Ceiling(content.ActualWidth)); var height = checked((int)Math.Ceiling(content.ActualHeight));
-        if (width < 600 || height < 300) throw new Exception("Invalid content render bounds");
+        if (width < 420 || height < 240) throw new Exception("Invalid content render bounds");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));

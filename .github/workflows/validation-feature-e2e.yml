@@ -123,7 +123,7 @@ jobs:
             $capture.Dispose()
           }
           $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
-          if ($pngs.Count -ne 16) { throw "Expected sixteen WPF state images (eight main, eight settings), found $($pngs.Count)" }
+          if ($pngs.Count -ne 18) { throw "Expected eighteen WPF state images (eight main, eight settings, two startup popups), found $($pngs.Count)" }
           if (-not (Test-Path out-images/update-states/capture-evidence.json)) { throw 'capture metadata missing' }
       - name: Cycle-1 flow UI run (hard - a failing step fails this job)
         shell: pwsh

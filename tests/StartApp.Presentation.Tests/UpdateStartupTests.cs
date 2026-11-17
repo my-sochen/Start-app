@@ -33,6 +33,25 @@ public sealed class UpdateStartupTests
         using var vm = new UpdateViewModel(new Source(), version, _ => {});
         Assert.Equal(expected, vm.InstalledVersionDisplay);
     }
+    private sealed class FixedSource(ApprovedUpdate? value) : IApprovedUpdateSource
+    {
+        public Task<ApprovedUpdate?> ReadAsync(CancellationToken cancellationToken) => Task.FromResult(value);
+    }
+    [Fact] public async Task Startup_newer_notifies_once_manual_checks_do_not_notify()
+    {
+        using var vm = new UpdateViewModel(new FixedSource(new("1.0.1", new string('a',40), new string('b',64))), "1.0.0", _ => {});
+        var notices = 0; vm.StartupUpdateAvailable += () => notices++;
+        await vm.CheckAsync(); Assert.Equal(0, notices);
+        await vm.CheckOnStartupOnceAsync(); await vm.CheckOnStartupOnceAsync(); Assert.Equal(1, notices);
+        await vm.CheckAsync(); Assert.Equal(1, notices);
+    }
+    [Theory][InlineData(null)][InlineData("1.0.0")][InlineData("0.9.0")][InlineData("invalid")]
+    public async Task Startup_without_valid_newer_update_does_not_notify(string? version)
+    {
+        using var vm = new UpdateViewModel(new FixedSource(version is null ? null : new(version, new string('a',40), new string('b',64))), "1.0.0", _ => {});
+        var notices = 0; vm.StartupUpdateAvailable += () => notices++;
+        await vm.CheckOnStartupOnceAsync(); Assert.Equal(0, notices);
+    }
     [Fact] public async Task Inactive_startup_never_reads()
     {
         var s=new Source();using var vm=new UpdateViewModel(s,null,_=>{});

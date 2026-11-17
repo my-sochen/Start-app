@@ -12,14 +12,24 @@ public partial class MainWindow : Window
     public UpdateViewModel Updates { get; } = new(new InactiveUpdateSource(), null,
         uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); });
     private UpdateSettingsWindow? _settingsWindow;
+    private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
     private MainViewModel? _hooked;
     public MainWindow()
     {
         InitializeComponent();
+        Updates.StartupUpdateAvailable += ShowStartupUpdate;
         DataContextChanged += (_, _) => Hook();
         Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
-        Closed += (_, _) => { Detach(); Updates.Dispose(); };
+        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.Dispose(); };
+    }
+    private void ShowStartupUpdate()
+    {
+        if (_closeApproved || !IsLoaded || _updateAvailableWindow is not null) return;
+        _updateAvailableWindow = new UpdateAvailableWindow(Updates) { Owner = this };
+        _updateAvailableWindow.Closed += (_, _) => _updateAvailableWindow = null;
+        // Non-modal: dismissing or ignoring an optional update never blocks work.
+        _updateAvailableWindow.Show();
     }
     private void Settings_Click(object sender, RoutedEventArgs e)
     {

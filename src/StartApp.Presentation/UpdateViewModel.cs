@@ -61,6 +61,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     public RelayCommand CheckCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public Task CurrentCheck { get; private set; } = Task.CompletedTask;
+    public event Action? StartupUpdateAvailable;
 
     public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null)
     {
@@ -81,7 +82,13 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         // An in-flight manual check must not consume the startup-only attempt.
         if (IsBusy) return CurrentCheck;
         _startupCheckStarted = true;
-        return CurrentCheck = CheckAsync();
+        return CurrentCheck = CheckStartupAsync();
+    }
+
+    private async Task CheckStartupAsync()
+    {
+        await CheckAsync();
+        if (!_disposed && UpdateAvailable) StartupUpdateAvailable?.Invoke();
     }
 
     public async Task CheckAsync()
