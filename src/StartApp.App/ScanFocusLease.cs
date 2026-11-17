@@ -31,7 +31,12 @@ internal sealed class ScanFocusLease : IDisposable
         {
             if (_revoked || _cancellation.IsCancellationRequested) return false;
             var foreground = GetForegroundWindow();
-            if (_input is null || Input() != _input || foreground == IntPtr.Zero || !_observed.Contains(foreground)) _revoked = true;
+            if (_input is null || Input() != _input || foreground == IntPtr.Zero || !_observed.Contains(foreground))
+            {
+                _revoked = true;
+                // Scalar reason only; do not re-read input or focus for diagnostics.
+                BrowserCaptureTrace.Write(0, _input is null ? "focus-input-unavailable" : foreground == IntPtr.Zero ? "focus-zero" : !_observed.Contains(foreground) ? "focus-unobserved" : "focus-input-changed");
+            }
             return !_revoked;
         }
     }

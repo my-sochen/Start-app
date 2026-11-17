@@ -49,6 +49,9 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
     }
     private CaptureScan ScanCore(CancellationToken cancellationToken)
     {
+        long traceScan = 0;
+        BrowserCaptureTrace.Begin(ref traceScan);
+        BrowserCaptureTrace.Write(traceScan, "mode-exact", flag: _exactEvidence);
         using var focus = new ScanFocusLease(cancellationToken);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
@@ -105,6 +108,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                 void Collect(System.Windows.Automation.AutomationElement? tab, string? before = null)
                 {
                     var address = value.Current.Value;
+                    BrowserCaptureTrace.Write(traceScan, "collect-read", flag: before is null ? null : address != before);
                     if (_exactEvidence)
                     {
                         if (tab is null || ExactObservedUrl.Key(address) is null || (before is not null && address == before)) return;
@@ -120,7 +124,9 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                         }
                     }
                     var site = _exactEvidence ? address : CaptureRules.SiteFromAddressText(address);
-                    if (site is null || !seen.Add(site)) return;
+                    if (site is null) { BrowserCaptureTrace.Write(traceScan, "collect-ineligible"); return; }
+                    if (!seen.Add(site)) { BrowserCaptureTrace.Write(traceScan, "collect-duplicate"); return; }
+                    BrowserCaptureTrace.Write(traceScan, "collect-added", count: items.Count + 1);
                     var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
                     items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
                     if (browserPath is null) unidentifiedSites++;
@@ -139,33 +145,43 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
                 }
+                BrowserCaptureTrace.Write(traceScan, "tabs-enumerated", count: tabs.Count, flag: originallySelected is not null);
                 Collect(originallySelected);
+                var traceTab = -1;
                 foreach (System.Windows.Automation.AutomationElement t in tabs)
                 {
+                    traceTab++;
+                    BrowserCaptureTrace.Write(traceScan, "tab-start", index: traceTab, flag: cancellationToken.IsCancellationRequested);
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (!focus.CanContinue) break;
+                    if (!focus.CanContinue) { BrowserCaptureTrace.Write(traceScan, "focus-stop-before-tab", index: traceTab); break; }
                     try
                     {
                         if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern sip) continue;
-                        if (sip.Current.IsSelected) continue; // the active tab was already captured by the first Collect()
+                        if (sip.Current.IsSelected) { BrowserCaptureTrace.Write(traceScan, "tab-already-selected", index: traceTab); continue; } // already captured
                         var before = value.Current.Value;
                         if (!focus.CanContinue) break;
+                        BrowserCaptureTrace.Write(traceScan, "select-call", index: traceTab);
                         sip.Select();
+                        BrowserCaptureTrace.Write(traceScan, "select-return", index: traceTab);
                         var until = DateTime.UtcNow.AddMilliseconds(400);
                         while (DateTime.UtcNow < until)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
                             if (!focus.CanContinue) break;
                             System.Threading.Thread.Sleep(50);
-                            try { if (value.Current.Value != before) break; } catch (System.Windows.Automation.ElementNotAvailableException) { break; }
+                            try { if (value.Current.Value != before) { BrowserCaptureTrace.Write(traceScan, "wait-changed", index: traceTab); break; } }
+                            catch (System.Windows.Automation.ElementNotAvailableException) { BrowserCaptureTrace.Write(traceScan, "wait-element-unavailable", index: traceTab); break; }
                         }
-                        if (!focus.CanContinue) break;
+                        if (!focus.CanContinue) { BrowserCaptureTrace.Write(traceScan, "focus-stop-after-wait", index: traceTab); break; }
+                        BrowserCaptureTrace.Write(traceScan, "collect-after-wait", index: traceTab);
                         Collect(t, before);
                     }
-                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException)
+                    { BrowserCaptureTrace.Write(traceScan, "tab-exception", index: traceTab, flag: e is System.Windows.Automation.ElementNotAvailableException); }
                 }
             }
-            catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
+            catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException)
+            { BrowserCaptureTrace.Write(traceScan, "window-exception", flag: e is System.Windows.Automation.ElementNotAvailableException); }
             finally
             {
                 // Best effort only: restore the original tab unless input or uncertain focus revoked permission.
@@ -183,6 +199,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
         if (unidentifiedSites > 0)
             notes.Add($"{unidentifiedSites} site(s) were captured without their source browser: its exe path could not be read (for example an elevated browser); those sites open with the Windows default browser");
         notes.Add("Sites: scans open browser tabs by briefly selecting each one to read its address; verified in hosted-runner scenarios on Edge and Chrome, including Edge with a Hebrew UI and one scenario with two distinct Edge windows - Brave, discarded tabs and other browsers or versions are not verified. The same site open in several browsers appears once per browser, with the browser named, so you choose what to keep. A captured site keeps the browser it was found in as its default browser when the browser can be identified; browser profiles are not retained");
+        BrowserCaptureTrace.Write(traceScan, "end", count: items.Count);
         return new(CaptureRules.Dedupe(items), notes);
     }
 }

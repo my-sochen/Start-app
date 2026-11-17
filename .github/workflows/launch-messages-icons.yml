@@ -37,7 +37,7 @@ jobs:
       - name: Existing product and capture UI regression gates
         shell: pwsh
         run: |
-          dotnet build src/StartApp.App --configuration Release
+          dotnet build src/StartApp.App --configuration Release -p:DefineConstants=STARTAPP_CAPTURE_TRACE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force diag, out-images | Out-Null
           pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1

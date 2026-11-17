@@ -367,6 +367,7 @@ try {
   $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }
   Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($edgeReady -and $moved -and $edgeTabBefore -eq 1) ("ready=$edgeReady moved=$moved before=$edgeTabBefore hwnd=0x$('{0:X}' -f $script:edgeHwnd) $edgeDiag")
   $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+  $env:STARTAPP_CAPTURE_TRACE_PATH = Join-Path $PWD 'diag/browser-capture-trace.txt'
   $env:STARTAPP_CRASHLOG = '1' # opt the app into crash.log evidence for this harness run
   $p = Start-Process -FilePath $exe.FullName -PassThru
   $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -639,7 +640,7 @@ try {
   SetText $prog 'C:\Windows\notepad.exe'
   $cb = AnyByName 'Set as default'; [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
   $npBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-  $sourceTicksBeforeOpen = @((Checks) | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
+  $sourceTicksBeforeOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
   $c = ClickBtn 'Open with chosen program' 900; Assert 'staged open-with go clicked' ($c -eq 'ok') $c
   if (Btn 'Confirm duplicate choices') {
     # Only opening-decision choices, never source capture checkboxes behind the modal.
@@ -652,7 +653,7 @@ try {
     }
     $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'staged duplicate choices accepted' ($c -eq 'ok') $c
   }
-  $sourceTicksAfterOpen = @((Checks) | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
+  $sourceTicksAfterOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
   Assert 'staged reopen choices never change source capture tick state' ($sourceTicksAfterOpen -eq $sourceTicksBeforeOpen) ("before=$sourceTicksBeforeOpen after=$sourceTicksAfterOpen")
   Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
