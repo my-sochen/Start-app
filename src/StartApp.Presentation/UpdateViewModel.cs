@@ -51,6 +51,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private readonly TimeSpan _timeout;
     private bool _disposed;
     private bool _busy;
+    private bool _startupCheckStarted;
     private bool _available;
     private string _status;
     public bool IsBusy { get => _busy; private set { Set(ref _busy, value); CheckCommand.Raise(); } }
@@ -68,6 +69,15 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         _status = _current is null ? "בדיקת עדכונים תופעל לאחר אישור מקור הגרסאות וזהות הבנייה." : "בדיקת עדכונים זמינה לפי בקשה.";
         CheckCommand = new(_ => CurrentCheck = CheckAsync(), _ => !_disposed && !IsBusy && _current is not null);
         DownloadCommand = new(_ => OpenDownload(), _ => !_disposed && UpdateAvailable);
+    }
+
+    // One discovery attempt per application updater instance, not per Settings
+    // opening or repeated Window.Loaded event. Inactive identity still reads zero.
+    public Task CheckOnStartupOnceAsync()
+    {
+        if (_disposed || _startupCheckStarted) return Task.CompletedTask;
+        _startupCheckStarted = true;
+        return CurrentCheck = CheckAsync();
     }
 
     public async Task CheckAsync()

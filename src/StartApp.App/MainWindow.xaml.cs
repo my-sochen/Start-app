@@ -10,15 +10,24 @@ public partial class MainWindow : Window
     // stamped installed-version contract are reviewed. No request on startup.
     public UpdateViewModel Updates { get; } = new(new InactiveUpdateSource(), null,
         uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); });
+    private UpdateSettingsWindow? _settingsWindow;
     private bool _closeApproved;
     private MainViewModel? _hooked;
     public MainWindow()
     {
         InitializeComponent();
         DataContextChanged += (_, _) => Hook();
-        Loaded += (_, _) => Hook();
+        Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
         Closed += (_, _) => { Detach(); Updates.Dispose(); };
     }
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settingsWindow is not null) { _settingsWindow.Activate(); return; }
+        _settingsWindow = new UpdateSettingsWindow(Updates) { Owner = this };
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+    }
+
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
     // made one upload click queue two sequential OpenFileDialogs).

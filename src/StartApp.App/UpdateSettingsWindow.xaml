@@ -1,0 +1,34 @@
+<Window x:Class="StartApp.App.UpdateSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="הגדרות" Width="720" Height="400" MinWidth="520" MinHeight="280"
+        WindowStartupLocation="CenterOwner" FlowDirection="RightToLeft" KeyDown="Window_KeyDown"
+        AutomationProperties.Name="Settings window">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V"/>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="גרסאות ועדכונים" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16"
+                   AutomationProperties.Name="Versions and updates section"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="בדיקת גרסאות מאושרות. ההורדה באתר הרשמי וההתקנה ידנית."
+                           TextWrapping="Wrap" Margin="0,0,0,12"/>
+                <Button Content="בדוק עדכונים" Command="{Binding CheckCommand}" Padding="12,6"
+                        HorizontalAlignment="Left" AutomationProperties.Name="Check for updates"/>
+                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,12,0,12"
+                           AutomationProperties.Name="Update status"/>
+                <Button Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="12,6"
+                        HorizontalAlignment="Left" Visibility="{Binding UpdateAvailable, Converter={StaticResource B2V}}"
+                        AutomationProperties.Name="Open official download"/>
+            </StackPanel>
+        </ScrollViewer>
+        <Button Grid.Row="2" Content="סגור" Click="Close_Click" HorizontalAlignment="Left"
+                Padding="16,6" Margin="0,12,0,0" AutomationProperties.Name="Close settings"/>
+    </Grid>
+</Window>

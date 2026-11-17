@@ -42,23 +42,27 @@ internal static class Program
                     window.Width = width;
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-inactive");
+                    CaptureSettings(window, window.Updates, output, $"{width}-settings-inactive", width);
                     var opened = new List<string>();
                     using var available = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(Patch)), "1.0.0", uri => opened.Add(uri.AbsoluteUri));
                     row.DataContext = available;
                     await available.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-available");
+                    CaptureSettings(window, available, output, $"{width}-settings-available", width);
                     available.DownloadCommand.Execute(null);
                     if (opened.Count != 1 || opened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Synthetic handoff target mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = failure; await failure.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-failure");
+                    CaptureSettings(window, failure, output, $"{width}-settings-failure", width);
                     var gate = new TaskCompletionSource<ApprovedUpdate?>();
                     using var busy = new UpdateViewModel(new SyntheticSource(_ => gate.Task), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = busy; var pending = busy.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-busy");
+                    CaptureSettings(window, busy, output, $"{width}-settings-busy", width);
                     gate.SetResult(null); await pending;
                     row.DataContext = window.Updates;
                 }
@@ -68,6 +72,20 @@ internal static class Program
             catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
+    }
+    private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
+    {
+        // Actual settings XAML, shared synthetic VM. Closing this owned window
+        // must not dispose the shared updater or make a second network call.
+        var settings = new UpdateSettingsWindow(updates) { Owner = owner, Width = width, Height = 400 };
+        settings.Show(); settings.UpdateLayout();
+        var buttons = Descendants(settings).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
+        if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
+        if (Descendants(owner).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
+            throw new Exception("Manual check must not remain in main top bar");
+        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
+            throw new Exception("Exact versions/settings section missing");
+        Capture(settings, output, name); settings.Close();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
