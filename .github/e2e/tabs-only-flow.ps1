@@ -328,17 +328,15 @@ try {
   $beginCount = 0
   for ($traceIndex = 0; $traceIndex -lt $traceLines.Count; $traceIndex++) { if ($traceLines[$traceIndex] -match ' stage=begin ') { $lastBegin = $traceIndex; $beginCount++ } }
   $rescanTrace = if ($lastBegin -ge 0) { @($traceLines[$lastBegin..($traceLines.Count - 1)]) } else { @() }
-  $rescanTraceAvailable = $beginCount -eq 2 -and $traceLines.Count -lt 512 -and @($rescanTrace | Where-Object { $_ -match ' stage=input-baseline ' }).Count -eq 1
+  $rescanTraceAvailable = $beginCount -eq 2 -and $traceLines.Count -lt 512 -and @($traceLines | Where-Object { $_ -match ' stage=end ' }).Count -eq 2 -and @($rescanTrace | Where-Object { $_ -match ' stage=input-baseline ' }).Count -eq 1
   $rescanRevoked = @($rescanTrace | Where-Object { $_ -match ' stage=focus-(input-unavailable|input-read-failed|input-changed|zero|unobserved|stop-)' }).Count -gt 0
   $rescanEnded = @($rescanTrace | Where-Object { $_ -match ' stage=end ' }).Count -gt 0
   Info 'rescan post-scan selection and guard evidence' ("before=$rescanTabBefore after=$rescanTabAfter traceAvailable=$rescanTraceAvailable traceEnd=$rescanEnded revocationObserved=$rescanRevoked hostsComplete=$rescanComplete")
-  if ($rescanRevoked) {
-    Info 'rescan restoration expectation' 'REVOKED: no cleanup write is expected after guard revocation; selection is as-found evidence, not restoration PASS'
-  } elseif ($rescanTraceAvailable -and $rescanEnded -and $rescanComplete) {
-    Assert 'completed rescan without observed revocation restores its pre-scan selected tab' ($rescanTabBefore -ge 0 -and $rescanTabAfter -eq $rescanTabBefore) ("before=$rescanTabBefore after=$rescanTabAfter; no revocation observed in available trace")
-  } else {
-    Assert 'rescan restoration evidence is conclusive' $false 'INCONCLUSIVE: missing usable trace/end/complete hosts without an observed revocation; no restoration claim'
-  }
+  # Input/focus no longer stops traversal or suppresses tab restoration. Keep the original completeness check.
+  # These two scans run without explicit cancellation; only the final selected state proves restoration.
+  Assert 'completed rescan restores its pre-scan selected tab despite input/focus changes' ($rescanTabBefore -ge 0 -and $rescanTabAfter -eq $rescanTabBefore) ("before=$rescanTabBefore after=$rescanTabAfter; guardRevocationIsWindowReturnOnly=$rescanRevoked")
+  Assert 'rescan diagnostic evidence exists and ended' ($rescanTraceAvailable -and $rescanEnded) 'two complete traces required; no inference from absent trace'
+
 
   if (-not $rescanComplete) {
     # Read-only post-failure fixture evidence, not a retry or a relaxed completeness assertion.
@@ -356,6 +354,8 @@ try {
       Info 'failed rescan notification details' ((@($notice.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit)))) | ForEach-Object { ValOf $_ }) -join ' | ')
     }
   }
+  # Separate real-public-site native policy cases run in their own owned fixture after this process exits.
+
   Assert 'TABS-FOCUSED-FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { [void]$results.Add([ordered]@{ name = 'tab reproduction error'; ok = $false; detail = $_.Exception.GetType().Name }) }

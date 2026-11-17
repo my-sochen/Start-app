@@ -52,7 +52,8 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
         long traceScan = 0;
         BrowserCaptureTrace.Begin(ref traceScan);
         BrowserCaptureTrace.Write(traceScan, "mode-exact", flag: _exactEvidence);
-        using var focus = new ScanFocusLease(cancellationToken, traceScan);
+        // Input/focus changes no longer stop traversal. This lease is consulted only for best-effort window-focus return.
+        using var windowFocus = new ScanFocusLease(cancellationToken, traceScan);
         var items = new List<CapturedItem>(); var notes = new List<string>();
         // The exe path of each browser process is captured up front so a found site can keep its source browser as the
         // item's default browser (spec Nov 11). The path can be unreadable (e.g. an elevated browser); the site is still
@@ -79,8 +80,7 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
         foreach (var (hwnd, pid) in handles)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!focus.CanContinue) { notes.Add("Browser scan stopped after user activity or an uncertain focus change"); break; }
-            focus.ObserveBrowser(hwnd);
+            windowFocus.ObserveBrowser(hwnd);
             var browserPath = paths.TryGetValue(pid, out var bp) ? bp : null;
             System.Windows.Automation.AutomationElement? originallySelected = null;
             try
@@ -104,32 +104,92 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                 if (edit is null) continue;
                 var value = (System.Windows.Automation.ValuePattern)edit.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern);
                 var seen = new HashSet<string>(StringComparer.Ordinal);
-                // Read the active tab's editable address text after tab selection; it is not committed-document evidence.
-                void Collect(System.Windows.Automation.AutomationElement? tab, string? before = null)
+                // Optional transient stability signal, never a new eligibility/ownership requirement.
+                // Missing/ambiguous documents (including about:blank) keep the existing omnibox policy.
+                string? DocumentIdentity()
                 {
-                    var address = value.Current.Value;
-                    BrowserCaptureTrace.Write(traceScan, "collect-read", flag: before is null ? null : address != before);
-                    if (_exactEvidence)
+                    var roots = new List<string>();
+                    try
                     {
-                        if (tab is null || ExactObservedUrl.Key(address) is null || (before is not null && address == before)) return;
-                        // Prototype policy approved Nov 17: accept stable selected-tab omnibox evidence, including the
-                        // disclosed risk of typed-but-unsubmitted text. This does NOT prove a committed document URL.
-                        // Stability checks reduce transient reads, not that accepted semantic limitation.
-                        for (int read = 0; read < 3; read++)
+                        var documents = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
+                            new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.Document));
+                        if (documents.Count > 64) return null;
+                        foreach (System.Windows.Automation.AutomationElement document in documents)
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            if (!focus.CanContinue || tab.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern selected || !selected.Current.IsSelected) return;
-                            System.Threading.Thread.Sleep(100);
-                            if (value.Current.Value != address) return;
+                            var current = document.Current;
+                            if (current.IsOffscreen || current.BoundingRectangle.Width <= 0 || current.BoundingRectangle.Height <= 0) continue;
+                            var parent = document; var rooted = false; var nested = false;
+                            for (var depth = 0; depth < 32; depth++)
+                            {
+                                parent = System.Windows.Automation.TreeWalker.ControlViewWalker.GetParent(parent);
+                                if (parent is null) break;
+                                if (System.Windows.Automation.Automation.Compare(parent, w)) { rooted = true; break; }
+                                if (parent.Current.ControlType == System.Windows.Automation.ControlType.Document) { nested = true; break; }
+                            }
+                            if (rooted && !nested) roots.Add(string.Join(".", document.GetRuntimeId()));
                         }
                     }
-                    var site = _exactEvidence ? address : CaptureRules.SiteFromAddressText(address);
-                    if (site is null) { BrowserCaptureTrace.Write(traceScan, "collect-ineligible"); return; }
-                    if (!seen.Add(site)) { BrowserCaptureTrace.Write(traceScan, "collect-duplicate"); return; }
-                    BrowserCaptureTrace.Write(traceScan, "collect-added", count: items.Count + 1);
-                    var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
-                    items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
-                    if (browserPath is null) unidentifiedSites++;
+                    catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { return null; }
+                    return roots.Count == 1 ? roots[0] : null;
+                }
+                // No input/focus abort. Selected-state and stable reads reduce races, not committed-URL proof.
+                // Typed-but-unsubmitted values and a delayed but stable old omnibox remain indistinguishable.
+                // A bounded failure is reported as incomplete, never silently treated as captured.
+                bool Collect(System.Windows.Automation.AutomationElement tab, int index)
+                {
+                    var budget = System.Diagnostics.Stopwatch.StartNew();
+                    const int budgetMs = 1200;
+                    for (var attempt = 0; attempt < 3 && budget.ElapsedMilliseconds < budgetMs; attempt++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var selected = (System.Windows.Automation.SelectionItemPattern)tab.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern);
+                        BrowserTraversalProbe.At("visit", index);
+                        var wasSelected = selected.Current.IsSelected;
+                        if (!wasSelected)
+                        {
+                            BrowserTraversalProbe.At("before-select", index);
+                            cancellationToken.ThrowIfCancellationRequested();
+                            selected.Select();
+                            BrowserTraversalProbe.At("after-select", index);
+                        }
+                        string? previous = null; string? previousDocument = null;
+                        long stableSince = -1;
+                        while (budget.ElapsedMilliseconds < budgetMs)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!selected.Current.IsSelected) break;
+                            BrowserTraversalProbe.At("before-read", index);
+                            var document = DocumentIdentity();
+                            var address = value.Current.Value;
+                            BrowserTraversalProbe.At("after-read", index);
+                            // The check AFTER the address read is required, including the final stable read.
+                            if (!selected.Current.IsSelected) break;
+                            if (address != previous || document != previousDocument)
+                            {
+                                previous = address; previousDocument = document;
+                                stableSince = budget.ElapsedMilliseconds;
+                            }
+                            if (stableSince < 0 || budget.ElapsedMilliseconds - stableSince < 300)
+                            {
+                                System.Threading.Thread.Sleep(100);
+                                continue;
+                            }
+                            BrowserTraversalProbe.At("stable-candidate", index);
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!selected.Current.IsSelected) break;
+                            var site = _exactEvidence ? (ExactObservedUrl.Key(address) is null ? null : address) : CaptureRules.SiteFromAddressText(address);
+                            if (site is null) { BrowserCaptureTrace.Write(traceScan, "collect-ineligible", index: index); return true; }
+                            if (!seen.Add(site)) { BrowserCaptureTrace.Write(traceScan, "collect-duplicate", index: index); return true; }
+                            var host = Uri.TryCreate(site, UriKind.Absolute, out var u) ? u.Host : site;
+                            items.Add(new CapturedItem(ItemType.Link, host, site, browserPath));
+                            if (browserPath is null) unidentifiedSites++;
+                            BrowserCaptureTrace.Write(traceScan, "collect-added", index: index, count: items.Count);
+                            return true;
+                        }
+                    }
+                    notes.Add("A browser tab could not be read consistently; the captured list may be incomplete");
+                    BrowserCaptureTrace.Write(traceScan, "tab-inconclusive", index: index);
+                    return false;
                 }
                 var tabs = w.FindAll(System.Windows.Automation.TreeScope.Descendants,
                     new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty, System.Windows.Automation.ControlType.TabItem));
@@ -145,58 +205,36 @@ public sealed class BrowserAddressBarCapturer : ICooperativeCapturer
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
                 }
+                BrowserTraversalProbe.At("window", hwnd.ToInt32());
                 BrowserCaptureTrace.Write(traceScan, "tabs-enumerated", count: tabs.Count, flag: originallySelected is not null);
-                Collect(originallySelected);
                 var traceTab = -1;
                 foreach (System.Windows.Automation.AutomationElement t in tabs)
                 {
                     traceTab++;
                     BrowserCaptureTrace.Write(traceScan, "tab-start", index: traceTab, flag: cancellationToken.IsCancellationRequested);
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (!focus.CanContinue) { BrowserCaptureTrace.Write(traceScan, "focus-stop-before-tab", index: traceTab); break; }
                     try
                     {
-                        if (t.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern) is not System.Windows.Automation.SelectionItemPattern sip) continue;
-                        if (sip.Current.IsSelected) { BrowserCaptureTrace.Write(traceScan, "tab-already-selected", index: traceTab); continue; } // already captured
-                        var before = value.Current.Value;
-                        if (!focus.CanContinue) break;
-                        BrowserCaptureTrace.Write(traceScan, "select-call", index: traceTab);
-                        BrowserCaptureTrace.SampleInput(traceScan, "input-before-select", index: traceTab);
-                        // Diagnostic I/O can block too. Renew permission immediately before the native write.
-                        cancellationToken.ThrowIfCancellationRequested();
-                        if (!focus.CanContinue) break;
-                        sip.Select();
-                        BrowserCaptureTrace.SampleInput(traceScan, "input-after-select", index: traceTab);
-                        BrowserCaptureTrace.Write(traceScan, "select-return", index: traceTab);
-                        var until = DateTime.UtcNow.AddMilliseconds(400);
-                        while (DateTime.UtcNow < until)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            if (!focus.CanContinue) break;
-                            System.Threading.Thread.Sleep(50);
-                            try { if (value.Current.Value != before) { BrowserCaptureTrace.Write(traceScan, "wait-changed", index: traceTab); break; } }
-                            catch (System.Windows.Automation.ElementNotAvailableException) { BrowserCaptureTrace.Write(traceScan, "wait-element-unavailable", index: traceTab); break; }
-                        }
-                        if (!focus.CanContinue) { BrowserCaptureTrace.Write(traceScan, "focus-stop-after-wait", index: traceTab); break; }
-                        BrowserCaptureTrace.Write(traceScan, "collect-after-wait", index: traceTab);
-                        Collect(t, before);
+                        Collect(t, traceTab); // Visit every snapshotted tab, even if currently selected.
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException)
-                    { BrowserCaptureTrace.Write(traceScan, "tab-exception", index: traceTab, flag: e is System.Windows.Automation.ElementNotAvailableException); }
+                    { notes.Add("A browser tab became unavailable; the captured list may be incomplete"); BrowserCaptureTrace.Write(traceScan, "tab-exception", index: traceTab, flag: e is System.Windows.Automation.ElementNotAvailableException); }
                 }
             }
             catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException)
-            { BrowserCaptureTrace.Write(traceScan, "window-exception", flag: e is System.Windows.Automation.ElementNotAvailableException); }
+            { notes.Add("A browser window could not be read; the captured list may be incomplete"); BrowserCaptureTrace.Write(traceScan, "window-exception", flag: e is System.Windows.Automation.ElementNotAvailableException); }
             finally
             {
-                // Best effort only: restore the original tab unless input or uncertain focus revoked permission.
+                // Restore the originally selected tab even after input/focus changes.
+                // Explicit cancellation/timeout still forbids late native writes; foreground-window return is separate.
                 // Cancelled/timed-out snapshots also revoke cleanup writes, preventing a late return after a caller has moved on.
-                if (originallySelected != null && focus.CanContinue)
+                if (originallySelected != null && !cancellationToken.IsCancellationRequested)
                     try
                     {
                         var restore = (System.Windows.Automation.SelectionItemPattern)originallySelected.GetCurrentPattern(System.Windows.Automation.SelectionItemPattern.Pattern);
-                        // Pattern acquisition may block. Recheck immediately before the native write, not just before acquisition.
-                        if (!cancellationToken.IsCancellationRequested && focus.CanContinue) restore.Select();
+                        BrowserTraversalProbe.At("before-restore", -1);
+                        // Pattern acquisition/test observation may block. Recheck immediately before the native write.
+                        if (!cancellationToken.IsCancellationRequested) restore.Select();
                     }
                     catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or InvalidOperationException) { }
             }
