@@ -27,6 +27,11 @@ internal static class Program
     }
     private sealed class Detector : IOpenStateDetector
     { public OpenState Detect(Item item, LaunchConfig? launch) => item.Name.Contains("פתוח") ? OpenState.Open : OpenState.Unknown; }
+    private sealed class BrowserEvidence : IOpenItemCapturer
+    {
+        public int Calls;
+        public CaptureScan Scan() { Calls++; return new(new[] { new CapturedItem(ItemType.Link, "synthetic address", "https://example.com/") }, Array.Empty<string>()); }
+    }
     private static readonly List<object> Checks = new();
     private static void Check(string name, bool ok) { Checks.Add(new { name, ok }); if (!ok) throw new Exception(name); }
     [STAThread] private static int Main(string[] args)
@@ -50,6 +55,15 @@ internal static class Program
         {
             try
             {
+                var browser = new BrowserEvidence();
+                var factoryCalls = 0;
+                var source = new LiveOpenSnapshot(() => { factoryCalls++; return browser; });
+                var link = new Item("link", ItemType.Link, "synthetic address", "https://example.com/");
+                var snapshot = await source.ObserveAsync(new[] { link }, CancellationToken.None);
+                Check("selected link invokes browser route once and retains exact positive evidence", factoryCalls == 1 && browser.Calls == 1 && snapshot.Detect(link, null) == OpenState.Open);
+                Check("different page remains Unknown", snapshot.Detect(new Item("other", ItemType.Link, "other", "https://example.com/other"), null) == OpenState.Unknown);
+                await source.ObserveAsync(new[] { new Item("file", ItemType.File, "synthetic", "C:\\synthetic\\file.txt") }, CancellationToken.None);
+                Check("file-only selection never invokes browser route", factoryCalls == 1 && browser.Calls == 1);
                 foreach (var (width,height) in new[]{(900,560),(720,400),(1100,750)})
                 {
                     window.Width=width; window.Height=height;
@@ -62,6 +76,7 @@ internal static class Program
                     vm.OpeningChoices[0].IsChecked=true; vm.OpeningChoices[2].IsChecked=true;
                     vm.ConfirmSelectionCommand.Execute(null); await vm.OpenTask; await Idle(window);
                     Check("only confirmed visible and unchecked",vm.OpenDecisionPending && vm.ReopenChoices.Count==1 && !vm.ReopenChoices[0].IsChecked);
+                    Check("duplicate XAML discloses editable address limitation", Descendants(window).OfType<TextBlock>().Any(x=>x.Text.Contains("כתובת שטרם נפתחה")));
                     Capture(window,output,$"{width}-duplicates");
                     var before=launcher.Sent.Count;
                     vm.BackToOpeningSelectionCommand.Execute(null); await Idle(window);
