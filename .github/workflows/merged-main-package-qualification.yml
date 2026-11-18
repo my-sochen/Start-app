@@ -1,0 +1,205 @@
+# Temporary artifact-only qualification. Never merge this workflow into MAIN.
+# Candidate and packaging scripts are pinned to the actual approved MAIN commit.
+# Pinning is provenance, not code/network isolation. Helpers execute normally.
+# contents:read limits token scope, not network egress. No full UI re-run: ui_gate=not-gated; earlier TEST UI evidence stays separate.
+# Version 0.0.0-proto.0 is only a test identity, never a release selection.
+name: merged-main-package-qualification
+on:
+  push:
+    branches: [feat/qualification-main-b627547]
+    paths: [.github/workflows/merged-main-package-qualification.yml]
+permissions:
+  contents: read
+concurrency:
+  group: qualification-main-b627547
+  cancel-in-progress: false
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  SCRIPT_SHA: 'b627547ea873e383b2f6194091651838b92e515d'
+  CANDIDATE_SHA: 'b627547ea873e383b2f6194091651838b92e515d'
+  CANDIDATE_TREE: '48946d507e6a7ee96d1b9723d93b6595637b0daf'
+  VERSION: '0.0.0-proto.0'
+  REPO: ${{ github.repository }}
+jobs:
+  resolve:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: b627547ea873e383b2f6194091651838b92e515d
+          fetch-depth: 0
+      - name: Bind public repository, candidate, and script revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'my-sochen/Start-app'
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$CANDIDATE_TREE"
+          git fetch --no-tags https://github.com/my-sochen/Start-app.git refs/heads/main:refs/remotes/qualification/main
+          git merge-base --is-ancestor "$CANDIDATE_SHA" refs/remotes/qualification/main
+          test "$VERSION" = '0.0.0-proto.0'
+  tests:            # HARD GATE: whole-solution unit tests on the exact candidate sha
+    needs: resolve
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: b627547ea873e383b2f6194091651838b92e515d
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Unit tests (fail the job on any failure)
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -ne $env:CANDIDATE_SHA) { 'checked out sha differs from requested candidate'; exit 1 }
+          dotnet test StartApp.slnx --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+  package:          # Same reviewed packaging chain as validation-feature-e2e.yml, on the candidate sha
+    needs: [resolve, tests]
+    if: ${{ always() && needs.tests.result == 'success' && needs.resolve.result == 'success' }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      UI_GATE: 'not-gated'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1       # pinned reviewed MAIN scripts FIRST; workflow branch supplies orchestration only
+        with: { path: trusted, ref: b627547ea873e383b2f6194091651838b92e515d, persist-credentials: false }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1       # candidate SECOND, into src/ (never cleaned after trusted exists)
+        with:
+          path: src
+          persist-credentials: false
+          ref: b627547ea873e383b2f6194091651838b92e515d
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Dependency check (fail fast)
+        shell: pwsh
+        run: |
+          python --version; if ($LASTEXITCODE -ne 0) { exit 1 }
+          foreach ($f in 'trusted/.github/release/verify_candidate.py','trusted/.github/release/make_manifest.py','trusted/.github/release/KNOWN-LIMITS.txt','trusted/tools/portable-entry/package.ps1','trusted/tools/portable-entry/Create-DesktopShortcut.ps1','trusted/tools/portable-entry/smoke-candidate.ps1','trusted/tests/portable-entry/OwnedTree.cs','trusted/tests/release/test_portable_candidate.py') { if (-not (Test-Path $f)) { "missing trusted file $f"; exit 1 } }
+          if ((git -C trusted rev-parse HEAD) -ne $env:SCRIPT_SHA) { 'trusted checkout differs from pinned script revision'; exit 1 }
+          if ((git -C src rev-parse HEAD) -ne $env:CANDIDATE_SHA) { 'candidate checkout differs from requested sha'; exit 1 }
+          foreach($f in 'trusted/tools/portable-entry/package.ps1','trusted/tools/portable-entry/Create-DesktopShortcut.ps1','trusted/tools/portable-entry/smoke-candidate.ps1') {
+            $tokens=$null;$errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f),[ref]$tokens,[ref]$errors)
+            if($errors.Count){$errors | Format-List;exit 1}
+          }
+          python trusted/tests/release/test_portable_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Publish twice, same path, cleaned between
+        shell: pwsh
+        working-directory: src
+        run: |
+          New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
+          foreach ($out in 'pkg-a','pkg-b') {
+            if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
+            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -p:StartAppReleaseVersion=$env:VERSION -p:StartAppSourceCommit=$env:CANDIDATE_SHA --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+            if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
+          }
+          if (Test-Path diag/errors.txt) { exit 1 }
+      - name: Stamp identical prototype notice and known limits into both payloads
+        shell: pwsh
+        working-directory: src
+        run: |
+          $notice = @(
+            'PROTOTYPE / אב-טיפוס'
+            'QUALIFICATION ONLY. Not an approved release. Version 0.0.0-proto.0 is a test identity, not the next release version.'
+            'חבילה זו היא אב-טיפוס לצורכי הערכה בלבד - זו אינה הפצה יציבה או סופית.'
+            "commit: $env:CANDIDATE_SHA (version: $env:VERSION)"
+          )
+          foreach ($out in 'pkg-a','pkg-b') { $notice | Out-File -Encoding utf8 "$out\PROTOTYPE-NOTICE.txt"; Copy-Item ..\trusted\.github\release\KNOWN-LIMITS.txt "$out\KNOWN-LIMITS.txt" }
+      - name: Build native portable entry from candidate source
+        shell: cmd
+        working-directory: src
+        run: tools\portable-entry\build.cmd
+      - name: Stage portable layout around each intact candidate payload
+        shell: pwsh
+        run: |
+          foreach($suffix in 'a','b') {
+            & ./trusted/tools/portable-entry/package.ps1 -Payload "src/pkg-$suffix" -Launcher 'src/portable-build/Start-app.exe' -Destination "src/portable-$suffix"
+          }
+      - name: Compare payloads (REPORT ONLY, never fails the job)
+        shell: pwsh
+        working-directory: src
+        run: |
+          function PayloadHashes($dir) { $root=(Resolve-Path $dir).Path; Get-ChildItem -Recurse -File $dir | Sort-Object FullName | ForEach-Object { $_.FullName.Substring($root.Length) + ':' + (Get-FileHash $_.FullName -Algorithm SHA256).Hash } }
+          $diff = Compare-Object (PayloadHashes 'portable-a') (PayloadHashes 'portable-b')
+          if ($diff) { 'REPRODUCIBLE=no (same-runner, same-path comparison; report only)' | Tee-Object diag/reproducibility.txt; $diff | Format-Table | Out-String | Tee-Object diag/reproducibility-diff.txt }
+          else { 'REPRODUCIBLE=yes (scoped: same runner image, same paths; not a cross-run guarantee)' | Tee-Object diag/reproducibility.txt }
+      - name: Build qualification ZIP, hash, BUILDINFO, manifest
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+          New-Item -ItemType Directory -Force cand | Out-Null
+          $zipPath = "$PWD\cand\StartApp-win-x64.zip"
+          $fs = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::CreateNew)
+          $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
+          $epoch = [DateTimeOffset]::new(2026,1,1,0,0,0,[TimeSpan]::Zero)
+          $rootA = (Resolve-Path src/portable-a).Path
+          $files = @(Get-ChildItem -Force -Recurse -File src/portable-a | ForEach-Object { [pscustomobject]@{ Rel = $_.FullName.Substring($rootA.Length + 1).Replace('\','/'); Path = $_.FullName } })
+          $rels = [string[]]@($files | ForEach-Object { $_.Rel }); $keys = [string[]]@($rels.Clone()); [Array]::Sort($keys, [StringComparer]::Ordinal)   # ordinal, culture-independent entry order
+          $byRel = @{}; foreach ($f in $files) { $byRel[$f.Rel] = $f.Path }
+          foreach ($rel in $keys) {
+            $entry = $zip.CreateEntry($rel); $entry.LastWriteTime = $epoch
+            $es = $entry.Open(); $s = [System.IO.File]::OpenRead($byRel[$rel]); $s.CopyTo($es); $s.Dispose(); $es.Dispose()
+          }
+          $zip.Dispose(); $fs.Dispose()
+          $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          "$hash StartApp-win-x64.zip" | Out-File -Encoding ascii cand/StartApp-win-x64.zip.sha256
+          @(
+            "commit: $env:CANDIDATE_SHA"
+            "version: $env:VERSION"
+            "run: ${{ github.run_id }} attempt ${{ github.run_attempt }}"
+            "packaging-script-revision: $env:SCRIPT_SHA"
+            "distribution: QUALIFICATION ONLY - NOT AN APPROVED RELEASE"
+            "qualification-workflow-revision: ${{ github.sha }}"
+            "sdk: $(dotnet --version)"
+            "built-utc: $([DateTime]::UtcNow.ToString('o'))"
+            "repro: $((Get-Content src/diag/reproducibility.txt -Raw).Trim())"
+            "sha256: $hash"
+          ) | Out-File -Encoding utf8 cand/BUILDINFO.txt
+          Copy-Item src/diag/reproducibility.txt cand/reproducibility.txt
+          python trusted/.github/release/make_manifest.py --dir cand --sha $env:CANDIDATE_SHA --version $env:VERSION --ui-gate $env:UI_GATE --layout portable
+      - name: Verify candidate consistency (verifier)
+        shell: pwsh
+        run: |
+          python trusted/.github/release/verify_candidate.py --dir cand --sha $env:CANDIDATE_SHA --version $env:VERSION --layout portable
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Rehash final ZIP before extraction and upload
+        shell: pwsh
+        run: |
+          $manifest = Get-Content cand/manifest.json -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash cand/StartApp-win-x64.zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $manifest.sha256) { throw "Final qualification ZIP hash mismatch" }
+          if ((Get-Item cand/StartApp-win-x64.zip).Length -ne $manifest.size) { throw "Final qualification ZIP size mismatch" }
+      - name: Smoke-run the exact qualification ZIP (FAILURE GATE, smoke script)
+        shell: pwsh
+        run: |
+          Expand-Archive -Path cand/StartApp-win-x64.zip -DestinationPath verify-ship -Force
+          $env:GITHUB_SHA = $env:CANDIDATE_SHA
+          pwsh -NoProfile -File trusted/tools/portable-entry/smoke-candidate.ps1 -Extracted verify-ship -EvidenceDirectory portable-evidence -OwnershipHelper trusted/tests/portable-entry/OwnedTree.cs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: portable-candidate-smoke
+          retention-days: 1
+          if-no-files-found: warn
+          path: portable-evidence/*
+      - name: Recheck candidate integrity immediately before artifact upload
+        shell: pwsh
+        run: |
+          python trusted/.github/release/verify_candidate.py --dir cand --sha $env:CANDIDATE_SHA --version $env:VERSION --layout portable
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: StartApp-QUALIFICATION-ONLY-b627547
+          retention-days: 1
+          if-no-files-found: error
+          path: cand/*
+
