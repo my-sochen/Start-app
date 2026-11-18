@@ -58,7 +58,25 @@ function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Whe
 function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
 function BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function OpenContextEl($el, $settle = 900) {
+  if ($null -eq $el) { return 'context anchor missing' }
+  try {
+    $el.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    Start-Sleep -Milliseconds $settle
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    return 'ok'
+  } catch { return "native context menu failed: $_" }
+}
+function ContextAnchors($name) {
+  $hostWindow = $win
+  if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Added item name')))) }
+  return @()
+}
 function ClickBtn($name, $settle = 900) {
+  if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
@@ -1820,11 +1838,11 @@ public static class WinCap {
     return $true
   }
   function Test-SavedCardTopologyV4($nodes, $anchorName, $itemRid) {
-    # Grounded accepted topology (observed both r7f states), now with PARENT-RID BINDINGS: exactly 3
-    # direct (depth-1) Buttons parented to the item - the named anchor (title), 'Workspace actions',
-    # and one other (go) - and exactly 5 depth-2 Texts bound by parentRid: title (== anchor name),
-    # category, 'Last opened: *' parented to the anchor; the ellipsis label parented to the actions
-    # button; go-label (== go button name) parented to the go button. Every node is a depth-1 Button
+    # Prototype-UX expected topology, runtime qualification still owed: exactly 2
+    # direct (depth-1) Buttons parented to the item - the named anchor (title)
+    # and one other (go) - and exactly 4 depth-2 Texts bound by parentRid: title (== anchor name),
+    # category, 'Last opened: *' parented to the anchor;
+    # go-label (== go button name) parented to the go button. Every node is a depth-1 Button
     # or a depth-2 Text; anything else refuses (unknown coverage). ALL rect fields finite-positive AND
     # integral (96-DPI straight-edge domain); all RIDs unique and readable; geometric containment kept
     # in ADDITION to parent binding. Masks = ALL node rects (buttons cover their texts).
@@ -1847,32 +1865,25 @@ public static class WinCap {
     }
     $btns = @($nodes | Where-Object { $_.ct -eq 'ControlType.Button' })
     $txts = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' })
-    if ($btns.Count -ne 3) { $res.reason = "expected exactly 3 direct buttons, got $($btns.Count)"; return $res }
-    if ($txts.Count -ne 5) { $res.reason = "expected exactly 5 text nodes, got $($txts.Count)"; return $res }
+    if ($btns.Count -ne 2) { $res.reason = "expected exactly 2 direct buttons, got $($btns.Count)"; return $res }
+    if ($txts.Count -ne 4) { $res.reason = "expected exactly 4 text nodes, got $($txts.Count)"; return $res }
     $itemRidK = ($itemRid -join ',')
     foreach ($b in $btns) { if (-not [string]::Equals(($b.parentRid -join ','), $itemRidK, [StringComparison]::Ordinal)) { $res.reason = "button '$($b.name)' not parented to the list item"; return $res } }
     $anchor = @($btns | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($anchor.Count -ne 1) { $res.reason = "anchor button '$anchorName' count=$($anchor.Count)"; return $res }
-    $actions = @($btns | Where-Object { [string]::Equals([string]$_.name, 'Workspace actions', [StringComparison]::Ordinal) }); if ($actions.Count -ne 1) { $res.reason = "actions button count=$($actions.Count)"; return $res }
-    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and $_.rid -ne $actions[0].rid })
+    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid })
     if ($go.Count -ne 1) { $res.reason = 'go button not uniquely identified'; return $res }
-    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ','); $xK = ($actions[0].rid -join ',')
+    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ',')
     $titleT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
     $openedT = @($txts | Where-Object { $_.name -like 'Last opened:*' }); if ($openedT.Count -ne 1) { $res.reason = "'Last opened' text count=$($openedT.Count)"; return $res }
     $goT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
-    # actions-label glyph MEASURED U+22EF (midline horizontal ellipsis) on the real app: runs 43548927818 +
-    # 43551695254 JSONs carry U+22EF x63 and U+2026 x0 in BOTH states (reviewer 05:39:18, independently rechecked).
-    # Exact-glyph Ordinal gate kept; U+2026 stays refused (no accept-both without product evidence).
-    $dotsT = @($txts | Where-Object { [string]::Equals([string]$_.name, "`u{22ef}", [StringComparison]::Ordinal) }); if ($dotsT.Count -ne 1) { $res.reason = "actions-label text count=$($dotsT.Count)"; return $res }
-    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid -and $_.rid -ne $dotsT[0].rid })
+    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid })
     if ($catT.Count -ne 1) { $res.reason = "category text not uniquely identified ($($catT.Count))"; return $res }
     # parent bindings: each text bound to its GROUNDED parent button (not geometric containment alone)
     foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not [string]::Equals(($t.parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "anchor text '$($t.name)' parent rid is not the anchor button"; return $res } }
     if (-not [string]::Equals(($goT[0].parentRid -join ','), $gK, [StringComparison]::Ordinal)) { $res.reason = 'go-label text parent rid is not the go button'; return $res }
-    if (-not [string]::Equals(($dotsT[0].parentRid -join ','), $xK, [StringComparison]::Ordinal)) { $res.reason = 'actions-label text parent rid is not the actions button'; return $res }
     $inside = { param($ir, $or2) ($ir.Left -ge $or2.Left -and $ir.Top -ge $or2.Top -and $ir.Right -le $or2.Right -and $ir.Bottom -le $or2.Bottom) }
     foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not (& $inside $t.rect $anchor[0].rect)) { $res.reason = "anchor text '$($t.name)' not inside the anchor button"; return $res } }
     if (-not (& $inside $goT[0].rect $go[0].rect)) { $res.reason = 'go-label text not inside the go button'; return $res }
-    if (-not (& $inside $dotsT[0].rect $actions[0].rect)) { $res.reason = 'actions-label text not inside the actions button'; return $res }
     $masks = New-Object System.Collections.Generic.List[object]
     foreach ($n in $nodes) { $masks.Add([ordered]@{ L = [int]$n.rect.Left; T = [int]$n.rect.Top; R = [int]$n.rect.Right; B = [int]$n.rect.Bottom }) }  # exact: integrality verified above
     $res.maskRects = $masks; $res.ok = $true
@@ -2592,9 +2603,9 @@ public static class WinCap {
   $targetVal = ValOf (NamedEdit 'Item target')
   Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal
   # 11. user feedback Nov 12: the item-row actions menu clipped off-screen. The LAST row is the worst case (window right edge, least room below).
-  $miBtns = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions'))))))
+  $miBtns = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item'))))))
   Assert 'item rows present for the menu placement check' ($miBtns.Count -gt 0) "count=$($miBtns.Count)"
-  if ($miBtns.Count -gt 0) { [void](InvokeEl $miBtns[$miBtns.Count - 1] 'last-row item actions button'); Start-Sleep -Milliseconds 900
+  if ($miBtns.Count -gt 0) { [void](OpenContextEl $miBtns[$miBtns.Count - 1]); Start-Sleep -Milliseconds 900
     Assert 'last-row item menu opened' ($null -ne (MenuItemByName 'מחיקה')) ''
     MenuInsideWindow 'last-row item menu'
     $mEl = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu)))
@@ -2638,15 +2649,15 @@ public static class WinCap {
   Assert 'exactly one ok.txt target text in the four-group view' ($okTexts.Count -eq 1) ("count=$($okTexts.Count)")
   $li = $okTexts[0]; while ($li -and $li.Current.ControlType -ne $CT::ListItem) { $li = $tw.GetParent($li) }
   $rowBtn = $null
-  if ($li) { $rb = @($li.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions')))))); if ($rb.Count -eq 1) { $rowBtn = $rb[0] } }
+  if ($li) { $rb = @($li.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))); if ($rb.Count -eq 1) { $rowBtn = $rb[0] } }
   if (-not $rowBtn) {
     $rcy = $okTexts[0].Current.BoundingRectangle.Top + $okTexts[0].Current.BoundingRectangle.Height / 2
-    $rb = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions'))))) | Where-Object { $b = $_.Current.BoundingRectangle; $rcy -ge $b.Top -and $rcy -le $b.Bottom })
+    $rb = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item'))))) | Where-Object { $b = $_.Current.BoundingRectangle; $rcy -ge $b.Top -and $rcy -le $b.Bottom })
     Assert 'unique same-row Item actions button by strict Y containment (fallback)' ($rb.Count -eq 1) ("count=$($rb.Count) rowCenterY=$rcy")
     if ($rb.Count -eq 1) { $rowBtn = $rb[0] }
   }
   Assert 'Item actions button resolved inside the ok.txt row' ($null -ne $rowBtn) ''
-  [void](InvokeEl $rowBtn 'ok.txt row item actions'); Start-Sleep -Milliseconds 900
+  [void](OpenContextEl $rowBtn); Start-Sleep -Milliseconds 900
   $delMi = MenuItemByName 'מחיקה'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
   [void](InvokeEl $delMi 'מחיקה')
   $gone = $false; $swD = [Diagnostics.Stopwatch]::StartNew(); while ($swD.Elapsed.TotalSeconds -lt 10) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like '*ok.txt*' })) { $gone = $true; break }; Start-Sleep -Milliseconds 300 }

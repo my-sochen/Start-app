@@ -32,17 +32,46 @@ public class MenuBindingSourceTests
         }
     }
 
-    [Fact] public void All_menu_buttons_carry_the_window_view_model_in_their_Tag()
+    [Fact] public void All_menu_hosts_carry_the_window_view_model_in_their_Tag()
     {
         var xaml = Xaml();
         const string tag = "Tag=\"{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}\"";
-        foreach (var button in new[] { "AutomationProperties.Name=\"Item actions\"", "AutomationProperties.Name=\"Workspace actions\"", "AutomationProperties.Name=\"Staged item actions\"", "AutomationProperties.Name=\"Capture\"" })
+        foreach (var button in new[] { "AutomationProperties.Name=\"Item row\"", "AutomationProperties.Name=\"Workspace actions\"", "AutomationProperties.Name=\"Staged item row\"", "AutomationProperties.Name=\"Capture\"" })
         {
             var i = xaml.IndexOf(button, StringComparison.Ordinal);
             Assert.True(i >= 0, button + " not found");
-            var open = xaml.LastIndexOf("<Button", i, StringComparison.Ordinal);
+            var open = xaml.LastIndexOf("<", i, StringComparison.Ordinal);
             var close = xaml.IndexOf('>', i);
             Assert.Contains(tag, xaml.Substring(open, close - open));
         }
+    }
+    [Fact] public void Contextual_actions_replace_ellipsis_and_item_editor_is_row_local()
+    {
+        var xaml=Xaml(); Assert.DoesNotContain("Content=\"⋯\"",xaml);
+        Assert.Equal(3,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count);
+        var start=xaml.IndexOf("<ListView.ItemTemplate>",StringComparison.Ordinal);
+        var end=xaml.IndexOf("</ListView.ItemTemplate>",start,StringComparison.Ordinal);
+        var row=xaml.Substring(start,end-start);
+        Assert.Contains("Content=\"ערוך\"",row);Assert.Contains("ItemEditorVisibility",row);
+        Assert.Contains("EditingItemInstanceId",row);Assert.Contains("SaveItemEditCommand",row);Assert.Contains("CancelItemEditCommand",row);
+        Assert.Equal(1,Regex.Matches(xaml,"AutomationProperties.Name=\"Edit item name\"").Count);
+    }
+    [Fact] public void Minimum_height_details_and_text_context_contracts_remain_explicit()
+    {
+        var xaml=Xaml();
+        Assert.Contains("AutomationProperties.Name=\"Workspace details viewport\"",xaml);
+        Assert.Contains("AutomationProperties.Name=\"Cancel item edit\"",xaml);
+        Assert.Contains("Focusable=\"True\" KeyboardNavigation.IsTabStop=\"True\"",xaml);
+        Assert.Equal(2,Regex.Matches(xaml,"Header=\"שיתוף לסביבה אחרת\" IsEnabled=\"False\" Visibility=\"Collapsed\"").Count);
+        var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
+        Assert.Contains("if (source is TextBox) return;",code);
+        Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
+        Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
+    }
+    private static string FindViewPath()
+    {
+        var dir=new DirectoryInfo(AppContext.BaseDirectory);
+        for(var i=0;i<10&&dir is not null;i++,dir=dir.Parent){var path=Path.Combine(dir.FullName,"src","StartApp.App","MainWindow.xaml");if(File.Exists(path))return path;}
+        throw new FileNotFoundException("MainWindow.xaml");
     }
 }

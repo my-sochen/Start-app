@@ -71,7 +71,25 @@ function Btn($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Wi
 function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Capture palette')))))); if ($m.Count -eq 1) { return $m[0] }; return $null }
 function CapSwatch($hex) { $pal = CapPalette; if ($null -eq $pal) { return $null }; return $pal.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex))))) }
 function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function OpenContextEl($el, $settle = 900) {
+  if ($null -eq $el) { return 'context anchor missing' }
+  try {
+    $el.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    Start-Sleep -Milliseconds $settle
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    return 'ok'
+  } catch { return "native context menu failed: $_" }
+}
+function ContextAnchors($name) {
+  $hostWindow = (CurWin)
+  if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Remove added *' }) }
+  return @()
+}
 function ClickBtn($name, $settle = 900) {
+  if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
@@ -299,7 +317,7 @@ function StagedAddrsDeep() {
 }
 function WsCountByTarget($ws, $o, $like) { $ids = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like $like } | ForEach-Object { $_.id }); return @($ws.items | Where-Object { $ids -contains $_.itemId }).Count }
 function EffectiveNames($ws, $o) { @($ws.items | ForEach-Object { $m = $_; if (-not [string]::IsNullOrWhiteSpace($m.name)) { $m.name } else { $it = @($o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $m.itemId })[0]; if ($it) { $it.name } else { '' } } }) }
-function StagedActionBtns() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Staged item actions')))))) }
+function StagedActionBtns() { @(ContextAnchors 'Staged item actions') }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
   $c = ClickBtn 'Capture' 900; if ($c -ne 'ok') { return $c }
@@ -631,13 +649,13 @@ try {
   Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $before = @(StagedNames)
   $btns = @(StagedActionBtns); Assert 'three staged action buttons' ($btns.Count -eq 3) "$($btns.Count)"
-  [void](InvokeEl $btns[1] 'first program actions'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
   Assert 'פתח באמצעות hidden on a program item (it is the program)' ($null -eq (MenuItemByName 'פתח באמצעות')) ''
   $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'program move down'); Start-Sleep -Milliseconds 700
   $after = @(StagedNames)
   Assert 'הזז למטה swaps within the Programs group only' ($after.Count -eq 3 -and $after[0] -eq $before[0] -and $after[1] -eq $before[2] -and $after[2] -eq $before[1]) ($after -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'עריכת כתובת'; [void](InvokeEl $mi 'staged address edit entry'); Start-Sleep -Milliseconds 800
   $addr = NamedEdit 'Full address'; $rowAddr = @(StagedAddrs)[2]
   Assert 'address popup opened on the staged row with its full address' ($null -ne $addr -and (ValOf $addr) -eq $rowAddr) ("popup=$(ValOf $addr) row=$rowAddr")
@@ -646,15 +664,15 @@ try {
   $c = ClickBtn 'שמור' 900; Assert 'address saved on the staged row' ($c -eq 'ok') $c
   Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions for copy'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
   Assert 'העתק כתובת on a staged row reports the copy' ([System.Windows.Forms.Clipboard]::GetText().Length -gt 0) ((Texts) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions for delete'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
   Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 2) ((StagedNames) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[1] 'other program actions for delete'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete other program'); Start-Sleep -Milliseconds 700
   Assert 'second delete leaves the folder row only' (@(StagedNames).Count -eq 1 -and @(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for open-with' ($c -eq 'ok') $c

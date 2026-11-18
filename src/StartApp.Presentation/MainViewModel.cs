@@ -269,7 +269,7 @@ public sealed partial class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
     // unsaved item/address edit (PR19 review: edits disappeared on unrelated mutations). A dirty form stays
     // open with its fields. Safety does not rest on the selection staying put: saves validate the
@@ -601,7 +601,8 @@ public sealed partial class MainViewModel : ObservableBase
     }
 
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
-    public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); RaiseCommands(); } }
+    public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); Raise(nameof(EditingItemInstanceId)); RaiseCommands(); } }
+    public string EditingItemInstanceId => ItemEditOpen && _editItemWsId == Selected?.Id ? _editItemId : "";
     private bool _itemEditOpen;
     private string _editItemId = "", _editItemWsId = "";
     public string EditItemName { get => _editItemName; set { Set(ref _editItemName, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
@@ -617,9 +618,10 @@ public sealed partial class MainViewModel : ObservableBase
     private void BeginItemEdit(ItemRow row)
     {
         if (!TryOpenEditorForm()) return;
+        ClearFieldErrors();
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
-        ItemEditOpen = true;
+        ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
     private bool SaveItemEdit()
     {
