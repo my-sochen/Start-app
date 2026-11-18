@@ -8,6 +8,7 @@
         <local:ColorBrushConverter x:Key="ColorBrush"/>
         <local:CardBrushConverter x:Key="CardBrush"/>
         <local:FrameThicknessConverter x:Key="FrameThickness"/>
+        <local:ItemEditorVisibilityConverter x:Key="ItemEditorVisibility"/>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
             <CollectionViewSource.GroupDescriptions>
                 <PropertyGroupDescription PropertyName="Group"/>
@@ -90,7 +91,7 @@
                             <!-- card design: without an image the color is the background; with one it is the frame (thick top,
                                  thin other sides, settled Nov 11; exact frame measurements are provisional). The readability
                                  layer behind the text was explicitly left undecided, so there is none. -->
-                            <Border Margin="0,2" Padding="4" CornerRadius="4"
+                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,2" Padding="4" CornerRadius="4"
                                     BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}">
                                 <Border.BorderThickness>
                                     <Binding Path="ImagePath" Converter="{StaticResource FrameThickness}"/>
@@ -101,22 +102,19 @@
                                         <Binding Path="ImagePath"/>
                                     </MultiBinding>
                                 </Border.Background>
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="⋯" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
-                                        AutomationProperties.Name="Workspace actions" Click="CardActions_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                                    <Button.ContextMenu>
+                            <Border.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="הצג" Command="{Binding PlacementTarget.Tag.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                             <MenuItem Header="שגר" Command="{Binding PlacementTarget.Tag.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                             <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.Tag.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                            <Separator/><MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                             <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                         </ContextMenu>
-                                    </Button.ContextMenu>
-                                </Button>
+                                    </Border.ContextMenu>
+                            <DockPanel>
                                 <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
                                         Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
                                         Background="Transparent" BorderThickness="0"
                                         HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
                                     <StackPanel>
@@ -139,6 +137,9 @@
                     <Button DockPanel.Dock="Right" Content="שגר" Command="{Binding OpenWorkspaceCommand}" Padding="8,2"/>
                     <TextBlock Text="{Binding CreatedAtText, StringFormat='Created: {0}'}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="Gray" Margin="0,0,10,0"/>
                 </DockPanel>
+                <!-- A single details viewport keeps the form, list and expanded row actions reachable at 400px height. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" AutomationProperties.Name="Workspace details viewport">
+                <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,6,0,0">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
@@ -156,30 +157,6 @@
                     <Button Content="Save" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" HorizontalAlignment="Left" Margin="0,4,0,0" Padding="12,2"
                             Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                 </StackPanel>
-                <Border DockPanel.Dock="Top" Margin="0,8,0,0" BorderBrush="Gray" BorderThickness="1" Padding="6"
-                        Visibility="{Binding ItemEditOpen, Converter={StaticResource B2V}}">
-                    <StackPanel>
-                        <TextBlock Text="Edit item" FontWeight="SemiBold"/>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item name"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="Address" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
-                        </DockPanel>
-                    <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="Save" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
-                                    Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
-                            <Button Content="Cancel" Command="{Binding CancelItemEditCommand}" Padding="12,2"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
                 <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Left" Text="עדיין אין אייטמים בסביבה" VerticalAlignment="Center" FontStyle="Italic"/>
@@ -221,8 +198,26 @@
                     </ListView.GroupStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <Grid ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Item row">
+                                <Grid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.EditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
+                                                    <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
+                                                        <!-- a program item IS the program; open-with does not apply to it -->
+                                                        <DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    </Style.Triggers></Style></MenuItem.Style>
+                                                </MenuItem>
+                                                <Separator/><MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
+                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
+                                                <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
+                                            </ContextMenu>
+                                        </Grid.ContextMenu>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="140"/>
                                     <ColumnDefinition Width="60"/>
@@ -237,28 +232,8 @@
                                 <TextBlock Grid.Column="1" Text="{Binding Type}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
-                                    <Button Content="עריכה" AutomationProperties.Name="Edit item" Padding="6,0" Margin="0,0,4,0"
+                                    <Button Content="ערוך" Click="EditItem_Click" AutomationProperties.Name="Edit item" Padding="8,2" Margin="12,0,0,0" ToolTip="עריכת האייטם, ללא פתיחה"
                                             Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                    <Button Content="⋯" AutomationProperties.Name="Item actions" Click="CardActions_Click" Padding="6,0" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                                        <Button.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.EditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
-                                                    <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
-                                                        <!-- a program item IS the program; open-with does not apply to it -->
-                                                        <DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                                                    </Style.Triggers></Style></MenuItem.Style>
-                                                </MenuItem>
-                                                <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
-                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
-                                                <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
-                                            </ContextMenu>
-                                        </Button.ContextMenu>
-                                    </Button>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
                                     <local:ProgramIconView Program="{Binding Program}"/>
@@ -269,10 +244,37 @@
                                         </Style.Triggers></Style></TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
+                <Border Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,0" BorderBrush="Gray" BorderThickness="1" Padding="6"
+                        >
+                    <Border.Visibility><MultiBinding Converter="{StaticResource ItemEditorVisibility}"><Binding Path="InstanceId"/><Binding Path="DataContext.EditingItemInstanceId" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></Border.Visibility>
+                    <StackPanel DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" FlowDirection="RightToLeft">
+                        <TextBlock Text="עריכת אייטם" FontWeight="SemiBold"/>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="שם" Width="80" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item name"/>
+                        </DockPanel>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="תיאור" Width="80" VerticalAlignment="Center"/>
+                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
+                        </DockPanel>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="כתובת" Width="80" VerticalAlignment="Center"/>
+                            <TextBox FlowDirection="LeftToRight" Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
+                        </DockPanel>
+                    <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
+                                    Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
+                            <Button Content="ביטול" AutomationProperties.Name="Cancel item edit" Command="{Binding CancelItemEditCommand}" Padding="12,2"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+                </DockPanel>
+                </ScrollViewer>
             </DockPanel>
 
             <!-- Progress is nonmodal; completed results are opened only by explicit user choice. -->
@@ -365,16 +367,11 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
+                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="0,2">
-                                            <DockPanel>
-                                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
-                                                        Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <Button DockPanel.Dock="Right" Content="⋯" Padding="6,0" AutomationProperties.Name="Staged item actions" ToolTip="Staged item actions"
-                                                        Click="CardActions_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                    <Button.ContextMenu>
+                                        <StackPanel Margin="0,2" Focusable="True" KeyboardNavigation.IsTabStop="True" ToolTip="פעולות האייטם: קליק ימני, Menu או Shift+F10" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Staged item row">
+                                            <StackPanel.ContextMenu>
                                                         <ContextMenu>
                                                             <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.StagedCopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
@@ -382,18 +379,30 @@
                                                             <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.StagedOpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
                                                                 <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers><DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></MenuItem.Style>
                                                             </MenuItem>
-                                                            <MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.StagedMoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                            <Separator/><MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.StagedMoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.StagedMoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
                                                         </ContextMenu>
-                                                    </Button.ContextMenu>
-                                                </Button>
-                                                <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="6,0"/>
+                                                    </StackPanel.ContextMenu>
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
+                                                        Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <Button DockPanel.Dock="Right" Content="עריכה" Click="EditStaged_Click" Padding="6,0" Margin="0,0,4,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}"
+                                                        Command="{Binding DataContext.EditStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <StackPanel>
+                                                    <DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemName"/><TextBlock Text="{Binding Group}" Foreground="Gray" Margin="6,0,0,0"/></DockPanel>
+                                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemAddress"/>
+                                                </StackPanel>
                                             </DockPanel>
-                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
-                                            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description" Margin="0,2,0,0"/>
-                                            <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address" Margin="0,2,0,0"/>
-                                            <TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" Margin="0,2,0,0" ToolTip="Optional: full path to the program/browser to open this item with"/>
+                                            <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor">
+                                                <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="6,0" AutomationProperties.Name="Done editing added item"
+                                                        Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <TextBlock Text="Name"/><TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
+                                                <TextBlock Text="Description" Margin="0,2,0,0"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description"/>
+                                                <TextBlock Text="Address" Margin="0,2,0,0"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address"/>
+                                                <TextBlock Text="Open with" Margin="0,2,0,0"/><TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" ToolTip="Optional: full path to the program/browser to open this item with"/>
+                                                <TextBlock Text="Changes stay here until workspace Save." Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

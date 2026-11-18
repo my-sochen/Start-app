@@ -57,3 +57,21 @@ Check 'zero HWND rejected' (-not (Test-CaptureFixtureWindowIdentity 0 22 @(22) 0
 Check 'missing PID set rejected' (-not (Test-CaptureFixtureWindowIdentity 100 22 @() 100 22))
 Check 'empty PID set does not enumerate native windows' ((Get-CaptureFixtureNativeSnapshot -OwnedPids @()).Windows.Count -eq 0)
 Write-Host "$checks TOTAL readiness checks passed"
+
+function Summary([string]$name='example.com',[bool]$offscreen=$false,[double]$width=120,[double]$height=18) {
+  [pscustomobject]@{ Name=$name; Offscreen=$offscreen; Width=$width; Height=$height }
+}
+Check 'one visible normal summary returns exact name' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary)) -ceq 'example.com')
+Check 'no staged rows returns empty' ((Get-CaptureSingleVisibleStagedName -Rows @()) -ceq '')
+Check 'null staged rows returns empty' ((Get-CaptureSingleVisibleStagedName -Rows $null) -ceq '')
+Check 'duplicate rows never choose first' ((Get-CaptureSingleVisibleStagedName -Rows @((Summary),(Summary))) -ceq '')
+Check 'offscreen summary rejected' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary -offscreen $true)) -ceq '')
+Check 'zero area summary rejected' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary -width 0)) -ceq '')
+Check 'nonfinite area summary rejected' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary -height ([double]::NaN))) -ceq '')
+Check 'infinite area summary rejected' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary -width ([double]::PositiveInfinity))) -ceq '')
+Check 'missing visibility metadata rejected' ((Get-CaptureSingleVisibleStagedName -Rows @([pscustomobject]@{Name='example.com';Width=[double]120;Height=[double]18})) -ceq '')
+Check 'wrong normal summary remains wrong not accepted' ((Get-CaptureSingleVisibleStagedName -Rows @(Summary -name 'foreign.example.com')) -cne 'example.com')
+$script:reads=0
+$r=Wait-CaptureTextObservation -Read { $script:reads++;if($script:reads -eq 1){Get-CaptureSingleVisibleStagedName -Rows @()}else{Get-CaptureSingleVisibleStagedName -Rows @(Summary)} } -Accept {param($v) $v -ceq 'example.com'} -TimeoutMilliseconds 200 -PollMilliseconds 1
+Check 'normal summary readiness retains accepted sample after transient missing row' ($r.Matched -and $r.Attempts -eq 2 -and $r.Value -ceq 'example.com' -and $script:reads -eq 2)
+Write-Host "$checks COMBINED readiness checks passed"

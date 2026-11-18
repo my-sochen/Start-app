@@ -36,6 +36,7 @@ internal static partial class Program
     private static void Check(string name, bool ok) { Checks.Add(new { name, ok }); if (!ok) throw new Exception(name); }
     [STAThread] private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--prototype-ux") return PrototypeUx(args[1]);
         if (args.Length == 2 && args[0] == "--rtl-layout") return Readiness(args[1], false);
         if (args.Length == 2 && args[0] == "--readiness") return Readiness(args[1]);
         if (args.Length == 2 && args[0] == "--native-duplicate") return NativeDuplicate(args[1]);

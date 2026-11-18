@@ -49,6 +49,46 @@ public class StagedItemActionsTests
         Assert.Equal(2, vm.StagedRows.Count);
     }
 
+    [Fact] public void Explicit_editor_defaults_closed_and_row_selection_does_not_open_it()
+    {
+        var (vm, repo) = Make(out var launcher); using var _ = repo;
+        StageTwo(vm);
+        Assert.All(vm.StagedRows, row => Assert.False(row.IsEditing));
+        vm.CaptureRows[0].IsChecked = !vm.CaptureRows[0].IsChecked;
+        Assert.All(vm.StagedRows, row => Assert.False(row.IsEditing));
+        Assert.Empty(launcher.Calls);
+    }
+    [Fact] public void Explicit_edit_switch_and_done_preserve_unsaved_values_without_store_or_launch()
+    {
+        var (vm, repo) = Make(out var launcher); using var _ = repo;
+        StageTwo(vm); var before = System.Text.Json.JsonSerializer.Serialize(repo.Load());
+        var first = vm.StagedRows[0]; var second = vm.StagedRows[1];
+        Assert.True(vm.EditStagedCommand.CanExecute(first)); vm.EditStagedCommand.Execute(first);
+        Assert.True(first.IsEditing); Assert.False(second.IsEditing);
+        first.Name = "draft name"; first.Description = "draft description"; first.Target = @"D:\edited"; first.OpenWith = @"C:\Windows\notepad.exe";
+        vm.EditStagedCommand.Execute(second);
+        Assert.False(first.IsEditing); Assert.True(second.IsEditing);
+        vm.CloseStagedEditCommand.Execute(second); Assert.All(vm.StagedRows, row => Assert.False(row.IsEditing));
+        vm.EditStagedCommand.Execute(first);
+        Assert.Equal("draft name", first.Name); Assert.Equal("draft description", first.Description);
+        Assert.Equal(@"D:\edited", first.Target); Assert.Equal(@"C:\Windows\notepad.exe", first.OpenWith);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(repo.Load())); Assert.Empty(launcher.Calls);
+        vm.CloseStagedEditCommand.Execute(first); vm.CaptureSaveCommand.Execute(null);
+        Assert.Empty(vm.StagedRows); Assert.Contains(vm.CaptureWorkspaceItems, row => row.Name == "draft name");
+    }
+    [Fact] public void Adding_another_row_does_not_open_its_editor_or_change_the_explicit_editor()
+    {
+        var (vm, repo) = Make(out var launcher); using var _ = repo;
+        StageTwo(vm); var first = vm.StagedRows[0]; vm.EditStagedCommand.Execute(first);
+        vm.CaptureDropCommand.Execute(vm.CaptureRows.Single(row => row.Name == "Notepad"));
+        Assert.True(first.IsEditing); Assert.False(vm.StagedRows.Last().IsEditing);
+        var foreign = new MainViewModel.StagedRow(new CapturedItem(ItemType.Link, "other", "https://other.invalid"));
+        Assert.False(vm.EditStagedCommand.CanExecute(foreign));
+        vm.RemoveStagedCommand.Execute(first); Assert.DoesNotContain(first, vm.StagedRows);
+        Assert.All(vm.StagedRows, row => Assert.False(row.IsEditing)); Assert.False(vm.EditStagedCommand.CanExecute(first));
+        Assert.Empty(launcher.Calls);
+    }
+
     private sealed class TwoFoldersCapturer : IOpenItemCapturer
     {
         public CaptureScan Scan() => new(new[]
