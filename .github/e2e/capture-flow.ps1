@@ -73,7 +73,25 @@ function Btn($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Wi
 function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Capture palette')))))); if ($m.Count -eq 1) { return $m[0] }; return $null }
 function CapSwatch($hex) { $pal = CapPalette; if ($null -eq $pal) { return $null }; return $pal.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex))))) }
 function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function OpenContextEl($el, $settle = 900) {
+  if ($null -eq $el) { return 'context anchor missing' }
+  try {
+    $el.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    Start-Sleep -Milliseconds $settle
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    return 'ok'
+  } catch { return "native context menu failed: $_" }
+}
+function ContextAnchors($name) {
+  $hostWindow = (CurWin)
+  if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Remove added *' }) }
+  return @()
+}
 function ClickBtn($name, $settle = 900) {
+  if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
@@ -88,15 +106,14 @@ function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); w
 function WaitGone($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" })) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
 function NamedEdit($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
 function ReadSingleStagedName() {
-  # The drag stage starts empty and must produce exactly one rendered staged row.
-  # Scope to the expected staged list; do not accidentally read a hidden/underlying form.
-  $window = CurWin
-  if ($null -eq $window) { return '' }
-  $lists = @($window.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Added items not saved yet'))))))
-  if ($lists.Count -ne 1) { return '' }
-  $fields = @($lists[0].FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
-  if ($fields.Count -ne 1 -or $fields[0].Current.IsOffscreen) { return '' }
-  return ValOf $fields[0]
+  # Read the normal summary, not an editor: adding/dragging must not open editing.
+  # StagedRowRecords validates one staged list and paired identity within each row.
+  $records = @(StagedRowRecords)
+  $observations = @($records | ForEach-Object {
+    $bounds = $_.NameElement.Current.BoundingRectangle
+    [pscustomobject]@{ Name=$_.Name; Offscreen=$_.NameElement.Current.IsOffscreen; Width=$bounds.Width; Height=$bounds.Height }
+  })
+  return Get-CaptureSingleVisibleStagedName -Rows $observations
 }
 function NamedCombo($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
 function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
@@ -288,11 +305,42 @@ function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-O
 function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
-function StagedNames() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))) | ForEach-Object { ValOf $_ }) }
-function StagedAddrs() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))) | ForEach-Object { ValOf $_ }) }
+# Pair summaries and buttons inside each exact staged row, never by parallel window-wide arrays.
+function StagedRowRecords() {
+  $hostWindow = CurWin
+  if ($null -eq $hostWindow) { throw 'No current app window while collecting staged rows' }
+  $lists = @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Added items not saved yet'))))))
+  if ($lists.Count -ne 1) { throw 'Missing or ambiguous staged list host' }
+  $rows = @($lists[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))
+  foreach ($row in $rows) {
+    $names = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemName'))))
+    $addresses = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress'))))
+    $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' })
+    $null = Assert 'staged row has one paired summary and Edit button' ($names.Count -eq 1 -and $addresses.Count -eq 1 -and $edits.Count -eq 1) ("names=$($names.Count) addresses=$($addresses.Count) edits=$($edits.Count)")
+    if ($names.Count -ne 1 -or $addresses.Count -ne 1 -or $edits.Count -ne 1) { throw 'Ambiguous staged row structure' }
+    [pscustomobject]@{ Row=$row; Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
+  }
+}
+function StagedNames() { @(StagedRowRecords | ForEach-Object { $_.Name }) }
+function StagedAddrs() { @(StagedRowRecords | ForEach-Object { $_.Address }) }
+function OpenStagedEditor($original) {
+  $matches = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq "Edit added $original" })
+  Assert "explicit Edit has unique row identity for $original" ($matches.Count -eq 1) ("matches=$($matches.Count)")
+  if ($matches.Count -ne 1) { throw 'Ambiguous or missing staged Edit target' }
+  $record = $matches[0]; $button = $record.Edit; $br = $button.Current.BoundingRectangle
+  Assert "exact staged Edit button is visible and enabled for $original" (-not $button.Current.IsOffscreen -and $button.Current.IsEnabled -and $br.Width -gt 0 -and $br.Height -gt 0) ''
+  if ($button.Current.IsOffscreen -or -not $button.Current.IsEnabled -or $br.Width -le 0 -or $br.Height -le 0) { throw 'Staged Edit button not actionable' }
+  [void](InvokeEl $button "explicit Edit exact row $original"); Start-Sleep -Milliseconds 400
+  $editors = @($record.Row.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
+  Assert "exact staged row owns one name editor after explicit Edit for $original" ($editors.Count -eq 1 -and (ValOf $editors[0]) -eq $record.Name) ("count=$($editors.Count)")
+  foreach ($other in @(StagedRowRecords | Where-Object { -not [System.Windows.Automation.Automation]::Compare($_.Row, $record.Row) })) {
+    $otherEdits = @($other.Row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
+    Assert "other staged row has no editor after explicit Edit for $original" ($otherEdits.Count -eq 0) ("count=$($otherEdits.Count)")
+  }
+}
 function ScrollStaged([int]$delta) {
   # Real mouse wheel over the staged panel: scrolls the innermost scrollable under the cursor, like a user's wheel.
-  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address')))))
+  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress')))))
   if ($null -eq $anchor) { return }
   $r = $anchor.Current.BoundingRectangle; if ($r.Width -le 0) { return }
   TracePhase 'scroll-before-input'
@@ -312,7 +360,7 @@ function StagedAddrsDeep() {
 }
 function WsCountByTarget($ws, $o, $like) { $ids = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like $like } | ForEach-Object { $_.id }); return @($ws.items | Where-Object { $ids -contains $_.itemId }).Count }
 function EffectiveNames($ws, $o) { @($ws.items | ForEach-Object { $m = $_; if (-not [string]::IsNullOrWhiteSpace($m.name)) { $m.name } else { $it = @($o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $m.itemId })[0]; if ($it) { $it.name } else { '' } } }) }
-function StagedActionBtns() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Staged item actions')))))) }
+function StagedActionBtns() { @(ContextAnchors 'Staged item actions') }
 function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
 function OpenCaptureMenu($item) {
   $c = ClickBtn 'Capture' 900; if ($c -ne 'ok') { return $c }
@@ -618,8 +666,10 @@ try {
   $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row'); Start-Sleep -Milliseconds 500
   Assert 'add button becomes הוסף נבחרים when a row is ticked' ($null -ne (Btn 'הוסף נבחרים')) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected clicked' ($c -eq 'ok') $c
-  Assert 'staged row appears with editable name' ($null -ne (NamedEdit 'Added item name')) ''
-  Assert 'staged item has the default name (the original)' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  Assert 'staged row is normal until explicit Edit' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
+  Shot 'staged-normal-before-edit'
+  OpenStagedEditor 'capfolder'
+  Assert 'staged item has the default name (the original)' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   SetText (NamedEdit 'Added item name') 'my capture folder'; SetText (NamedEdit 'Added item description') 'added from capture'
   Assert 'NOT saved yet: store has no such instance name' (-not (StoreJson).Contains('my capture folder')) (StoreJson)
   Shot 'side-by-side-staged'
@@ -644,13 +694,13 @@ try {
   Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $before = @(StagedNames)
   $btns = @(StagedActionBtns); Assert 'three staged action buttons' ($btns.Count -eq 3) "$($btns.Count)"
-  [void](InvokeEl $btns[1] 'first program actions'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
   Assert 'פתח באמצעות hidden on a program item (it is the program)' ($null -eq (MenuItemByName 'פתח באמצעות')) ''
   $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'program move down'); Start-Sleep -Milliseconds 700
   $after = @(StagedNames)
   Assert 'הזז למטה swaps within the Programs group only' ($after.Count -eq 3 -and $after[0] -eq $before[0] -and $after[1] -eq $before[2] -and $after[2] -eq $before[1]) ($after -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'עריכת כתובת'; [void](InvokeEl $mi 'staged address edit entry'); Start-Sleep -Milliseconds 800
   $addr = NamedEdit 'Full address'; $rowAddr = @(StagedAddrs)[2]
   Assert 'address popup opened on the staged row with its full address' ($null -ne $addr -and (ValOf $addr) -eq $rowAddr) ("popup=$(ValOf $addr) row=$rowAddr")
@@ -659,15 +709,15 @@ try {
   $c = ClickBtn 'שמור' 900; Assert 'address saved on the staged row' ($c -eq 'ok') $c
   Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions for copy'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
   Assert 'העתק כתובת on a staged row reports the copy' ([System.Windows.Forms.Clipboard]::GetText().Length -gt 0) ((Texts) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[2] 'moved program actions for delete'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
   Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 2) ((StagedNames) -join ' | ')
   $btns = @(StagedActionBtns)
-  [void](InvokeEl $btns[1] 'other program actions for delete'); Start-Sleep -Milliseconds 800
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete other program'); Start-Sleep -Milliseconds 700
   Assert 'second delete leaves the folder row only' (@(StagedNames).Count -eq 1 -and @(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for open-with' ($c -eq 'ok') $c
@@ -692,6 +742,7 @@ try {
   $sourceTicksAfterOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
   Assert 'staged reopen choices never change source capture tick state' ($sourceTicksAfterOpen -eq $sourceTicksBeforeOpen) ("before=$sourceTicksBeforeOpen after=$sourceTicksAfterOpen")
   Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
+  OpenStagedEditor 'capfolder'
   Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
   $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
   Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
@@ -712,7 +763,7 @@ try {
   }
   Assert 'after Save the instance name, description and staged open-with default are persisted' $savedObservation.Matched ("attempts=$($savedObservation.Attempts) elapsedMs=$($savedObservation.ElapsedMilliseconds) readError=$($savedObservation.ReadErrorType) snapshot=$($savedObservation.Value)")
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
-  Assert 'staged area is empty again after Save' ($null -eq (NamedEdit 'Added item name')) ''
+  Assert 'staged area is empty again after Save' (@(StagedNames).Count -eq 0) ''
   Shot 'side-by-side-after-save'
 
   # 2c. REAL pointer drag/drop: stage by dragging from the capture list; the per-drag duplicate warning fires per drag
@@ -720,21 +771,24 @@ try {
   DragRowToStage '*example.com*' 'site row'
   $dragObservation = Wait-CaptureTextObservation -Read { ReadSingleStagedName } -Accept { param($value) $value -ceq 'example.com' }
   Assert 'real drag stages the site with its default name' $dragObservation.Matched ("attempts=$($dragObservation.Attempts) elapsedMs=$($dragObservation.ElapsedMilliseconds) readError=$($dragObservation.ReadErrorType) snapshot=$($dragObservation.Value)")
+  Assert 'drag stages a normal row without opening editing' ((@(StagedNames) -join '|') -eq 'example.com' -and $null -eq (NamedEdit 'Added item name')) ''
+  OpenStagedEditor 'example.com'
+  Assert 'explicit editor retains the dragged default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
   Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ValOf (NamedEdit 'Added item open with')) -like '*msedge.exe') (ValOf (NamedEdit 'Added item open with'))
   Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
   Shot 'side-by-side-drag-staged'
-  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row'
   Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
   Shot 'drag-duplicate-warning'
-  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row again'
   Assert 'the per-drag warning fires for every drag, not once' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
-  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a second instance' ($c -eq 'ok' -and (ValOf (NamedEdit 'Added item name')) -eq 'capfolder') $c
+  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a normal second instance' ($c -eq 'ok' -and (@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) $c
   Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
-  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
@@ -742,11 +796,11 @@ try {
   Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'Add again: capfolder*')) ((CheckNames) -join ' | ')
   Shot 'duplicate-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
-  Assert 'nothing staged after skipping' ($null -eq (NamedEdit 'Added item name')) ''
+  Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
   $dup = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
-  Assert 'the ticked duplicate is staged as a second instance' ($null -ne (NamedEdit 'Added item name')) ''
+  Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
 
   # 4. back with unsaved staging -> guard; exit without saving keeps the snapshot; earlier save stays
   $c = ClickBtn 'Capture back' 1000; Assert 'back clicked' ($c -eq 'ok') $c
@@ -798,14 +852,13 @@ try {
   Assert 'grouped dialog again for the selective pass' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
   $dupF = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
-  $nameEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
-  $addrEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))))
-  $fidx = -1; for ($i = 0; $i -lt $addrEdits.Count; $i++) { if ((ValOf $addrEdits[$i]) -like '*capfolder*') { $fidx = $i; break } }
-  $stagedAddrsNow = @($addrEdits | ForEach-Object { ValOf $_ })
-  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($fidx -ge 0 -and -not @($stagedAddrsNow | Where-Object { $_ -like '*notepad.exe' })) ($stagedAddrsNow -join ' | ')
-  Assert 'the approved duplicate staged with the capture default name, not a local one' ((ValOf $nameEdits[$fidx]) -eq 'capfolder') (ValOf $nameEdits[$fidx])
+  $stagedNow = @(StagedRowRecords)
+  $foldersNow = @($stagedNow | Where-Object { $_.Address -like '*capfolder*' })
+  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($foldersNow.Count -eq 1 -and -not @($stagedNow | Where-Object { $_.Address -like '*notepad.exe' })) (($stagedNow | ForEach-Object { $_.Address }) -join ' | ')
+  Assert 'the approved duplicate staged with the capture default name, not a local one' ($foldersNow.Count -eq 1 -and $foldersNow[0].Name -eq 'capfolder') (($foldersNow | ForEach-Object { $_.Name }) -join ' | ')
   foreach ($sn in @(StagedNames | Where-Object { $_ -ne 'capfolder' })) { $c = ClickBtn "Remove added $sn" 800; Assert "remove non-folder staged $sn before the selective save" ($c -eq 'ok') $c }
   Assert 'only the folder remains staged for the selective save' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  OpenStagedEditor 'capfolder'
   SetText (NamedEdit 'Added item name') 'capfolder second'
   $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
   Assert 'the selective save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
@@ -825,7 +878,7 @@ try {
   DragRowToStage '*capfolder*' 'folder row into Cap A'
   Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
   Shot '4c-after-drag-cap-a'
-  Assert 'the dragged folder staged in Cap A with the capture default name' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  Assert 'the dragged folder staged in Cap A with the capture default name' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
   $o = StoreObj
   $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
@@ -848,8 +901,8 @@ try {
   Assert 'duplicate dialog for the re-add' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
   $dupR = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
-  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
-  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   $folderUntick = CheckByLike '*capfolder*'; if ($folderUntick -and (IsOn $folderUntick)) { [void](ToggleEl $folderUntick 'folder untick after re-add'); Start-Sleep -Milliseconds 300 }
   $c = ClickBtn 'Capture back' 1000
   if (WaitText 'Unsaved changes' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }
@@ -1357,7 +1410,7 @@ try {
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
-catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
+catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }); DumpState 'script-error' }
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
   # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run

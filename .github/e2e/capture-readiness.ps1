@@ -41,3 +41,17 @@ function Test-CaptureSavedInstance {
     return ($member.name -ceq $Name -and $member.description -ceq $Description -and $member.launch.openWith -ceq $OpenWith)
   } catch { return $false }
 }
+
+# Pure discrimination for a pre-edit normal staged summary observation.
+# UIA list/row/paired-summary identity is checked by StagedRowRecords before this projection.
+function Get-CaptureSingleVisibleStagedName {
+  param([AllowEmptyCollection()][object[]]$Rows)
+  if ($null -eq $Rows -or $Rows.Count -ne 1) { return '' }
+  $row = $Rows[0]
+  if ($null -eq $row -or $row.Offscreen -isnot [bool] -or $row.Offscreen -or
+      $row.Width -isnot [double] -or $row.Height -isnot [double] -or
+      [double]::IsNaN($row.Width) -or [double]::IsInfinity($row.Width) -or $row.Width -le 0 -or
+      [double]::IsNaN($row.Height) -or [double]::IsInfinity($row.Height) -or $row.Height -le 0 -or
+      $row.Name -isnot [string]) { return '' }
+  return $row.Name
+}
