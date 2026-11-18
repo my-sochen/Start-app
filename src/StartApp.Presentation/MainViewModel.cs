@@ -1063,6 +1063,8 @@ public sealed partial class MainViewModel : ObservableBase
     public sealed class StagedRow : ObservableBase
     {
         private string _name, _description = "", _target, _openWith = "";
+        private bool _isEditing;
+        public bool IsEditing { get => _isEditing; internal set => Set(ref _isEditing, value); }
         /// <summary>A staged site starts with the browser it was captured in already filled as its default (spec Nov 11);
         /// the staged פתח באמצעות popup can still change or clear it before שמור writes anything.</summary>
         public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; _openWith = i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? i.Browser! : ""; }
@@ -1145,6 +1147,8 @@ public sealed partial class MainViewModel : ObservableBase
     public ICommand CaptureCloseCommand { get; private set; } = null!;
     public ICommand CaptureCreateCommand { get; private set; } = null!;
     public ICommand RemoveStagedCommand { get; private set; } = null!;
+    public ICommand EditStagedCommand { get; private set; } = null!;
+    public ICommand CloseStagedEditCommand { get; private set; } = null!;
     public ICommand StagedCopyAddressCommand { get; private set; } = null!;
     public ICommand StagedMoveUpCommand { get; private set; } = null!;
     public ICommand StagedMoveDownCommand { get; private set; } = null!;
@@ -1167,6 +1171,13 @@ public sealed partial class MainViewModel : ObservableBase
         CaptureBackCommand = Cmd(_ => CaptureBack(), _ => IsCaptureSide && CaptureIdle);
         CaptureCloseCommand = Cmd(_ => CaptureClose(), _ => CaptureOpen && CaptureIdle);
         CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly && !IsScanning);
+        // Only an explicit per-row action expands editing. Switching preserves unsaved row values.
+        EditStagedCommand = Cmd(p =>
+        {
+            foreach (var row in StagedRows) row.IsEditing = ReferenceEquals(row, p);
+        }, p => p is StagedRow row && StagedRows.Contains(row) && IsCaptureSide && CaptureIdle && !ReadOnly);
+        CloseStagedEditCommand = Cmd(p => ((StagedRow)p!).IsEditing = false,
+            p => p is StagedRow row && StagedRows.Contains(row) && IsCaptureSide);
         RemoveStagedCommand = Cmd(p => { StagedRows.Remove((StagedRow)p!); Raise(nameof(CaptureDirty)); RaiseCommands(); }, p => p is StagedRow && IsCaptureSide);
         // Settled capture rule: a staged item offers the FULL item action set (מחיקה, העתק כתובת, עריכת כתובת, פתח באמצעות,
         // הזז למעלה/למטה; שיתוף לסביבה אחרת stays visible-disabled while that action is undefined) with staged semantics:

@@ -293,11 +293,42 @@ function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-O
 function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
 function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
-function StagedNames() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))) | ForEach-Object { ValOf $_ }) }
-function StagedAddrs() { @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))) | ForEach-Object { ValOf $_ }) }
+# Pair summaries and buttons inside each exact staged row, never by parallel window-wide arrays.
+function StagedRowRecords() {
+  $hostWindow = CurWin
+  if ($null -eq $hostWindow) { throw 'No current app window while collecting staged rows' }
+  $lists = @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Added items not saved yet'))))))
+  if ($lists.Count -ne 1) { throw 'Missing or ambiguous staged list host' }
+  $rows = @($lists[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))
+  foreach ($row in $rows) {
+    $names = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemName'))))
+    $addresses = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress'))))
+    $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' })
+    $null = Assert 'staged row has one paired summary and Edit button' ($names.Count -eq 1 -and $addresses.Count -eq 1 -and $edits.Count -eq 1) ("names=$($names.Count) addresses=$($addresses.Count) edits=$($edits.Count)")
+    if ($names.Count -ne 1 -or $addresses.Count -ne 1 -or $edits.Count -ne 1) { throw 'Ambiguous staged row structure' }
+    [pscustomobject]@{ Row=$row; Name=$names[0].Current.Name; Address=$addresses[0].Current.Name; Edit=$edits[0] }
+  }
+}
+function StagedNames() { @(StagedRowRecords | ForEach-Object { $_.Name }) }
+function StagedAddrs() { @(StagedRowRecords | ForEach-Object { $_.Address }) }
+function OpenStagedEditor($original) {
+  $matches = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq "Edit added $original" })
+  Assert "explicit Edit has unique row identity for $original" ($matches.Count -eq 1) ("matches=$($matches.Count)")
+  if ($matches.Count -ne 1) { throw 'Ambiguous or missing staged Edit target' }
+  $record = $matches[0]; $button = $record.Edit; $br = $button.Current.BoundingRectangle
+  Assert "exact staged Edit button is visible and enabled for $original" (-not $button.Current.IsOffscreen -and $button.Current.IsEnabled -and $br.Width -gt 0 -and $br.Height -gt 0) ''
+  if ($button.Current.IsOffscreen -or -not $button.Current.IsEnabled -or $br.Width -le 0 -or $br.Height -le 0) { throw 'Staged Edit button not actionable' }
+  [void](InvokeEl $button "explicit Edit exact row $original"); Start-Sleep -Milliseconds 400
+  $editors = @($record.Row.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
+  Assert "exact staged row owns one name editor after explicit Edit for $original" ($editors.Count -eq 1 -and (ValOf $editors[0]) -eq $record.Name) ("count=$($editors.Count)")
+  foreach ($other in @(StagedRowRecords | Where-Object { -not [System.Windows.Automation.Automation]::Compare($_.Row, $record.Row) })) {
+    $otherEdits = @($other.Row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
+    Assert "other staged row has no editor after explicit Edit for $original" ($otherEdits.Count -eq 0) ("count=$($otherEdits.Count)")
+  }
+}
 function ScrollStaged([int]$delta) {
   # Real mouse wheel over the staged panel: scrolls the innermost scrollable under the cursor, like a user's wheel.
-  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address')))))
+  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress')))))
   if ($null -eq $anchor) { return }
   $r = $anchor.Current.BoundingRectangle; if ($r.Width -le 0) { return }
   TracePhase 'scroll-before-input'
@@ -623,8 +654,10 @@ try {
   $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row'); Start-Sleep -Milliseconds 500
   Assert 'add button becomes הוסף נבחרים when a row is ticked' ($null -ne (Btn 'הוסף נבחרים')) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected clicked' ($c -eq 'ok') $c
-  Assert 'staged row appears with editable name' ($null -ne (NamedEdit 'Added item name')) ''
-  Assert 'staged item has the default name (the original)' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  Assert 'staged row is normal until explicit Edit' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
+  Shot 'staged-normal-before-edit'
+  OpenStagedEditor 'capfolder'
+  Assert 'staged item has the default name (the original)' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   SetText (NamedEdit 'Added item name') 'my capture folder'; SetText (NamedEdit 'Added item description') 'added from capture'
   Assert 'NOT saved yet: store has no such instance name' (-not (StoreJson).Contains('my capture folder')) (StoreJson)
   Shot 'side-by-side-staged'
@@ -697,6 +730,7 @@ try {
   $sourceTicksAfterOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
   Assert 'staged reopen choices never change source capture tick state' ($sourceTicksAfterOpen -eq $sourceTicksBeforeOpen) ("before=$sourceTicksBeforeOpen after=$sourceTicksAfterOpen")
   Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
+  OpenStagedEditor 'capfolder'
   Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
   $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
   Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
@@ -712,28 +746,30 @@ try {
   $sj = StoreJson
   Assert 'after Save the instance name, description and staged open-with default are persisted' ($sj.Contains('my capture folder') -and $sj.Contains('added from capture') -and $sj.Contains('notepad.exe')) $sj
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
-  Assert 'staged area is empty again after Save' ($null -eq (NamedEdit 'Added item name')) ''
+  Assert 'staged area is empty again after Save' (@(StagedNames).Count -eq 0) ''
   Shot 'side-by-side-after-save'
 
   # 2c. REAL pointer drag/drop: stage by dragging from the capture list; the per-drag duplicate warning fires per drag
   $storeBeforeDrag = StoreJson
   DragRowToStage '*example.com*' 'site row'
+  Assert 'drag stages a normal row without opening editing' ((@(StagedNames) -join '|') -eq 'example.com' -and $null -eq (NamedEdit 'Added item name')) ''
+  OpenStagedEditor 'example.com'
   Assert 'real drag stages the site with its default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
   Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ValOf (NamedEdit 'Added item open with')) -like '*msedge.exe') (ValOf (NamedEdit 'Added item open with'))
   Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
   Shot 'side-by-side-drag-staged'
-  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row'
   Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
   Shot 'drag-duplicate-warning'
-  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row again'
   Assert 'the per-drag warning fires for every drag, not once' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
-  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a second instance' ($c -eq 'ok' -and (ValOf (NamedEdit 'Added item name')) -eq 'capfolder') $c
+  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a normal second instance' ($c -eq 'ok' -and (@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) $c
   Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
-  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
@@ -741,11 +777,11 @@ try {
   Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'Add again: capfolder*')) ((CheckNames) -join ' | ')
   Shot 'duplicate-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
-  Assert 'nothing staged after skipping' ($null -eq (NamedEdit 'Added item name')) ''
+  Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
   $dup = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
-  Assert 'the ticked duplicate is staged as a second instance' ($null -ne (NamedEdit 'Added item name')) ''
+  Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
 
   # 4. back with unsaved staging -> guard; exit without saving keeps the snapshot; earlier save stays
   $c = ClickBtn 'Capture back' 1000; Assert 'back clicked' ($c -eq 'ok') $c
@@ -797,14 +833,13 @@ try {
   Assert 'grouped dialog again for the selective pass' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
   $dupF = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
-  $nameEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
-  $addrEdits = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item address'))))))
-  $fidx = -1; for ($i = 0; $i -lt $addrEdits.Count; $i++) { if ((ValOf $addrEdits[$i]) -like '*capfolder*') { $fidx = $i; break } }
-  $stagedAddrsNow = @($addrEdits | ForEach-Object { ValOf $_ })
-  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($fidx -ge 0 -and -not @($stagedAddrsNow | Where-Object { $_ -like '*notepad.exe' })) ($stagedAddrsNow -join ' | ')
-  Assert 'the approved duplicate staged with the capture default name, not a local one' ((ValOf $nameEdits[$fidx]) -eq 'capfolder') (ValOf $nameEdits[$fidx])
+  $stagedNow = @(StagedRowRecords)
+  $foldersNow = @($stagedNow | Where-Object { $_.Address -like '*capfolder*' })
+  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($foldersNow.Count -eq 1 -and -not @($stagedNow | Where-Object { $_.Address -like '*notepad.exe' })) (($stagedNow | ForEach-Object { $_.Address }) -join ' | ')
+  Assert 'the approved duplicate staged with the capture default name, not a local one' ($foldersNow.Count -eq 1 -and $foldersNow[0].Name -eq 'capfolder') (($foldersNow | ForEach-Object { $_.Name }) -join ' | ')
   foreach ($sn in @(StagedNames | Where-Object { $_ -ne 'capfolder' })) { $c = ClickBtn "Remove added $sn" 800; Assert "remove non-folder staged $sn before the selective save" ($c -eq 'ok') $c }
   Assert 'only the folder remains staged for the selective save' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  OpenStagedEditor 'capfolder'
   SetText (NamedEdit 'Added item name') 'capfolder second'
   $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
   Assert 'the selective save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
@@ -824,7 +859,7 @@ try {
   DragRowToStage '*capfolder*' 'folder row into Cap A'
   Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
   Shot '4c-after-drag-cap-a'
-  Assert 'the dragged folder staged in Cap A with the capture default name' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
+  Assert 'the dragged folder staged in Cap A with the capture default name' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
   $o = StoreObj
   $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
@@ -847,8 +882,8 @@ try {
   Assert 'duplicate dialog for the re-add' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
   $dupR = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
-  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((ValOf (NamedEdit 'Added item name')) -eq 'capfolder') (ValOf (NamedEdit 'Added item name'))
-  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and $null -eq (NamedEdit 'Added item name')) $c
+  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   $folderUntick = CheckByLike '*capfolder*'; if ($folderUntick -and (IsOn $folderUntick)) { [void](ToggleEl $folderUntick 'folder untick after re-add'); Start-Sleep -Milliseconds 300 }
   $c = ClickBtn 'Capture back' 1000
   if (WaitText 'Unsaved changes' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }

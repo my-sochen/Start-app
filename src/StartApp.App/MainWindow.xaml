@@ -387,12 +387,22 @@
                                             <DockPanel>
                                                 <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
                                                         Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <TextBlock Text="{Binding Group}" Foreground="Gray" VerticalAlignment="Center"/><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="6,0"/>
+                                                <Button DockPanel.Dock="Right" Content="עריכה" Padding="6,0" Margin="0,0,4,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}"
+                                                        Command="{Binding DataContext.EditStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <StackPanel>
+                                                    <DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemName"/><TextBlock Text="{Binding Group}" Foreground="Gray" Margin="6,0,0,0"/></DockPanel>
+                                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemAddress"/>
+                                                </StackPanel>
                                             </DockPanel>
-                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
-                                            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description" Margin="0,2,0,0"/>
-                                            <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address" Margin="0,2,0,0"/>
-                                            <TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" Margin="0,2,0,0" ToolTip="Optional: full path to the program/browser to open this item with"/>
+                                            <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor">
+                                                <Button Content="סיום עריכה" HorizontalAlignment="Right" Padding="6,0" AutomationProperties.Name="Done editing added item"
+                                                        Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <TextBlock Text="Name"/><TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
+                                                <TextBlock Text="Description" Margin="0,2,0,0"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description"/>
+                                                <TextBlock Text="Address" Margin="0,2,0,0"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address"/>
+                                                <TextBlock Text="Open with" Margin="0,2,0,0"/><TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" ToolTip="Optional: full path to the program/browser to open this item with"/>
+                                                <TextBlock Text="Changes stay here until workspace Save." Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

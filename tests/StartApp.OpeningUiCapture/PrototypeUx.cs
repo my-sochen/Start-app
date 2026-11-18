@@ -171,7 +171,13 @@ internal static partial class Program
                 Check("both required readonly capture lists exist",readonlyLists.Length==2&&readonlyLists.Count(b=>AutomationProperties.GetName(b)=="Saved items in the workspace")==1&&readonlyLists.Count(b=>AutomationProperties.GetName(b)=="Open now list")==1);
                 foreach(var list in readonlyLists)Check("readonly list has no row menus "+AutomationProperties.GetName(list),!Descendants(list).OfType<FrameworkElement>().Any(e=>e.ContextMenu is not null));
                 foreach(var row in vm.CaptureRows)vm.DropCaptured(row);await Idle(window);
-                var added=Descendants(window).OfType<TextBox>().Where(b=>b.IsVisible&&AutomationProperties.GetName(b)=="Added item name").ToArray();Check("staged items directly editable without Edit gate",added.Length==2);
+                var stageGateBefore=JsonSerializer.Serialize(store.Load());
+                File.WriteAllText(Path.Combine(output,"staged-edit-store-before.json"),stageGateBefore);
+                Check("staged add defaults to read-only rows",!vm.StagedRows.Any(row=>row.IsEditing)&&!Descendants(window).OfType<TextBox>().Any(b=>b.IsVisible&&AutomationProperties.GetName(b)=="Added item name"));
+                var stagedList=Descendants(window).OfType<ListBox>().Single(list=>AutomationProperties.GetName(list)=="Added items not saved yet");
+                stagedList.SelectedIndex=0;await Idle(window);
+                Check("staged selection never opens editing",!vm.StagedRows.Any(row=>row.IsEditing)&&!Descendants(stagedList).OfType<TextBox>().Any(b=>b.IsVisible));
+                Capture(window,output,"staged-normal-rows");
                 var stagedMenuHosts=Descendants(window).OfType<StackPanel>().Where(host=>host.IsVisible&&host.ContextMenu is not null&&host.DataContext is MainViewModel.StagedRow).ToArray();
                 Check("staged opener fixtures include exact Link and Program",stagedMenuHosts.Length==2&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Link)==1&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Program)==1);
                 foreach(var menuHost in stagedMenuHosts){
@@ -181,7 +187,13 @@ internal static partial class Program
                     CheckOpenWithVisibility(stagedMenu,stagedRow.Type==ItemType.Program,"staged "+stagedRow.Type);CaptureContext(stagedMenu,window,output,"staged-opener-"+stagedRow.Type);stagedMenu.IsOpen=false;await Idle(window);
                 }
                 var stagedHost=Descendants(window).OfType<StackPanel>().First(b=>b.IsVisible&&b.ContextMenu is not null&&b.DataContext is MainViewModel.StagedRow);
-                var stagedInput=Descendants(stagedHost).OfType<TextBox>().First();
+                var stagedEdit=Descendants(stagedHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.EditStagedCommand));
+                stagedEdit.BringIntoView();await Idle(window);CheckReachable(stagedEdit,window,"staged explicit Edit anchor");
+                var editPeer=new System.Windows.Automation.Peers.ButtonAutomationPeer(stagedEdit);
+                ((System.Windows.Automation.Provider.IInvokeProvider)editPeer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
+                Check("explicit Edit expands exact one row",vm.StagedRows.Count(row=>row.IsEditing)==1&&((MainViewModel.StagedRow)stagedHost.DataContext).IsEditing&&Descendants(window).OfType<TextBox>().Count(field=>field.IsVisible&&AutomationProperties.GetName(field)=="Added item name")==1);
+                Capture(window,output,"staged-explicit-editor");
+                var stagedInput=Descendants(stagedHost).OfType<TextBox>().First(field=>field.IsVisible);
                 foreach(var shiftF10 in new[]{false,true}){
                     stagedInput.BringIntoView();await Idle(window);stagedInput.Focus();ContextKey(shiftF10);await Task.Delay(250);await Idle(window);
                     var textMenu=OpenContextMenus().Single();
@@ -210,11 +222,15 @@ internal static partial class Program
                 Check("staged fixture restores exact second workspace",vm.Workspaces.Count==2&&vm.HasOtherWorkspaces&&ReferenceEquals(vm.Workspaces.Single(workspace=>workspace.Id==second.Id),liveSecond));
                 stagedHost.Focus();ContextKey(false);await Task.Delay(250);await Idle(window);
                 Check("no automatic persistence or launch in staged context",store.Load().Workspaces.First().Items.Count==4&&launcher.Sent.Count==0);
-                CaptureContext(stagedHost.ContextMenu,window,output,"staged");stagedHost.ContextMenu.IsOpen=false;Capture(window,output,"staged-direct-edit");
+                CaptureContext(stagedHost.ContextMenu,window,output,"staged");stagedHost.ContextMenu.IsOpen=false;Capture(window,output,"staged-edit-gated-context");
                 var stagedReachStoreBefore=JsonSerializer.Serialize(store.Load());
                 // Individually reveal existing staged controls, not the whole taller-than-viewport row.
                 foreach(var rowHost in stagedMenuHosts){
                     var exactRow=(MainViewModel.StagedRow)rowHost.DataContext;
+                    var editButton=Descendants(rowHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.EditStagedCommand));
+                    editButton.BringIntoView();await Idle(window);
+                    ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(editButton).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
+                    Check("each explicit Edit isolates row "+exactRow.Type,exactRow.IsEditing&&vm.StagedRows.Count(row=>row.IsEditing)==1);
                     var fields=Descendants(rowHost).OfType<TextBox>().Where(field=>field.IsVisible).ToArray();
                     var expectedNames=new[]{"Added item name","Added item description","Added item address","Added item open with"};
                     Check("staged individual field inventory "+exactRow.Type,fields.Length==4&&expectedNames.All(label=>fields.Count(field=>AutomationProperties.GetName(field)==label)==1));
@@ -230,6 +246,13 @@ internal static partial class Program
                         Capture(window,output,"staged-reachable-"+exactRow.Type+"-"+Array.IndexOf(controls,control));
                     }
                 }
+                var activeHost=stagedMenuHosts.Single(host=>((MainViewModel.StagedRow)host.DataContext).IsEditing);
+                var doneButton=Descendants(activeHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.CloseStagedEditCommand));
+                doneButton.BringIntoView();await Idle(window);CheckReachable(doneButton,window,"staged Done anchor");
+                ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(doneButton).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
+                Check("Done returns all staged rows to normal without save",!vm.StagedRows.Any(row=>row.IsEditing)&&!Descendants(stagedList).OfType<TextBox>().Any(field=>field.IsVisible)&&JsonSerializer.Serialize(store.Load())==stageGateBefore&&launcher.Sent.Count==0);
+                Capture(window,output,"staged-done-normal-rows");
+                File.WriteAllText(Path.Combine(output,"staged-edit-store-after.json"),JsonSerializer.Serialize(store.Load()));
                 Check("staged reachability did not save or remove rows",vm.StagedRows.Count==2&&JsonSerializer.Serialize(store.Load())==stagedReachStoreBefore&&launcher.Sent.Count==0);
                 vm.CaptureCloseCommand.Execute(null);vm.ExitWithoutSavingCommand.Execute(null);
                 File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(UxGeometry,new JsonSerializerOptions{WriteIndented=true,NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals}));File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(0);

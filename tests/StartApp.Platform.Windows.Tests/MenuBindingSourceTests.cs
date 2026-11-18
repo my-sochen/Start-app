@@ -77,6 +77,20 @@ public class MenuBindingSourceTests
         Assert.Contains("ScrollViewer.CanContentScroll=\"False\"",hosts[0].Value);
         Assert.Contains("ScrollViewer.HorizontalScrollBarVisibility=\"Disabled\"",hosts[0].Value);
     }
+    [Fact] public void Staged_editor_requires_explicit_row_command_and_summary_is_not_an_input()
+    {
+        var xaml=Xaml(); var start=xaml.IndexOf("ItemsSource=\"{Binding StagedRows}\"",StringComparison.Ordinal);
+        var end=xaml.IndexOf("</ListBox>",start,StringComparison.Ordinal); var row=xaml.Substring(start,end-start);
+        Assert.Contains("DataContext.EditStagedCommand",row); Assert.Contains("DataContext.CloseStagedEditCommand",row);
+        Assert.Contains("Visibility=\"{Binding IsEditing, Converter={StaticResource B2V}}\"",row);
+        Assert.Contains("AutomationProperties.AutomationId=\"StagedItemName\"",row);
+        Assert.Contains("AutomationProperties.AutomationId=\"StagedItemAddress\"",row);
+        var editorStart=row.IndexOf("AutomationProperties.Name=\"Staged item editor\"",StringComparison.Ordinal);
+        Assert.True(editorStart>=0);
+        Assert.DoesNotContain("<TextBox",row.Substring(0,editorStart));
+        Assert.Equal(4,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
+        Assert.DoesNotContain("SelectionChanged=",row); Assert.DoesNotContain("OpenItemCommand",row);
+    }
     private static string FindViewPath()
     {
         var dir=new DirectoryInfo(AppContext.BaseDirectory);
