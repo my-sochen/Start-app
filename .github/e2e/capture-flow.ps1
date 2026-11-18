@@ -1,5 +1,7 @@
 $results = New-Object System.Collections.ArrayList   # initialized BEFORE the outer try: the outer catch appends to this in-memory CURRENT-RUN collection and never loads a disk file that could hold a stale prior run's PASS/FLOW evidence
 try {
+. (Join-Path $PSScriptRoot 'capture-readiness.ps1')
+. (Join-Path $PSScriptRoot 'chrome-fixture-observation.ps1')
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
@@ -85,6 +87,17 @@ function EnsureToggle($el, $what, $wantOn) {
 function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
 function WaitGone($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" })) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
 function NamedEdit($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
+function ReadSingleStagedName() {
+  # The drag stage starts empty and must produce exactly one rendered staged row.
+  # Scope to the expected staged list; do not accidentally read a hidden/underlying form.
+  $window = CurWin
+  if ($null -eq $window) { return '' }
+  $lists = @($window.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Added items not saved yet'))))))
+  if ($lists.Count -ne 1) { return '' }
+  $fields = @($lists[0].FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
+  if ($fields.Count -ne 1 -or $fields[0].Current.IsOffscreen) { return '' }
+  return ValOf $fields[0]
+}
 function NamedCombo($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
 function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
 function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
@@ -691,8 +704,13 @@ try {
   Assert 'tick state restored for the duplicate flow: only the saved folder ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
 
   $c = ClickBtn 'Capture save' 1200; Assert 'save clicked' ($c -eq 'ok') $c
-  $sj = StoreJson
-  Assert 'after Save the instance name, description and staged open-with default are persisted' ($sj.Contains('my capture folder') -and $sj.Contains('added from capture') -and $sj.Contains('notepad.exe')) $sj
+  # Require the exact saved instance in Cap B, not unrelated strings anywhere in the store.
+  # Assert and detail use the SAME accepted (or last failed) observation, with no second read.
+  $savedObservation = Wait-CaptureTextObservation -Read { StoreJson } -Accept {
+    param($json)
+    Test-CaptureSavedInstance $json 'Cap B' $capdir 'my capture folder' 'added from capture' 'C:\Windows\notepad.exe'
+  }
+  Assert 'after Save the instance name, description and staged open-with default are persisted' $savedObservation.Matched ("attempts=$($savedObservation.Attempts) elapsedMs=$($savedObservation.ElapsedMilliseconds) readError=$($savedObservation.ReadErrorType) snapshot=$($savedObservation.Value)")
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
   Assert 'staged area is empty again after Save' ($null -eq (NamedEdit 'Added item name')) ''
   Shot 'side-by-side-after-save'
@@ -700,7 +718,8 @@ try {
   # 2c. REAL pointer drag/drop: stage by dragging from the capture list; the per-drag duplicate warning fires per drag
   $storeBeforeDrag = StoreJson
   DragRowToStage '*example.com*' 'site row'
-  Assert 'real drag stages the site with its default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
+  $dragObservation = Wait-CaptureTextObservation -Read { ReadSingleStagedName } -Accept { param($value) $value -ceq 'example.com' }
+  Assert 'real drag stages the site with its default name' $dragObservation.Matched ("attempts=$($dragObservation.Attempts) elapsedMs=$($dragObservation.ElapsedMilliseconds) readError=$($dragObservation.ReadErrorType) snapshot=$($dragObservation.Value)")
   Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ValOf (NamedEdit 'Added item open with')) -like '*msedge.exe') (ValOf (NamedEdit 'Added item open with'))
   Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
@@ -957,7 +976,7 @@ try {
     Assert 'CROSS-BROWSER: chrome executable resolved' $false 'chrome.exe not found in the standard install paths or on PATH; this gate requires Chrome (no skip, no Edge substitute)'
   } else {
     $chromeProfile = Join-Path $env:RUNNER_TEMP ('chrome-fixture-' + [Guid]::NewGuid().ToString('N'))
-    function ChromeFixturePids() { @((Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($chromeProfile) }).ProcessId) }
+    function ChromeFixturePids() { @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($chromeProfile) } | ForEach-Object { $_.ProcessId }) }
     function ChromeFixtureWin() { $fpids = @(ChromeFixturePids); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fpids -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } } | Select-Object -First 1) }
     function ChromeWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
     # Per-tab EXPECTED-authority proof: the fixture is controlled - exactly two tabs in launched URL order.
@@ -997,10 +1016,19 @@ try {
       $script:tabLastHosts = @('', '', '')
       $script:tabLastRaw = @('', '', ''); $script:tabReads = @(0, 0, 0); $tabAttempts = @(0, 0, 0)
       $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
+      $chromeReadinessClock = [Diagnostics.Stopwatch]::StartNew()
+      $chromeReadinessHistory = New-Object System.Collections.ArrayList
+      $originalChromeTab = $null; $originalChromeHwnd = 0; $restoreVerifiedC = $false
       $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
       while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
         TracePhase 'chrome-window-lookup-start'
+        $ownedAtSample = @(ChromeFixturePids)
+        $nativeAtSample = Get-CaptureFixtureNativeSnapshot -OwnedPids $ownedAtSample
         $w = ChromeFixtureWin
+        if ($chromeReadinessHistory.Count -lt 64) {
+          [void]$chromeReadinessHistory.Add([ordered]@{ elapsedMs=$chromeReadinessClock.ElapsedMilliseconds; profilePids=$ownedAtSample;
+            native=$nativeAtSample; acceptedUiaRootPresent=($null -ne $w) })
+        }
         TracePhase 'chrome-window-lookup-end'
         if ($w) {
           $csawWin = $true
@@ -1012,9 +1040,14 @@ try {
           TracePhase 'chrome-title-reads-end'
           if ($tabs.Count -gt 3) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
           if ($tabs.Count -eq 3) {
-            $origTab = $null
             TracePhase 'chrome-original-selection-start'
-            foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $origTab = $t } } catch { } }
+            # Bind before ANY selection and never silently re-baseline to a later selected tab/window.
+            if ($null -eq $originalChromeTab) {
+              foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $originalChromeTab = $t } } catch { } }
+              if ($originalChromeTab) { $originalChromeHwnd = $w.Current.NativeWindowHandle }
+            }
+            if ($null -eq $originalChromeTab -or $w.Current.NativeWindowHandle -ne $originalChromeHwnd) { break }
+            $origTab = $originalChromeTab
             TracePhase 'chrome-original-selection-end'
             try {
               # Round-robin short per-tab slices under the one shared 20s deadline: a mismatching tab can no
@@ -1030,20 +1063,29 @@ try {
                 }
               }
             } finally {
-              try { if ($origTab) { $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } } catch { }
+              $restoreVerifiedC = $false
+              try {
+                $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+                while ((Get-Date) -lt $deadlineC) {
+                  $restoreVerifiedC = $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+                  if ($restoreVerifiedC) { break }
+                  Start-Sleep -Milliseconds 50
+                }
+              } catch { $restoreVerifiedC = $false }
             }
             $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1]) tab2=$($script:tabLastHosts[2]) attempts=$($tabAttempts[0])/$($tabAttempts[1])/$($tabAttempts[2]) reads=$($script:tabReads[0])/$($script:tabReads[1])/$($script:tabReads[2]) raw0='$($script:tabLastRaw[0])' raw1='$($script:tabLastRaw[1])' raw2='$($script:tabLastRaw[2])'"
-            if ($ok[0] -and $ok[1] -and $ok[2]) { $cw = $w; break }
+            if ($ok[0] -and $ok[1] -and $ok[2] -and $restoreVerifiedC) { $cw = $w; break }
           }
         }
         Start-Sleep -Milliseconds 400
       }
+      $chromeReadinessHistory.ToArray() | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 'diag/chrome-fixture-readiness-history.json'
       if ($tooMany) {
         Assert 'CROSS-BROWSER: exactly the three launched fixture tabs in launch order' $false "found $csawTabs tabs: $tabTitles"
       } elseif (-not $cw) {
         $procDiag = (@(ChromeFixturePids | ForEach-Object { "pid=$_" }) -join ',')
         $launchState = ''; try { $launchState = "launchedHasExited=$($chrome.HasExited)"; if ($chrome.HasExited) { $launchState += " exitCode=$($chrome.ExitCode)" } } catch { $launchState = "launchedStateError=$_" }
-        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
+        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs restoreVerified=$restoreVerifiedC tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
         # Failure-only, fixture-profile-bound metadata. No titles, unrelated process metadata or pixels.
         # UIA/CIM run in a disposable child; parent waits at most 5s for collection, then terminates it.
         # Explicit waits total at most 5s + 0.5s + 0.5s retry; OS launch/kill/filesystem are not bounded.
@@ -1056,10 +1098,13 @@ $ErrorActionPreference = 'Stop'
 try {
   Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
   $profile = '__PROFILE__'; $output = '__OUTPUT__'
+  . '__NATIVE_HELPER__'
   $owned = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -OperationTimeoutSec 2 |
     Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) } | Select-Object -First 20 |
     ForEach-Object { [ordered]@{ pid = $_.ProcessId; parentPid = $_.ParentProcessId } })
   $ids = @($owned | ForEach-Object { $_.pid })
+  $native = Get-CaptureFixtureNativeSnapshot -OwnedPids $ids
+  $fromHandles = New-Object System.Collections.ArrayList
   $windows = New-Object System.Collections.ArrayList
   $errors = New-Object System.Collections.ArrayList
   $A = [System.Windows.Automation.AutomationElement]
@@ -1076,9 +1121,25 @@ try {
         positiveArea = ($wc.BoundingRectangle.Width -gt 0 -and $wc.BoundingRectangle.Height -gt 0) })
     } catch { if ($errors.Count -lt 5) { [void]$errors.Add($_.Exception.GetType().Name) } }
   }
-  [ordered]@{ status = 'collected'; fixtureProcesses = $owned; fixtureWindows = $windows.ToArray();
+  foreach ($nativeWindow in $native.Windows) {
+    try {
+      # Revalidate both ownership and HWND/PID immediately before reading UIA.FromHandle.
+      $nowOwned = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -OperationTimeoutSec 2 |
+        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) } | ForEach-Object { $_.ProcessId })
+      $nowNative = Get-CaptureFixtureNativeSnapshot -OwnedPids $nowOwned
+      $same = @($nowNative.Windows | Where-Object { Test-CaptureFixtureWindowIdentity $nativeWindow.Hwnd $nativeWindow.Pid $nowOwned $_.Hwnd $_.Pid })
+      if ($same.Count -ne 1) { [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='identity-changed' }); continue }
+      $element = $A::FromHandle([IntPtr]$nativeWindow.Hwnd)
+      $current = $element.Current
+      $identityMatches = Test-CaptureFixtureWindowIdentity $nativeWindow.Hwnd $nativeWindow.Pid $nowOwned $current.NativeWindowHandle $current.ProcessId
+      [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='read'; identityMatches=$identityMatches;
+        uiaPid=$current.ProcessId; uiaHwnd=$current.NativeWindowHandle; isWindow=($current.ControlType -eq [System.Windows.Automation.ControlType]::Window);
+        offscreen=$current.IsOffscreen; positiveArea=($current.BoundingRectangle.Width -gt 0 -and $current.BoundingRectangle.Height -gt 0) })
+    } catch { [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='read-error'; errorType=$_.Exception.GetType().Name }) }
+  }
+  [ordered]@{ status = 'collected'; fixtureProcesses = $owned; fixtureWindows = $windows.ToArray(); native=$native; uiaFromHandles=$fromHandles.ToArray();
     readErrors = $errors.ToArray(); maxProcesses = 20; maxWindows = 20; maxErrors = 5; processCapReached = ($owned.Count -eq 20); windowCapReached = ($windows.Count -eq 20);
-    scope = 'Failure-time fixture-profile snapshot only, not readiness poll history. No titles or raw command lines.' } |
+    scope = 'Failure-time fixture-profile snapshot only. Native EnumWindows and UIA-root/FromHandle observations are distinct. No titles, raw command lines or screenshots.' } |
     ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 $output
 } catch {
   [ordered]@{ status = 'worker-error'; errorType = $_.Exception.GetType().Name } |
@@ -1114,7 +1175,7 @@ try {
           }
           if ($safeTemp) {
             $workerPath = Join-Path $tempRoot ('chrome-failure-' + [Guid]::NewGuid().ToString('N') + '.json')
-            $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''"))
+            $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''")).Replace('__NATIVE_HELPER__', (Join-Path $PSScriptRoot 'chrome-fixture-observation.ps1').Replace("'", "''"))
             $startInfo = New-Object System.Diagnostics.ProcessStartInfo
             $startInfo.FileName = (Join-Path $PSHOME 'pwsh.exe')
             $startInfo.UseShellExecute = $false; $startInfo.CreateNoWindow = $true
@@ -1171,6 +1232,7 @@ try {
         Info 'chrome fixture failure metadata collection' $diagnosticOutcome
       } else {
         Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
+        Assert 'CROSS-BROWSER: original fixture tab restored and verified before product scan' $restoreVerifiedC "hwnd=$originalChromeHwnd"
         $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
         Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
         Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
