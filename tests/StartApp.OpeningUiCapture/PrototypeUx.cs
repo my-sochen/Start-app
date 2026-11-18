@@ -198,7 +198,16 @@ internal static partial class Program
                 var stagedLabel=Descendants(stagedHost).OfType<TextBlock>().First(t=>t.IsVisible&&t.Text.Length>0);stagedLabel.BringIntoView();await Idle(window);CheckReachable(stagedLabel,window,"staged rightclick label");
                 var stagedPoint=stagedLabel.PointToScreen(new Point(stagedLabel.ActualWidth/2,stagedLabel.ActualHeight/2));SetCursorPos((int)stagedPoint.X,(int)stagedPoint.Y);mouse_event(8,0,0,0,UIntPtr.Zero);mouse_event(16,0,0,0,UIntPtr.Zero);await Task.Delay(250);await Idle(window);
                 Check("staged physical rightclick exact row no launch",stagedHost.ContextMenu!.IsOpen&&ReferenceEquals(stagedHost.ContextMenu.DataContext,stagedHost.DataContext)&&launcher.Sent.Count==0);CaptureContext(stagedHost.ContextMenu,window,output,"staged-physical-rightclick");stagedHost.ContextMenu.IsOpen=false;await Idle(window);
-                vm.Workspaces.Remove(second);stagedHost.Focus();ContextKey(false);await Task.Delay(250);await Idle(window);CheckSharePlaceholder(stagedHost.ContextMenu!,false,"one-workspace staged");stagedHost.ContextMenu!.IsOpen=false;vm.Workspaces.Add(second);await Idle(window);
+                // Local save reloads the store and replaces Workspace objects; reacquire by stable ID.
+                var liveSecond=vm.Workspaces.Single(workspace=>workspace.Id==second.Id);
+                Check("staged two-workspace fixture is live",vm.Workspaces.Count==2&&vm.HasOtherWorkspaces&&ReferenceEquals(liveSecond,vm.Workspaces.Single(workspace=>workspace.Id==second.Id)));
+                Check("staged fixture removes exact current workspace",vm.Workspaces.Remove(liveSecond)&&vm.Workspaces.Count==1&&!vm.HasOtherWorkspaces&&!vm.Workspaces.Any(workspace=>workspace.Id==second.Id));
+                await Idle(window);Check("one-workspace staged anchor focused",stagedHost.Focus());ContextKey(false);await Task.Delay(250);await Idle(window);
+                Check("one-workspace staged menu targets exact row",stagedHost.ContextMenu!.IsOpen&&ReferenceEquals(stagedHost.ContextMenu.DataContext,stagedHost.DataContext)&&ReferenceEquals(stagedHost.Tag,vm)&&launcher.Sent.Count==0);
+                var oneStagedShare=stagedHost.ContextMenu.Items.OfType<MenuItem>().Single(item=>(string)item.Header=="שיתוף לסביבה אחרת");
+                UxGeometry.Add(new {kind="one-workspace-staged-placeholder",workspaceCount=vm.Workspaces.Count,vm.HasOtherWorkspaces,currentIds=vm.Workspaces.Select(workspace=>workspace.Id).ToArray(),removedId=liveSecond.Id,oneStagedShare.IsEnabled,hasCommand=oneStagedShare.Command is not null,visibility=oneStagedShare.Visibility.ToString()});
+                CaptureContext(stagedHost.ContextMenu,window,output,"one-workspace-staged");CheckSharePlaceholder(stagedHost.ContextMenu,false,"one-workspace staged");stagedHost.ContextMenu.IsOpen=false;vm.Workspaces.Add(liveSecond);await Idle(window);
+                Check("staged fixture restores exact second workspace",vm.Workspaces.Count==2&&vm.HasOtherWorkspaces&&ReferenceEquals(vm.Workspaces.Single(workspace=>workspace.Id==second.Id),liveSecond));
                 stagedHost.Focus();ContextKey(false);await Task.Delay(250);await Idle(window);
                 Check("no automatic persistence or launch in staged context",store.Load().Workspaces.First().Items.Count==4&&launcher.Sent.Count==0);
                 CaptureContext(stagedHost.ContextMenu,window,output,"staged");stagedHost.ContextMenu.IsOpen=false;Capture(window,output,"staged-direct-edit");
