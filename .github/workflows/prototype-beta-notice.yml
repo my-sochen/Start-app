@@ -1,8 +1,9 @@
-# Feature-only synthetic pixels and package identity. No publisher, endpoint or release activation.
+# Feature-only synthetic pixels and package identity. Stamped product can read live MAIN metadata.
+# Fixture execution is isolated. This workflow does not enroll a descriptor, distribute or publish.
 name: prototype-beta-notice
 on:
   push:
-    branches: [feat/prototype-beta-integration-local]
+    branches: [feat/prototype-beta-working-local]
 permissions:
   contents: read
 concurrency:
@@ -48,7 +49,7 @@ jobs:
           $expected = '0.1.0-proto.2+sha.${{ github.sha }}'
           if ($version[0].ConstructorArguments[0].Value -cne $expected -or $commit[0].ConstructorArguments[1].Value -cne '${{ github.sha }}') { throw 'Packaged App stamp does not match exact target' }
           New-Item -ItemType Directory -Force out-beta-notice | Out-Null
-          @{ source_commit = '${{ github.sha }}'; version = $expected; app_sha256 = (Get-FileHash $path -Algorithm SHA256).Hash; prototype_only = $true; production_endpoint_active = $false; distributed = $false } | ConvertTo-Json | Set-Content out-beta-notice/package-identity.json -Encoding utf8
+          @{ source_commit = '${{ github.sha }}'; version = $expected; app_sha256 = (Get-FileHash $path -Algorithm SHA256).Hash; prototype_only = $true; production_main_reader_live_capable = $true; legacy_rolling_endpoint_active = $false; descriptor_enrolled_by_workflow = $false; actual_main_descriptor_state = 'not_checked_by_workflow'; fixture_network = 'injected_only'; distributed = $false } | ConvertTo-Json | Set-Content out-beta-notice/package-identity.json -Encoding utf8
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:

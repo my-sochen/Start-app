@@ -42,6 +42,10 @@ public sealed class MainBetaNoticeTests
         }
         public MainBetaNoticeSource Source(string installed="0.1.0-proto.1")=>new(installed,this,()=>Clock);
     }
+    [Fact]public void Reviewed_bootstrap_file_has_no_candidate_and_does_not_enroll_a_beta()
+    {var bytes=File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"update-fixtures","approved-beta-notice.json"));Assert.Null(MainBetaNoticeSource.ParseDescriptor(bytes,Now));Assert.Equal(MainBetaNoticeSource.DescriptorPath,".github/release/approved-beta-notice.json");}
+    [Fact]public async Task Verified_null_startup_quiet_and_manual_status_distinct_from_unavailable()
+    {var f=new Fixture(empty:true);using var vm=new UpdateViewModel(f.Source(),"0.1.0-proto.1",_=>throw new Exception("no browser"),revalidateBeforeDownload:true);var notices=0;vm.StartupUpdateAvailable+=()=>notices++;await vm.CheckOnStartupOnceAsync();Assert.False(vm.UpdateAvailable);Assert.Equal(0,notices);Assert.False(vm.DownloadCommand.CanExecute(null));Assert.Equal("לא מוצעת כרגע גרסת בטא מאושרת חדשה יותר להתקנה זו.",vm.Status);f.Clock=f.Clock.AddSeconds(31);await vm.CheckAsync();Assert.Equal(14,f.Requests.Count);Assert.False(vm.UpdateAvailable);}
     [Fact]public async Task Exact_tracked_source_published_asset_tag_and_final_main_qualified()
     {var f=new Fixture();using var s=f.Source();var r=await s.ReadAsync(default);Assert.Equal(Version,r!.Version);Assert.Equal("1/2/10/fixture-only",r.PublicationIdentity);Assert.Equal(11,f.Requests.Count);Assert.Equal(f.Requests[0],f.Requests[^1]);Assert.DoesNotContain(f.Requests,p=>p.Contains("download"));}
     [Fact]public async Task Startup_once_then_immediate_explicit_click_rechecks_and_only_opens_site()

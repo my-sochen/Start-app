@@ -6,12 +6,15 @@ namespace StartApp.App;
 
 internal static class UpdateComposition
 {
-    // Explicit activation boundary. No live endpoint, network request or publisher is
-    // authorized by this feature preparation. Never fall back to prototype pointer.
+    // Working notice-only composition. No beta enrollment is implied: reviewed
+    // MAIN candidate:null yields no offer; missing/unknown source is unavailable.
+    // Rolling catalog endpoint remains dormant and is never a fallback.
     private static Uri? ApprovedBetaNoticeEndpoint => null;
-    internal static UpdateViewModel Create() => CreateWithTransport(ApprovedBetaNoticeEndpoint, null, null, null);
-    // Private exact-product native-test seam for the new MAIN descriptor source.
-    // Production Create() remains inactive; no environment/CLI activation switch.
+    internal static UpdateViewModel Create() => CreateWithMainNoticeTransport(MainBetaNoticeSource.CreateTransport(),
+        uri => { using var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri){UseShellExecute=true}); },
+        () => DateTimeOffset.UtcNow);
+    // Internal exact-product native-test seam; production uses this same factory.
+    // No environment/CLI endpoint or descriptor override is exposed.
     internal static UpdateViewModel CreateWithMainNoticeTransport(HttpMessageHandler handler, Action<Uri> browser, Func<DateTimeOffset> clock)
     {
         var assembly=typeof(App).Assembly;

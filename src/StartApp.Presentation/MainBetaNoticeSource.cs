@@ -8,7 +8,8 @@ using System.Text.RegularExpressions;
 
 namespace StartApp.Presentation;
 
-// Private implementation. No production composition/descriptor enrollment is enabled.
+// Stamped production composition can read live MAIN metadata.
+// Candidate enrollment and distribution are separate owner-approved publication steps.
 // An informational notice only: public metadata is NOT downloaded ZIP verification.
 public sealed class NoticeCheckDeferredException(DateTimeOffset retryAt, TimeSpan retryAfter) : IOException("Notice check cooldown")
 {

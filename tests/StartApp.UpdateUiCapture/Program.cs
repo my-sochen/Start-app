@@ -33,8 +33,20 @@ internal static class Program
         if(metadata.Length!=1 || metadata[0].ConstructorArguments[1].Value is not string loadedSource || InstalledBuildIdentity.Parse(info,loadedSource) is null)throw new Exception("Loaded App assembly identity invalid");
         var loadedPath=appAssembly.Location;
         Evidence.Add(new{state="loaded-App-identity",sourceCommit=loadedSource,informationalVersion=info,appAssemblySha256=Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(loadedPath))),assemblyName=appAssembly.GetName().Name,assemblyFile=Path.GetFileName(loadedPath),identitySource="actual loaded App assembly reflection and its on-disk bytes",scope="synthetic controlled native test only; no production activation"});
+        // Construct the actual default factory without starting any command/event.
+        // Inspect its selected source; no ReadAsync, startup or browser call here.
+        using (var defaultUpdates = UpdateComposition.Create())
+        {
+            var sourceField = typeof(UpdateViewModel).GetField("_source", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new Exception("Default composition source field unavailable");
+            if (sourceField.GetValue(defaultUpdates) is not MainBetaNoticeSource || defaultUpdates.InstalledVersionDisplay != "גרסה מותקנת: 0.1.0-proto.2")
+                throw new Exception("Stamped default Create must select actual-identity MAIN source");
+            Evidence.Add(new { state="default-factory-source-selection", factory="UpdateComposition.Create", selectedSource="MainBetaNoticeSource", installedVersion=defaultUpdates.InstalledVersionDisplay, scope="construction and source type only; no commands, startup, HTTP or browser execution" });
+        }
         var app = new Application();
-        var window = new MainWindow { Width = 900, Height = 560 };
+        // Explicitly isolated root for fixtures. Production default composition is
+        // now live-read capable and must not run against public APIs in this test.
+        var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected fixture browser"))) { Width = 900, Height = 560 };
         using var store = new JsonStore(Path.Combine(output, "synthetic-store", "store.json"));
         window.DataContext = new MainViewModel(store, new NotImplementedLauncher());
         window.ContentRendered += async (_, _) =>

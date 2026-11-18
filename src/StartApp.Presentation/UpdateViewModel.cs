@@ -112,7 +112,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             var candidate = await (click && _source is IClickRevalidatingUpdateSource revalidating
                 ? revalidating.ReadForClickAsync(timeout.Token) : _source.ReadAsync(timeout.Token)).WaitAsync(timeout.Token);
             if (_disposed) return;
-            if (candidate is null) { Status = "אין כרגע גרסה מאושרת במקור העדכונים."; return; }
+            if (candidate is null) { Status = _source is MainBetaNoticeSource ? "לא מוצעת כרגע גרסת בטא מאושרת חדשה יותר להתקנה זו." : "אין כרגע גרסה מאושרת במקור העדכונים."; return; }
             var version = UpdateVersion.Parse(candidate.Version);
             if (version is null || !Regex.IsMatch(candidate.Commit ?? "", "\\A[0-9a-f]{40}\\z") ||
                 !Regex.IsMatch(candidate.Sha256 ?? "", "\\A[0-9a-f]{64}\\z"))
