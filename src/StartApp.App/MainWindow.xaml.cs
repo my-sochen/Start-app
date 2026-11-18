@@ -165,6 +165,8 @@ public partial class MainWindow : Window
         var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight), 8, Math.Max(8, ActualHeight - 8));
         menu.MaxHeight = Math.Max(0, ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, ActualWidth - 16);
+        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening.
+        ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom);
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
         menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
         {

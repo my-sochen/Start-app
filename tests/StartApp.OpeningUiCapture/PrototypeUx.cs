@@ -54,14 +54,37 @@ internal static partial class Program
         var opener=menu.Items.OfType<MenuItem>().Single(item=>(string)item.Header=="פתח באמצעות");
         Check(label+" exact opener visibility",opener.Visibility==(program?Visibility.Collapsed:Visibility.Visible));
     }
+    private static readonly HashSet<FrameworkElement> PlacementTrackedHosts = new();
+    private static readonly Dictionary<ContextMenu,int> PlacementCallbackCalls = new();
+    private static void TrackMenuPlacement(FrameworkElement host)
+    {
+        if(!PlacementTrackedHosts.Add(host))return;
+        host.AddHandler(ContextMenuService.ContextMenuOpeningEvent,new ContextMenuEventHandler((_,_)=>
+        {
+            var menu=host.ContextMenu;var original=menu?.CustomPopupPlacementCallback;
+            if(menu is null||original is null)return;
+            PlacementCallbackCalls[menu]=0;
+            // Observe the product callback after its opening handler assigned it.
+            // Return exactly its original placements, without modifying any point.
+            menu.CustomPopupPlacementCallback=(popupSize,targetSize,offset)=>
+            {
+                var placements=original(popupSize,targetSize,offset);
+                PlacementCallbackCalls[menu]=PlacementCallbackCalls.GetValueOrDefault(menu)+1;
+                UxGeometry.Add(new {kind="placement-callback",popupSize,targetSize,offset,placements=placements.Select(p=>new {p.Point,axis=p.PrimaryAxis.ToString()}).ToArray(),placement=menu.Placement.ToString(),servicePlacement=ContextMenuService.GetPlacement(host).ToString(),hostFlow=host.FlowDirection.ToString(),hostCorners=ScreenCorners(host)});
+                return placements;
+            };
+        }),true);
+    }
     private static void CaptureContext(ContextMenu menu,Window owner,string output,string name)
     {
         menu.UpdateLayout();var w=(int)Math.Ceiling(menu.ActualWidth);var h=(int)Math.Ceiling(menu.ActualHeight);
         Check(name+" positive native menu bounds",w>0&&h>0);
-        var corners=ScreenCorners(menu);var ownerCorners=ScreenCorners(owner);var bounds=NormalizedBounds(corners);var frame=NormalizedBounds(ownerCorners);UxGeometry.Add(new {label=name,kind="native-menu",flow=menu.FlowDirection.ToString(),corners,ownerCorners,bounds,frame,menuDpi=VisualTreeHelper.GetDpi(menu),ownerDpi=VisualTreeHelper.GetDpi(owner)});
-        Check(name+" fits owner window",!bounds.IsEmpty&&!frame.IsEmpty&&bounds.Width>0&&bounds.Height>0&&frame.Width>0&&frame.Height>0&&frame.Contains(bounds));
+        var corners=ScreenCorners(menu);var ownerCorners=ScreenCorners(owner);var bounds=NormalizedBounds(corners);var frame=NormalizedBounds(ownerCorners);UxGeometry.Add(new {label=name,kind="native-menu",placement=menu.Placement.ToString(),servicePlacement=menu.PlacementTarget is null?null:ContextMenuService.GetPlacement(menu.PlacementTarget).ToString(),placementTarget=menu.PlacementTarget?.GetType().Name,callbackCalls=PlacementCallbackCalls.GetValueOrDefault(menu),flow=menu.FlowDirection.ToString(),corners,ownerCorners,bounds,frame,menuDpi=VisualTreeHelper.GetDpi(menu),ownerDpi=VisualTreeHelper.GetDpi(owner)});
         var bitmap=new RenderTargetBitmap(w,h,96,96,PixelFormats.Pbgra32);bitmap.Render(menu);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var stream=File.Create(Path.Combine(output,name+"-menu.png"));encoder.Save(stream);
+        using(var stream=File.Create(Path.Combine(output,name+"-menu.png")))encoder.Save(stream);
+        // Preserve actual popup pixels before the unchanged strict containment check.
+        Check(name+" uses observed custom placement",menu.Placement==System.Windows.Controls.Primitives.PlacementMode.Custom&&menu.PlacementTarget is not null&&ContextMenuService.GetPlacement(menu.PlacementTarget)==System.Windows.Controls.Primitives.PlacementMode.Custom&&PlacementCallbackCalls.GetValueOrDefault(menu)>0);
+        Check(name+" fits owner window",!bounds.IsEmpty&&!frame.IsEmpty&&bounds.Width>0&&bounds.Height>0&&frame.Width>0&&frame.Height>0&&frame.Contains(bounds));
     }
     private sealed class UxCapture : IOpenItemCapturer
     {
@@ -100,7 +123,7 @@ internal static partial class Program
                         name.BringIntoView();await Idle(window);CheckReachable(name,window,"name input "+kind+size);Check( "focus on opened local name "+kind,ReferenceEquals(Keyboard.FocusedElement,name));
                         Check("editor bound to same instance "+kind,vm.EditingItemInstanceId==row.InstanceId);
                         var host=VisualTreeHelper.GetParent(edit);while(host is not null&&host is not Grid{ContextMenu:not null})host=VisualTreeHelper.GetParent(host);
-                        Check("local editor in same row "+kind,host is not null&&Descendants(host).Contains(name));
+                        Check("local editor in same row "+kind,host is not null&&Descendants(host).Contains(name));TrackMenuPlacement((FrameworkElement)host!);
                         Check("edit never launches "+kind,launcher.Sent.Count==0);
                         vm.EditItemName="";var save=NamedButton(window,"Save item edit");save.BringIntoView();await Idle(window);CheckReachable(save,window,"save "+kind+size);InvokeButton(save);await Idle(window);
                         Check("inline validation visible "+kind,vm.ItemEditOpen&&Descendants(host!).OfType<TextBlock>().Any(t=>t.IsVisible&&t.Text==vm.ItemEditError&&t.Text.Length>0));
@@ -141,7 +164,7 @@ internal static partial class Program
                 Check("local save preserves other workspace",store.Load().Workspaces.Last().Items.Count==0&&vm.Items.First().Name=="נשמר רק בשורה זו"&&launcher.Sent.Count==0);
                 vm.BackCommand.Execute(null);await Idle(window);
                 var cards=Descendants(window).OfType<Border>().Where(b=>b.ContextMenu is not null).ToArray();Check("workspace card owns contextual menu",cards.Length>=2);
-                var card=cards.First();card.BringIntoView();await Idle(window);CheckReachable(card,window,"workspace card action anchor");var p=card.PointToScreen(new Point(card.ActualWidth/2,card.ActualHeight/2));SetCursorPos((int)p.X,(int)p.Y);mouse_event(8,0,0,0,UIntPtr.Zero);mouse_event(16,0,0,0,UIntPtr.Zero);await Task.Delay(250);await Idle(window);
+                var card=cards.First();TrackMenuPlacement(card);card.BringIntoView();await Idle(window);CheckReachable(card,window,"workspace card action anchor");var p=card.PointToScreen(new Point(card.ActualWidth/2,card.ActualHeight/2));SetCursorPos((int)p.X,(int)p.Y);mouse_event(8,0,0,0,UIntPtr.Zero);mouse_event(16,0,0,0,UIntPtr.Zero);await Task.Delay(250);await Idle(window);
                 Check("workspace rightclick does not launch",card.ContextMenu!.IsOpen&&launcher.Sent.Count==0);Capture(window,output,"workspace-right-click");CaptureContext(card.ContextMenu,window,output,"workspace");card.ContextMenu.IsOpen=false;
                 vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;vm.CapturePickWorkspaceCommand.Execute(vm.CaptureWorkspaceResults.First());await Idle(window);
                 var readonlyLists=Descendants(window).OfType<ListBox>().Where(b=>b.IsVisible&&(AutomationProperties.GetName(b)=="Saved items in the workspace"||AutomationProperties.GetName(b)=="Open now list")).ToArray();
@@ -152,7 +175,7 @@ internal static partial class Program
                 var stagedMenuHosts=Descendants(window).OfType<StackPanel>().Where(host=>host.IsVisible&&host.ContextMenu is not null&&host.DataContext is MainViewModel.StagedRow).ToArray();
                 Check("staged opener fixtures include exact Link and Program",stagedMenuHosts.Length==2&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Link)==1&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Program)==1);
                 foreach(var menuHost in stagedMenuHosts){
-                    var stagedRow=(MainViewModel.StagedRow)menuHost.DataContext;
+                    var stagedRow=(MainViewModel.StagedRow)menuHost.DataContext;TrackMenuPlacement(menuHost);
                     menuHost.BringIntoView();await Idle(window);Check("staged opener row focus "+stagedRow.Type,menuHost.Focus());ContextKey(false);await Task.Delay(250);await Idle(window);
                     var stagedMenu=menuHost.ContextMenu!;Check("staged opener menu exact identity "+stagedRow.Type,stagedMenu.IsOpen&&ReferenceEquals(stagedMenu.DataContext,stagedRow)&&launcher.Sent.Count==0);
                     CheckOpenWithVisibility(stagedMenu,stagedRow.Type==ItemType.Program,"staged "+stagedRow.Type);CaptureContext(stagedMenu,window,output,"staged-opener-"+stagedRow.Type);stagedMenu.IsOpen=false;await Idle(window);

@@ -67,6 +67,7 @@ public class MenuBindingSourceTests
         Assert.Contains("if (source is TextBox) return;",code);
         Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
         Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
+        Assert.Contains("ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom)",code);
     }
     private static string FindViewPath()
     {
