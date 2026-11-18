@@ -69,6 +69,14 @@ public class MenuBindingSourceTests
         Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
         Assert.Contains("ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom)",code);
     }
+    [Fact] public void Staged_fields_use_pixel_scrolling_when_row_is_taller_than_viewport()
+    {
+        var xaml=Xaml();
+        var hosts=Regex.Matches(xaml,"<ListBox[^>]*ItemsSource=\"\\{Binding StagedRows}\"[^>]*>");
+        Assert.Single(hosts.Cast<Match>());
+        Assert.Contains("ScrollViewer.CanContentScroll=\"False\"",hosts[0].Value);
+        Assert.Contains("ScrollViewer.HorizontalScrollBarVisibility=\"Disabled\"",hosts[0].Value);
+    }
     private static string FindViewPath()
     {
         var dir=new DirectoryInfo(AppContext.BaseDirectory);

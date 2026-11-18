@@ -367,7 +367,7 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
+                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Margin="0,2" Focusable="True" KeyboardNavigation.IsTabStop="True" ToolTip="פעולות האייטם: קליק ימני, Menu או Shift+F10" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Staged item row">
