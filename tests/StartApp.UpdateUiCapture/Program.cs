@@ -78,12 +78,51 @@ internal static class Program
                     gate.SetResult(null); await pending;
                     row.DataContext = window.Updates;
                 }
+                await CaptureProductionEventPath(window, output);
                 File.WriteAllText(Path.Combine(output, "capture-evidence.json"), JsonSerializer.Serialize(Evidence, new JsonSerializerOptions { WriteIndented = true }));
                 app.Shutdown(0);
             }
             catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
+    }
+    private sealed class CatalogHandler(byte[] body) : HttpMessageHandler
+    {
+        public int Calls;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Calls++;
+            if (request.RequestUri!.AbsoluteUri != "https://my-sochen.github.io/Start-app/synthetic-beta-notice.json") throw new Exception("Wrong source");
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { RequestMessage = request, Content = new ByteArrayContent(body) };
+            response.Content.Headers.ContentType = new("application/json"); return Task.FromResult(response);
+        }
+    }
+    private static async Task CaptureProductionEventPath(Window owner, string output)
+    {
+        // Exact real composition reads actual App identity. Handler supplies bytes only, never a real request.
+        var now = DateTimeOffset.UtcNow;
+        var doc = new { schema=1, revision=1, channel="beta-notice", generated_utc=now.AddMinutes(-1).ToString("yyyy-MM-ddTHH:mm:ssZ"), expires_utc=now.AddHours(1).ToString("yyyy-MM-ddTHH:mm:ssZ"), releases=new[] {new {version="0.2.0-beta.1", tag="v0.2.0-beta.1", commit=new string('a',40), release_id=1, asset_id=2, asset="StartApp-win-x64.zip", size=10, sha256=new string('b',64), layout="portable-v1", approval_record_id="synthetic-not-approval"}}};
+        foreach (var width in new[] {900,720})
+        {
+            var handler = new CatalogHandler(JsonSerializer.SerializeToUtf8Bytes(doc)); var opened = new List<string>();
+            var updates = UpdateComposition.CreateWithTransport(new("https://my-sochen.github.io/Start-app/synthetic-beta-notice.json"), handler, uri=>opened.Add(uri.AbsoluteUri), ()=>now);
+            if (!updates.InstalledVersionDisplay.Contains("0.1.0-proto.2")) throw new Exception("Actual App identity not composed");
+            using var store = new JsonStore(Path.Combine(output,"event-store-"+width,"store.json"));
+            var actual = new MainWindow(updates) { Owner=owner, Width=width, Height=560, DataContext=new MainViewModel(store,new NotImplementedLauncher()) };
+            actual.Show();
+            var deadline=DateTime.UtcNow.AddSeconds(5); UpdateAvailableWindow[] notices=[];
+            do {await actual.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);notices=actual.OwnedWindows.OfType<UpdateAvailableWindow>().ToArray();if(notices.Length==1)break;await Task.Delay(25);}while(DateTime.UtcNow<deadline);
+            if(notices.Length!=1||handler.Calls!=1||opened.Count!=0||!updates.UpdateAvailable)throw new Exception("Real Loaded/source/event/popup chain failed");
+            var popup=notices.Single();Capture(popup,output,width+"-event-beta-popup");CaptureSettings(actual,updates,output,width+"-event-beta-settings",width);
+            await updates.CheckOnStartupOnceAsync();
+            if(handler.Calls!=1||actual.OwnedWindows.OfType<UpdateAvailableWindow>().Count()!=1)throw new Exception("Duplicate startup discovery/popup");
+            popup.Close();await actual.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);
+            if(!updates.UpdateAvailable||opened.Count!=0)throw new Exception("Dismissal affected optional offer");
+            updates.DownloadCommand.Execute(null);await updates.CurrentCheck;
+            if(handler.Calls!=2||opened.Count!=1||opened.Single()!=UpdateViewModel.OfficialWebsite)throw new Exception("Event path explicit click/revalidation failed");
+            Evidence.Add(new {state=width+"-production-event-path", handler.Calls, popupCreatedBy="MainWindow.Loaded -> real stamped composition -> BetaNoticeSource HTTP/schema -> startup event -> owned actual popup", network="synthetic handler only", publication="none", explicitBrowserSinkCalls=opened.Count});
+            actual.Close();
+        }
     }
     private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
     {

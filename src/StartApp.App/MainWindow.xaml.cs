@@ -6,13 +6,15 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
 {
-    public UpdateViewModel Updates { get; } = UpdateComposition.Create();
+    public UpdateViewModel Updates { get; }
     private UpdateSettingsWindow? _settingsWindow;
     private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
     private MainViewModel? _hooked;
-    public MainWindow()
+    public MainWindow() : this(UpdateComposition.Create()) { }
+    internal MainWindow(UpdateViewModel updates)
     {
+        Updates = updates ?? throw new ArgumentNullException(nameof(updates));
         InitializeComponent();
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
         DataContextChanged += (_, _) => Hook();

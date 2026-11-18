@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Reflection;
 using StartApp.Presentation;
 
@@ -8,19 +9,22 @@ internal static class UpdateComposition
     // Explicit activation boundary. No live endpoint, network request or publisher is
     // authorized by this feature preparation. Never fall back to prototype pointer.
     private static Uri? ApprovedBetaNoticeEndpoint => null;
-    internal static UpdateViewModel Create()
+    internal static UpdateViewModel Create() => CreateWithTransport(ApprovedBetaNoticeEndpoint, null, null, null);
+    // Internal test seam only. No environment/argument/config override is exposed by the product.
+    internal static UpdateViewModel CreateWithTransport(Uri? endpoint, HttpMessageHandler? handler,
+        Action<Uri>? browser, Func<DateTimeOffset>? clock)
     {
         var assembly = typeof(App).Assembly; // Actual executable, not Presentation/test assembly.
         var metadata = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
         var commits = metadata.Where(a => a.Key == "StartAppSourceCommit").ToArray();
         var identity = InstalledBuildIdentity.Parse(assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
             commits.Length == 1 ? commits[0].Value : null);
-        IApprovedUpdateSource source = ApprovedBetaNoticeEndpoint is { } endpoint && identity is not null
-            ? new BetaNoticeSource(endpoint, identity.Version, BetaNoticeSource.CreateTransport())
+        IApprovedUpdateSource source = endpoint is not null && identity is not null
+            ? new BetaNoticeSource(endpoint, identity.Version, handler ?? BetaNoticeSource.CreateTransport(), clock)
             : new InactiveUpdateSource();
         // Identity alone must not make inactive publication look like a working check.
         return new(source, identity?.Version,
-            uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); },
+            browser ?? (uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }),
             revalidateBeforeDownload: true);
     }
 }
