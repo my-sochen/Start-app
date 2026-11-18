@@ -132,6 +132,39 @@ public partial class MainWindow : Window
             input.BringIntoView(); input.Focus();
         }));
     }
+    private void EditStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: true);
+    private void DoneStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: false);
+    private void RevealStagedRow(object sender, bool editing)
+    {
+        if (sender is not Button { DataContext: MainViewModel.StagedRow row } button) return;
+        DependencyObject? ancestor = button;
+        while (ancestor is not null && ancestor is not StackPanel { ContextMenu: not null, DataContext: MainViewModel.StagedRow })
+            ancestor = System.Windows.Media.VisualTreeHelper.GetParent(ancestor);
+        if (ancestor is not StackPanel host || !ReferenceEquals(host.DataContext, row)) return;
+        // Click precedes the command. Wait for its state and layout, then reveal only this row's input or summary button.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (DataContext is not MainViewModel vm || !vm.IsCaptureSide || !vm.StagedRows.Contains(row) ||
+                row.IsEditing != editing || !host.IsVisible || !ReferenceEquals(host.DataContext, row)) return;
+            var target = FindStagedRevealTarget(host, row, editing);
+            if (target is null) return;
+            target.BringIntoView(); target.Focus();
+        }));
+    }
+    private static FrameworkElement? FindStagedRevealTarget(DependencyObject root, MainViewModel.StagedRow row, bool editing)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement element && element.IsVisible && ReferenceEquals(element.DataContext, row))
+            {
+                if (editing && element is TextBox input && System.Windows.Automation.AutomationProperties.GetName(input) == "Added item name") return input;
+                if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Edit added " + row.OriginalName) return edit;
+            }
+            var found = FindStagedRevealTarget(child, row, editing); if (found is not null) return found;
+        }
+        return null;
+    }
     private static TextBox? FindEditInput(DependencyObject root)
     {
         for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)

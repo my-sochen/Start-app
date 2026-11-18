@@ -387,7 +387,7 @@
                                             <DockPanel>
                                                 <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
                                                         Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <Button DockPanel.Dock="Right" Content="עריכה" Padding="6,0" Margin="0,0,4,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}"
+                                                <Button DockPanel.Dock="Right" Content="עריכה" Click="EditStaged_Click" Padding="6,0" Margin="0,0,4,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}"
                                                         Command="{Binding DataContext.EditStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                                 <StackPanel>
                                                     <DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemName"/><TextBlock Text="{Binding Group}" Foreground="Gray" Margin="6,0,0,0"/></DockPanel>
@@ -395,7 +395,7 @@
                                                 </StackPanel>
                                             </DockPanel>
                                             <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor">
-                                                <Button Content="סיום עריכה" HorizontalAlignment="Right" Padding="6,0" AutomationProperties.Name="Done editing added item"
+                                                <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="6,0" AutomationProperties.Name="Done editing added item"
                                                         Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                                 <TextBlock Text="Name"/><TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
                                                 <TextBlock Text="Description" Margin="0,2,0,0"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description"/>

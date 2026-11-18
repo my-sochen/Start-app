@@ -192,8 +192,11 @@ internal static partial class Program
                 var editPeer=new System.Windows.Automation.Peers.ButtonAutomationPeer(stagedEdit);
                 ((System.Windows.Automation.Provider.IInvokeProvider)editPeer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
                 Check("explicit Edit expands exact one row",vm.StagedRows.Count(row=>row.IsEditing)==1&&((MainViewModel.StagedRow)stagedHost.DataContext).IsEditing&&Descendants(window).OfType<TextBox>().Count(field=>field.IsVisible&&AutomationProperties.GetName(field)=="Added item name")==1);
-                Capture(window,output,"staged-explicit-editor");
                 var stagedInput=Descendants(stagedHost).OfType<TextBox>().First(field=>field.IsVisible);
+                // Immediate post-Invoke assertion BEFORE any harness input BringIntoView/Focus.
+                CheckReachable(stagedInput,window,"immediate explicit staged name editor");
+                Check("product focuses immediate staged name editor",ReferenceEquals(Keyboard.FocusedElement,stagedInput));
+                Capture(window,output,"staged-explicit-editor");
                 foreach(var shiftF10 in new[]{false,true}){
                     stagedInput.BringIntoView();await Idle(window);stagedInput.Focus();ContextKey(shiftF10);await Task.Delay(250);await Idle(window);
                     var textMenu=OpenContextMenus().Single();
@@ -231,6 +234,10 @@ internal static partial class Program
                     editButton.BringIntoView();await Idle(window);
                     ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(editButton).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
                     Check("each explicit Edit isolates row "+exactRow.Type,exactRow.IsEditing&&vm.StagedRows.Count(row=>row.IsEditing)==1);
+                    var immediate=Descendants(rowHost).OfType<TextBox>().Single(field=>field.IsVisible&&AutomationProperties.GetName(field)=="Added item name");
+                    CheckReachable(immediate,window,"immediate staged switched editor "+exactRow.Type);
+                    Check("product focuses switched name editor "+exactRow.Type,ReferenceEquals(Keyboard.FocusedElement,immediate));
+                    Capture(window,output,"staged-immediate-switch-"+exactRow.Type);
                     var fields=Descendants(rowHost).OfType<TextBox>().Where(field=>field.IsVisible).ToArray();
                     var expectedNames=new[]{"Added item name","Added item description","Added item address","Added item open with"};
                     Check("staged individual field inventory "+exactRow.Type,fields.Length==4&&expectedNames.All(label=>fields.Count(field=>AutomationProperties.GetName(field)==label)==1));
@@ -251,7 +258,19 @@ internal static partial class Program
                 doneButton.BringIntoView();await Idle(window);CheckReachable(doneButton,window,"staged Done anchor");
                 ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(doneButton).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
                 Check("Done returns all staged rows to normal without save",!vm.StagedRows.Any(row=>row.IsEditing)&&!Descendants(stagedList).OfType<TextBox>().Any(field=>field.IsVisible)&&JsonSerializer.Serialize(store.Load())==stageGateBefore&&launcher.Sent.Count==0);
+                var collapsedEdit=Descendants(activeHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.EditStagedCommand));
+                CheckReachable(collapsedEdit,window,"immediate Done returns to collapsed row Edit");
+                Check("product focuses collapsed row Edit after Done",ReferenceEquals(Keyboard.FocusedElement,collapsedEdit));
                 Capture(window,output,"staged-done-normal-rows");
+                window.Width=900;window.Height=560;await Idle(window);Capture(window,output,"staged-normal-900");
+                collapsedEdit.BringIntoView();await Idle(window);
+                ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(collapsedEdit).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
+                var previewInput=Descendants(activeHost).OfType<TextBox>().Single(field=>field.IsVisible&&AutomationProperties.GetName(field)=="Added item name");
+                CheckReachable(previewInput,window,"immediate staged name editor 900");Capture(window,output,"staged-editor-900");
+                var previewDone=Descendants(activeHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.CloseStagedEditCommand));
+                previewDone.BringIntoView();await Idle(window);
+                ((System.Windows.Automation.Provider.IInvokeProvider)new System.Windows.Automation.Peers.ButtonAutomationPeer(previewDone).GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();await Idle(window);
+                CheckReachable(collapsedEdit,window,"immediate Done collapsed row 900");Capture(window,output,"staged-done-900");
                 File.WriteAllText(Path.Combine(output,"staged-edit-store-after.json"),JsonSerializer.Serialize(store.Load()));
                 Check("staged reachability did not save or remove rows",vm.StagedRows.Count==2&&JsonSerializer.Serialize(store.Load())==stagedReachStoreBefore&&launcher.Sent.Count==0);
                 vm.CaptureCloseCommand.Execute(null);vm.ExitWithoutSavingCommand.Execute(null);

@@ -91,6 +91,15 @@ public class MenuBindingSourceTests
         Assert.Equal(4,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
         Assert.DoesNotContain("SelectionChanged=",row); Assert.DoesNotContain("OpenItemCommand",row);
     }
+    [Fact] public void Explicit_staged_Edit_and_Done_request_identity_bound_product_reveal()
+    {
+        var xaml=Xaml(); Assert.Contains("Click=\"EditStaged_Click\"",xaml); Assert.Contains("Click=\"DoneStaged_Click\"",xaml);
+        var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
+        Assert.Contains("row.IsEditing != editing",code); Assert.Contains("!vm.StagedRows.Contains(row)",code);
+        Assert.Contains("ReferenceEquals(host.DataContext, row)",code);
+        Assert.Contains("FindStagedRevealTarget(host, row, editing)",code);
+        Assert.Contains("target.BringIntoView(); target.Focus();",code);
+    }
     private static string FindViewPath()
     {
         var dir=new DirectoryInfo(AppContext.BaseDirectory);
