@@ -186,13 +186,13 @@ code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow
 h1:focus, h1:focus-visible { outline: none; }
 .docs-jump { display: none; }
 @media (max-width: 700px) {
-  .docs-jump { display: flex; position: sticky; top: 0; z-index: 20; justify-content: space-between; gap: 12px; background: var(--paper); border-bottom: 1px solid var(--line); margin: 0 -22px; padding: 0 22px; }
+  .docs-jump { display: flex; justify-content: space-between; gap: 12px; background: var(--paper); border-bottom: 1px solid var(--line); padding: 0 22px; }
   .docs-jump a { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 600; }
   .doc-layout { gap: 0; }
   .sidebar { scroll-margin-top: 52px; padding-top: 20px; }
   .doc-section { scroll-margin-top: 56px; }
 }
-@media (max-width: 360px) { .docs-jump { margin: 0 -18px; padding: 0 18px; } }
+@media (max-width: 360px) { .docs-jump { padding: 0 18px; } }
 @media print { .docs-jump { display: none; } }
 /* centered hero blocks (must follow the generic .verify / state rules) */
 .hero .hero-download-state, .hero .verify { margin-inline: auto; text-align: center; }
@@ -243,3 +243,104 @@ html[lang="ja"] body { font-family: "Yu Gothic", "Meiryo", "Droid Sans Fallback"
   .page-line-bottom { margin: 16px auto 0; max-width: 350px; }
   .page-line-top img, .page-line-bottom img { display: block; width: 100%; height: auto; }
 }
+
+/* Download component: real controls, scoped to home and existing guide CTA. */
+.hero-download{max-width:346px;margin-inline:auto;text-align:start}
+.download-card{background:#fff;border-radius:12px;padding:16px 22px;color:#171717}
+.download-platform{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600;line-height:1.3;margin:0 0 16px}
+.download-platform svg{width:18px;height:18px;flex:none}
+.download-direct,.doc-download button.primary{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:2px 10px;min-height:54px;padding:7px 18px;border:1px solid #c2d5f2;border-radius:8px;background:#e3edfc;color:#142743;font-size:15px;line-height:1.35;font-weight:600;cursor:pointer;box-shadow:none;font-family:"Heebo","Segoe UI","Microsoft YaHei","Yu Gothic","Noto Sans Hebrew",sans-serif}
+.download-direct{width:100%;text-align:start}
+.download-kind{flex-basis:100%;font-size:12px;line-height:1.4;color:#3d4f68;font-weight:400}
+.download-direct:disabled,.doc-download button.primary:disabled{background:#eef2f9;color:#6b7a90;cursor:not-allowed}
+.download-direct:hover:not(:disabled),.doc-download button.primary:hover:not(:disabled){border-color:#8fb4ea;background:#d9e7fc}
+.download-card .hero-download-state{font-size:12px;line-height:1.6;text-align:start;margin:2px 0 0;color:#666}
+
+.download-card .verify{text-align:start;margin:2px 0 0}
+.download-all{margin-top:12px;background:#fff;color:#171717}
+.download-all>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 22px;min-height:64px;background:#f6f6f6;cursor:pointer;list-style:none;border-bottom:1px solid #e7e7e7}
+.download-all>summary::-webkit-details-marker{display:none}
+.download-all>summary strong{font-size:15px;font-weight:600;display:block}
+.download-all-hint{display:block;font-size:13px;line-height:1.45;color:#737373;margin-top:2px}
+.download-chevron{width:8px;height:8px;border-right:1px solid #777;border-bottom:1px solid #777;transform:rotate(45deg);flex:none;margin:0 2px 4px}
+.download-all[open]>summary .download-chevron{transform:rotate(225deg);margin-top:7px}
+.download-inventory{padding:22px}
+.download-inventory .download-platform{font-size:16px;margin-bottom:20px}
+.download-inventory h4{font-size:16px;line-height:1.4;font-weight:500;margin:24px 0 6px}
+.download-inventory h4:first-of-type{margin-top:0}
+.inventory-note{font-size:13px;line-height:1.6;color:#737373;margin:0 0 12px}
+.prototype-offer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #ededed;padding:8px 0;flex-wrap:wrap}
+/* Owner correction: no double rule under the section heading; the heading
+ * divider and the separators between later rows stay. The regular section
+ * keeps its own boundary immediately below the retained Windows row, above
+ * the no-regular-versions notice. */
+.download-inventory .prototype-offer:first-of-type{border-top:0}
+.download-inventory .download-platform{border-bottom:1px solid #ededed;padding-bottom:10px;margin-bottom:10px}
+.prototype-offer bdi{font-size:13px;color:#666;overflow-wrap:anywhere}
+.prototype-offer button{min-height:44px;max-width:100%;border:0;background:none;color:#22759d;font:inherit;font-size:13px;padding:8px 0;cursor:pointer;text-align:start;white-space:normal}
+.prototype-offer button:disabled{background:none;color:#737373;cursor:not-allowed}
+.doc-download button.primary{display:inline-flex;align-items:center;text-align:center}
+@media(max-width:360px){.download-card,.download-inventory{padding:18px}.download-all>summary{padding-inline:18px}}
+/* Reference component alignment remains left-to-right in every site locale. */
+.hero-download{direction:ltr;text-align:left;font-family:Arial,Helvetica,sans-serif;line-height:1.45}
+.download-platform{font-weight:400}
+.download-direct{font-weight:600;text-align:left}
+.download-all>summary strong{font-weight:500}
+.download-inventory h4{font-weight:400}
+.hero .download-card .hero-download-state,.hero .download-card .verify{text-align:left}
+html[lang="he"] .hero-download [data-cta-label],html[lang="he"] .hero-download .prototype-offer button{direction:rtl;unicode-bidi:isolate;text-align:left}
+.download-card .verify{margin-inline:0}
+.download-card .verify summary{text-align:left}
+
+/* Requested compact spacing and matching visible focus, download scope only. */
+.download-card .verify summary{min-height:28px;padding-block:2px}
+.download-card .verify .note{margin-block:4px 0}
+.download-inventory h4:first-of-type{border-bottom:1px solid #ededed;padding-bottom:10px;margin-bottom:10px}
+.hero-download button:focus-visible,.hero-download summary:focus-visible,.doc-download button.primary:focus-visible{outline:3px solid #1b5de0;outline-offset:3px}
+
+.hero-download summary,.hero-download button,.doc-download button.primary{border-radius:8px}
+[data-cta-version]{font-size:12px;font-weight:400;line-height:1.3}
+[data-cta-version][hidden],[data-layout-legacy][hidden],[data-layout-legacy-qualification][hidden],[data-layout-legacy-unqualified][hidden],[data-layout-portable][hidden],[data-layout-unknown][hidden]{display:none}
+[data-layout-portable] bdi{white-space:nowrap;direction:ltr;unicode-bidi:isolate}
+
+/* Private owner-requested delta: the top website navigation stays pinned
+ * while scrolling, at every width. On pages without a secondary bar the
+ * header itself sticks; on the guide the header and the mobile jump bar are
+ * wrapped together in .pinned-top, one sticky container, so the jump bar
+ * always docks directly below the header however tall the header wraps - no
+ * magic-number offsets and no script measurement. Sticky keeps everything in
+ * normal flow: no content shifts when it engages; the opaque paper background
+ * with the existing bottom border keeps scrolled content readable underneath.
+ * z-index 25 sits above page content and below the skip link (30) and the
+ * language dropdown (40). */
+header{position:sticky;top:0;z-index:25;background:var(--paper)}
+.pinned-top{position:sticky;top:0;z-index:25;background:var(--paper)}
+.pinned-top header{position:static}
+/* In-page anchor targets clear the pinned bars: header 85px at >=701px, 121px
+ * at <=700px, about 165px when fully wrapped below 361px; guide jump 44px.
+ * Measured in the rendered pages; generous offsets only lower the target,
+ * never hide it. */
+html{scroll-padding-top:97px}
+@media (max-width:700px){
+ html{scroll-padding-top:133px}
+ .sidebar{scroll-margin-top:177px}
+ .doc-section{scroll-margin-top:177px}
+}
+@media (max-width:360px){
+ html{scroll-padding-top:189px}
+ .sidebar{scroll-margin-top:221px}
+ .doc-section{scroll-margin-top:221px}
+}
+
+/* Continuous private depth candidate. One fixed decorative layer is behind
+ * all content on home and guide, not separate mobile flow illustrations.
+ * Native-scroll contract: --depth-y is -(scrollTop * 0.5) modulo 720, in px.
+ * 720px is the exact repeated tile height. The extra tile above and below the viewport
+ * prevents blank edges as it moves. No CSS timeline is required. */
+body{isolation:isolate}
+body::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+/* Existing flow art is replaced by the continuous backdrop, not doubled. */
+.page-line-art,.page-line-top,.page-line-bottom{display:none}
+@media(max-width:700px){body::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body::before{transform:none!important}}
+@media print{body::before{display:none}}
