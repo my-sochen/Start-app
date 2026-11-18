@@ -12,6 +12,8 @@ public sealed record ItemRow(string InstanceId, string ItemId, string Name, stri
     /// <summary>Short name shown next to the program icon (icon + name display, settled Nov 14). The full Program path
     /// itself is untouched: it stays as the tooltip/help-text source and in the open-with popup.</summary>
     public string ProgramDisplayName => ProgramDisplayNames.Resolve(Program);
+    /// <summary>A saved program item is itself the program, so its menu has no open-with entry.</summary>
+    public bool IsProgram => Type == nameof(ItemType.Program);
 }
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a

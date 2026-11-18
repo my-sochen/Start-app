@@ -49,6 +49,11 @@ internal static partial class Program
         var share=menu.Items.OfType<MenuItem>().Single(item=>(string)item.Header=="שיתוף לסביבה אחרת");
         Check(label+" exact disabled placeholder",!share.IsEnabled&&share.Command is null&&share.Visibility==(otherWorkspace?Visibility.Visible:Visibility.Collapsed));
     }
+    private static void CheckOpenWithVisibility(ContextMenu menu,bool program,string label)
+    {
+        var opener=menu.Items.OfType<MenuItem>().Single(item=>(string)item.Header=="פתח באמצעות");
+        Check(label+" exact opener visibility",opener.Visibility==(program?Visibility.Collapsed:Visibility.Visible));
+    }
     private static void CaptureContext(ContextMenu menu,Window owner,string output,string name)
     {
         menu.UpdateLayout();var w=(int)Math.Ceiling(menu.ActualWidth);var h=(int)Math.Ceiling(menu.ActualHeight);
@@ -108,7 +113,7 @@ internal static partial class Program
                         Check("expanded menu anchor enabled and focused "+kind+size,expandedAnchor.IsEnabled&&expandedAnchor.Focus()&&ReferenceEquals(Keyboard.FocusedElement,expandedAnchor));ContextKey(true);await Task.Delay(250);await Idle(window);
                         var expandedMenu=((FrameworkElement)host!).ContextMenu!;
                         Check("expanded invalid editor menu keeps exact draft "+kind+size,expandedMenu.IsOpen&&ReferenceEquals(expandedMenu.DataContext,row)&&vm.ItemEditOpen&&vm.EditItemName==""&&vm.EditingItemInstanceId==row.InstanceId&&launcher.Sent.Count==0);
-                        CheckSharePlaceholder(expandedMenu,true,"expanded "+kind+size);CaptureContext(expandedMenu,window,output,$"{size.Item1}x{size.Item2}-{kind}-expanded-invalid");expandedMenu.IsOpen=false;await Idle(window);
+                        CheckSharePlaceholder(expandedMenu,true,"expanded "+kind+size);CheckOpenWithVisibility(expandedMenu,kind=="Program","expanded "+kind+size);CaptureContext(expandedMenu,window,output,$"{size.Item1}x{size.Item2}-{kind}-expanded-invalid");expandedMenu.IsOpen=false;await Idle(window);
                         var cancel=NamedButton(window,"Cancel item edit");cancel.BringIntoView();await Idle(window);CheckReachable(cancel,window,"cancel "+kind+size);
                         var viewport=Descendants(window).OfType<ScrollViewer>().Single(v=>AutomationProperties.GetName(v)=="Workspace details viewport");viewport.ScrollToTop();await Idle(window);name.BringIntoView();await Idle(window);
                         Check("scroll retains exact row draft "+kind,vm.EditingItemInstanceId==row.InstanceId&&name.Text==""&&Descendants(window).OfType<TextBox>().Count(b=>b.IsVisible&&AutomationProperties.GetName(b)=="Edit item name")==1);
@@ -120,11 +125,11 @@ internal static partial class Program
                         var menu=((FrameworkElement)host!).ContextMenu!;Check("native rightclick opens exact row menu "+kind,menu.IsOpen&&ReferenceEquals(menu.DataContext,row)&&launcher.Sent.Count==0);
                         CheckSharePlaceholder(menu,true,"saved "+kind);
                         var openWith=menu.Items.OfType<MenuItem>().Single(i=>(string)i.Header=="פתח באמצעות");Check("Program excludes opener "+kind,(openWith.Visibility==Visibility.Collapsed)==(kind=="Program"));
-                        Capture(window,output,$"{size.Item1}x{size.Item2}-{kind}-right-click");CaptureContext(menu,window,output,$"{size.Item1}x{size.Item2}-{kind}");menu.IsOpen=false;await Idle(window);
+                        CheckOpenWithVisibility(menu,kind=="Program","saved "+kind+size);Capture(window,output,$"{size.Item1}x{size.Item2}-{kind}-right-click");CaptureContext(menu,window,output,$"{size.Item1}x{size.Item2}-{kind}");menu.IsOpen=false;await Idle(window);
                         // Real keyboard context-menu key from the explicit Edit focus target.
                         foreach(var shiftF10 in new[]{false,true}){
                             edit.Focus();ContextKey(shiftF10);await Task.Delay(250);await Idle(window);
-                            Check("keyboard context route exact row/no launch "+kind+shiftF10,menu.IsOpen&&ReferenceEquals(menu.DataContext,row)&&launcher.Sent.Count==0);CaptureContext(menu,window,output,$"{size.Item1}x{size.Item2}-{kind}-keyboard-{shiftF10}");menu.IsOpen=false;await Idle(window);
+                            Check("keyboard context route exact row/no launch "+kind+shiftF10,menu.IsOpen&&ReferenceEquals(menu.DataContext,row)&&launcher.Sent.Count==0);CheckOpenWithVisibility(menu,kind=="Program","saved keyboard "+kind+size+shiftF10);CaptureContext(menu,window,output,$"{size.Item1}x{size.Item2}-{kind}-keyboard-{shiftF10}");menu.IsOpen=false;await Idle(window);
                         }
                     }
                 }
@@ -144,6 +149,14 @@ internal static partial class Program
                 foreach(var list in readonlyLists)Check("readonly list has no row menus "+AutomationProperties.GetName(list),!Descendants(list).OfType<FrameworkElement>().Any(e=>e.ContextMenu is not null));
                 foreach(var row in vm.CaptureRows)vm.DropCaptured(row);await Idle(window);
                 var added=Descendants(window).OfType<TextBox>().Where(b=>b.IsVisible&&AutomationProperties.GetName(b)=="Added item name").ToArray();Check("staged items directly editable without Edit gate",added.Length==2);
+                var stagedMenuHosts=Descendants(window).OfType<StackPanel>().Where(host=>host.IsVisible&&host.ContextMenu is not null&&host.DataContext is MainViewModel.StagedRow).ToArray();
+                Check("staged opener fixtures include exact Link and Program",stagedMenuHosts.Length==2&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Link)==1&&stagedMenuHosts.Count(host=>((MainViewModel.StagedRow)host.DataContext).Type==ItemType.Program)==1);
+                foreach(var menuHost in stagedMenuHosts){
+                    var stagedRow=(MainViewModel.StagedRow)menuHost.DataContext;
+                    menuHost.BringIntoView();await Idle(window);Check("staged opener row focus "+stagedRow.Type,menuHost.Focus());ContextKey(false);await Task.Delay(250);await Idle(window);
+                    var stagedMenu=menuHost.ContextMenu!;Check("staged opener menu exact identity "+stagedRow.Type,stagedMenu.IsOpen&&ReferenceEquals(stagedMenu.DataContext,stagedRow)&&launcher.Sent.Count==0);
+                    CheckOpenWithVisibility(stagedMenu,stagedRow.Type==ItemType.Program,"staged "+stagedRow.Type);CaptureContext(stagedMenu,window,output,"staged-opener-"+stagedRow.Type);stagedMenu.IsOpen=false;await Idle(window);
+                }
                 var stagedHost=Descendants(window).OfType<StackPanel>().First(b=>b.IsVisible&&b.ContextMenu is not null&&b.DataContext is MainViewModel.StagedRow);
                 var stagedInput=Descendants(stagedHost).OfType<TextBox>().First();
                 foreach(var shiftF10 in new[]{false,true}){
