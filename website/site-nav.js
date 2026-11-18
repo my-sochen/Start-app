@@ -93,6 +93,25 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     var main = document.getElementById("main");
     main.className = doc.getElementById("main").className;
     copyChildren(doc.getElementById("main"), main);
+    // Keep the guide jump bar beside the persistent header during page swaps.
+    // Their common sticky wrapper sizes itself naturally, even if nav wraps.
+    var header = document.querySelector("header");
+    var pinned = document.querySelector(".pinned-top");
+    var nextJump = doc.querySelector(".pinned-top > .docs-jump");
+    if (nextJump) {
+      if (!pinned) {
+        pinned = document.createElement("div");
+        pinned.className = "pinned-top";
+        header.parentNode.insertBefore(pinned, header);
+        pinned.appendChild(header);
+      }
+      var oldJump = pinned.querySelector(".docs-jump");
+      if (oldJump) oldJump.remove();
+      pinned.appendChild(document.importNode(nextJump, true));
+    } else if (pinned) {
+      pinned.parentNode.insertBefore(header, pinned);
+      pinned.remove();
+    }
     var strip = document.querySelector(".review-strip");
     var nextStrip = doc.querySelector(".review-strip");
     if (strip && nextStrip) copyChildren(nextStrip, strip);
@@ -197,4 +216,26 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
 
   document.body.setAttribute("data-page", currentPage() || "");
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+})();
+
+/* Continuous depth preview. The private host can implement this same CSS
+ * variable contract from its own native scroll container instead. */
+(function () {
+  "use strict";
+  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var queued = false;
+  function update() {
+    queued = false;
+    var y = motion.matches ? 0 : -((Math.max(0, window.scrollY) * 0.5) % 720);
+    document.body.style.setProperty("--depth-y", y + "px");
+  }
+  function requestUpdate() {
+    if (!queued) { queued = true; window.requestAnimationFrame(update); }
+  }
+  window.addEventListener("scroll", requestUpdate, { passive: true });
+  window.addEventListener("resize", requestUpdate, { passive: true });
+  window.addEventListener("pageshow", requestUpdate);
+  if (motion.addEventListener) motion.addEventListener("change", requestUpdate);
+  else if (motion.addListener) motion.addListener(requestUpdate);
+  update();
 })();

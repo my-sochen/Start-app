@@ -36,20 +36,28 @@
 <h1 tabindex="-1"><bdi><span class="s-long">S</span>tart-app</bdi></h1>
 <p class="lead"> プログラム、フォルダー、リンクを 1 つの名前で保存し、クリックするだけでそれらをまとめて開きます。 Windows 作業環境向け。 </p>
 <div class="hero-download" id="download">
-<button aria-describedby="hero-download-state" class="hero-download-button" data-download-cta="" data-verify="hero-verify-body" disabled="" type="button">
-<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="m6.5 10.5 5.5 5.5 5.5-5.5"></path><path d="M4 20h16"></path></svg>
+<section aria-labelledby="windows-download-title" class="download-card">
+<h2 class="download-platform" id="windows-download-title"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h2>
+<button aria-describedby="hero-download-state" class="download-direct" data-download-cta="" data-verify="hero-verify-body" disabled="" type="button">
 <span data-cta-label="">ダウンロードは利用できません</span>
+<bdi data-cta-version hidden></bdi><span class="download-kind">評価用プロトタイプであり、安定版ではありません。</span>
 </button>
-<p aria-live="polite" class="hero-download-state" id="hero-download-state"> パッケージ対象: Windows x64。現時点ではダウンロード可能なバージョンを確認できません。ダウンロードはオフのままです。 </p>
-<noscript>
-<p class="hero-download-state"> JavaScript がオフになっています: ダウンロードできるかどうかを確認できず、ダウンロードはオフのままです。 </p>
-</noscript>
-<p class="proto-note">評価用プロトタイプであり、安定版ではありません。</p>
-<details class="verify" hidden="">
-<summary>技術的な詳細</summary>
-<p class="note" id="hero-verify-body"></p>
+<p aria-live="polite" class="hero-download-state" id="hero-download-state">パッケージ対象: Windows x64。現時点ではダウンロード可能なバージョンを確認できません。ダウンロードはオフのままです。</p>
+<noscript><p class="hero-download-state">JavaScript がオフになっています: ダウンロードできるかどうかを確認できず、ダウンロードはオフのままです。</p></noscript>
+<details class="verify" hidden=""><summary>技術的な詳細</summary><p class="note" id="hero-verify-body"></p></details>
+</section>
+<details class="download-all">
+<summary><span><strong>すべてのバージョン</strong><span class="download-all-hint">現在確認済みの提供内容 · 完全なバージョン履歴ではありません</span></span><span aria-hidden="true" class="download-chevron"></span></summary>
+<div class="download-inventory">
+<h3 class="download-platform"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h3>
+<p class="inventory-note">現在のソースには通常版の確認済みダウンロード情報がありません。</p>
+<h4>プロトタイプ版</h4>
+
+<div aria-live="polite" data-prototype-offers=""><p class="inventory-note">ダウンロードは利用できません</p></div>
+</div>
 </details>
 </div>
+
 <p class="actions">
 <a class="text-link" href="docs.html#install">マニュアルの操作方法と制限事項 →</a>
 </p>
@@ -64,7 +72,8 @@
 </footer>
 <div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
 <script src="../i18n.js"></script><script src="../download-pointer.js"></script>
-<script src="../download-wire.js"></script>
+<script src="../download-catalog.js"></script>
+    <script src="../download-wire.js"></script>
 <script src="../docs.js"></script>
 <script src="../site-nav.js"></script>
 </body>

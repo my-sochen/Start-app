@@ -36,20 +36,28 @@
 <h1 tabindex="-1"><bdi><span class="s-long">S</span>tart-app</bdi></h1>
 <p class="lead"> Enregistrez des programmes, des dossiers et des liens sous un seul nom et ouvrez-les ensemble en un seul clic. pour les environnements de travail Windows. </p>
 <div class="hero-download" id="download">
-<button aria-describedby="hero-download-state" class="hero-download-button" data-download-cta="" data-verify="hero-verify-body" disabled="" type="button">
-<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="m6.5 10.5 5.5 5.5 5.5-5.5"></path><path d="M4 20h16"></path></svg>
+<section aria-labelledby="windows-download-title" class="download-card">
+<h2 class="download-platform" id="windows-download-title"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h2>
+<button aria-describedby="hero-download-state" class="download-direct" data-download-cta="" data-verify="hero-verify-body" disabled="" type="button">
 <span data-cta-label="">Téléchargement non disponible</span>
+<bdi data-cta-version hidden></bdi><span class="download-kind">Un prototype d'évaluation, pas une version stable.</span>
 </button>
-<p aria-live="polite" class="hero-download-state" id="hero-download-state"> Cible du package : Windows x64. Une version téléchargeable ne peut pas être vérifiée pour le moment. Le téléchargement reste désactivé. </p>
-<noscript>
-<p class="hero-download-state"> JavaScript désactivé : impossible de vérifier la disponibilité du téléchargement et le téléchargement reste désactivé. </p>
-</noscript>
-<p class="proto-note">Un prototype d'évaluation, pas une version stable.</p>
-<details class="verify" hidden="">
-<summary>détails techniques</summary>
-<p class="note" id="hero-verify-body"></p>
+<p aria-live="polite" class="hero-download-state" id="hero-download-state">Cible du package : Windows x64. Une version téléchargeable ne peut pas être vérifiée pour le moment. Le téléchargement reste désactivé.</p>
+<noscript><p class="hero-download-state">JavaScript désactivé : impossible de vérifier la disponibilité du téléchargement et le téléchargement reste désactivé.</p></noscript>
+<details class="verify" hidden=""><summary>détails techniques</summary><p class="note" id="hero-verify-body"></p></details>
+</section>
+<details class="download-all">
+<summary><span><strong>Toutes les versions</strong><span class="download-all-hint">Offre vérifiée actuelle · pas un historique complet</span></span><span aria-hidden="true" class="download-chevron"></span></summary>
+<div class="download-inventory">
+<h3 class="download-platform"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h3>
+<p class="inventory-note">La source actuelle ne contient aucune donnée de téléchargement vérifiée pour les versions ordinaires.</p>
+<h4>Versions prototypes</h4>
+
+<div aria-live="polite" data-prototype-offers=""><p class="inventory-note">Téléchargement non disponible</p></div>
+</div>
 </details>
 </div>
+
 <p class="actions">
 <a class="text-link" href="docs.html#install">Instructions d'utilisation et limitations dans le manuel →</a>
 </p>
@@ -64,7 +72,8 @@
 </footer>
 <div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
 <script src="../i18n.js"></script><script src="../download-pointer.js"></script>
-<script src="../download-wire.js"></script>
+<script src="../download-catalog.js"></script>
+    <script src="../download-wire.js"></script>
 <script src="../docs.js"></script>
 <script src="../site-nav.js"></script>
 </body>

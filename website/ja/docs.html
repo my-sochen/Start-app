@@ -21,12 +21,17 @@
   </head>
 <body>
 <a class="skip" href="#main">コンテンツにスキップ</a>
+<div class="pinned-top">
 <header>
 <a aria-label="Start-app、ホームページ" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
 <nav aria-label="メインナビゲーション">
 <a aria-current="page" href="docs.html">ユーザーガイド</a><a href="index.html#download">ダウンロード</a>
 </nav>
 <details class="language-switch"><summary>言語</summary><nav aria-label="言語の選択"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a aria-current="true" dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<div class="docs-jump">
+<a href="#toc">ガイドの章</a><a href="#main">トップに戻る ↑</a>
+</div>
+</div>
 <main class="wrap" id="main">
 <div class="docs-intro">
 <p class="eyebrow">ユーザーガイド</p>
@@ -35,9 +40,6 @@
 <p class="pill">評価用プロトタイプであり、安定版ではありません</p>
 </div>
 <div class="doc-layout">
-<div class="docs-jump">
-<a href="#toc">ガイドの章</a><a href="#main">トップに戻る ↑</a>
-</div>
 <aside aria-label="目次" class="sidebar" id="toc">
 <label for="doc-search">ガイドの章を検索する</label><input autocomplete="off" id="doc-search" placeholder="例: 保存またはキャプチャ" type="search"/>
 <p aria-live="polite" class="search-status" id="search-status" role="status"></p>
@@ -60,7 +62,7 @@
 <p> パッケージ化対象は Windows x64 です。検証済みの Mac または Linux バージョンはありません。 </p>
 <p> ダウンロードの可用性が表示されます <a href="index.html#download">ホームページで</a> そして自動的に更新されます。検証済みのプロトタイプ バージョンがある場合は、インストール前に確認できるバージョン番号、ファイル サイズ、sha256 とともにダウンロード リンクが表示されます。 </p>
 <div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"> ダウンロードは利用できません </button>
+<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>ダウンロードは利用できません</span><bdi data-cta-version hidden></bdi></button>
 <p aria-live="polite" class="note" id="docs-download-state"> 現時点ではダウンロード可能なバージョンを確認できません。ダウンロードはオフのままです。 </p>
 <details class="verify" hidden="">
 <summary>技術的な詳細</summary>
@@ -69,15 +71,18 @@
 </div>
 <h3>ダウンロード後のアクティベーション</h3>
 <p> ダウンロードはインストーラーではなく ZIP ファイルです。ダウンロード後: </p>
-<ol class="steps-list">
+<ol class="steps-list" data-layout-legacy hidden>
 <li>ZIP からすべてのファイルをフォルダーに抽出します。</li>
 <li> 解凍したフォルダーを開き、実行します <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>DLL とランタイム ファイルは、ファイルの隣のフォルダーに残しておきます。</li>
 </ol>
-<p> アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-unknown>ZIP 内のすべてのファイルをフォルダーに展開してください。パッケージ構成は不明です。実行ファイルを選ぶ前に、その版の説明を確認してください。</p>
+            <p data-layout-portable hidden>ZIP 内のすべてのファイルを展開します。ルートフォルダーの <bdi><code>Start-app.exe</code></bdi> を実行し、App フォルダーを隣に保ち、移動時はフォルダー全体を移動してください。</p>
+<p data-layout-legacy-unqualified> 現在のプロジェクト設計は、ランタイムを含み、登録やサインインが不要で、データをデバイスにローカル保存するパッケージです。ダウンロード提供される各パッケージの特性は、承認時に公開・検証されます。</p>
+            <p data-layout-legacy-qualification hidden> アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p> テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。 </p>
+<p data-layout-legacy-qualification hidden> テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。 </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">画面</span>
@@ -182,12 +187,12 @@
 <section class="doc-section" data-doc="" id="storage">
 <span class="doc-kicker">信頼性</span>
 <h2>保存とローカルストレージ</h2>
-<p> ワークスペースは、コンピューター上のローカル ファイルに保存されます。 <code>%LOCALAPPDATA%\StartApp\store.json</code>。変更は、明示的に「保存」をクリックした場合にのみ保存されます。 </p>
+<p> 現在のプロジェクト設計では、ワークスペースは、コンピューター上のローカル ファイルに保存されます。 <code>%LOCALAPPDATA%\StartApp\store.json</code>。変更は、明示的に「保存」をクリックした場合にのみ保存されます。 </p>
 </section>
 <section class="doc-section" data-doc="" id="privacy">
 <span class="doc-kicker">信頼性</span>
 <h2>プライバシーを一言で言うと</h2>
-<p> 環境のデータはコンピューター上にローカルに保存されます。リンクまたはソフトウェアを開くと、その宛先での通常のコミュニケーションが作成されます。たとえば、ブラウザで Web サイトを開くと、その Web サイトにアクセスします。 </p>
+<p> 現在の設計では、環境のデータはコンピューター上にローカルに保存されます。リンクまたはソフトウェアを開くと、その宛先での通常のコミュニケーションが作成されます。たとえば、ブラウザで Web サイトを開くと、その Web サイトにアクセスします。 </p>
 <p> このサイト自体には、フォーム、分析、リモート フォント、またはサードパーティのサービスは含まれません。 </p>
 </section>
 <section class="doc-section" data-doc="" id="faq">
@@ -213,7 +218,8 @@
 </footer>
 <div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
 <script src="../i18n.js"></script><script src="../download-pointer.js"></script>
-<script src="../download-wire.js"></script>
+<script src="../download-catalog.js"></script>
+    <script src="../download-wire.js"></script>
 <script src="../docs.js"></script>
 <script src="../site-nav.js"></script>
 </body>
