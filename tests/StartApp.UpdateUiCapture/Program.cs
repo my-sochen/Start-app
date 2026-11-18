@@ -106,13 +106,14 @@ internal static class Program
         {
             var handler = new CatalogHandler(JsonSerializer.SerializeToUtf8Bytes(doc)); var opened = new List<string>();
             var updates = UpdateComposition.CreateWithTransport(new("https://my-sochen.github.io/Start-app/synthetic-beta-notice.json"), handler, uri=>opened.Add(uri.AbsoluteUri), ()=>now);
-            if (!updates.InstalledVersionDisplay.Contains("0.1.0-proto.2")) throw new Exception("Actual App identity not composed");
+            if (updates.InstalledVersionDisplay != "גרסה מותקנת: \u202A0.1.0-proto.2\u202C") throw new Exception("Actual App identity not composed");
             using var store = new JsonStore(Path.Combine(output,"event-store-"+width,"store.json"));
             var actual = new MainWindow(updates) { Owner=owner, Width=width, Height=560, DataContext=new MainViewModel(store,new NotImplementedLauncher()) };
             actual.Show();
             var deadline=DateTime.UtcNow.AddSeconds(5); UpdateAvailableWindow[] notices=[];
             do {await actual.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);notices=actual.OwnedWindows.OfType<UpdateAvailableWindow>().ToArray();if(notices.Length==1)break;await Task.Delay(25);}while(DateTime.UtcNow<deadline);
             if(notices.Length!=1||handler.Calls!=1||opened.Count!=0||!updates.UpdateAvailable)throw new Exception("Real Loaded/source/event/popup chain failed");
+            if(updates.Status != "גרסת בטא זמינה \u202A0.2.0-beta.1\u202C. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.")throw new Exception("Exact isolated offered beta version missing");
             var popup=notices.Single();Capture(popup,output,width+"-event-beta-popup");CaptureSettings(actual,updates,output,width+"-event-beta-settings",width);
             await updates.CheckOnStartupOnceAsync();
             if(handler.Calls!=1||actual.OwnedWindows.OfType<UpdateAvailableWindow>().Count()!=1)throw new Exception("Duplicate startup discovery/popup");

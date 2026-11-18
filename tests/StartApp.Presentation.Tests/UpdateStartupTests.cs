@@ -27,7 +27,7 @@ public sealed class UpdateStartupTests
         s.Gate.SetResult(null); await manual;
         await vm.CheckOnStartupOnceAsync(); await vm.CheckOnStartupOnceAsync(); Assert.Equal(2, s.Calls);
     }
-    [Theory][InlineData(null, "גרסה מותקנת: זהות הבנייה טרם אומתה")][InlineData("1.0.0", "גרסה מותקנת: 1.0.0")]
+    [Theory][InlineData(null, "גרסה מותקנת: זהות הבנייה טרם אומתה")][InlineData("1.0.0", "גרסה מותקנת: \u202A1.0.0\u202C")]
     public void Installed_version_display_is_truthful(string? version, string expected)
     {
         using var vm = new UpdateViewModel(new Source(), version, _ => {});

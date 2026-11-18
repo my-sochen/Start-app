@@ -60,6 +60,18 @@ public sealed class BetaNoticeTests
         Assert.True(vm.UpdateAvailable);Assert.Contains("בטא",vm.Status);Assert.Contains("אב טיפוס",vm.DistributionDisplay);Assert.Empty(opened);
         vm.DownloadCommand.Execute(null);await vm.CurrentCheck;Assert.Equal(2,handler.Calls);Assert.Single(opened);Assert.Equal(UpdateViewModel.OfficialWebsite,opened[0].AbsoluteUri);
     }
+    [Theory][InlineData("0.1.0-proto.2")][InlineData("0.2.0-beta.1")][InlineData("1.2.3")]
+    public async Task Rtl_display_embeds_exact_validated_version_without_changing_identity(string installed)
+    {
+        using var vm=new UpdateViewModel(new InactiveUpdateSource(),installed,_=>throw new Exception());
+        Assert.Equal("גרסה מותקנת: \u202A"+installed+"\u202C",vm.InstalledVersionDisplay);
+        var handler=new Handler(_=>Response(Bytes(Doc())));
+        using var source=new BetaNoticeSource(Endpoint,"0.1.0-proto.2",handler,()=>Now);
+        using var offered=new UpdateViewModel(source,"0.1.0-proto.2",_=>throw new Exception());
+        await offered.CheckAsync();
+        Assert.Equal("גרסת בטא זמינה \u202A0.2.0-beta.1\u202C. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.",offered.Status);
+        Assert.True(offered.UpdateAvailable);
+    }
     [Fact] public async Task Withdrawn_or_changed_offer_never_opens_stale_notice()
     {
         var doc=Doc();var handler=new Handler(_=>Response(Bytes(doc)));using var source=new BetaNoticeSource(Endpoint,"0.1.0-proto.1",handler,()=>Now);
