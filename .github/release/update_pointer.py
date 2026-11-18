@@ -47,7 +47,7 @@ def classify(releases, manifests):
     return "candidate", sel.pointer_document(best)
 
 
-def build_artifact(website_dir, pointer_doc, out_dir):
+def build_artifact(website_dir, pointer_doc, out_dir, catalog_doc=None):
     """Copy the full website tree plus pointer.json into out_dir, atomically.
     Any prior content of out_dir is replaced wholesale (no stale leftovers).
     Refuses to produce a pointer-only artifact."""
@@ -64,6 +64,9 @@ def build_artifact(website_dir, pointer_doc, out_dir):
                         ignore=shutil.ignore_patterns(*EXCLUDE_DIRS))
         with open(os.path.join(tmp, "pointer.json"), "w", encoding="utf-8") as f:
             json.dump(pointer_doc, f, ensure_ascii=False, indent=2)
+        if catalog_doc is not None:
+            with open(os.path.join(tmp, "downloads.json"), "w", encoding="utf-8") as f:
+                json.dump(catalog_doc, f, ensure_ascii=False, indent=2)
         if os.path.isdir(out_dir):
             shutil.rmtree(out_dir)
         os.replace(tmp, out_dir)
@@ -104,8 +107,14 @@ def main():
     ap.add_argument("--manifests", help="fixture: JSON object {tag_name: manifest or null}")
     ap.add_argument("--website", required=True, help="path to the full website tree")
     ap.add_argument("--out", required=True, help="artifact output dir (uploaded to Pages)")
+    ap.add_argument("--historical-catalog", action="store_true",
+                    help="Explicit prototype catalog projection; deployment requires separately approved integration")
     a = ap.parse_args()
-    if a.repo:
+    catalog = None
+    if a.repo and a.historical_catalog:
+        import catalog_projection as projection
+        releases, manifests = projection.collect_complete(a.repo)
+    elif a.repo:
         releases, manifests = collect_live(a.repo)
     elif a.releases and a.manifests:
         releases = json.loads(open(a.releases, encoding="utf-8").read())
@@ -114,8 +123,13 @@ def main():
         raise SystemExit("abort: need --repo or both --releases and --manifests")
     if not isinstance(releases, list):
         raise SystemExit("abort: releases must be a JSON array")
-    action, doc = classify(releases, manifests)
-    build_artifact(a.website, doc, a.out)
+    if a.historical_catalog:
+        import catalog_projection as projection
+        doc, catalog = projection.project(releases, manifests)
+        action = "none" if doc.get("candidate", "present") is None else "candidate"
+    else:
+        action, doc = classify(releases, manifests)
+    build_artifact(a.website, doc, a.out, catalog_doc=catalog)
     summary = {"action": f"deploy-{action}", "tag": doc.get("tag"), "reason": doc.get("reason")}
     print(json.dumps(summary, ensure_ascii=False))
     return 0

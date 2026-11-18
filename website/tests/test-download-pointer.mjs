@@ -108,7 +108,7 @@ function fakeEls() {
   return {
     button: {
       disabled: true,
-      textContent: "הורדה ל־Windows - עדיין לא זמינה",
+      textContent: "הורדה חינם - עדיין לא זמינה",
       onclick: null,
     },
     note: { textContent: "" },
@@ -119,7 +119,7 @@ t("render ok enables button and binds the validated URL only", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
   assert.equal(els.button.disabled, false);
-  assert.equal(els.button.textContent, "הורדה ל־Windows");
+  assert.equal(els.button.textContent, "הורדה חינם");
   assert.equal(typeof els.button.onclick, "function");
   assert.match(els.note.textContent, /sha256/);
 });
@@ -127,7 +127,7 @@ t("render ok enables button and binds the validated URL only", () => {
 t("ok label and note isolate LTR data inside the RTL copy", () => {
   const els = fakeEls();
   P.render(els, P.validate(VALID));
-  assert.equal(els.button.textContent, "הורדה ל־Windows", "version stays out of primary action");
+  assert.equal(els.button.textContent, "הורדה חינם", "version stays out of primary action");
   assert.ok(els.note.textContent.includes("\u20660.1.0-proto.3\u2069"), "version isolated in note");
   assert.ok(els.note.textContent.includes("\u2066sha256: " + "a".repeat(64) + "\u2069"), "hash isolated in note");
 });
@@ -140,7 +140,7 @@ t("repeated render(ok) replaces the handler, never accumulates", () => {
   P.render(els, newer);
   assert.equal(typeof els.button.onclick, "function");
   assert.notEqual(els.button.onclick, first);
-  assert.equal(els.button.textContent, "הורדה ל־Windows");
+  assert.equal(els.button.textContent, "הורדה חינם");
 });
 
 t("render non-ok after ok disables AND unbinds the stale URL", () => {
@@ -166,7 +166,7 @@ t("label adapter: rich CTA markup is never flattened", () => {
   els.label = { textContent: "" };
   const originalButtonText = els.button.textContent;
   P.render(els, P.validate(VALID));
-  assert.equal(els.label.textContent, "הורדה ל־Windows");
+  assert.equal(els.label.textContent, "הורדה חינם");
   assert.equal(els.button.textContent, originalButtonText, "button markup/text untouched when a label element is given");
 });
 
@@ -261,14 +261,14 @@ t("index loads reader then wire script", () => {
 
 t("wire resolves pointer.json relative to the page (same-origin)", () => {
   assert.ok(WIRE.includes('document.documentElement.getAttribute("data-site-root")'));
-  assert.ok(WIRE.includes('"/pointer.json", window.location.href)'));
+  assert.ok(WIRE.includes('root + "pointer.json", window.location.href)'));
   assert.equal(new URL("../pointer.json", "https://example.test/Start-app/en/index.html").href, "https://example.test/Start-app/pointer.json");
   assert.ok(WIRE.includes("StartAppPointer.load(url)"));
   assert.ok(!WIRE.includes("github.com"), "wire must not hardcode any origin");
 });
 
-t("wire renders EVERY CTA through one reader call (hero + guide)", () => {
-  assert.equal((WIRE.match(/StartAppPointer\.render\(/g) || []).length, 1);
+t("wire renders all download controls through the shared reader (home, guide, offer)", () => {
+  assert.equal((WIRE.match(/StartAppPointer\.render\(/g) || []).length, 2);
   assert.ok(WIRE.includes("[data-download-cta]"));
   assert.equal((INDEX.match(/data-download-cta/g) || []).length, 1, "home has one CTA");
   assert.equal((DOCS.match(/data-download-cta/g) || []).length, 1, "guide has one gated CTA");
@@ -316,7 +316,7 @@ t("public copy never claims a private review stage", () => {
 
 t("reader keeps technical version separate from the simple CTA", () => {
   const reader = readFileSync(join(SITE, "download-pointer.js"), "utf8");
-  assert.ok(reader.includes('setLabel(tr("הורדה ל־Windows"))'));
+  assert.ok(reader.includes('setLabel(tr("הורדה חינם"))'));
   assert.ok(reader.includes('mk("ptr-ltr", p.version)'));
   assert.ok(!reader.includes('tagSpan'));
 });
@@ -363,6 +363,42 @@ t("wire upgrades to the checking state only when JavaScript runs", () => {
   assert.ok(WIRE.includes("בודק אם קיימת גרסת אב-טיפוס מאומתת"), "wire sets the checking note");
   const iStatic = INDEX.indexOf("הורדה לא זמינה");
   assert.ok(iStatic > -1, "checking copy must come from the wire, not the shipped HTML");
+});
+
+t("owner correction: regular-versions heading removed, Windows icon and word kept", () => {
+  assert.ok(!INDEX.includes("<h4>גרסאות רגילות</h4>"), "regular-versions heading removed");
+  assert.ok(INDEX.includes("אין במקור הנוכחי נתוני הורדה מאומתים לגרסאות רגילות."), "truthful regular-releases note kept");
+  assert.ok(INDEX.includes('id="windows-download-title"') && INDEX.includes("<bdi>Windows</bdi>"), "Windows icon and word retained");
+});
+
+t("primary button restyle is scoped, light-blue over page, focus untouched", () => {
+  const css = readFileSync(join(SITE, "styles.css"), "utf8");
+  const base = css.match(/\.download-direct,\.doc-download button\.primary\{([^}]*)\}/)[1];
+  assert.ok(base.includes("background:#e3edfc"), "light-blue surface slightly darker than page");
+  assert.ok(base.includes('"Heebo"'), "button-scoped font change");
+  assert.ok(base.includes("min-height:54px"), "usable button size kept");
+  assert.ok(css.includes(".hero-download button:focus-visible,.hero-download summary:focus-visible,.doc-download button.primary:focus-visible{outline:3px solid #1b5de0;outline-offset:3px}"), "approved keyboard focus rule unchanged");
+});
+
+t("package-specific claims are identity-gated; design wording is the default", () => {
+  assert.ok(DOCS.includes("data-layout-legacy-unqualified"), "current-project-design fallback present");
+  assert.ok(/<p data-layout-legacy-qualification hidden>[\s\S]*?LOCALAPPDATA/.test(DOCS), "self-contained/no-sign-in/LOCALAPPDATA claims gated to the exact documented package");
+  assert.ok(WIRE.includes("data-layout-legacy-unqualified"), "wire toggles the fallback copy");
+});
+
+t("loading never claims unavailable; render failure fails closed (review delta)", () => {
+  assert.ok(WIRE.includes("renderOffers(null, true)"), "offers region shows checking while loading");
+  assert.ok(WIRE.includes("function failClosed()"), "fail-closed render fallback present");
+  assert.ok(WIRE.includes("} catch (_) { failClosed(); return; }"), "pointer render phase guarded");
+});
+
+t("history controls carry version and tag in their accessible label", () => {
+  const catalog = readFileSync(join(SITE, "download-catalog.js"), "utf8");
+  for (const src of [WIRE, catalog]) {
+    assert.ok(src.includes('setAttribute("aria-label"') || src.includes("setAttribute('aria-label'"), "row sets aria-label");
+    assert.ok(src.includes("pointer.tag"), "label includes the exact tag");
+  }
+  assert.ok(!catalog.includes("Not loaded by HTML"), "stale inactive-consumer comment reconciled");
 });
 
 console.log(passed + " tests passed");

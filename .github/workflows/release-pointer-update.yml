@@ -61,7 +61,7 @@ jobs:
       - name: Build full site + pointer artifact (fail-closed)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 .github/release/update_pointer.py --repo my-sochen/Start-app --website website --out _site
+        run: python3 .github/release/update_pointer.py --repo my-sochen/Start-app --website website --out _site --historical-catalog
       # Any failure above (selector error, missing/incomplete website, api
       # failure) stops the job BEFORE deployment: the previously deployed
       # site+pointer stays live untouched. A "no qualifying candidate" result

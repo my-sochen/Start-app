@@ -21,12 +21,17 @@
   </head>
 <body>
 <a class="skip" href="#main">跳至内容</a>
+<div class="pinned-top">
 <header>
 <a aria-label="Start-app, 主页" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
 <nav aria-label="主导航">
 <a aria-current="page" href="docs.html">用户指南</a><a href="index.html#download">下载</a>
 </nav>
 <details class="language-switch"><summary>语言</summary><nav aria-label="语言选择"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a aria-current="true" dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<div class="docs-jump">
+<a href="#toc">指南的章节</a><a href="#main">返回顶部 ↑</a>
+</div>
+</div>
 <main class="wrap" id="main">
 <div class="docs-intro">
 <p class="eyebrow">用户指南</p>
@@ -35,9 +40,6 @@
 <p class="pill">评估原型，不是稳定版本</p>
 </div>
 <div class="doc-layout">
-<div class="docs-jump">
-<a href="#toc">指南的章节</a><a href="#main">返回顶部 ↑</a>
-</div>
 <aside aria-label="目录" class="sidebar" id="toc">
 <label for="doc-search">搜索指南的章节</label><input autocomplete="off" id="doc-search" placeholder="例如：保存或捕获" type="search"/>
 <p aria-live="polite" class="search-status" id="search-status" role="status"></p>
@@ -60,7 +62,7 @@
 <p> 打包目标是Windows x64。没有经过验证的 Mac 或 Linux 版本。 </p>
 <p> 显示下载可用性 <a href="index.html#download">在主页上</a> 并自动更新：当有经过验证的原型版本时，会有一个下载链接，以及版本号、文件大小及其 sha256，供安装前检查。 </p>
 <div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"> 无法下载 </button>
+<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>无法下载</span><bdi data-cta-version hidden></bdi></button>
 <p aria-live="polite" class="note" id="docs-download-state"> 目前无法验证可下载版本。下载保持关闭状态。 </p>
 <details class="verify" hidden="">
 <summary>技术细节</summary>
@@ -69,15 +71,18 @@
 </div>
 <h3>下载后激活</h3>
 <p> 下载的是 ZIP 文件，而不是安装程序。下载后： </p>
-<ol class="steps-list">
+<ol class="steps-list" data-layout-legacy hidden>
 <li>将 ZIP 中的所有文件解压到一个文件夹中。</li>
 <li> 打开解压的文件夹并运行 <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>将 DLL 和运行时文件保留在该文件旁边的文件夹中。</li>
 </ol>
-<p> 该应用程序包含其运行时环境，因此无需单独安装.NET。无需注册、帐户或登录。数据保存到本地文件中<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-unknown>将 ZIP 中的所有文件解压到一个文件夹。软件包布局未知；选择可执行文件前请查看该版本的说明。</p>
+            <p data-layout-portable hidden>解压 ZIP 中的所有文件。运行根文件夹中的 <bdi><code>Start-app.exe</code></bdi>，保留旁边的 <bdi><code>App</code></bdi> 文件夹，并始终整体移动文件夹。</p>
+<p data-layout-legacy-unqualified> 当前项目的设计是一个包含其运行时的软件包，无需注册或登录，数据本地存储在设备上。每个提供下载的软件包的属性将在其获得批准时公布并验证。</p>
+            <p data-layout-legacy-qualification hidden> 该应用程序包含其运行时环境，因此无需单独安装.NET。无需注册、帐户或登录。数据保存到本地文件中<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p> 测试内容：此原型是作为独立的 Windows x64 应用程序构建的，并在托管的 Windows Server 2025 服务器上成功启动和关闭。未在家用 Windows 11 上进行独立测试，并且没有最低 Windows 版本承诺。不保证不会出现安全警告或防病毒软件警报。 </p>
+<p data-layout-legacy-qualification hidden> 测试内容：此原型是作为独立的 Windows x64 应用程序构建的，并在托管的 Windows Server 2025 服务器上成功启动和关闭。未在家用 Windows 11 上进行独立测试，并且没有最低 Windows 版本承诺。不保证不会出现安全警告或防病毒软件警报。 </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">界面</span>
@@ -182,12 +187,12 @@
 <section class="doc-section" data-doc="" id="storage">
 <span class="doc-kicker">可靠性</span>
 <h2>保存和本地存储</h2>
-<p> 工作区保存在计算机上的本地文件中： <code>%LOCALAPPDATA%\StartApp\store.json</code>。仅当您明确单击“保存”时才会保存更改。 </p>
+<p> 在当前项目设计中，工作区保存在计算机上的本地文件中： <code>%LOCALAPPDATA%\StartApp\store.json</code>。仅当您明确单击“保存”时才会保存更改。 </p>
 </section>
 <section class="doc-section" data-doc="" id="privacy">
 <span class="doc-kicker">可靠性</span>
 <h2>简而言之，隐私</h2>
-<p> 环境数据保存在本地计算机上。打开链接或软件会创建该目的地的常规通信 - 例如，在浏览器中打开一个网站会导致该网站。 </p>
+<p> 在当前设计中，环境数据保存在本地计算机上。打开链接或软件会创建该目的地的常规通信 - 例如，在浏览器中打开一个网站会导致该网站。 </p>
 <p> 本网站本身不包括表单、分析、远程字体或第三方服务。 </p>
 </section>
 <section class="doc-section" data-doc="" id="faq">
@@ -213,7 +218,8 @@
 </footer>
 <div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
 <script src="../i18n.js"></script><script src="../download-pointer.js"></script>
-<script src="../download-wire.js"></script>
+<script src="../download-catalog.js"></script>
+    <script src="../download-wire.js"></script>
 <script src="../docs.js"></script>
 <script src="../site-nav.js"></script>
 </body>

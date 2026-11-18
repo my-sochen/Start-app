@@ -48,34 +48,29 @@
             בלחיצה. לסביבות עבודה ב־Windows.
           </p>
           <div class="hero-download" id="download">
-            <button
-              class="hero-download-button"
-              type="button"
-              disabled
-              data-download-cta
-              data-verify="hero-verify-body"
-              aria-describedby="hero-download-state"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m6.5 10.5 5.5 5.5 5.5-5.5"/><path d="M4 20h16"/></svg>
-              <span data-cta-label>הורדה לא זמינה</span>
-            </button>
-            <p id="hero-download-state" class="hero-download-state" aria-live="polite">
-              יעד האריזה: Windows x64. לא ניתן לאמת כרגע גרסה להורדה. ההורדה
-              נשארת כבויה.
-            </p>
-            <noscript>
-              <p class="hero-download-state">
-                JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת
-                כבויה.
-              </p>
-            </noscript>
-            <p class="proto-note">אב-טיפוס להערכה, לא גרסה יציבה.</p>
-            <details class="verify" hidden>
-              <summary>פרטים טכניים</summary>
-              <p id="hero-verify-body" class="note"></p>
-            </details>
-          </div>
-          <p class="actions">
+<section aria-labelledby="windows-download-title" class="download-card">
+<h2 class="download-platform" id="windows-download-title"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h2>
+<button aria-describedby="hero-download-state" class="download-direct" data-download-cta="" data-verify="hero-verify-body" disabled="" type="button">
+<span data-cta-label="">הורדה לא זמינה</span>
+<bdi data-cta-version hidden></bdi><span class="download-kind">אב-טיפוס להערכה, לא גרסה יציבה.</span>
+</button>
+<p aria-live="polite" class="hero-download-state" id="hero-download-state">יעד האריזה: Windows x64. לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.</p>
+<noscript><p class="hero-download-state">JavaScript כבוי: לא ניתן לבדוק זמינות הורדה, וההורדה נשארת כבויה.</p></noscript>
+<details class="verify" hidden=""><summary>פרטים טכניים</summary><p class="note" id="hero-verify-body"></p></details>
+</section>
+<details class="download-all">
+<summary><span><strong>כל הגרסאות</strong><span class="download-all-hint">היצע מאומת נוכחי · לא ארכיון גרסאות מלא</span></span><span aria-hidden="true" class="download-chevron"></span></summary>
+<div class="download-inventory">
+<h3 class="download-platform"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M3 5.1 10.3 4v7H3V5.1Zm8.1-1.2L21 2.5V11h-9.9V3.9ZM3 12h7.3v7L3 17.9V12Zm8.1 0H21v8.5l-9.9-1.4V12Z" fill="currentColor"></path></svg><bdi>Windows</bdi></h3>
+<p class="inventory-note">אין במקור הנוכחי נתוני הורדה מאומתים לגרסאות רגילות.</p>
+<h4>גרסאות אב-טיפוס</h4>
+
+<div aria-live="polite" data-prototype-offers=""><p class="inventory-note">הורדה לא זמינה</p></div>
+</div>
+</details>
+</div>
+
+<p class="actions">
             <a class="text-link" href="docs.html#install">הוראות הפעלה ומגבלות במדריך ←</a>
           </p>
         </div>
@@ -90,6 +85,7 @@
     <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
     <script src="i18n.js"></script>
     <script src="download-pointer.js"></script>
+    <script src="download-catalog.js"></script>
     <script src="download-wire.js"></script>
     <script src="docs.js"></script>
     <script src="site-nav.js"></script>

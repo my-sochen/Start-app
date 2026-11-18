@@ -83,7 +83,7 @@ const settle = (page) => page.waitForFunction(
   }, { timeout: 8000 });
 const ctaState = (page) => page.evaluate(() => {
   const b = document.querySelector("[data-download-cta]");
-  const label = b.textContent.trim();
+  const label = (b.querySelector("[data-cta-label]") || b).textContent.trim();
   const note = document.getElementById(b.getAttribute("aria-describedby")).textContent.trim();
   const det = document.getElementById(b.getAttribute("data-verify"));
   const cs = getComputedStyle(b);
@@ -95,21 +95,25 @@ const ctaState = (page) => page.evaluate(() => {
   };
 });
 async function clickCta(page) {
-  await page.evaluate(() => {
-    window.__assigned = null;
-    const b = document.querySelector("[data-download-cta]");
-    // location.assign cannot be stubbed in Chrome; observe via beforeunload-free probe
-    window.__probe = b.onclick;
-  });
-  const nav = page.waitForNavigation({ timeout: 4000 }).catch(() => null);
-  page.once("request", () => {});
   const urls = [];
-  const h = (r) => urls.push(r.url());
-  page.on("request", h);
-  await page.evaluate(() => document.querySelector("[data-download-cta]").click());
-  await nav; await sleep(200);
-  page.off("request", h);
-  return urls.some((u) => u === EXPECTED_URL);
+  await page.setRequestInterception(true);
+  const intercept = (request) => {
+    if (request.isNavigationRequest() && request.url() === EXPECTED_URL) {
+      urls.push(request.url());
+      return request.respond({ status: 200, contentType: "text/plain", body: "Download navigation intercepted; no binary fetched." });
+    }
+    return request.continue();
+  };
+  page.on("request", intercept);
+  try {
+    const nav = page.waitForNavigation({ timeout: 4000 }).catch(() => null);
+    await page.evaluate(() => document.querySelector("[data-download-cta]").click());
+    await nav;
+    return urls.includes(EXPECTED_URL);
+  } finally {
+    page.off("request", intercept);
+    await page.setRequestInterception(false);
+  }
 }
 
 const VIEWPORTS = [[1440, 900], [390, 844], [320, 700]];
@@ -173,15 +177,15 @@ for (const path of ["/", "/docs.html"]) {
   const page = await open("/", "ok", { width: 1440, height: 900 });
   const f = await page.evaluate(() => {
     const hero = document.querySelector("[data-download-cta]").getBoundingClientRect();
-    return { heroH: hero.height, sections: document.querySelectorAll("main section").length,
-      imgs: document.querySelectorAll("main img").length,
+    return { heroH: hero.height, sections: document.querySelectorAll("main > section").length,
+      imgs: document.querySelectorAll(".hero-download img").length,
       pageH: document.documentElement.scrollHeight, vh: innerHeight, ctaTop: hero.top, ctaBottom: hero.bottom };
   });
   ok(await page.$("#availability-badge") === null && await page.$(".review-strip") === null, "home has no top strip or duplicate badge");
-  ok(await page.evaluate(() => { const p = document.querySelector(".proto-note"); const c = document.querySelector("[data-download-cta]").getBoundingClientRect(); const n = p.getBoundingClientRect(); return p.textContent.includes("לא גרסה יציבה") && Math.abs(n.top - c.bottom) < 120; }), "prototype truth sits near the CTA");
+  ok(await page.evaluate(() => { const p = document.querySelector(".download-kind, .proto-note"); const c = document.querySelector("[data-download-cta]").getBoundingClientRect(); const n = p.getBoundingClientRect(); return p.textContent.includes("לא גרסה יציבה") && Math.abs(n.top - c.bottom) < 120; }), "prototype truth sits near the CTA");
   ok(await page.evaluate(() => { const h = document.querySelector("main h1").getBoundingClientRect(); const c = document.querySelector("[data-download-cta]").getBoundingClientRect(); return Math.abs((h.left + h.right) / 2 - innerWidth / 2) < 40 && Math.abs((c.left + c.right) / 2 - innerWidth / 2) < 40; }), "product name and CTA are centered");
   ok(f.sections === 1, "home has a single hero section (no lower guide/onboarding)");
-  ok(f.imgs === 0, "home carries no hero image (clean single-CTA layout)");
+  ok(f.imgs === 0, "download component contains no raster UI (existing surrounding illustrations preserved)");
   ok(f.ctaBottom <= f.vh, "download CTA is above the fold at 1440x900");
   await page.close();
 }
@@ -224,7 +228,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/") || location.pathname.endsWith("index.html"), { timeout: 5000 });
   await sleep(300);
-  s = await page.evaluate(() => ({ marker: window.__marker, hash: location.hash, title: document.title, hasHero: !!document.querySelector(".hero-download-button") }));
+  s = await page.evaluate(() => ({ marker: window.__marker, hash: location.hash, title: document.title, hasHero: !!document.querySelector(".download-direct, .hero-download-button") }));
   ok(s.marker === 42 && s.hash === "#download" && s.hasHero, pre + ": guide to home#download deeplink without reload");
   await settle(page);
   const cs2 = await ctaState(page);
@@ -238,7 +242,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.goForward();
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await sleep(300);
-  s = await page.evaluate(() => ({ marker: window.__marker, hasHero: !!document.querySelector(".hero-download-button"), t: document.title }));
+  s = await page.evaluate(() => ({ marker: window.__marker, hasHero: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title }));
   ok(s.marker === 42 && s.hasHero && !s.t.startsWith("מדריך"), pre + ": Forward returns home without reload");
   // modifier click is NOT intercepted (new-tab semantics preserved)
   const prevented = await page.evaluate(() => {
@@ -347,7 +351,7 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   await sleep(300);
   await page.evaluate(() => document.querySelector('header .brand').click());
   await sleep(2500);
-  const s = await page.evaluate(() => ({ p: location.pathname, m: window.__m, home: !!document.querySelector(".hero-download-button"), t: document.title }));
+  const s = await page.evaluate(() => ({ p: location.pathname, m: window.__m, home: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title }));
   ok(!s.p.endsWith("/docs.html") && s.home && s.m === 5 && !s.t.startsWith("מדריך"), "Home click during delayed guide fetch is not overridden by the late guide");
   await page.close();
 }
@@ -443,7 +447,7 @@ for (const path of ["/", "/docs.html"]) {
   const page = await open(path, "ok", { width: 1440, height: 900 }, false);
   const s = await page.evaluate(() => {
     const b = document.querySelector("[data-download-cta]");
-    return { disabled: b.disabled, label: b.textContent.trim(), hidden: document.querySelector("details.verify").hidden,
+    return { disabled: b.disabled, label: (b.querySelector("[data-cta-label]") || b).textContent.trim(), hidden: document.querySelector("details.verify").hidden,
       hrefs: [...document.querySelectorAll("header > nav a")].map((a) => a.getAttribute("href")) };
   });
   ok(s.disabled && s.label === "הורדה לא זמינה" && s.hidden, `no-JS ${path}: CTA disabled with truthful label, no verification panel`);
