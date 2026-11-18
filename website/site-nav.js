@@ -218,16 +218,26 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 })();
 
-/* Continuous depth preview. The private host can implement this same CSS
- * variable contract from its own native scroll container instead. */
+/* Gentle native depth drift for the dedicated line art. One scroll listener
+ * publishes two CSS variables: --depth-y keeps the accepted half-speed
+ * modulo-720 contract so a host adapter can drive its own backdrop from its
+ * native scroll container; --art-y is the same continuous half-speed lag,
+ * unclamped, driving the restored top/bottom illustrations. The art exists
+ * only on the home page, whose real scroll span is short (roughly 120-160px
+ * on phones, near zero on desktop), so geometry bounds the travel to a few
+ * dozen pixels without any artificial cap. Native rAF-throttled listener,
+ * no CSS scroll-timeline dependency. Transform-only; reduced-motion -> 0. */
 (function () {
   "use strict";
   var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   var queued = false;
   function update() {
     queued = false;
-    var y = motion.matches ? 0 : -((Math.max(0, window.scrollY) * 0.5) % 720);
+    var sc = Math.max(0, window.scrollY);
+    var y = motion.matches ? 0 : -((sc * 0.5) % 720);
+    var ay = motion.matches ? 0 : sc * 0.5;
     document.body.style.setProperty("--depth-y", y + "px");
+    document.body.style.setProperty("--art-y", ay + "px");
   }
   function requestUpdate() {
     if (!queued) { queued = true; window.requestAnimationFrame(update); }
