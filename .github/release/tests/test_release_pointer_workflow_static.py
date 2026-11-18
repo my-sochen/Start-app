@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static checks for the DORMANT release-pointer-update workflow. Offline:
+"""Static checks for the ACTIVATED (owner-gated) release-pointer-update workflow. Offline:
 parses the YAML file only. Mirrors the repo's test_release_workflow_static.py
 convention (unittest + PyYAML). These checks prove the file's declared shape;
 they are not workflow runs and prove nothing about GitHub-side state.

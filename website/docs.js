@@ -1,42 +1,64 @@
 "use strict";
-const input = document.querySelector("#doc-search");
-const sections = [...document.querySelectorAll("[data-doc]")];
-const status = document.querySelector("#search-status");
-function applySearch() {
-  const query = input.value.trim().toLocaleLowerCase("he");
-  let count = 0;
-  for (const section of sections) {
-    const visible =
-      !query || section.textContent.toLocaleLowerCase("he").includes(query);
-    section.hidden = !visible;
-    if (visible) count++;
-    const link = document.querySelector(
-      '.sidebar a[href="#' + section.id + '"]',
-    );
-    if (link) link.hidden = !visible;
+/*
+ * Guide behavior: local chapter search and deep-link reveal. init() is
+ * idempotent and is called again by the client-side router after the guide is
+ * swapped in. Window-level listeners are registered once and read the live DOM.
+ */
+(function () {
+  function parts() {
+    var input = document.querySelector("#doc-search");
+    if (!input) return null;
+    return {
+      input: input,
+      sections: Array.prototype.slice.call(document.querySelectorAll("[data-doc]")),
+      status: document.querySelector("#search-status"),
+    };
   }
-  document.querySelector("#no-results").hidden = count !== 0;
-  status.textContent = query
-    ? count + " פרקים מתוך " + sections.length
-    : sections.length + " פרקי מדריך";
-}
-input.addEventListener("input", applySearch);
-function showHash() {
-  if (location.hash) {
-    const target = document.getElementById(
-      decodeURIComponent(location.hash.slice(1)),
-    );
+  function applySearch() {
+    var p = parts();
+    if (!p) return;
+    var query = p.input.value.trim().toLocaleLowerCase(document.documentElement.lang || "he");
+    var count = 0;
+    p.sections.forEach(function (section) {
+      var visible =
+        !query || section.textContent.toLocaleLowerCase(document.documentElement.lang || "he").includes(query);
+      section.hidden = !visible;
+      if (visible) count++;
+      var link = document.querySelector('.sidebar a[href="#' + section.id + '"]');
+      if (link) link.hidden = !visible;
+    });
+    document.querySelector("#no-results").hidden = count !== 0;
+    p.status.textContent = window.StartAppI18n
+      ? window.StartAppI18n.t(query ? "{count} פרקים מתוך {total}" : "{total} פרקי מדריך", {count: count, total: p.sections.length})
+      : query ? count + " פרקים מתוך " + p.sections.length : p.sections.length + " פרקי מדריך";
+  }
+  function showHash() {
+    var p = parts();
+    if (!p || !location.hash) return;
+    var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
     if (target && target.hidden) {
-      input.value = "";
+      p.input.value = "";
       applySearch();
       target.scrollIntoView();
     }
   }
-}
-window.addEventListener("hashchange", showHash);
-window.addEventListener("beforeprint", () => {
-  for (const s of sections) s.hidden = false;
-});
-window.addEventListener("afterprint", applySearch);
-applySearch();
-showHash();
+  function init() {
+    var p = parts();
+    if (!p) return;
+    p.input.addEventListener("input", applySearch);
+    applySearch();
+    showHash();
+  }
+  window.addEventListener("hashchange", showHash);
+  window.addEventListener("beforeprint", function () {
+    var p = parts();
+    if (p) p.sections.forEach(function (s) { s.hidden = false; });
+  });
+  window.addEventListener("afterprint", applySearch);
+  window.StartAppDocs = { init: init };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();

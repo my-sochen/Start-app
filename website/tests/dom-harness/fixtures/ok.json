@@ -1,0 +1,14 @@
+{
+ "schema": 1,
+ "channel": "prototype",
+ "label": "אב-טיפוס להערכה - לא גרסה יציבה",
+ "version": "0.1.0-proto.3",
+ "tag": "v0.1.0-proto.3",
+ "commit": "580bf649e411377361aa8fc075eebf4c0c3cd372",
+ "asset": "StartApp-win-x64.zip",
+ "url": "https://github.com/my-sochen/Start-app/releases/download/v0.1.0-proto.3/StartApp-win-x64.zip",
+ "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "size": 65162878,
+ "generated_utc": "2026-11-15T00:00:00Z",
+ "scope": "Declared release metadata only."
+}

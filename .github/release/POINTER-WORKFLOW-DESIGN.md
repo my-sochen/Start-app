@@ -1,6 +1,6 @@
 # Pointer-update workflow - design, guarantees and honest limits (DRAFT for review, nothing applied)
 
-Baseline: feat/dormant-release-pipeline @ cd028cd8344f207033fce250a87935d450efa0c7.
+Baseline history: feat/dormant-release-pipeline @ cd028cd8344f207033fce250a87935d450efa0c7 (design phase; the workflow is now activated code, owner-gated - see RELEASE-PIPELINE.md).
 Companion artifacts: .github/workflows/release-pointer-update.yml, .github/release/update_pointer.py,
 .github/release/tests/test_update_pointer.py. Baseline files reused unchanged:
 .github/release/pick_release_pointer.py, website/ (reader contract owned by the requesting author's side).
@@ -109,9 +109,13 @@ protection rules including required reviewers and an optional
 restrictions limit which refs may deploy to an environment. Fact established at
 review time (not from docs): the repo has push collaborators mysochen2,
 zamfa4 and mysochen3, so any policy reasoning that assumes "only the owner can
-push" is wrong for this repository. The CURRENT live state of the environment's
-protection rules and of branch protection on main was NOT inspected; nothing
-below asserts that protections are absent or present.
+push" is wrong for this repository. Live state as of 2026-11-15 (owner-approved
+hosting preparation): the github-pages environment exists with the OWNER as
+required reviewer and "prevent self-review" OFF (option 1 below, configured);
+main carries branch protection requiring a PR with owner review. OPEN ITEM:
+GitHub auto-created that environment with a main-only deployment-branch
+restriction, which would block release-event runs (they deploy from the tag
+ref) - flagged to the owner for a decision, not changed by us.
 
 RECOMMENDED BASELINE (a recommendation for Yitzhak to decide - NOT a configured
 or approved policy, no setting has been changed or chosen by us):
