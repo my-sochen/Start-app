@@ -35,7 +35,7 @@ class Qualification(unittest.TestCase):
                     module.outcomes(path, {'actual scenario': 1})
 
     def test_only_feature_trigger_fixed_candidate_no_duplicate_full_suite(self):
-        text = (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text()
+        text = (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text(encoding='utf-8')
         self.assertIn('branches: [feat/functional-qualification-72ce]', text)
         self.assertIn('ref: ' + module.SHA, text)
         self.assertIn('contents: read', text)
@@ -53,7 +53,7 @@ class Qualification(unittest.TestCase):
         self.assertIn("$p.Kill($true)", text)
 
     def test_helpers_are_workflow_source_but_tested_projects_are_candidate_source(self):
-        text = (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text()
+        text = (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text(encoding='utf-8')
         self.assertEqual(4, text.count('working-directory: candidate'))
         self.assertIn('python qualification/.github/e2e/functional-qualification.py', text)
         self.assertIn('--root candidate --output evidence', text)
@@ -77,22 +77,22 @@ class Qualification(unittest.TestCase):
                     module.process_evidence(record, root, 'Fixture', root / 'checks.json')
 
     def test_additive_harness_and_no_visible_chromium_guard(self):
-        text = (ROOT / 'tools/FunctionalJourneys/Program.cs').read_text()
+        text = (ROOT / 'tools/FunctionalJourneys/Program.cs').read_text(encoding='utf-8')
         self.assertIn('Phase=="write" && (Directory.Exists(Output)||File.Exists(Output))', text)
         self.assertIn('write Done does not save', text)
         self.assertIn('write reopen retains changed bound fields', text)
         self.assertIn('reload visible rows contain persisted staged and saved edits', text)
-        guard = (ROOT / 'tools/functional-qualification/Require-CleanChromium.ps1').read_text()
+        guard = (ROOT / 'tools/functional-qualification/Require-CleanChromium.ps1').read_text(encoding='utf-8')
         self.assertIn('EnumWindows', guard)
         self.assertIn('Chrome_WidgetWin_', guard)
         self.assertIn('$enumerated = [CleanChromium]::EnumWindows', guard)
         self.assertIn('$length -le 0 -or $length -ge 255', guard)
         self.assertIn('Require-CleanResult $enumerated $errors.Count $visible.Count', guard)
         self.assertIn('@($false,0,0),@($true,1,0),@($true,0,1)', guard)
-        self.assertIn('-ContractTest', (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text())
+        self.assertIn('-ContractTest', (ROOT / '.github/workflows/functional-qualification-72ce.yml').read_text(encoding='utf-8'))
         self.assertNotIn('Stop-Process', guard)
         self.assertNotIn('.Kill(', guard)
-        driver = (ROOT / 'tools/functional-qualification/Run-CapturePolicy.ps1').read_text()
+        driver = (ROOT / 'tools/functional-qualification/Run-CapturePolicy.ps1').read_text(encoding='utf-8')
         self.assertIn('Stale policy output', driver)
         self.assertIn('policy-process.json', driver)
 
