@@ -1,0 +1,132 @@
+# One feature-only, fixed-candidate qualification. Never product or stage mutation.
+name: functional-qualification-72ce
+on:
+  push:
+    branches: [feat/functional-qualification-72ce]
+permissions:
+  contents: read
+concurrency:
+  group: functional-qualification-72ce
+  cancel-in-progress: false
+env:
+  CANDIDATE_SHA: 72cece944eaef8d6057d702db3ae66c2bbf9290e
+  CANDIDATE_TREE: b93dd94396eb6db119723a8a411168c1c80ee688
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+jobs:
+  native-functional:
+    name: Native functional ${{ matrix.lane }} (not final ZIP)
+    runs-on: windows-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [ux, capture-policy]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with: { path: qualification }
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: candidate
+          ref: 72cece944eaef8d6057d702db3ae66c2bbf9290e
+          fetch-depth: 1
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Bind fixed candidate and independent workflow source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF -cne 'refs/heads/feat/functional-qualification-72ce') { throw 'Wrong qualification branch' }
+          if ((git -C qualification rev-parse HEAD) -cne $env:GITHUB_SHA) { throw 'Workflow checkout mismatch' }
+          if ((git -C candidate rev-parse HEAD) -cne $env:CANDIDATE_SHA) { throw 'Candidate checkout mismatch' }
+          if ((git -C candidate rev-parse 'HEAD^{tree}') -cne $env:CANDIDATE_TREE) { throw 'Candidate tree mismatch' }
+          if (git -C candidate status --porcelain --untracked-files=all) { throw 'Candidate not fresh and clean' }
+          python qualification/tests/functional-qualification/test_qualification.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force evidence, candidate/diag | Out-Null
+          if ('${{ matrix.lane }}' -ceq 'capture-policy') {
+            pwsh -NoProfile -File qualification/tools/functional-qualification/Require-CleanChromium.ps1 -ContractTest
+            if ($LASTEXITCODE -ne 0) { throw 'Clean guard contract failure' }
+            & ./qualification/tools/functional-qualification/Require-CleanChromium.ps1 -Output evidence/clean-Chromium.json
+          }
+          python qualification/.github/e2e/functional-qualification.py --lane '${{ matrix.lane }}' --phase before --root candidate --output evidence
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Build exact real-XAML UX test executable (isolated adapters)
+        if: matrix.lane == 'ux'
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.OpeningUiCapture --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Run existing UX native input and row draft journeys once
+        if: matrix.lane == 'ux'
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $binary = Join-Path $PWD 'tests/StartApp.OpeningUiCapture/bin/Release/net10.0-windows/StartApp.OpeningUiCapture.exe'
+          if (Test-Path out-prototype-ux) { throw 'Stale UX outputs' }
+          $started=[DateTime]::UtcNow
+          $identity=@{exe=$binary; exeSha256=(Get-FileHash $binary -Algorithm SHA256).Hash; dllSha256=(Get-FileHash ([IO.Path]::ChangeExtension($binary,'.dll')) -Algorithm SHA256).Hash; appDllSha256=(Get-FileHash (Join-Path (Split-Path $binary) 'StartApp.App.dll') -Algorithm SHA256).Hash; startedUtc=$started}
+          $p = Start-Process $binary -ArgumentList '--prototype-ux','out-prototype-ux' -PassThru
+          try {
+            if (-not $p.WaitForExit(180000)) { $p.Kill($true); throw 'UX journey timed out; no retry' }
+            $identity.pid=$p.Id; $identity.exitCode=$p.ExitCode; $identity.finishedUtc=[DateTime]::UtcNow
+            if (Test-Path out-prototype-ux/checks.json) { $identity.assertionsSha256=(Get-FileHash out-prototype-ux/checks.json -Algorithm SHA256).Hash; $identity.assertionsWriteUtc=(Get-Item out-prototype-ux/checks.json).LastWriteTimeUtc; if ($identity.assertionsWriteUtc -lt $started) { throw 'Stale assertions' } }
+            $identity | ConvertTo-Json -Depth 5 | Set-Content ../evidence/ux-process.json
+            if ($p.ExitCode -ne 0) { throw "UX journey failed: $($p.ExitCode)" }
+          } finally { $p.Dispose() }
+      - name: Build additive test-only changed-draft and fresh-process persistence journeys
+        if: matrix.lane == 'ux'
+        shell: pwsh
+        run: |
+          dotnet build qualification/tools/FunctionalJourneys --configuration Release -p:CandidateRoot="$((Resolve-Path candidate).Path)"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Run changed staged Done-reopen-Save and saved-row edits then fresh process reload
+        if: matrix.lane == 'ux'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $binary=(Resolve-Path qualification/tools/FunctionalJourneys/bin/Release/net10.0-windows/FunctionalJourneys.exe).Path
+          $output=Join-Path $PWD 'evidence/changed-draft'
+          foreach($phase in @('write','reload')) {
+            $p=Start-Process $binary -ArgumentList $phase,$output -PassThru
+            try {
+              if (-not $p.WaitForExit(60000)) { $p.Kill($true); throw 'Changed-draft journey timeout; no retry' }
+              if ($p.ExitCode -ne 0) { throw "Changed-draft journey failed: $phase/$($p.ExitCode)" }
+            } finally { $p.Dispose() }
+          }
+      - name: Build exact capture policy fixture with explicit test interleaving probes
+        if: matrix.lane == 'capture-policy'
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path .github/e2e/native-capture-policy.ps1),[ref]$tokens,[ref]$errors)
+          if ($errors.Count) { throw 'Existing native policy script parse failure' }
+          dotnet build tests/StartApp.NativeCapturePolicy --configuration Release -p:DefineConstants=STARTAPP_CAPTURE_TRACE%3BSTARTAPP_CAPTURE_TEST
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Run existing six-tab policy interactions once (public read-only page fixture)
+        if: matrix.lane == 'capture-policy'
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ../qualification/tools/functional-qualification/Run-CapturePolicy.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Record actual outputs, action outcomes and executable hashes, even on failure
+        if: always()
+        shell: pwsh
+        run: |
+          python qualification/.github/e2e/functional-qualification.py --lane '${{ matrix.lane }}' --phase after --root candidate --output evidence
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: functional-72ce-${{ matrix.lane }}
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            evidence/
+            candidate/out-prototype-ux/
+            candidate/diag/
+# No full CI rerun, final package rebuild, publication, stage merge, or remote desktop.
