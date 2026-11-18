@@ -21,7 +21,7 @@ public sealed class UpdateTests
     public void Numeric_version_order_includes_patches_and_version_lines(string newer, string older) =>
         Assert.True(UpdateVersion.Parse(newer)!.CompareTo(UpdateVersion.Parse(older)) > 0);
     [Theory]
-    [InlineData("01.0.0")][InlineData("1.0")][InlineData("v1.0.0")][InlineData("1.0.0-beta.1")]
+    [InlineData("01.0.0")][InlineData("1.0")][InlineData("v1.0.0")][InlineData("1.0.0-beta.01")]
     [InlineData("1.0.0-proto.01")][InlineData("999999999999.0.0")][InlineData("1.0.0\n")]
     public void Invalid_versions_fail_closed(string value) => Assert.Null(UpdateVersion.Parse(value));
     [Fact] public async Task Unstamped_preview_is_disabled_and_never_reads()

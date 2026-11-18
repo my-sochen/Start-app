@@ -34,7 +34,7 @@ public sealed class ApprovedCatalogTransport : IDisposable
         _client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
-    public async Task<ValidatedCatalog> ReadAsync(CancellationToken cancellationToken, long? minimumRevision = null)
+    public async Task<ValidatedCatalog> ReadAsync(CancellationToken cancellationToken, long? minimumRevision = null, string channel = "prototype")
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_deadline); var token = deadline.Token;
@@ -44,6 +44,7 @@ public sealed class ApprovedCatalogTransport : IDisposable
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         if ((int)response.StatusCode is >= 300 and < 400) throw new InvalidDataException("Catalog redirect is not allowed.");
         response.EnsureSuccessStatusCode();
+        if (channel == "beta-notice" && response.StatusCode != HttpStatusCode.OK) throw new InvalidDataException("Beta notice requires HTTP 200.");
         if (response.RequestMessage?.RequestUri != _endpoint) throw new InvalidDataException("Catalog response identity changed.");
         if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Catalog content type is not JSON.");
@@ -64,7 +65,7 @@ public sealed class ApprovedCatalogTransport : IDisposable
             output.Write(buffer, 0, count);
         }
         token.ThrowIfCancellationRequested();
-        var catalog = ApprovedCatalogContract.Parse(output.ToArray(), _clock(), _policy, minimumRevision);
+        var catalog = ApprovedCatalogContract.Parse(output.ToArray(), _clock(), _policy, minimumRevision, channel);
         token.ThrowIfCancellationRequested();
         return catalog;
     }
