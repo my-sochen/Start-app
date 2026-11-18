@@ -1,16 +1,18 @@
 "use strict";
+function tr(text) { return typeof window !== "undefined" && window.StartAppI18n ? window.StartAppI18n.t(text) : text; }
+
 /*
- * Start-app prototype download pointer reader (DORMANT INTEGRATION - not wired).
+ * Start-app prototype download pointer reader (WIRED by download-wire.js).
  *
  * This module is the website side of .github/release/pick_release_pointer.py.
- * It validates a pointer document (schema 1) emitted by that selector and, only
- * when a hosting decision supplies a pointer URL, renders the download state.
+ * It validates a pointer document (schema 1) emitted by that selector and
+ * renders the download state for both CTAs.
  *
- * Dormant by design:
- *  - The module makes NO network call by itself. load() runs only when the
- *    reviewed activation change wires a pointer URL into the page.
- *  - The current page CSP is connect-src 'none'; any fetch fails closed until
- *    the activation change also allowlists the pointer origin.
+ * Contract:
+ *  - The module makes NO network call by itself. download-wire.js passes the
+ *    same-origin pointer.json URL (deployed atomically with the site).
+ *  - The page CSP is connect-src 'self': the same-origin fetch is allowed and
+ *    no external origin is needed.
  *  - validate() never invents a URL: every field must come from the document,
  *    and the download URL must come from the published release (the selector
  *    already enforces that).
@@ -92,6 +94,15 @@
     };
   }
 
+  // Left-to-right data (tags, versions, sizes, hashes) embedded in the RTL
+  // Hebrew copy is wrapped in Unicode isolates so the bidi algorithm keeps it
+  // in logical order instead of scrambling mixed runs.
+  const LRI = "\u2066";
+  const PDI = "\u2069";
+  const ltr = function (text) {
+    return LRI + text + PDI;
+  };
+
   function formatSize(bytes) {
     if (bytes === null) return null;
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
@@ -113,30 +124,65 @@
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      setLabel("הורדה ל־Windows - " + p.tag);
+      // Keep the primary action simple; the exact version remains in technical details.
+      setLabel(tr("הורדה ל־Windows"));
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
       button.onclick = function () {
         global.location.assign(p.url);
       };
-      if (note) {
-        const parts = [p.label + " · גרסה " + p.version];
+      // Rich CTAs pass els.detail (the body of a collapsed verification
+      // panel): the full metadata goes there and the visible note stays short.
+      const metaTarget = els.detail || note;
+      if (els.detail && note) {
+        note.textContent = tr("Windows x64 · קובץ ZIP");
+      }
+      if (els.detail && els.detail.parentNode) els.detail.parentNode.hidden = false;
+      if (metaTarget) {
         const size = formatSize(p.size);
-        if (size) parts.push(size);
-        if (p.sha256) parts.push("sha256: " + p.sha256);
-        parts.push("הקישור נקבע ממטמון הגרסה שפרסם צינור הבדיקות; הבייטים עצמם לא נבדקו מחדש בדף זה.");
-        note.textContent = parts.join(" · ");
+        if (typeof metaTarget.replaceChildren === "function" && typeof document !== "undefined") {
+          // Real DOM: scoped elements keep LTR data readable and unbreakable
+          // (tags/versions never split on narrow screens); only the long hash
+          // token is allowed to wrap.
+          const mk = function (cls, text) {
+            const span = document.createElement("span");
+            span.className = cls;
+            span.textContent = text;
+            return span;
+          };
+          const nodes = [mk("ptr-row", tr("גרסה: ")), mk("ptr-ltr", p.version)];
+          if (size) nodes.push(mk("ptr-row", tr("גודל הקובץ: ")), mk("ptr-ltr", size));
+          if (p.sha256) {
+            nodes.push(mk("ptr-row", tr("קוד אימות (SHA-256):")));
+            nodes.push(mk("ptr-sha", p.sha256));
+          }
+          metaTarget.replaceChildren.apply(metaTarget, nodes);
+        } else {
+          // Text-only fallback (offline tests): Unicode isolates carry the
+          // same bidi protection without markup.
+          const parts = [tr("גרסה: ") + ltr(p.version)];
+          if (size) parts.push(ltr(size));
+          if (p.sha256) parts.push(ltr("sha256: " + p.sha256));
+          metaTarget.textContent = parts.join("\n");
+        }
       }
       return;
     }
     button.disabled = true;
     button.onclick = null;
+    if (els.detail && els.detail.parentNode) {
+      els.detail.textContent = "";
+      els.detail.parentNode.hidden = true;
+    }
+    setLabel(
+      result.state === "none" ? tr("אין הורדה זמינה כרגע") : tr("הורדה לא זמינה")
+    );
     if (note) {
       note.textContent =
         result.state === "none"
-          ? "אין עדיין גרסת אב-טיפוס שעברה את כל הבדיקות ואושרה להורדה."
-          : "לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.";
+          ? tr("אין עדיין גרסת אב-טיפוס שעברה את כל הבדיקות ואושרה להורדה.")
+          : tr("לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.");
     }
   }
 

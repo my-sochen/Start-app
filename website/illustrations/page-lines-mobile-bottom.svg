@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 180" fill="none" stroke="#214fc2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><filter id="hand-line" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency=".025 .04" numOctaves="2" seed="17" result="grain"/><feDisplacementMap in="SourceGraphic" in2="grain" scale=".85" xChannelSelector="R" yChannelSelector="G"/></filter></defs><g filter="url(#hand-line)">
+  <path d="M-18 97c48 84 109 44 147 60C172 174 198 184 243.1 157.5" opacity=".48"/>
+  <path d="M220.6 111.5 173 15M250.2 106.8 305 8" opacity=".5"/>
+  <g transform="translate(202 42) rotate(-14)"><rect width="20" height="26" rx="2"/><path d="M5 8h10M5 13h10M5 18h7"/></g>
+  <g transform="translate(244 43) rotate(12)"><path d="M0 0h21v21H0zM0 6h21M7 0v6"/></g>
+  <g transform="rotate(-9 237 119)"><ellipse cx="237" cy="119" rx="65" ry="16"/><path d="M196 132q41 52 82 0"/><ellipse cx="237" cy="109" rx="15" ry="4"/><circle cx="209" cy="118" r="2"/><circle cx="237" cy="123" r="2"/><circle cx="265" cy="118" r="2"/></g>
+  <path d="M64 58v10m-5-5h10" opacity=".65"/><circle cx="125" cy="100" r="2"/>
+</g></svg>

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Assemble the Pages deploy unit: the FULL website plus the selector-emitted
-pointer document, atomically. Part of the dormant release design - nothing here
-runs until the owner merges the companion workflow and enables Pages.
+pointer document, atomically. Activated code, owner-gated: it runs only from
+the merged companion workflow once the owner enables Pages, creates the
+github-pages environment protection, and sets PROTOTYPE_RELEASE_ENABLE=true.
 
 Semantics (see POINTER-WORKFLOW-DESIGN.md):
 - Selector finds a qualifying published prerelease -> artifact carries the

@@ -1,0 +1,6 @@
+# Search crawler policy for the Start-app site (GitHub Pages project site).
+# Everything is allowed; the sitemap points crawlers at the canonical pages.
+User-agent: *
+Allow: /
+
+Sitemap: https://my-sochen.github.io/Start-app/sitemap.xml

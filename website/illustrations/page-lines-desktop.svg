@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" fill="none" stroke="#214fc2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><defs><filter id="hand-line" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency=".025 .04" numOctaves="2" seed="17" result="grain"/><feDisplacementMap in="SourceGraphic" in2="grain" scale="1.4" xChannelSelector="R" yChannelSelector="G"/></filter></defs><g filter="url(#hand-line)">
+  <g opacity=".48">
+    <path d="M16 260C-32 112 109 41 226 87c55 22 81 52 94 83"/>
+    <path d="M53 341c-24 133 54 260 203 269 125 8 217-48 311-31 123 22 195 127 340 77"/>
+    <path d="M1036 99c79-83 156-22 134 63-14 55-50 90-88 110"/>
+  </g>
+  <g transform="translate(98 187) rotate(-13)">
+    <path d="M0 10V0h43l12 13h58v66H0Z"/>
+    <path d="M0 23h113"/>
+  </g>
+  <g transform="translate(200 376) rotate(13)">
+    <rect width="68" height="52" rx="4"/><path d="M0 14h68M9 7h.1M16 7h.1"/>
+  </g>
+  <g transform="translate(924 134) rotate(-12)">
+    <rect width="47" height="47" rx="6"/><path d="m14 24 10-10m-2 21 11-11M19 29l11-11"/>
+  </g>
+  <path d="M1006.1 425.5 907 233M1053.3 417.1 1164 199" opacity=".5"/>
+  <g transform="translate(1065 286) rotate(10)"><path d="M0 0h31v31H0zM0 9h31M10 0v9"/></g>
+  <g transform="translate(1014 284) rotate(12)">
+    <rect width="35" height="40" rx="3"/><path d="M8 12h18M8 20h18M8 28h11"/>
+  </g>
+  <g transform="rotate(-10 1033 434)">
+    <ellipse cx="1033" cy="434" rx="105" ry="25"/>
+    <path d="M968 454q65 85 130 0"/><ellipse cx="1033" cy="421" rx="24" ry="6"/>
+    <circle cx="987" cy="433" r="3"/><circle cx="1033" cy="440" r="3"/><circle cx="1079" cy="433" r="3"/>
+  </g>
+  <g opacity=".65"><path d="M120 500v12m-6-6h12M1112 572v12m-6-6h12M370 620v8m-4-4h8"/><circle cx="290" cy="255" r="3"/><circle cx="848" cy="96" r="3"/><circle cx="694" cy="654" r="3"/></g>
+</g></svg>

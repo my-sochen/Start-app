@@ -1,0 +1,7 @@
+{
+ "schema": 1,
+ "channel": "prototype",
+ "candidate": null,
+ "reason": "no published prerelease with ui_gate=passed exists",
+ "generated_utc": "2026-11-15T00:00:00Z"
+}

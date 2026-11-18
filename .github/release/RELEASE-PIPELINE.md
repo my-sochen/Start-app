@@ -1,8 +1,10 @@
 # Prototype release pipeline - plan and current state
 
-Status: INFRASTRUCTURE PREPARATION. Distribution is intentionally stopped by the
-repository owner: no distribution now, but infrastructure building continues.
-Nothing here publishes, tags, merges to main, hosts, or enables a download.
+Status: ACTIVATED CODE, OWNER-GATED. The activation slice below is a code
+proposal: the release gate, pointer deployment and website wiring are written
+and locally verified, but they cannot run until the owner finishes the
+settings steps (hosting, environments, variable) and approves each release.
+Nothing here publishes, tags, hosts, or enables a download on its own.
 
 ## Product requirements
 
@@ -21,56 +23,88 @@ Nothing here publishes, tags, merges to main, hosts, or enables a download.
   Scoped evidence for the validated revision only.
 - `.github/release/` - `check_tag_free.sh`, `make_manifest.py`,
   `ui_gate_check.py`, `verify_candidate.py`, `KNOWN-LIMITS.txt`.
-- `website/` - static Hebrew RTL site + documentation, download button
-  DISABLED, hosting NOT selected.
+- `website/` - static Hebrew RTL site + documentation, download CTAs wired
+  to the same-origin pointer document (all non-ok states keep both CTAs
+  disabled and the copy truthful), hosting pending the owner decision
+  (proposal on record: GitHub Pages project site).
 
-## What this change adds (DORMANT - no capability is activated)
+## What this change adds (ACTIVATED, owner-gated)
 
-- `.github/workflows/release-prototype.yml` - the release design as a
-  MANUAL-trigger-only workflow: candidate code from a `sha` input, trusted
-  scripts from the workflow revision (source separation the validation
-  workflow does not have), hard tag-collision check, same test/UI/package
-  gates, and a hard-disabled (`if: false`, `contents: none`) draft-prerelease
-  job that documents the activation condition. Cannot run on any push.
+- `.github/workflows/release-prototype.yml` - MANUAL-trigger-only workflow:
+  candidate code from a `sha` input, trusted scripts from the workflow
+  revision (source separation the validation workflow does not have), hard
+  tag-collision check, same test/UI/package gates, and an ACTIVATED
+  draft-prerelease job gated by the documented design condition
+  (candidate sha on main in that manual run, all gates green, and the
+  repository variable `PROTOTYPE_RELEASE_ENABLE == "true"`), protected by the
+  `prototype-release` Environment, with `contents: write` scoped to that job.
+  Still cannot run on any push.
+- `.github/workflows/release-pointer-update.yml` - ACTIVATED pointer-update
+  workflow: on release lifecycle events (published, unpublished, edited,
+  deleted) it re-selects the pointer from PUBLISHED prereleases and deploys
+  the full site + pointer.json as ONE atomic Pages artifact (a pointer-only
+  deploy is impossible by design). Gated by the same variable and the
+  `github-pages` Environment; checks out the default branch only; a selector
+  failure aborts before any deploy.
 - `.github/release/pick_release_pointer.py` - offline-testable selector that
   picks, among PUBLISHED prereleases, the highest prototype build whose
   manifest declares unit_tests=passed and ui_gate=passed, and emits a pointer
   document on stdout. Writes nothing. Selects nothing until a published
   prerelease with ui_gate=passed exists. Trusts declared metadata only.
+- `website/download-pointer.js` - the reader contract: validates the pointer
+  (same-repo release-asset URL pinning, sha256), loads it over https with
+  `cache: no-store`, and renders both CTAs via onclick assignment (non-ok
+  states unbind any stale URL).
+- `website/download-wire.js` - the activation wiring: resolves pointer.json
+  same-origin, renders both CTAs, and resolves the state-bearing static copy
+  (availability badge + download heading) per ok / none (incl. withdrawal) /
+  invalid; the initial static copy is the truthful "checking" state.
 - `.github/release/tests/` - offline unit tests for the selector and static
-  checks for the dormant workflow shape.
+  checks for the activated workflow shapes.
 
 ## Open gaps
 
-1. NO STABLE POINTER TARGET: nothing hosts the pointer document and the site
-   cannot read one. The 5-day Actions artifact is the only current artifact
-   path. "No manual link swap" is therefore not yet achieved.
+1. Settings steps are NOT done: Pages hosting, both Environments and the
+   `PROTOTYPE_RELEASE_ENABLE` variable do not exist yet. Until the owner
+   completes them, no job in these workflows can run.
 2. The release workflow has never run; the draft-prerelease step has never
    produced anything (no draft, no published prerelease, no ui_gate=passed
-   manifest in any release).
+   manifest in any release); the site will truthfully show "no verified
+   version yet".
 3. UI gate is a runner-scoped hard gate, not full UI coverage or determinism
    (see KNOWN-LIMITS.txt).
+4. Workflow schema/actionlint review of the finalized workflows is still owed
+   (not runnable offline here).
 
-## Host-specific decisions left unresolved (owner / product decisions)
+## Host-specific decisions (owner / product)
 
-- Hosting for the site and for the pointer document (candidates recorded in
-  the plan: GitHub Pages; Netlify Free; both advisory only).
-- Whether/where the site reads the pointer (static file, API, build-time).
-- Download enablement on the website (button currently disabled).
-- GitHub Environment name + required reviewer for the release stage.
-- Who approves each release; final wording of KNOWN-LIMITS.txt ("to be
-  confirmed by the product owner before any public use").
+- Hosting + pointer target: proposal on record is the GitHub Pages project
+  site with the pointer deployed atomically with the site (no manual link
+  swap; the site reads pointer.json same-origin). Pending owner approval.
+- Download enablement on the website: code done in this slice; live
+  enablement rides on the owner settings steps below.
+- GitHub Environments: `prototype-release` (release stage) and `github-pages`
+  (pointer deploy), each with a required reviewer; the owner creates and
+  verifies the protection actually prompts.
+- Who approves each release: the owner; final wording of KNOWN-LIMITS.txt
+  ("to be confirmed by the product owner before any public use").
 
-## Activation checklist for the draft-prerelease stage (all owner-gated)
+## What remains for the owner (settings, all owner-gated)
 
-1. Owner selects hosting + pointer target (gap 1) and approves release flow.
-2. Owner creates the GitHub Environment with a required reviewer and verifies
-   the protection actually prompts.
-3. Owner creates repository variable PROTOTYPE_RELEASE_ENABLE=true.
-4. Edit release-prototype.yml: replace `if: ${{ false }}` with the documented
-   design condition, add the `environment:` key, set job permissions to
-   `contents: write`. Code change, reviewed, merged to main by the owner only.
-5. First run is a manually dispatched, explicitly approved trial with version,
+Done in the owner-approved hosting preparation (2026-11-15): Pages source set
+to GitHub Actions (nothing deployed; the address 404s until an approved
+deploy); `prototype-release` and `github-pages` Environments created, each
+with the OWNER as required reviewer and "prevent self-review" OFF (self-review
+allowed: the owner's own runs pause for his own explicit approval click).
+Open settings conflict flagged to the owner: the auto-created `github-pages`
+environment carries a main-only deployment-branch restriction that would block
+release-event runs (tag refs); not changed by us.
+
+1. Decide the `github-pages` deployment-branch restriction (keep main-only and
+   accept dispatch-only deploys, or relax it so release-event tag refs deploy).
+2. Approve this activation slice (reviewed code, exact merge approval).
+3. Create repository variable PROTOTYPE_RELEASE_ENABLE=true.
+4. First run is a manually dispatched, explicitly approved trial with version,
    sha and evidence recorded; maintenance afterwards is per-event by request
    (no monitoring, no SLA).
 
