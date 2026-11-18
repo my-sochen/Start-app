@@ -1,0 +1,58 @@
+# Feature-only synthetic pixels and package identity. No publisher, endpoint or release activation.
+name: prototype-beta-notice
+on:
+  push:
+    branches: [feat/prototype-beta-notifier]
+permissions:
+  contents: read
+concurrency:
+  group: prototype-beta-notice-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Bind evidence to exact checkout
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -cne '${{ github.sha }}') { throw 'Checkout SHA mismatch' }
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Notifier unit contracts only
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests --configuration Release --filter 'FullyQualifiedName~Update|FullyQualifiedName~BetaNotice|FullyQualifiedName~ApprovedCatalog|FullyQualifiedName~InstalledBuildIdentity'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Synthetic real-XAML beta and settings evidence
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.UpdateUiCapture --configuration Release -p:StartAppReleaseVersion=0.1.0-proto.2 -p:StartAppSourceCommit=${{ github.sha }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary = Join-Path $PWD 'tests/StartApp.UpdateUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $p = Start-Process $binary -ArgumentList 'out-beta-notice' -PassThru
+          if (-not $p.WaitForExit(90000)) { Stop-Process -Id $p.Id -Force; throw 'Synthetic notifier evidence timed out; no automatic retry' }
+          if ($p.ExitCode -ne 0) { throw "Synthetic notifier evidence failed: $($p.ExitCode)" }
+      - name: Build package and prove actual App assembly stamp
+        shell: pwsh
+        run: |
+          dotnet publish src/StartApp.App -c Release -r win-x64 --self-contained true -p:StartAppReleaseVersion=0.1.0-proto.2 -p:StartAppSourceCommit=${{ github.sha }} -o package
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $path = (Resolve-Path package/StartApp.App.dll).Path
+          $assembly = [System.Reflection.Assembly]::LoadFile($path)
+          $attributes = $assembly.GetCustomAttributesData()
+          $version = @($attributes | Where-Object { $_.AttributeType.FullName -eq 'System.Reflection.AssemblyInformationalVersionAttribute' })
+          $commit = @($attributes | Where-Object { $_.AttributeType.FullName -eq 'System.Reflection.AssemblyMetadataAttribute' -and $_.ConstructorArguments[0].Value -eq 'StartAppSourceCommit' })
+          if ($version.Count -ne 1 -or $commit.Count -ne 1) { throw 'Missing or duplicate App identity stamp' }
+          $expected = '0.1.0-proto.2+sha.${{ github.sha }}'
+          if ($version[0].ConstructorArguments[0].Value -cne $expected -or $commit[0].ConstructorArguments[1].Value -cne '${{ github.sha }}') { throw 'Packaged App stamp does not match exact target' }
+          New-Item -ItemType Directory -Force out-beta-notice | Out-Null
+          @{ source_commit = '${{ github.sha }}'; version = $expected; app_sha256 = (Get-FileHash $path -Algorithm SHA256).Hash; prototype_only = $true; production_endpoint_active = $false; distributed = $false } | ConvertTo-Json | Set-Content out-beta-notice/package-identity.json -Encoding utf8
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: prototype-beta-notice-evidence
+          path: out-beta-notice/
+          if-no-files-found: error
+          retention-days: 3
