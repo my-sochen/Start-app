@@ -1,0 +1,5 @@
+# Exact version display in Hebrew RTL
+
+Actual f497 Windows900/720settings and popup PNGs show hyphenated ASCII version groups reordered by RTL paragraph layout. Fix only presentation strings: validated ASCII version tokens receive U+202A left-to-right embedding and U+202C close embedding. Entire Hebrew paragraph/window remains RTL. Underlying installed/offered version, transport/catalog/identity, ordering, commands, publisher and null production endpoint unchanged.
+
+Pure tests assert exact installed prototype/beta/stable display tokens and exact offered beta sentence. Real composition UI harness now asserts full exact isolated installed identity and offered status before event-created popup/settings capture900/720, rather than substring. Byte/string tests do not prove actual glyph order; native PNGs must visibly show0.1.0-proto.2 and0.2.0-beta.1 left-to-right with Hebrew surrounding order intact. Preserve current444event run evidence separately; this fix is uncommitted and not runtime-verified. No publisher mutation/activation/merge.

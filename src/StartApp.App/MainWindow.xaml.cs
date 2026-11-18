@@ -6,15 +6,37 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
 {
+    public UpdateViewModel Updates { get; }
+    private UpdateSettingsWindow? _settingsWindow;
+    private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
     private MainViewModel? _hooked;
-    public MainWindow()
+    public MainWindow() : this(UpdateComposition.Create()) { }
+    internal MainWindow(UpdateViewModel updates)
     {
+        Updates = updates ?? throw new ArgumentNullException(nameof(updates));
         InitializeComponent();
+        Updates.StartupUpdateAvailable += ShowStartupUpdate;
         DataContextChanged += (_, _) => Hook();
-        Loaded += (_, _) => Hook();
-        Closed += (_, _) => Detach();
+        Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
+        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.Dispose(); };
     }
+    private void ShowStartupUpdate()
+    {
+        if (_closeApproved || !IsLoaded || _updateAvailableWindow is not null) return;
+        _updateAvailableWindow = new UpdateAvailableWindow(Updates) { Owner = this };
+        _updateAvailableWindow.Closed += (_, _) => _updateAvailableWindow = null;
+        // Non-modal: dismissing or ignoring an optional update never blocks work.
+        _updateAvailableWindow.Show();
+    }
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settingsWindow is not null) { _settingsWindow.Activate(); return; }
+        _settingsWindow = new UpdateSettingsWindow(Updates) { Owner = this };
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+    }
+
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
     // made one upload click queue two sequential OpenFileDialogs).
@@ -95,41 +117,96 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
-    private void CardActions_Click(object sender, RoutedEventArgs e)
+    private void EditItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { ContextMenu: { } menu })
+        if (sender is not Button { DataContext: ItemRow row }) return;
+        // Command execution follows Click. Bring the newly opened, identity-bound local editor
+        // into view after binding/layout; a refused dirty-editor switch must not steal focus.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
         {
-            // Keep the whole menu inside the window (user report Nov 12: the item-row menu clipped off-screen).
-            // Anchor it to the button itself (default placement tracks the mouse/work-area and clips off-window),
-            // right-align it with the button so it grows leftward (both action buttons sit at the window's right
-            // edge), and flip above the button when the space below it inside the window is too small.
-            var button = (Button)sender;
-            menu.PlacementTarget = button;
-            // Settle the share entry's visibility BEFORE the popup measures, so its height is final at placement time.
-            foreach (var mi in menu.Items.OfType<System.Windows.Controls.MenuItem>())
-                if (mi.Header as string == "שיתוף לסביבה אחרת")
-                    mi.Visibility = (button.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
-            // Decide up/down from the real measured space inside the window at click time, and hard-bound the menu
-            // height to the larger side so it can never extend past the window. The placement callback's popupSize is
-            // not reliable on a menu's first open (runs 43307032198/43310237708: last-row menu overflowed the window
-            // bottom by 19px because the flip never engaged).
-            var openAbove = false;
-            if (Window.GetWindow(button) is { } host)
+            if (DataContext is not MainViewModel vm || vm.EditingItemInstanceId != row.InstanceId) return;
+            var input = FindEditInput(this);
+            if (input is null) return;
+            input.BringIntoView(); input.Focus();
+        }));
+    }
+    private void EditStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: true);
+    private void DoneStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: false);
+    private void RevealStagedRow(object sender, bool editing)
+    {
+        if (sender is not Button { DataContext: MainViewModel.StagedRow row } button) return;
+        DependencyObject? ancestor = button;
+        while (ancestor is not null && ancestor is not StackPanel { ContextMenu: not null, DataContext: MainViewModel.StagedRow })
+            ancestor = System.Windows.Media.VisualTreeHelper.GetParent(ancestor);
+        if (ancestor is not StackPanel host || !ReferenceEquals(host.DataContext, row)) return;
+        // Click precedes the command. Wait for its state and layout, then reveal only this row's input or summary button.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (DataContext is not MainViewModel vm || !vm.IsCaptureSide || !vm.StagedRows.Contains(row) ||
+                row.IsEditing != editing || !host.IsVisible || !ReferenceEquals(host.DataContext, row)) return;
+            var target = FindStagedRevealTarget(host, row, editing);
+            if (target is null) return;
+            target.BringIntoView(); target.Focus();
+        }));
+    }
+    private static FrameworkElement? FindStagedRevealTarget(DependencyObject root, MainViewModel.StagedRow row, bool editing)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement element && element.IsVisible && ReferenceEquals(element.DataContext, row))
             {
-                var topLeft = button.TransformToAncestor(host).Transform(new Point(0, 0));
-                var spaceBelow = host.ActualHeight - (topLeft.Y + button.ActualHeight);
-                var spaceAbove = topLeft.Y;
-                openAbove = spaceBelow < spaceAbove;
-                menu.MaxHeight = Math.Max(spaceBelow, spaceAbove);
+                if (editing && element is TextBox input && System.Windows.Automation.AutomationProperties.GetName(input) == "Added item name") return input;
+                if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Edit added " + row.OriginalName) return edit;
             }
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-            menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
-            {
-                var x = targetSize.Width - popupSize.Width;
-                var y = openAbove ? -popupSize.Height : targetSize.Height;
-                return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x, y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-            };
-            menu.IsOpen = true;
+            var found = FindStagedRevealTarget(child, row, editing); if (found is not null) return found;
         }
+        return null;
+    }
+    private static TextBox? FindEditInput(DependencyObject root)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is TextBox box && box.IsVisible && System.Windows.Automation.AutomationProperties.GetName(box) == "Edit item name") return box;
+            var found = FindEditInput(child); if (found is not null) return found;
+        }
+        return null;
+    }
+    private void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not FrameworkElement { ContextMenu: { } menu } host) return;
+        // TextBox keeps WPF's ordinary text-edit context menu, including Apps and Shift+F10.
+        // The separately focusable row is the action-menu anchor for staged items.
+        for (DependencyObject? source = e.OriginalSource as DependencyObject; source is not null && !ReferenceEquals(source, host);)
+        {
+            if (source is TextBox) return;
+            source = source is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+                ? System.Windows.Media.VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
+        }
+        // Keep row identity separate from window commands across the popup boundary.
+        menu.PlacementTarget = host;
+        menu.DataContext = host.DataContext;
+        foreach (var item in menu.Items.OfType<MenuItem>())
+            if (item.Header as string == "שיתוף לסביבה אחרת")
+                item.Visibility = (host.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
+        // Do not anchor below the whole expanded editor or a partly scrolled-out row.
+        // Compute the final popup origin inside the owner, then express it relative to the host.
+        var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));
+        var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight), 8, Math.Max(8, ActualHeight - 8));
+        menu.MaxHeight = Math.Max(0, ActualHeight - 16);
+        menu.MaxWidth = Math.Max(0, ActualWidth - 16);
+        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening.
+        ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom);
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
+        menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+        {
+            var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
+            var y = anchorY + popupSize.Height <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - popupSize.Height);
+            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
+                System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
+        };
+        // Let WPF open its normal context menu: mouse right-click or keyboard Menu / Shift+F10.
+        // Neither route invokes the name/open button.
     }
 }

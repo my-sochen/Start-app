@@ -3,6 +3,7 @@ using StartApp.Presentation;
 using StartApp.Storage.Json;
 using Xunit;
 
+/// <summary>Nov17 contract supersedes the old open-anyway panel: selected-only checks; confirmed-only unchecked duplicate list; missing/unavailable skipped.</summary>
 public class PreflightTests
 {
     private sealed class FakeLauncher : IItemLauncher
@@ -12,7 +13,7 @@ public class PreflightTests
     }
     private sealed class FakePreflight(Func<Item, PreflightFinding> f) : IItemPreflight
     {
-        public int Calls; public PreflightFinding Check(Item i, LaunchConfig? l) { Calls++; return f(i); }
+        public int Calls; public PreflightFinding Check(Item i, LaunchConfig? l) { Interlocked.Increment(ref Calls); return f(i); }
     }
     private static readonly Func<Item, PreflightFinding> Ready = _ => new(PreflightState.Ready);
     private static JsonStore Repo(params (ItemType t, string target)[] items)
@@ -23,191 +24,118 @@ public class PreflightTests
     }
     private sealed class FixedDetector(OpenState s) : IOpenStateDetector { public OpenState Detect(Item i, LaunchConfig? l) => s; }
     private static MainViewModel Vm(JsonStore r, FakeLauncher l, Func<Item, PreflightFinding>? f = null, OpenState dup = OpenState.NotOpen) => new(r, l, new FakePreflight(f ?? Ready), new FixedDetector(dup));
+    private static void SelectAndCheck(MainViewModel vm) { vm.OpenWorkspaceCommand.Execute(null); vm.ConfirmSelectionCommand.Execute(null); vm.OpenTask.GetAwaiter().GetResult(); }
 
-    [Fact] public void AllReady_LaunchesWithoutAsking()
+    [Fact] public void WorkspaceAlwaysAsksBeforeAnyChecks_AllInitiallyChecked()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.False(vm.OpenDecisionPending); Assert.Single(l.Launched); Assert.Equal("Open requests sent for 1 item", vm.Status); Assert.Equal("C:\\a.txt: open request sent (not proof it loaded)", vm.OpenReport[0]);
+        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var pf = new FakePreflight(Ready); var vm = new MainViewModel(repo,l,pf);
+        vm.OpenWorkspaceCommand.Execute(null);
+        Assert.True(vm.SelectionPending); Assert.All(vm.OpeningChoices,x=>Assert.True(x.IsChecked)); Assert.Equal(0,pf.Calls); Assert.Empty(l.Launched);
+        Assert.False(vm.OpenDecisionPending); Assert.False(vm.IsChecking);
+        vm.ConfirmSelectionCommand.Execute(null); vm.OpenTask.GetAwaiter().GetResult();
+        Assert.Single(l.Launched); Assert.Equal(OpeningOutcome.RequestSent,Assert.Single(vm.LastOpeningResults).Outcome); Assert.False(vm.LastResultsOpen); Assert.True(vm.ToastVisible); Assert.False(vm.ToastPersistent);
     }
-    [Fact] public void Missing_WarnsFirst_NothingLaunchedUntilUserDecides()
+    [Fact] public void UncheckedItemsAreNeverCheckedOrLaunched_EmptyDisablesConfirm()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt"), (ItemType.File, "C:\\gone.txt")); var l = new FakeLauncher();
-        var vm = Vm(repo, l, i => i.Target.EndsWith("gone.txt") ? new(PreflightState.Missing, "saved target") : new(PreflightState.Ready));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.True(vm.OpenDecisionPending); Assert.Empty(l.Launched);
-        Assert.Contains("gone.txt", vm.OpenProblems[0]); Assert.Contains("not found", vm.OpenProblems[0]);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"),(ItemType.File,"C:\\b.txt")); var l=new FakeLauncher(); var pf=new FakePreflight(Ready); var vm=new MainViewModel(repo,l,pf);
+        vm.OpenWorkspaceCommand.Execute(null); foreach(var x in vm.OpeningChoices) x.IsChecked=false;
+        Assert.False(vm.ConfirmSelectionCommand.CanExecute(null)); vm.OpeningChoices[1].IsChecked=true;
+        vm.ConfirmSelectionCommand.Execute(null); vm.OpenTask.GetAwaiter().GetResult();
+        Assert.Equal(1,pf.Calls); Assert.Equal(new[]{"C:\\b.txt"},l.Launched);
     }
-    [Fact] public void OpenAnyway_AttemptsMissingAsSaved_ReportsEachItem_NoSubstitute()
+    [Theory] [InlineData(PreflightState.Missing)] [InlineData(PreflightState.Unavailable)]
+    public void MissingAndUnavailableSkippedAndReported_NoDuplicateDialog(PreflightState state)
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt"), (ItemType.Program, "C:\\Apps\\gone-fail.exe")); var l = new FakeLauncher();
-        var vm = Vm(repo, l, i => i.Type == ItemType.Program ? new(PreflightState.Missing) : new(PreflightState.Ready));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Equal(new[] { "C:\\a.txt", "C:\\Apps\\gone-fail.exe" }, l.Launched);
-        Assert.Contains("1 of 2", vm.Status); Assert.Contains("C:\\Apps\\gone-fail.exe: failed (boom)", vm.OpenReport);
-    }
-    [Fact] public void Cancel_OpensNothing()
-    {
-        using var repo = Repo((ItemType.File, "C:\\gone.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, _ => new(PreflightState.Missing));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); vm.CancelOpenCommand.Execute(null);
-        Assert.Empty(l.Launched); Assert.Empty(vm.OpenProblems); Assert.False(vm.ConfirmOpenAnywayCommand.CanExecute(null));
+        using var repo=Repo((ItemType.File,"C:\\a.txt"),(ItemType.File,"C:\\gone.txt")); var l=new FakeLauncher(); var vm=Vm(repo,l,i=>i.Target.Contains("gone")?new(state,"detail"):new(PreflightState.Ready),OpenState.Unknown);
+        SelectAndCheck(vm); Assert.False(vm.OpenDecisionPending); Assert.Single(l.Launched); Assert.True(vm.ToastPersistent); Assert.False(vm.LastResultsOpen);
+        Assert.Equal(OpeningOutcome.Skipped,vm.LastOpeningResults[0].Outcome); Assert.Equal("detail",vm.LastOpeningResults[0].TechnicalDetails);
     }
     [Theory]
-    [InlineData(ItemType.Program, "notepad", "full path")]
-    [InlineData(ItemType.Link, "file:///C:/Windows/System32/calc.exe", "http and https")]
-    [InlineData(ItemType.Link, "myapp://do-thing", "http and https")]
-    [InlineData(ItemType.Link, "javascript:alert(1)", "http and https")]
-    [InlineData(ItemType.File, "relative\\a.txt", "full paths")]
-    public void Unsupported_NeverLaunched_EvenAfterAnyway_AdapterNotConsulted(ItemType t, string target, string reason)
+    [InlineData(ItemType.Program,"notepad")]
+    [InlineData(ItemType.Link,"file:///C:/Windows/System32/calc.exe")]
+    [InlineData(ItemType.Link,"myapp://do-thing")]
+    [InlineData(ItemType.Link,"javascript:alert(1)")]
+    [InlineData(ItemType.File,"relative\\a.txt")]
+    public void UnsupportedNeverLaunched_AdapterNotConsulted(ItemType t,string target)
     {
-        using var repo = Repo((t, target)); var l = new FakeLauncher(); var pf = new FakePreflight(Ready); var vm = new MainViewModel(repo, l, pf, new FixedDetector(OpenState.NotOpen));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.True(vm.OpenDecisionPending); Assert.Equal(0, pf.Calls); Assert.Contains(reason, vm.OpenProblems[0]);
-        vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Empty(l.Launched); Assert.Contains("skipped by policy", vm.Status); Assert.Contains("skipped, not opened", vm.OpenReport[0]);
+        using var repo=Repo((t,target)); var l=new FakeLauncher(); var pf=new FakePreflight(Ready); var vm=new MainViewModel(repo,l,pf,new FixedDetector(OpenState.Open));
+        SelectAndCheck(vm); Assert.Equal(0,pf.Calls); Assert.Empty(l.Launched); Assert.False(vm.OpenDecisionPending); Assert.Equal(OpeningOutcome.Skipped,Assert.Single(vm.LastOpeningResults).Outcome);
     }
     [Theory] [InlineData("http://example.com")] [InlineData("https://example.com/a?b=c")]
-    public void HttpAndHttps_AreOpenable(string url)
+    public void HttpAndHttpsRemainOpenable(string url) { using var repo=Repo((ItemType.Link,url));var l=new FakeLauncher();SelectAndCheck(Vm(repo,l));Assert.Single(l.Launched); }
+    [Fact] public void UnknownDoesNotAppearInConfirmedList_AndAttemptsNormally()
     {
-        using var repo = Repo((ItemType.Link, url)); var l = new FakeLauncher(); var vm = Vm(repo, l);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); Assert.Single(l.Launched);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var l=new FakeLauncher();var vm=new MainViewModel(repo,l,new FakePreflight(Ready));
+        SelectAndCheck(vm);Assert.False(vm.OpenDecisionPending);Assert.Empty(vm.ReopenChoices);Assert.Single(l.Launched);Assert.False(vm.ToastPersistent);
     }
-    [Fact] public void Unavailable_IsWarned_ThenAttemptedOnlyAfterConfirm()
+    [Fact] public void ConfirmedRowsStartUnchecked_DeclinedReopenNotFailure()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, _ => new(PreflightState.Unavailable, "UnauthorizedAccessException"));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); Assert.Empty(l.Launched); Assert.Contains("UnauthorizedAccessException", vm.OpenProblems[0]);
-        vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait(); Assert.Single(l.Launched);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"),(ItemType.File,"C:\\b.txt"));var l=new FakeLauncher();var vm=Vm(repo,l,dup:OpenState.Open);
+        SelectAndCheck(vm);Assert.True(vm.OpenDecisionPending);Assert.Empty(l.Launched);Assert.Equal(2,vm.ReopenChoices.Count);Assert.All(vm.ReopenChoices,x=>Assert.False(x.IsChecked));
+        vm.ReopenChoices[1].IsChecked=true;vm.ConfirmOpenAnywayCommand.Execute(null);vm.OpenTask.GetAwaiter().GetResult();
+        Assert.Equal(new[]{"C:\\b.txt"},l.Launched);Assert.Contains(vm.LastOpeningResults,x=>x.Outcome==OpeningOutcome.DeclinedReopen);Assert.All(vm.LastOpeningResults,x=>Assert.False(x.IsProblem));
     }
-    [Fact] public void ChangingSelection_DropsPendingDecision()
+    [Fact] public void BackPreservesInitialSelection_AndRechecksOnlySelection()
     {
-        using var repo = Repo((ItemType.File, "C:\\gone.txt")); var vm = Vm(repo, new FakeLauncher(), _ => new(PreflightState.Missing));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait(); vm.Selected = null;
-        Assert.False(vm.OpenDecisionPending); Assert.Empty(vm.OpenProblems);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"),(ItemType.File,"C:\\b.txt"));var l=new FakeLauncher();var vm=Vm(repo,l,dup:OpenState.Open);
+        vm.OpenWorkspaceCommand.Execute(null);vm.OpeningChoices[0].IsChecked=false;vm.ConfirmSelectionCommand.Execute(null);vm.OpenTask.GetAwaiter().GetResult();
+        vm.BackToOpeningSelectionCommand.Execute(null);Assert.True(vm.SelectionPending);Assert.False(vm.OpeningChoices[0].IsChecked);Assert.True(vm.OpeningChoices[1].IsChecked);Assert.Empty(l.Launched);
     }
-
-    [Fact] public void NoDetector_EveryItemIsUnknown_WarnedAsPossibleDuplicate_NeverClaimedDuplicate()
+    [Fact] public void SingleConfirmedAlsoAsksButHasNoInitialSelectionOrBack()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = new MainViewModel(repo, l, new FakePreflight(Ready));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.True(vm.OpenDecisionPending); Assert.Empty(l.Launched);
-        Assert.Contains("cannot tell whether it is already open", vm.OpenProblems[0]); Assert.DoesNotContain("confirmed", vm.OpenProblems[0]);
-        vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Single(l.Launched); Assert.Contains("could not tell if it was already open", vm.OpenReport[0]);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var l=new FakeLauncher();var vm=Vm(repo,l,dup:OpenState.Open);
+        vm.OpenItemCommand.Execute(vm.Items[0]);vm.OpenTask.GetAwaiter().GetResult();Assert.False(vm.SelectionPending);Assert.True(vm.OpenDecisionPending);Assert.False(vm.CanBackToOpeningSelection);Assert.Empty(l.Launched);
+        vm.ReopenChoices[0].IsChecked=true;vm.ConfirmOpenAnywayCommand.Execute(null);vm.OpenTask.GetAwaiter().GetResult();Assert.Single(l.Launched);Assert.Null(repo.Load().Workspaces.Single().LastOpenedAt);
     }
-    [Fact] public void ConfirmedOpen_IsReportedAsConfirmed_AndStillUserChoice_NoSilentSkip()
+    [Fact] public void CancelAndSelectionChangeDoNotReplaceLastResults()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, dup: OpenState.Open);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Contains("already open (confirmed)", vm.OpenProblems[0]); Assert.Empty(l.Launched);
-        vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait(); Assert.Single(l.Launched); Assert.Contains("was already open (confirmed)", vm.OpenReport[0]);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var l=new FakeLauncher();var vm=Vm(repo,l);SelectAndCheck(vm);var previous=vm.LastOpeningResults.ToArray();
+        vm.OpenWorkspaceCommand.Execute(null);vm.CancelOpenCommand.Execute(null);Assert.Equal(previous,vm.LastOpeningResults);Assert.Single(l.Launched);
+        vm.OpenWorkspaceCommand.Execute(null);vm.Selected=null;Assert.False(vm.SelectionPending);Assert.False(vm.OpenDecisionPending);Assert.Equal(previous,vm.LastOpeningResults);
     }
-    [Fact] public void MissingAndUnknown_AreBothShownForTheSameItem()
+    private static (ItemType,string)[] Many(int n)=>Enumerable.Range(0,n).Select(i=>(ItemType.File,$"C:\\d\\f{i}.txt")).ToArray();
+    [Fact] public void AggregateDeadlineSkipsUnfinished_BoundedFourWorkers_LateResultsIgnored()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var vm = Vm(repo, new FakeLauncher(), _ => new(PreflightState.Missing), OpenState.Unknown);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Contains("not found", vm.OpenProblems[0]); Assert.Contains("may create a duplicate", vm.OpenProblems[0]);
+        using var repo=Repo(Many(12));var l=new FakeLauncher();using var gate=new ManualResetEventSlim();int started=0;
+        var vm=new MainViewModel(repo,l,new FakePreflight(_=>{Interlocked.Increment(ref started);gate.Wait(TimeSpan.FromSeconds(15));return new(PreflightState.Ready);}),new FixedDetector(OpenState.NotOpen)){OpenCheckTimeout=TimeSpan.FromMilliseconds(100)};
+        vm.OpenWorkspaceCommand.Execute(null);vm.ConfirmSelectionCommand.Execute(null);Assert.True(vm.IsChecking);Assert.True(vm.ShowOpenPanel);Assert.False(vm.OpenWorkspaceCommand.CanExecute(null));
+        Assert.True(vm.OpenTask.Wait(TimeSpan.FromSeconds(5)));Assert.InRange(started,1,4);Assert.Equal(12,vm.LastOpeningResults.Count);Assert.All(vm.LastOpeningResults,x=>Assert.Equal(OpeningOutcome.Skipped,x.Outcome));Assert.Empty(l.Launched);gate.Set();
     }
-
-    private static (string, ItemType)[] Many(int n) => Enumerable.Range(0, n).Select(i => ($"C:\\d\\f{i}.txt", ItemType.File)).ToArray();
-    [Fact] public void SlowChecks_DoNotBlockCaller_AndAggregateDeadlineApplies()
+    [Fact] public void ChecksUseAtMostFourWorkers()
     {
-        // The contract (MainViewModel.CheckThenOpenAsync): ONE aggregate deadline - Task.WhenAny(all workers, Task.Delay(OpenCheckTimeout)).
-        // Checks still running at the deadline are ABANDONED, not awaited, and every unstarted/unfinished item is reported
-        // "check did not finish in time". The proof below is deterministic: the checks stay blocked the whole time, so if
-        // OpenTask completes at all before the gate opens, the wait cannot have depended on any check finishing.
-        using var repo = Repo(Many(12).Select(x => (x.Item2, x.Item1)).ToArray()); var l = new FakeLauncher();
-        var gate = new ManualResetEventSlim(false); int started = 0;
-        var vm = new MainViewModel(repo, l, new FakePreflight(_ => { Interlocked.Increment(ref started); gate.Wait(TimeSpan.FromSeconds(30)); return new(PreflightState.Ready); }), new FixedDetector(OpenState.NotOpen)) { OpenCheckTimeout = TimeSpan.FromMilliseconds(400) };
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        vm.OpenWorkspaceCommand.Execute(null);
-        Assert.True(sw.ElapsedMilliseconds < 200, "Execute must return immediately"); Assert.True(vm.IsChecking); Assert.False(vm.OpenWorkspaceCommand.CanExecute(null));
-        // Broad watchdog only: the semantics above are proven by completion-while-blocked, not by this number.
-        Assert.True(vm.OpenTask.Wait(TimeSpan.FromSeconds(15)), "the aggregate deadline must end the wait while every check is still blocked");
-        Assert.False(vm.IsChecking);
-        Assert.Equal(12, vm.OpenProblems.Count); Assert.All(vm.OpenProblems, p => Assert.Contains("did not finish in time", p));
-        Assert.InRange(Volatile.Read(ref started), 1, CheckWorkersUpperBound); // workers blocked on their first item; the queue behind them was abandoned
-        Assert.Empty(l.Launched);
-        gate.Set(); // let the abandoned workers exit; their late results must not change the published outcome
-        Assert.Equal(12, vm.OpenProblems.Count);
+        using var repo=Repo(Many(20));var l=new FakeLauncher();int cur=0,max=0;var gate=new object();
+        var vm=Vm(repo,l,_=>{var c=Interlocked.Increment(ref cur);lock(gate)max=Math.Max(max,c);Thread.Sleep(20);Interlocked.Decrement(ref cur);return new(PreflightState.Ready);});
+        SelectAndCheck(vm);Assert.InRange(max,1,4);Assert.Equal(20,l.Launched.Count);
     }
-    private const int CheckWorkersUpperBound = 4;
-    [Fact] public void Checks_UseAtMostFourWorkers()
+    [Theory] [InlineData(true)] [InlineData(false)]
+    public void CancelOrChangeDuringCheckDropsResultsAndLaunchesNothing(bool cancel)
     {
-        using var repo = Repo(Many(20).Select(x => (x.Item2, x.Item1)).ToArray()); int cur = 0, max = 0;
-        var vm = new MainViewModel(repo, new FakeLauncher(), new FakePreflight(_ => { var c = Interlocked.Increment(ref cur); lock (repo) max = Math.Max(max, c); Thread.Sleep(20); Interlocked.Decrement(ref cur); return new(PreflightState.Ready); }), new FixedDetector(OpenState.NotOpen));
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.InRange(max, 1, 4);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var l=new FakeLauncher();using var gate=new ManualResetEventSlim();
+        var vm=Vm(repo,l,_=>{gate.Wait(TimeSpan.FromSeconds(10));return new(PreflightState.Ready);});vm.OpenWorkspaceCommand.Execute(null);vm.ConfirmSelectionCommand.Execute(null);
+        if(cancel)vm.CancelOpenCommand.Execute(null);else vm.Selected=null;gate.Set();vm.OpenTask.GetAwaiter().GetResult();Assert.Empty(l.Launched);Assert.False(vm.OpenDecisionPending);Assert.Empty(vm.LastOpeningResults);Assert.False(vm.IsChecking);
     }
-    [Fact] public void SelectionChangeDuringCheck_DropsResult_NothingPendingOrLaunched()
+    [Fact] public void DanglingMembershipReportedPerItem()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var gate = new ManualResetEventSlim();
-        var vm = new MainViewModel(repo, l, new FakePreflight(_ => { gate.Wait(); return new(PreflightState.Missing); }), new FixedDetector(OpenState.NotOpen));
-        vm.OpenWorkspaceCommand.Execute(null); vm.Selected = null; gate.Set(); vm.OpenTask.Wait();
-        Assert.False(vm.OpenDecisionPending); Assert.Empty(vm.OpenProblems); Assert.Empty(l.Launched); Assert.False(vm.IsChecking);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var l=new FakeLauncher();var vm=Vm(repo,l);vm.Selected!.Items.Add(new Membership("it_ghost"));
+        SelectAndCheck(vm);Assert.Equal(2,vm.LastOpeningResults.Count);Assert.Single(l.Launched);Assert.Contains(vm.LastOpeningResults,x=>x.TechnicalDetails?.Contains("record is missing")==true);
     }
-    [Fact] public void CancelDuringCheck_LaunchesNothing()
+    private sealed class GateLauncher(ManualResetEventSlim gate):IItemLauncher
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt")); var l = new FakeLauncher(); var gate = new ManualResetEventSlim();
-        var vm = new MainViewModel(repo, l, new FakePreflight(_ => { gate.Wait(); return new(PreflightState.Ready); }), new FixedDetector(OpenState.NotOpen));
-        vm.OpenWorkspaceCommand.Execute(null); vm.CancelOpenCommand.Execute(null); gate.Set(); vm.OpenTask.Wait();
-        Assert.Empty(l.Launched); Assert.Equal("Open cancelled, nothing was opened", vm.Status);
+        public List<string> Started=new();public readonly ManualResetEventSlim Entered=new();
+        public LaunchResult Launch(Item item,LaunchConfig? l){Entered.Set();gate.Wait(TimeSpan.FromSeconds(10));Started.Add(item.Target);return new(LaunchStatus.Started);}
     }
-    [Fact] public void MembershipWithMissingItemRecord_IsReportedPerItem_NotSilentlySkipped()
+    [Fact] public void CancelDuringLaunchStopsFurtherItems_ReportsAlreadySent()
     {
-        var path = Path.Combine(Path.GetTempPath(), "sa-" + Guid.NewGuid().ToString("N"), "store.json"); using var repo = new JsonStore(path);
-        repo.Mutate(c => { var w = c.CreateWorkspace("w"); c.AddToWorkspace(w.Id, c.GetOrAddItem(ItemType.File, "a", "C:\\a.txt").Id); });
-        var vm = new MainViewModel(repo, new FakeLauncher(), new FakePreflight(Ready), new FixedDetector(OpenState.NotOpen));
-        vm.Selected!.Items.Add(new Membership("it_ghost")); // simulates a dangling membership reaching the view model
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.True(vm.OpenDecisionPending); Assert.Contains(vm.OpenProblems, p => p.Contains("it_ghost") && p.Contains("record is missing"));
+        using var repo=Repo(Many(3));using var gate=new ManualResetEventSlim();var l=new GateLauncher(gate);var vm=new MainViewModel(repo,l,new FakePreflight(Ready),new FixedDetector(OpenState.NotOpen));
+        vm.OpenWorkspaceCommand.Execute(null);vm.ConfirmSelectionCommand.Execute(null);Assert.True(l.Entered.Wait(5000));Assert.True(vm.ShowOpenPanel);vm.CancelOpenCommand.Execute(null);gate.Set();vm.OpenTask.GetAwaiter().GetResult();
+        Assert.Single(l.Started);Assert.Equal(2,vm.LastOpeningResults.Count(x=>x.Outcome==OpeningOutcome.Cancelled));Assert.Single(vm.LastOpeningResults.Where(x=>x.Outcome==OpeningOutcome.RequestSent));Assert.False(vm.IsLaunching);
     }
-
-    private sealed class GateLauncher(ManualResetEventSlim gate) : IItemLauncher
+    [Fact] public void NeedsDecisionNeverLaunched()
     {
-        public List<string> Started = new(); public readonly ManualResetEventSlim Entered = new();
-        public LaunchResult Launch(Item item, LaunchConfig? l) { Entered.Set(); gate.Wait(); lock (Started) Started.Add(item.Target); return new(LaunchStatus.Started); }
+        using var repo=Repo((ItemType.File,"C:\\a.ps1"),(ItemType.Link,"https://user@evil.example/"));var l=new FakeLauncher();var vm=Vm(repo,l);SelectAndCheck(vm);Assert.Empty(l.Launched);Assert.All(vm.LastOpeningResults,x=>Assert.Equal(OpeningOutcome.Skipped,x.Outcome));
     }
-    [Fact] public void BlockingLaunch_DoesNotBlockCaller_AndCancelStopsFurtherItems_ReportingWhatWasSent()
+    [Fact] public void LastResultsSessionOnlyAndExplicitlyOpened()
     {
-        using var repo = Repo((ItemType.File, "C:\\a.txt"), (ItemType.File, "C:\\b.txt"), (ItemType.File, "C:\\c.txt")); var gate = new ManualResetEventSlim(); var l = new GateLauncher(gate);
-        var vm = new MainViewModel(repo, l, new FakePreflight(Ready), new FixedDetector(OpenState.NotOpen));
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        vm.OpenWorkspaceCommand.Execute(null);
-        while (!vm.IsLaunching && sw.ElapsedMilliseconds < 3000) Thread.Sleep(5);
-        Assert.True(vm.IsLaunching); Assert.True(sw.ElapsedMilliseconds < 3000);
-        Assert.True(l.Entered.Wait(3000)); // IsLaunching is set before the worker reaches the first item: cancelling earlier would (correctly) send nothing. Wait until a call is really in flight.
-        vm.CancelOpenCommand.Execute(null); gate.Set(); vm.OpenTask.Wait();
-        Assert.Single(l.Started);                       // the call already in flight completed; it cannot be undone
-        Assert.Contains("a.txt: open request sent", vm.OpenReport[0]);
-        Assert.Contains("not attempted (cancelled", vm.OpenReport[1]); Assert.Contains("not attempted (cancelled", vm.OpenReport[2]);
-        Assert.Contains("cannot be undone", vm.Status); Assert.False(vm.IsLaunching);
-    }
-    [Fact] public void NeedsDecisionItems_AreNeverLaunched_EvenAfterAnyway()
-    {
-        using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.Link, "https://user@evil.example/")); var l = new FakeLauncher(); var vm = Vm(repo, l);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.All(vm.OpenProblems, p => Assert.Contains("will be skipped, not opened", p));
-        vm.ConfirmOpenAnywayCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Empty(l.Launched); Assert.All(vm.OpenReport, r => Assert.Contains("skipped, not opened", r));
-    }
-    [Fact] public void Panel_AllSkipped_SaysSkipped_AndConfirmIsShowReport()
-    {
-        using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.Link, "https://user@evil.example/")); var l = new FakeLauncher(); var vm = Vm(repo, l);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Equal("2 items will be skipped. Nothing has been opened yet.", vm.Status); Assert.Equal("Show report", vm.ConfirmLabel); Assert.Empty(l.Launched);
-    }
-    [Fact] public void Panel_Mixed_CountsSkippedAndConfirmable_AndKeepsOpenAnyway()
-    {
-        using var repo = Repo((ItemType.File, "C:\\a.ps1"), (ItemType.File, "C:\\ok.txt"), (ItemType.File, "C:\\gone.txt")); var l = new FakeLauncher();
-        var vm = Vm(repo, l, i => i.Target.EndsWith("gone.txt") ? new(PreflightState.Missing, "saved target") : new(PreflightState.Ready), OpenState.Unknown);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Equal("1 item will be skipped. 2 items can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.", vm.Status);
-        Assert.Equal("Open anyway", vm.ConfirmLabel); Assert.Empty(l.Launched);
-    }
-    [Fact] public void Panel_OnlyUnknownAlreadyOpen_IsNotCalledSkipped()
-    {
-        using var repo = Repo((ItemType.File, "C:\\ok.txt")); var l = new FakeLauncher(); var vm = Vm(repo, l, null, OpenState.Unknown);
-        vm.OpenWorkspaceCommand.Execute(null); vm.OpenTask.Wait();
-        Assert.Equal("1 item can be opened after your confirmation (for 1 we only cannot tell whether it is already open). Nothing has been opened yet.", vm.Status); Assert.Equal("Open anyway", vm.ConfirmLabel);
+        using var repo=Repo((ItemType.File,"C:\\a.txt"));var vm=Vm(repo,new());SelectAndCheck(vm);Assert.False(vm.LastResultsOpen);vm.ShowLastOpeningResultsCommand.Execute(null);Assert.True(vm.LastResultsOpen);vm.CloseLastOpeningResultsCommand.Execute(null);Assert.False(vm.LastResultsOpen);Assert.False(Vm(repo,new()).HasLastOpeningResults);
     }
 }

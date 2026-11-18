@@ -1,0 +1,25 @@
+{
+  "status": "Integration preparation only; no native runtime or reviewer closure yet",
+  "base_dev": "2c3d03692afadc53f9bb84d1eb6014073fbeeaf8",
+  "source_pre_contrast_sha256": "edd799ece55a5fee396a82f55df75c88fbe32aa87e633e8a13bc1e4aacc714af",
+  "author_svg_sha256": "1a5b1ab78ed15a7eb905936b370adb043555ceab0e97c86b3d874412fdb3325b",
+  "geometry_checked": "original root and six foreground attribute dictionaries identical; six backing path d strings and order identical",
+  "render": "CairoSVG source256 PNG then Pillow multi-size ICO, no geometry edits; Chrome author renders recorded separately",
+  "sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    128,
+    256
+  ],
+  "files": {
+    "src/StartApp.App/Assets/start-app-ufo.svg": "1a5b1ab78ed15a7eb905936b370adb043555ceab0e97c86b3d874412fdb3325b",
+    "src/StartApp.App/Assets/start-app-ufo.png": "9209f80817e5d7e1d618c7cd21354d8f23bbb379b7167fece88c4b7f3e936288",
+    "src/StartApp.App/Assets/start-app-ufo.ico": "7b2f1a4dccbed93d71b376ae83632669b44e1892a415511735704d66cc413b4a"
+  },
+  "limits": "No website files changed. Contrast treatment is app-specific author recommendation, not exact website-color equivalence. Windows resource/shortcut/taskbar native proof pending. 16-24px detail remains intricate."
+}

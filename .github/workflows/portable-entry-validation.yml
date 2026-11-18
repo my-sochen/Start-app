@@ -1,0 +1,62 @@
+name: portable-entry-validation
+on:
+  push:
+    branches: [feat/portable-entry]
+    paths:
+      - tools/portable-entry/**
+      - tests/portable-entry/**
+      - .github/workflows/portable-entry-validation.yml
+permissions:
+  contents: read
+concurrency:
+  group: portable-entry-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.event.repository.private == false
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Parse PowerShell preparation and verification
+        shell: pwsh
+        run: |
+          foreach($file in 'tools/portable-entry/package.ps1','tests/portable-entry/verify-windows.ps1') {
+            $tokens=$null;$errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file),[ref]$tokens,[ref]$errors)
+            if($errors.Count){$errors | Format-List;exit 1}
+          }
+      - name: Native x64 launcher and deterministic path tests
+        shell: cmd
+        run: tools\portable-entry\build.cmd
+      - name: Build current app payload, not a release
+        shell: pwsh
+        run: |
+          dotnet --info
+          dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -o app-payload
+          if($LASTEXITCODE -ne 0){exit 1}
+          Copy-Item .github/release/KNOWN-LIMITS.txt app-payload/KNOWN-LIMITS.txt
+          'UNRELEASED VALIDATION CANDIDATE - not a signed or approved distribution' | Set-Content app-payload/PROTOTYPE-NOTICE.txt
+          New-Item -ItemType Directory probe-payload | Out-Null
+          Copy-Item portable-build/probe.exe probe-payload/StartApp.App.exe
+      - name: Verify relocated portable entry and actual app pixels
+        shell: pwsh
+        run: ./tests/portable-entry/verify-windows.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: portable-entry-verification
+          retention-days: 1
+          path: |
+            diag/portable-entry-result.json
+            diag/portable-cleanup-errors.txt
+            out-images/*.png
+          if-no-files-found: warn
+# No release/tag/site/pointer writes, signing credentials, distributed ZIP,
+# C1/browser tests, Store submission, environment, deployment or paid resources.

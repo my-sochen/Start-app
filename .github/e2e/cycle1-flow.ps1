@@ -58,7 +58,25 @@ function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Whe
 function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
 function BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function OpenContextEl($el, $settle = 900) {
+  if ($null -eq $el) { return 'context anchor missing' }
+  try {
+    $el.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    Start-Sleep -Milliseconds $settle
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    return 'ok'
+  } catch { return "native context menu failed: $_" }
+}
+function ContextAnchors($name) {
+  $hostWindow = $win
+  if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Added item name')))) }
+  return @()
+}
 function ClickBtn($name, $settle = 900) {
+  if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
@@ -134,6 +152,18 @@ try {
   $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
   Assert 'automation window found' ($null -ne $win) ''
   $script:mainHwnd = $p.MainWindowHandle
+  # Prior synthetic owned-window captures can change Windows' cascade position.
+  # Move only this known app HWND into the runner screen before pixel probes.
+  # Keep size/Z-order/activation and retain every existing crop-containment gate.
+  if (-not [W]::SetWindowPos($script:mainHwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0015)) { throw 'cannot position the test app inside the runner screen' }
+  Start-Sleep -Milliseconds 400
+  $positioned = New-Object W+R
+  if (-not [W]::GetWindowRect($script:mainHwnd, [ref]$positioned)) { throw 'cannot verify positioned test app rectangle' }
+  $screenBounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  $insideScreen = $positioned.L -ge $screenBounds.Left -and $positioned.T -ge $screenBounds.Top -and $positioned.Rt -le $screenBounds.Right -and $positioned.B -le $screenBounds.Bottom
+  Assert 'test app positioned fully inside runner screen before pixel probes' $insideScreen ("window=$($positioned.L),$($positioned.T),$($positioned.Rt),$($positioned.B) screen=$screenBounds")
+  if (-not $insideScreen) { throw 'test app does not fit runner screen' }
+
   Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
   Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
@@ -188,7 +218,7 @@ try {
   Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
   # 3b. item row: clicking the name opens that one item only (spec שורה של אייטם: לחיצה על השם פותחת)
   $npB = NotepadCount
-  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'ok.txt: open request sent' 15)) ((Texts) -join ' | ')
+  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'נשלחו 1 בקשות פתיחה' 15)) ((Texts) -join ' | ')
   $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
   Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -215,7 +245,7 @@ try {
   $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
   Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
   SetText $addr 'https://edited.example/'
-  $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (WaitText 'Address saved' 10)) ((Texts) -join ' | ')
+  $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (-not (NamedEdit 'Full address'))) ((Texts) -join ' | ')
   Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\.example' -and (StoreJson) -match 'example\.com') (StoreJson)
   # 3e. פופאפ פתח באמצעות: per-instance הגדר כברירת מחדל, then the open uses the chosen program
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
@@ -226,7 +256,7 @@ try {
   $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''
   [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
   # kill the launched notepad BEFORE the row evidence: the harness launch hands it the link target as a file
   # argument, and notepad's own "filename syntax is incorrect" modal would obscure the row in the screenshots
@@ -261,7 +291,7 @@ try {
   SetText $prog 'C:\Windows\notepad.exe'
   $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
   $c = ClickBtn 'Open with chosen program' 900; Assert 'restore open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request after restore' (WaitText 'open request sent' 15) ((Texts) -join ' | ')
+  Assert 'open-with sent the request after restore' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
   Assert 'store.json restored to notepad.exe' (-not ((StoreJson) -match 'notepad2')) (StoreJson)
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue  # same modal hygiene before the row evidence
   Start-Sleep -Milliseconds 500
@@ -288,30 +318,33 @@ try {
   $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
   Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
   Shot 'overview-after-guard'
-  # 6. open flow from details: preflight, cancel, open anyway
+  # 6. Nov17 two-stage open: initial all-selected choice before any checks; cancel sends nothing.
   $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
   [void](InvokeEl $card 'workspace card'); Start-Sleep -Milliseconds 900
   Assert 'details reopened from card' (WaitText 'Created:' 10) ''
   $npBefore = NotepadCount
-  $c = ClickBtn 'שגר' 2500; Assert 'open clicked' ($c -eq 'ok') $c
-  Assert 'decision panel lists the missing file' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-  Assert 'nothing opened yet message' (WaitText 'Nothing has been opened yet' 10) ((Texts) -join ' | ')
+  $c = ClickBtn 'שגר' 800; Assert 'open clicked' ($c -eq 'ok') $c
+  Assert 'initial item selection is shown before checks' (WaitText 'מה לפתוח בסביבה' 10) ((Texts) -join ' | ')
   Shot 'decision-panel'
-  $c = ClickBtn 'Cancel' 800; Assert 'cancel clicked' ($c -eq 'ok') $c
-  Assert 'cancel status' (WaitText 'Open cancelled, nothing was opened' 10) ((Texts) -join ' | ')
-  Start-Sleep -Seconds 2
-  Assert 'no notepad started after cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
-  $c = ClickBtn 'שגר' 2500; Assert 'open clicked again' ($c -eq 'ok') $c
-  Assert 'decision panel again' (WaitText 'not found' 30) ((ListLines) -join ' || ')
-  $c = ClickBtn 'Open anyway' 4000; Assert 'open anyway clicked' ($c -eq 'ok') $c
-  Assert 'report: ok.txt open request sent' (WaitText 'ok.txt: open request sent' 30) ((ListLines) -join ' || ')
-  Assert 'report: link open request sent' (WaitText 'example.com' 10) ((ListLines) -join ' || ')
-  Assert 'report: missing file failed honestly' (WaitText 'missing.txt: failed' 10) ((ListLines) -join ' || ')
-  Info 'open report' ((ListLines) -join ' || ')
+  $c = ClickBtn 'Close opening selection' 800; Assert 'selection X cancels before checks' ($c -eq 'ok') $c
+  Start-Sleep -Seconds 1
+  Assert 'no notepad started after preconfirmation cancel' ((NotepadCount) -eq $npBefore) "before=$npBefore after=$(NotepadCount)"
+  $c = ClickBtn 'שגר' 800; Assert 'open clicked again' ($c -eq 'ok') $c
+  $c = ClickBtn 'Confirm opening selection' 900; Assert 'selected-only check confirmed' ($c -eq 'ok') $c
+  # Existing targets may already be open. Only a confirmed duplicate panel, never an Unknown panel, asks again.
+  $dupUntil = [Diagnostics.Stopwatch]::StartNew()
+  while ($dupUntil.Elapsed.TotalSeconds -lt 25 -and -not (Btn 'Confirm duplicate choices') -and -not (Btn 'Last opening results')) { Start-Sleep -Milliseconds 200 }
+  if (Btn 'Confirm duplicate choices') {
+    foreach ($check in @(UiaAll $CT::CheckBox)) { [void](EnsureToggle $check 'explicit duplicate reopen choice' $true) }
+    $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'confirmed duplicate choices accepted' ($c -eq 'ok') $c
+  }
+  $c = ClickBtn 'Last opening results' 1000; Assert 'results explicitly opened' ($c -eq 'ok') $c
+  Assert 'report honestly says request sent' (WaitText 'בקשת הפתיחה נשלחה' 30) ((Texts) -join ' | ')
+  Assert 'report includes missing target and skip reason' ((WaitText 'missing.txt' 10) -and (WaitText 'לא נמצא בכתובת השמורה' 10)) ((Texts) -join ' | ')
   $npAfter = 0; $sw2 = [Diagnostics.Stopwatch]::StartNew(); while ($sw2.Elapsed.TotalSeconds -lt 20) { $npAfter = NotepadCount; if ($npAfter -gt $npBefore) { break }; Start-Sleep -Milliseconds 500 }
   Assert 'notepad really started for ok.txt' ($npAfter -gt $npBefore) "before=$npBefore after=$npAfter"
   Shot 'after-open-anyway'
-  Start-Sleep -Milliseconds 800
+  $c = ClickBtn 'Close last opening results' 500; Assert 'results closed explicitly' ($c -eq 'ok') $c
   Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)
   # 7. empty workspace: open shows the dialog, go-to-details button leads to details
   $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
@@ -370,7 +403,16 @@ try {
     $invoked = @(InvokeEl $upBtn 'upload image button')[-1]
     if (-not $invoked) { Shot 'picker-failure'; throw 'upload image button invocation failed' }
     $dlgHwnd = [IntPtr]::Zero; $extra = 0; $hits = @()
-    for ($t = 0; $t -lt 25 -and $dlgHwnd -eq [IntPtr]::Zero; $t++) { Start-Sleep -Milliseconds 200; $hits = @(FindPickers); if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 } }
+    # First native common-dialog startup may outlast the former five-second
+    # budget on a cold runner. Wait for identity-bound readiness, never click
+    # again. This is a test readiness bound, not a product performance PASS.
+    $pickerReady = [Diagnostics.Stopwatch]::StartNew()
+    while ($pickerReady.Elapsed -lt [TimeSpan]::FromSeconds(30) -and $dlgHwnd -eq [IntPtr]::Zero) {
+      Start-Sleep -Milliseconds 200
+      $hits = @(FindPickers)
+      if ($hits.Count -gt 0) { $dlgHwnd = $hits[0]; $extra = $hits.Count - 1 }
+    }
+    Info 'first native picker readiness elapsed (not a performance gate)' ("elapsedMs=$($pickerReady.ElapsedMilliseconds) deadlineMs=30000 singleInvoke=True")
     $opened = $dlgHwnd -ne [IntPtr]::Zero
     Assert 'native picker opened on upload click' $opened (AppWindowDump)
     if (-not $opened) { Shot 'picker-failure'; throw 'picker open detection failed after one upload click' }
@@ -1796,11 +1838,11 @@ public static class WinCap {
     return $true
   }
   function Test-SavedCardTopologyV4($nodes, $anchorName, $itemRid) {
-    # Grounded accepted topology (observed both r7f states), now with PARENT-RID BINDINGS: exactly 3
-    # direct (depth-1) Buttons parented to the item - the named anchor (title), 'Workspace actions',
-    # and one other (go) - and exactly 5 depth-2 Texts bound by parentRid: title (== anchor name),
-    # category, 'Last opened: *' parented to the anchor; the ellipsis label parented to the actions
-    # button; go-label (== go button name) parented to the go button. Every node is a depth-1 Button
+    # Prototype-UX expected topology, runtime qualification still owed: exactly 2
+    # direct (depth-1) Buttons parented to the item - the named anchor (title)
+    # and one other (go) - and exactly 4 depth-2 Texts bound by parentRid: title (== anchor name),
+    # category, 'Last opened: *' parented to the anchor;
+    # go-label (== go button name) parented to the go button. Every node is a depth-1 Button
     # or a depth-2 Text; anything else refuses (unknown coverage). ALL rect fields finite-positive AND
     # integral (96-DPI straight-edge domain); all RIDs unique and readable; geometric containment kept
     # in ADDITION to parent binding. Masks = ALL node rects (buttons cover their texts).
@@ -1823,32 +1865,25 @@ public static class WinCap {
     }
     $btns = @($nodes | Where-Object { $_.ct -eq 'ControlType.Button' })
     $txts = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' })
-    if ($btns.Count -ne 3) { $res.reason = "expected exactly 3 direct buttons, got $($btns.Count)"; return $res }
-    if ($txts.Count -ne 5) { $res.reason = "expected exactly 5 text nodes, got $($txts.Count)"; return $res }
+    if ($btns.Count -ne 2) { $res.reason = "expected exactly 2 direct buttons, got $($btns.Count)"; return $res }
+    if ($txts.Count -ne 4) { $res.reason = "expected exactly 4 text nodes, got $($txts.Count)"; return $res }
     $itemRidK = ($itemRid -join ',')
     foreach ($b in $btns) { if (-not [string]::Equals(($b.parentRid -join ','), $itemRidK, [StringComparison]::Ordinal)) { $res.reason = "button '$($b.name)' not parented to the list item"; return $res } }
     $anchor = @($btns | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($anchor.Count -ne 1) { $res.reason = "anchor button '$anchorName' count=$($anchor.Count)"; return $res }
-    $actions = @($btns | Where-Object { [string]::Equals([string]$_.name, 'Workspace actions', [StringComparison]::Ordinal) }); if ($actions.Count -ne 1) { $res.reason = "actions button count=$($actions.Count)"; return $res }
-    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and $_.rid -ne $actions[0].rid })
+    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid })
     if ($go.Count -ne 1) { $res.reason = 'go button not uniquely identified'; return $res }
-    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ','); $xK = ($actions[0].rid -join ',')
+    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ',')
     $titleT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
     $openedT = @($txts | Where-Object { $_.name -like 'Last opened:*' }); if ($openedT.Count -ne 1) { $res.reason = "'Last opened' text count=$($openedT.Count)"; return $res }
     $goT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
-    # actions-label glyph MEASURED U+22EF (midline horizontal ellipsis) on the real app: runs 43548927818 +
-    # 43551695254 JSONs carry U+22EF x63 and U+2026 x0 in BOTH states (reviewer 05:39:18, independently rechecked).
-    # Exact-glyph Ordinal gate kept; U+2026 stays refused (no accept-both without product evidence).
-    $dotsT = @($txts | Where-Object { [string]::Equals([string]$_.name, "`u{22ef}", [StringComparison]::Ordinal) }); if ($dotsT.Count -ne 1) { $res.reason = "actions-label text count=$($dotsT.Count)"; return $res }
-    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid -and $_.rid -ne $dotsT[0].rid })
+    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid })
     if ($catT.Count -ne 1) { $res.reason = "category text not uniquely identified ($($catT.Count))"; return $res }
     # parent bindings: each text bound to its GROUNDED parent button (not geometric containment alone)
     foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not [string]::Equals(($t.parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "anchor text '$($t.name)' parent rid is not the anchor button"; return $res } }
     if (-not [string]::Equals(($goT[0].parentRid -join ','), $gK, [StringComparison]::Ordinal)) { $res.reason = 'go-label text parent rid is not the go button'; return $res }
-    if (-not [string]::Equals(($dotsT[0].parentRid -join ','), $xK, [StringComparison]::Ordinal)) { $res.reason = 'actions-label text parent rid is not the actions button'; return $res }
     $inside = { param($ir, $or2) ($ir.Left -ge $or2.Left -and $ir.Top -ge $or2.Top -and $ir.Right -le $or2.Right -and $ir.Bottom -le $or2.Bottom) }
     foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not (& $inside $t.rect $anchor[0].rect)) { $res.reason = "anchor text '$($t.name)' not inside the anchor button"; return $res } }
     if (-not (& $inside $goT[0].rect $go[0].rect)) { $res.reason = 'go-label text not inside the go button'; return $res }
-    if (-not (& $inside $dotsT[0].rect $actions[0].rect)) { $res.reason = 'actions-label text not inside the actions button'; return $res }
     $masks = New-Object System.Collections.Generic.List[object]
     foreach ($n in $nodes) { $masks.Add([ordered]@{ L = [int]$n.rect.Left; T = [int]$n.rect.Top; R = [int]$n.rect.Right; B = [int]$n.rect.Bottom }) }  # exact: integrality verified above
     $res.maskRects = $masks; $res.ok = $true
@@ -2568,9 +2603,9 @@ public static class WinCap {
   $targetVal = ValOf (NamedEdit 'Item target')
   Assert 'pick filled the add form address' ($targetVal -eq 'https://example.com/') $targetVal
   # 11. user feedback Nov 12: the item-row actions menu clipped off-screen. The LAST row is the worst case (window right edge, least room below).
-  $miBtns = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions'))))))
+  $miBtns = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item'))))))
   Assert 'item rows present for the menu placement check' ($miBtns.Count -gt 0) "count=$($miBtns.Count)"
-  if ($miBtns.Count -gt 0) { [void](InvokeEl $miBtns[$miBtns.Count - 1] 'last-row item actions button'); Start-Sleep -Milliseconds 900
+  if ($miBtns.Count -gt 0) { [void](OpenContextEl $miBtns[$miBtns.Count - 1]); Start-Sleep -Milliseconds 900
     Assert 'last-row item menu opened' ($null -ne (MenuItemByName 'מחיקה')) ''
     MenuInsideWindow 'last-row item menu'
     $mEl = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu)))
@@ -2614,15 +2649,15 @@ public static class WinCap {
   Assert 'exactly one ok.txt target text in the four-group view' ($okTexts.Count -eq 1) ("count=$($okTexts.Count)")
   $li = $okTexts[0]; while ($li -and $li.Current.ControlType -ne $CT::ListItem) { $li = $tw.GetParent($li) }
   $rowBtn = $null
-  if ($li) { $rb = @($li.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions')))))); if ($rb.Count -eq 1) { $rowBtn = $rb[0] } }
+  if ($li) { $rb = @($li.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))); if ($rb.Count -eq 1) { $rowBtn = $rb[0] } }
   if (-not $rowBtn) {
     $rcy = $okTexts[0].Current.BoundingRectangle.Top + $okTexts[0].Current.BoundingRectangle.Height / 2
-    $rb = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Item actions'))))) | Where-Object { $b = $_.Current.BoundingRectangle; $rcy -ge $b.Top -and $rcy -le $b.Bottom })
+    $rb = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item'))))) | Where-Object { $b = $_.Current.BoundingRectangle; $rcy -ge $b.Top -and $rcy -le $b.Bottom })
     Assert 'unique same-row Item actions button by strict Y containment (fallback)' ($rb.Count -eq 1) ("count=$($rb.Count) rowCenterY=$rcy")
     if ($rb.Count -eq 1) { $rowBtn = $rb[0] }
   }
   Assert 'Item actions button resolved inside the ok.txt row' ($null -ne $rowBtn) ''
-  [void](InvokeEl $rowBtn 'ok.txt row item actions'); Start-Sleep -Milliseconds 900
+  [void](OpenContextEl $rowBtn); Start-Sleep -Milliseconds 900
   $delMi = MenuItemByName 'מחיקה'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
   [void](InvokeEl $delMi 'מחיקה')
   $gone = $false; $swD = [Diagnostics.Stopwatch]::StartNew(); while ($swD.Elapsed.TotalSeconds -lt 10) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like '*ok.txt*' })) { $gone = $true; break }; Start-Sleep -Milliseconds 300 }
@@ -2654,13 +2689,13 @@ public static class WinCap {
   SetText (NamedEdit 'Create card color') 'notacolor'
   $storeBeforeBad = StoreJson
   $c = ClickBtn 'Create workspace' 900; Assert 'create with an invalid color clicked' ($c -eq 'ok') $c
-  Assert 'invalid color refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'invalid color refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
   Assert 'refused create changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
   Assert 'refused create keeps the typed values for correction' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq 'notacolor') ("name=$(ValOf (NamedEdit 'Workspace name')) color=$(ValOf (NamedEdit 'Create card color'))")
   SetText (NamedEdit 'Create card color') ''
   SetText (NamedEdit 'Create card image path') 'not-a-path'
   $c = ClickBtn 'Create workspace' 900; Assert 'create with a malformed image path clicked' ($c -eq 'ok') $c
-  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'Not created' 5) ((Texts) -join ' | ')
+  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
   Assert 'refused create (image) changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
   SetText (NamedEdit 'Create card image path') ''
   $sw = Btn '#FDE68A'; Assert 'create palette swatch present with its color as the automation name' ($null -ne $sw) ''

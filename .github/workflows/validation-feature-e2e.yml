@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
@@ -28,6 +28,8 @@ env:
   REPO: ${{ github.repository }}
 jobs:
   resolve:
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -48,6 +50,18 @@ jobs:
           for f in .github/e2e/cycle1-flow.ps1 .github/e2e/capture-flow.ps1; do git cat-file -e "$SHA:$f" || { echo "candidate sha lacks $f (UI gate cannot run)"; exit 1; }; done
           bash .github/release/check_tag_free.sh "$REPO" "v$VERSION" || echo "(validation: tag state noted, not blocking)"
 
+      - name: Resolve exact-ref validation profile (unexpected refs fail closed)
+        id: profile
+        shell: bash
+        run: |
+          python .github/e2e/validation-profile.py --ref "$GITHUB_REF" --output "$GITHUB_OUTPUT"
+          python tests/validation/test_profiles.py
+
+      - name: Static release wiring policy checks (no release execution)
+        shell: bash
+        run: |
+          python tests/release/test_release_portable_wiring.py
+
   tests:            # HARD GATE: whole-solution unit tests on the exact pushed sha
     needs: resolve
     runs-on: windows-latest
@@ -63,7 +77,8 @@ jobs:
           dotnet test StartApp.slnx --configuration Release
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-  ui-gate:          # HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
+  ui-gate:          # DEV subset is NOT QA or a candidate. Full profile HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
+    name: UI checks (${{ needs.resolve.outputs.profile }}, not human QA)
     needs: [resolve, tests]
     runs-on: windows-latest
     timeout-minutes: 40
@@ -73,6 +88,12 @@ jobs:
         with: { path: trusted }
       - uses: actions/setup-dotnet@v6.1.0
         with: { dotnet-version: '10.0.404' }
+      - name: Record local source and command binding (no cross-run reuse)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag | Out-Null
+          python .github/e2e/validation-profile.py --ref $env:GITHUB_REF --evidence diag/validation-binding.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Checks before any UI run
         shell: pwsh
         run: |
@@ -92,20 +113,32 @@ jobs:
         run: |
           dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release 2>&1 | Tee-Object diag/build-app.txt | Select-Object -Last 3
           if ($LASTEXITCODE -ne 0) { 'BUILD FAILED' | Out-File -Append diag/errors.txt; exit 1 }
+      - name: Synthetic update state captures (no network or real browser)
+        shell: pwsh
+        run: |
+          & ./.github/e2e/synthetic-update-capture.ps1
       - name: Cycle-1 flow UI run (hard - a failing step fails this job)
+        if: needs.resolve.outputs.profile == 'full'
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA   # scripts write $env:GITHUB_SHA into their completion marker; make the source explicit
           pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Capture readiness helper discrimination tests
+        if: needs.resolve.outputs.profile == 'full'
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/capture-policy/test_capture_readiness.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Capture flow UI run (hard)
+        if: needs.resolve.outputs.profile == 'full'
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA
           pwsh -NoProfile -File .github/e2e/capture-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
-        if: always()
+        if: ${{ always() && needs.resolve.outputs.profile == 'full' }}
         shell: pwsh
         run: |
           python trusted/.github/release/ui_gate_check.py --diag diag --sha $env:SHA
@@ -122,7 +155,7 @@ jobs:
 
   package:          # same steps as the proposed package job; runs after tests passed on this sha
     needs: [resolve, tests, ui-gate]
-    if: ${{ always() && needs.tests.result == 'success' }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed
+    if: ${{ always() && needs.resolve.result == 'success' && needs.resolve.outputs.profile == 'full' && needs.tests.result == 'success' }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -140,6 +173,13 @@ jobs:
           python --version; if ($LASTEXITCODE -ne 0) { exit 1 }
           foreach ($f in 'trusted/.github/release/verify_candidate.py','trusted/.github/release/make_manifest.py','trusted/.github/release/KNOWN-LIMITS.txt','trusted/.github/e2e/smoke-package.ps1') { if (-not (Test-Path $f)) { "missing trusted file $f"; exit 1 } }
           if ((git -C src rev-parse HEAD) -ne $env:SHA) { 'candidate checkout differs from pushed sha'; exit 1 }
+          foreach($f in 'trusted/tools/portable-entry/package.ps1','trusted/tools/portable-entry/smoke-candidate.ps1') {
+            $tokens=$null;$errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f),[ref]$tokens,[ref]$errors)
+            if($errors.Count){$errors | Format-List;exit 1}
+          }
+          python trusted/tests/release/test_portable_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Publish twice, same path, cleaned between
         shell: pwsh
         working-directory: src
@@ -147,7 +187,7 @@ jobs:
           New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
           foreach ($out in 'pkg-a','pkg-b') {
             if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
-            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -p:StartAppReleaseVersion=$env:VERSION -p:StartAppSourceCommit=$env:SHA --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
             if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
           }
           if (Test-Path diag/errors.txt) { exit 1 }
@@ -162,12 +202,22 @@ jobs:
             "commit: $env:SHA (version: $env:VERSION)"
           )
           foreach ($out in 'pkg-a','pkg-b') { $notice | Out-File -Encoding utf8 "$out\PROTOTYPE-NOTICE.txt"; Copy-Item ..\trusted\.github\release\KNOWN-LIMITS.txt "$out\KNOWN-LIMITS.txt" }
+      - name: Build native portable entry from candidate source
+        shell: cmd
+        working-directory: src
+        run: tools\portable-entry\build.cmd
+      - name: Stage portable layout around each intact candidate payload
+        shell: pwsh
+        run: |
+          foreach($suffix in 'a','b') {
+            & ./trusted/tools/portable-entry/package.ps1 -Payload "src/pkg-$suffix" -Launcher 'src/portable-build/Start-app.exe' -Destination "src/portable-$suffix"
+          }
       - name: Compare payloads (REPORT ONLY, never fails the job)
         shell: pwsh
         working-directory: src
         run: |
           function PayloadHashes($dir) { $root=(Resolve-Path $dir).Path; Get-ChildItem -Recurse -File $dir | Sort-Object FullName | ForEach-Object { $_.FullName.Substring($root.Length) + ':' + (Get-FileHash $_.FullName -Algorithm SHA256).Hash } }
-          $diff = Compare-Object (PayloadHashes 'pkg-a') (PayloadHashes 'pkg-b')
+          $diff = Compare-Object (PayloadHashes 'portable-a') (PayloadHashes 'portable-b')
           if ($diff) { 'REPRODUCIBLE=no (same-runner, same-path comparison; report only)' | Tee-Object diag/reproducibility.txt; $diff | Format-Table | Out-String | Tee-Object diag/reproducibility-diff.txt }
           else { 'REPRODUCIBLE=yes (scoped: same runner image, same paths; not a cross-run guarantee)' | Tee-Object diag/reproducibility.txt }
       - name: Build normalized ZIP, hash, BUILDINFO, manifest
@@ -179,8 +229,8 @@ jobs:
           $fs = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::CreateNew)
           $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
           $epoch = [DateTimeOffset]::new(2026,1,1,0,0,0,[TimeSpan]::Zero)
-          $rootA = (Resolve-Path src/pkg-a).Path
-          $files = @(Get-ChildItem -Recurse -File src/pkg-a | ForEach-Object { [pscustomobject]@{ Rel = $_.FullName.Substring($rootA.Length + 1).Replace('\','/'); Path = $_.FullName } })
+          $rootA = (Resolve-Path src/portable-a).Path
+          $files = @(Get-ChildItem -Force -Recurse -File src/portable-a | ForEach-Object { [pscustomobject]@{ Rel = $_.FullName.Substring($rootA.Length + 1).Replace('\','/'); Path = $_.FullName } })
           $rels = [string[]]@($files | ForEach-Object { $_.Rel }); $keys = [string[]]@($rels.Clone()); [Array]::Sort($keys, [StringComparer]::Ordinal)   # ordinal, culture-independent entry order
           $byRel = @{}; foreach ($f in $files) { $byRel[$f.Rel] = $f.Path }
           foreach ($rel in $keys) {
@@ -201,23 +251,54 @@ jobs:
             "sha256: $hash"
           ) | Out-File -Encoding utf8 cand/BUILDINFO.txt
           Copy-Item src/diag/reproducibility.txt cand/reproducibility.txt
-          python trusted/.github/release/make_manifest.py --dir cand --sha $env:SHA --version $env:VERSION --ui-gate $env:UI_GATE
+          Push-Location src
+          try {
+            python .github/e2e/validation-profile.py --ref $env:GITHUB_REF --evidence ../cand/validation-binding.json --zip ../cand/StartApp-win-x64.zip
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally { Pop-Location }
+          python trusted/.github/release/make_manifest.py --dir cand --sha $env:SHA --version $env:VERSION --ui-gate $env:UI_GATE --layout portable
+      - name: Verify candidate consistency (verifier)
+        shell: pwsh
+        run: |
+          python trusted/.github/release/verify_candidate.py --dir cand --sha $env:SHA --version $env:VERSION --layout portable
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Smoke-run the ZIP that would ship (FAILURE GATE, smoke script)
         shell: pwsh
         run: |
           Expand-Archive -Path cand/StartApp-win-x64.zip -DestinationPath verify-ship -Force
-          pwsh -NoProfile -File trusted/.github/e2e/smoke-package.ps1 -ExePath 'verify-ship\StartApp.App.exe'
+          pwsh -NoProfile -File trusted/tools/portable-entry/smoke-candidate.ps1 -Extracted verify-ship -EvidenceDirectory portable-evidence -OwnershipHelper trusted/tests/portable-entry/OwnedTree.cs
           if ($LASTEXITCODE -ne 0) { exit 1 }
-      - name: Verify candidate consistency (verifier)
-        shell: pwsh
-        run: |
-          python trusted/.github/release/verify_candidate.py --dir cand --sha $env:SHA --version $env:VERSION
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: portable-candidate-smoke
+          retention-days: 5
+          if-no-files-found: warn
+          path: portable-evidence/*
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: StartApp-validation-candidate
           retention-days: 5
           if-no-files-found: error
           path: cand/*
+
+  validation-status:
+    name: Profile result (automation only, not QA approval)
+    if: always()
+    needs: [resolve, tests, ui-gate, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check required profile results; no skipped required gate may pass
+        env:
+          PROFILE: ${{ needs.resolve.outputs.profile }}
+          RESOLVE: ${{ needs.resolve.result }}
+          TESTS: ${{ needs.tests.result }}
+          UI: ${{ needs.ui-gate.result }}
+          PACKAGE: ${{ needs.package.result }}
+        shell: bash
+        run: |
+          python .github/e2e/validation-profile.py --status
 
 # Validation artifacts only. Distribution and main promotion remain separate decisions.

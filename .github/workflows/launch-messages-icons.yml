@@ -1,0 +1,32 @@
+# Feature-only validation. No deployment, release, pointer or promotion actions.
+name: launch-messages-icons
+on:
+  push:
+    branches: [feat/launch-messages-icons]
+permissions:
+  contents: read
+concurrency:
+  group: launch-messages-icons-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Build and capture corrected RTL header spacing only
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.OpeningUiCapture --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/StartApp.OpeningUiCapture --configuration Release --no-build -- --rtl-layout out-rtl-layout
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: launch-flow-evidence
+          path: |
+            out-rtl-layout/
+          if-no-files-found: error

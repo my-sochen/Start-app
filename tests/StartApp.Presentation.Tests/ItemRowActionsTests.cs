@@ -37,7 +37,7 @@ public class ItemRowActionsTests
         await vm.OpenTask;
         var call = Assert.Single(launcher.Calls);
         Assert.Equal("C:\\a.txt", call.Item.Target);
-        Assert.Equal("first: open request sent (not proof it loaded)", vm.Status);
+        Assert.Equal(OpeningOutcome.RequestSent, Assert.Single(vm.LastOpeningResults).Outcome);
         // פתיחה אחרונה is the workspace's last launch (שגר); a single-item open does not stamp it.
         Assert.Null(repo.Load().Workspaces.Single(w => w.Id == wsId).LastOpenedAt);
     }
@@ -48,7 +48,7 @@ public class ItemRowActionsTests
         var vm = VmWithItem(repo, launcher, out _);
         vm.OpenItemCommand.Execute(vm.Items.Single());
         await vm.OpenTask;
-        Assert.Equal("first: failed (file not found)", vm.Status);
+        Assert.Equal(OpeningOutcome.Failed, Assert.Single(vm.LastOpeningResults).Outcome); Assert.Equal("file not found", vm.LastOpeningResults[0].TechnicalDetails);
         Assert.Null(repo.Load().Workspaces.Single().LastOpenedAt);
     }
 
@@ -151,5 +151,20 @@ public class ItemRowActionsTests
         Assert.True(vm.UnsavedOpen); Assert.True(vm.UnsavedForItemEdit); Assert.True(vm.InDetails);
         vm.ExitWithoutSavingCommand.Execute(null);
         Assert.True(vm.InOverview); Assert.False(vm.ItemEditOpen);
+    }
+    [Fact] public void Row_editor_identity_tracks_only_active_instance_and_honors_dirty_guard()
+    {
+        using var repo = new JsonStore(Tmp()); var launcher=new RecordingLauncher();
+        var vm=VmWithItem(repo,launcher,out _);
+        vm.NewItemType=ItemType.Link;vm.NewTarget="https://example.com/";vm.NewItemName="second";vm.AddItemCommand.Execute(null);
+        var first=vm.Items.First();var second=vm.Items.Last();
+        Assert.Equal("",vm.EditingItemInstanceId);
+        vm.EditItemCommand.Execute(first);Assert.Equal(first.InstanceId,vm.EditingItemInstanceId);
+        vm.EditItemCommand.Execute(second);Assert.Equal(second.InstanceId,vm.EditingItemInstanceId);
+        vm.EditItemName="draft";vm.EditItemCommand.Execute(first);Assert.Equal(second.InstanceId,vm.EditingItemInstanceId);Assert.Equal("draft",vm.EditItemName);
+        vm.CancelItemEditCommand.Execute(null);Assert.True(vm.UnsavedOpen);Assert.Equal(second.InstanceId,vm.EditingItemInstanceId);
+        vm.ExitWithoutSavingCommand.Execute(null);Assert.Equal("",vm.EditingItemInstanceId);Assert.Empty(launcher.Calls);
+        vm.EditItemCommand.Execute(first);vm.EditItemName="saved";vm.SaveItemEditCommand.Execute(null);
+        Assert.Equal("",vm.EditingItemInstanceId);Assert.Empty(launcher.Calls);
     }
 }
