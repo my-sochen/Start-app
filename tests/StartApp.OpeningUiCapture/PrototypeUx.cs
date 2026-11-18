@@ -20,12 +20,22 @@ internal static partial class Program
     [DllImport("user32.dll")] private static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
     private static void InvokeButton(Button b) => ((IInvokeProvider)new ButtonAutomationPeer(b).GetPattern(PatternInterface.Invoke)).Invoke();
     private static Button NamedButton(Window w,string name)=>Descendants(w).OfType<Button>().Single(b=>b.IsVisible&&AutomationProperties.GetName(b)==name);
+    private static readonly List<object> UxGeometry = new();
+    private static Point[] LocalCorners(FrameworkElement element) => [new(),new(element.ActualWidth,0),new(0,element.ActualHeight),new(element.ActualWidth,element.ActualHeight)];
+    private static bool Finite(Point point) => double.IsFinite(point.X)&&double.IsFinite(point.Y);
+    private static Rect NormalizedBounds(Point[] corners) => corners.All(Finite)?new(corners.Min(p=>p.X),corners.Min(p=>p.Y),corners.Max(p=>p.X)-corners.Min(p=>p.X),corners.Max(p=>p.Y)-corners.Min(p=>p.Y)):Rect.Empty;
+    private static Point[] ScreenCorners(FrameworkElement element) => LocalCorners(element).Select(element.PointToScreen).ToArray();
+    private static Rect ScreenBounds(FrameworkElement element) => NormalizedBounds(ScreenCorners(element));
     private static void CheckReachable(FrameworkElement element,Window window,string label)
     {
-        var point=element.PointToScreen(new Point(0,0));var frame=window.PointToScreen(new Point(0,0));
-        Check(label+" has visible owner-contained bounds",element.IsVisible&&element.ActualWidth>0&&element.ActualHeight>0&&point.X>=frame.X&&point.Y>=frame.Y&&point.X+element.ActualWidth<=frame.X+window.ActualWidth&&point.Y+element.ActualHeight<=frame.Y+window.ActualHeight);
+        // RTL can mirror local X. Transform all corners into the same screen coordinate system.
+        var corners=ScreenCorners(element);var ownerCorners=ScreenCorners(window);var bounds=NormalizedBounds(corners);var frame=NormalizedBounds(ownerCorners);
+        UxGeometry.Add(new {label,kind="screen",flow=element.FlowDirection.ToString(),ownerFlow=window.FlowDirection.ToString(),visible=element.IsVisible,corners,ownerCorners,bounds,frame,actualWidth=element.ActualWidth,actualHeight=element.ActualHeight,elementDpi=VisualTreeHelper.GetDpi(element),ownerDpi=VisualTreeHelper.GetDpi(window)});
+        var ownerOk=element.IsVisible&&!bounds.IsEmpty&&!frame.IsEmpty&&bounds.Width>0&&bounds.Height>0&&frame.Width>0&&frame.Height>0&&frame.Contains(bounds);
+        var viewportChecks=new List<bool>();
         for(DependencyObject? ancestor=VisualTreeHelper.GetParent(element);ancestor is not null;ancestor=VisualTreeHelper.GetParent(ancestor))
-            if(ancestor is ScrollContentPresenter viewport){var origin=element.TranslatePoint(new Point(),viewport);Check(label+" inside scroll viewport",origin.X>=-1&&origin.Y>=-1&&origin.X+element.ActualWidth<=viewport.ActualWidth+1&&origin.Y+element.ActualHeight<=viewport.ActualHeight+1);}
+            if(ancestor is ScrollContentPresenter viewport){var localCorners=LocalCorners(element).Select(p=>element.TranslatePoint(p,viewport)).ToArray();var inViewport=NormalizedBounds(localCorners);var clipCorners=LocalCorners(viewport);var viewportBounds=NormalizedBounds(clipCorners);var clip=new Rect(-1,-1,viewport.ActualWidth+2,viewport.ActualHeight+2);UxGeometry.Add(new {label,kind="viewport",localCorners,clipCorners,inViewport,viewportBounds,clip,flow=viewport.FlowDirection.ToString(),dpi=VisualTreeHelper.GetDpi(viewport)});viewportChecks.Add(!inViewport.IsEmpty&&!viewportBounds.IsEmpty&&viewportBounds.Width>0&&viewportBounds.Height>0&&clip.Contains(inViewport));}
+        Check(label+" has visible owner-contained bounds",ownerOk);foreach(var viewportOk in viewportChecks)Check(label+" inside scroll viewport",viewportOk);
     }
     private static void ContextKey(bool shiftF10)
     {
@@ -43,8 +53,8 @@ internal static partial class Program
     {
         menu.UpdateLayout();var w=(int)Math.Ceiling(menu.ActualWidth);var h=(int)Math.Ceiling(menu.ActualHeight);
         Check(name+" positive native menu bounds",w>0&&h>0);
-        var origin=menu.PointToScreen(new Point(0,0));var frame=owner.PointToScreen(new Point(0,0));
-        Check(name+" fits owner window",origin.X>=frame.X&&origin.Y>=frame.Y&&origin.X+w<=frame.X+owner.ActualWidth&&origin.Y+h<=frame.Y+owner.ActualHeight);
+        var corners=ScreenCorners(menu);var ownerCorners=ScreenCorners(owner);var bounds=NormalizedBounds(corners);var frame=NormalizedBounds(ownerCorners);UxGeometry.Add(new {label=name,kind="native-menu",flow=menu.FlowDirection.ToString(),corners,ownerCorners,bounds,frame,menuDpi=VisualTreeHelper.GetDpi(menu),ownerDpi=VisualTreeHelper.GetDpi(owner)});
+        Check(name+" fits owner window",!bounds.IsEmpty&&!frame.IsEmpty&&bounds.Width>0&&bounds.Height>0&&frame.Width>0&&frame.Height>0&&frame.Contains(bounds));
         var bitmap=new RenderTargetBitmap(w,h,96,96,PixelFormats.Pbgra32);bitmap.Render(menu);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream=File.Create(Path.Combine(output,name+"-menu.png"));encoder.Save(stream);
     }
@@ -56,6 +66,10 @@ internal static partial class Program
     {
         if(!OperatingSystem.IsWindows())return 2;
         var output=Path.GetFullPath(directory);if(Directory.Exists(output)||File.Exists(output))return 3;Directory.CreateDirectory(output);
+        Check("geometry mirrored contained",new Rect(0,0,100,100).Contains(NormalizedBounds([new(80,20),new(20,20),new(80,60),new(20,60)])));
+        foreach(var outside in new[]{new Rect(-1,20,10,10),new Rect(91,20,10,10),new Rect(20,-1,10,10),new Rect(20,91,10,10)})Check("geometry rejects real overflow "+outside,!new Rect(0,0,100,100).Contains(outside));
+        Check("geometry rejects clipped viewport",!new Rect(-1,-1,102,52).Contains(new Rect(20,40,30,20)));
+        Check("geometry rejects nonfinite",NormalizedBounds([new(double.NaN,0),new(10,10)]).IsEmpty);
         var app=new Application();using var store=new JsonStore(Path.Combine(output,"synthetic","store.json"));
         store.Mutate(c=>{
             var ws=c.CreateWorkspace("סביבת בדיקה בעברית עם שם ארוך מאוד שממחיש את פריסת הפעולות");
@@ -153,8 +167,8 @@ internal static partial class Program
                 Check("no automatic persistence or launch in staged context",store.Load().Workspaces.First().Items.Count==4&&launcher.Sent.Count==0);
                 CaptureContext(stagedHost.ContextMenu,window,output,"staged");stagedHost.ContextMenu.IsOpen=false;Capture(window,output,"staged-direct-edit");
                 vm.CaptureCloseCommand.Execute(null);vm.ExitWithoutSavingCommand.Execute(null);
-                File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(0);
-            }catch(Exception e){File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));app.Shutdown(1);}
+                File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(UxGeometry,new JsonSerializerOptions{WriteIndented=true,NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals}));File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(0);
+            }catch(Exception e){File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(UxGeometry,new JsonSerializerOptions{WriteIndented=true,NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals}));try{Capture(window,output,"failure-current-state");}catch(Exception captureError){File.WriteAllText(Path.Combine(output,"failure-capture-error.txt"),captureError.ToString());}File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));app.Shutdown(1);}
         };return app.Run(window);
     }
 }
