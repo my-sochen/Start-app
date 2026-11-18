@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "channel": "prototype",
+  "complete": true,
+  "selected_tag": "v0.1.0-proto.1",
+  "entries": [
+    {
+      "schema": 1,
+      "channel": "prototype",
+      "label": "אב-טיפוס להערכה - לא גרסה יציבה",
+      "version": "0.1.0-proto.1",
+      "tag": "v0.1.0-proto.1",
+      "commit": "db94adc19056b6dd68d338c030c6ce4983a3057c",
+      "asset": "StartApp-win-x64.zip",
+      "url": "https://github.com/my-sochen/Start-app/releases/download/v0.1.0-proto.1/StartApp-win-x64.zip",
+      "sha256": "7e8ee4d53bcba3626543aebae97c08c5bfc41057582af1e03f3762f68ec6c702",
+      "size": 65356245,
+      "layout": "legacy-flat-v1"
+    }
+  ]
+}

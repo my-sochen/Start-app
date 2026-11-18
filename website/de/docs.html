@@ -21,12 +21,17 @@
   </head>
 <body>
 <a class="skip" href="#main">Zum Inhalt springen</a>
+<div class="pinned-top">
 <header>
 <a aria-label="Start-app, Homepage" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
 <nav aria-label="Hauptnavigation">
 <a aria-current="page" href="docs.html">Benutzerhandbuch</a><a href="index.html#download">Herunterladen</a>
 </nav>
 <details class="language-switch"><summary>Sprache</summary><nav aria-label="Sprachauswahl"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a aria-current="true" dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<div class="docs-jump">
+<a href="#toc">Die Kapitel des Leitfadens</a><a href="#main">Zurück nach oben ↑</a>
+</div>
+</div>
 <main class="wrap" id="main">
 <div class="docs-intro">
 <p class="eyebrow">Benutzerhandbuch</p>
@@ -35,9 +40,6 @@
 <p class="pill">Ein Evaluierungsprototyp, keine stabile Version</p>
 </div>
 <div class="doc-layout">
-<div class="docs-jump">
-<a href="#toc">Die Kapitel des Leitfadens</a><a href="#main">Zurück nach oben ↑</a>
-</div>
 <aside aria-label="Inhaltsverzeichnis" class="sidebar" id="toc">
 <label for="doc-search">Durchsuchen Sie die Kapitel des Leitfadens</label><input autocomplete="off" id="doc-search" placeholder="Zum Beispiel: Speichern oder Erfassen" type="search"/>
 <p aria-live="polite" class="search-status" id="search-status" role="status"></p>
@@ -60,7 +62,7 @@
 <p> Das Verpackungsziel ist Windows x64. Es gibt keine verifizierte Mac- oder Linux-Version. </p>
 <p> Die Download-Verfügbarkeit wird angezeigt <a href="index.html#download">auf der Homepage</a> Und automatisch aktualisiert: Wenn es eine verifizierte Prototypversion gibt, gibt es einen Download-Link zusammen mit der Versionsnummer, der Dateigröße und dem sha256-Wert zur Überprüfung vor der Installation. </p>
 <div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"> Download nicht verfügbar </button>
+<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>Download nicht verfügbar</span><bdi data-cta-version hidden></bdi></button>
 <p aria-live="polite" class="note" id="docs-download-state"> Eine herunterladbare Version kann derzeit nicht überprüft werden. Der Download bleibt ausgeschaltet. </p>
 <details class="verify" hidden="">
 <summary>technische Details</summary>
@@ -69,15 +71,18 @@
 </div>
 <h3>Aktivierung nach Download</h3>
 <p> Der Download ist eine ZIP-Datei, kein Installationsprogramm. Nach dem Herunterladen: </p>
-<ol class="steps-list">
+<ol class="steps-list" data-layout-legacy hidden>
 <li>Extrahieren Sie alle Dateien aus der ZIP-Datei in einen Ordner.</li>
 <li> Öffnen Sie den extrahierten Ordner und führen Sie den aus <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>Belassen Sie die DLL- und Laufzeitdateien im Ordner neben der Datei.</li>
 </ol>
-<p> Die Anwendung beinhaltet ihre Laufzeitumgebung, sodass .NET nicht separat installiert werden muss. Keine Registrierung, kein Konto oder Login. Die Daten werden in einer lokalen Datei gespeichert<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-unknown>Entpacke alle ZIP-Dateien in einen Ordner. Der Paketaufbau ist unbekannt; lies die Versionshinweise, bevor du eine ausführbare Datei auswählst.</p>
+            <p data-layout-portable hidden>Entpacke alle ZIP-Dateien. Starte <bdi><code>Start-app.exe</code></bdi> im Stammordner, behalte den Ordner <bdi><code>App</code></bdi> daneben und verschiebe immer den gesamten Ordner.</p>
+<p data-layout-legacy-unqualified> Das aktuelle Projektdesign ist ein Paket, das seine Laufzeitumgebung enthält, ohne Registrierung oder Anmeldung, und Daten lokal auf dem Gerät speichert. Die Eigenschaften jedes zum Download angebotenen Pakets werden bei seiner Freigabe veröffentlicht und überprüft.</p>
+            <p data-layout-legacy-qualification hidden> Die Anwendung beinhaltet ihre Laufzeitumgebung, sodass .NET nicht separat installiert werden muss. Keine Registrierung, kein Konto oder Login. Die Daten werden in einer lokalen Datei gespeichert<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p> Was wurde getestet: Dieser Prototyp wurde als eigenständige Windows x64-Anwendung erstellt und erfolgreich auf einem gehosteten Windows Server 2025-Server gestartet und heruntergefahren. Nicht unabhängig getestet unter Windows 11 zu Hause, und es gibt keine Verpflichtung zur Mindestversion von Windows. Es gibt keine Garantie dafür, dass keine Sicherheitswarnungen oder Antivirensoftware-Warnungen angezeigt werden. </p>
+<p data-layout-legacy-qualification hidden> Was wurde getestet: Dieser Prototyp wurde als eigenständige Windows x64-Anwendung erstellt und erfolgreich auf einem gehosteten Windows Server 2025-Server gestartet und heruntergefahren. Nicht unabhängig getestet unter Windows 11 zu Hause, und es gibt keine Verpflichtung zur Mindestversion von Windows. Es gibt keine Garantie dafür, dass keine Sicherheitswarnungen oder Antivirensoftware-Warnungen angezeigt werden. </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">Ansichten</span>
@@ -182,12 +187,12 @@
 <section class="doc-section" data-doc="" id="storage">
 <span class="doc-kicker">Zuverlässigkeit</span>
 <h2>Speichern und lokaler Speicher</h2>
-<p> Die Arbeitsbereiche werden in einer lokalen Datei auf dem Computer gespeichert: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Änderungen werden nur gespeichert, wenn Sie explizit auf Speichern klicken. </p>
+<p> Im aktuellen Projektdesign werden die Arbeitsbereiche in einer lokalen Datei auf dem Computer gespeichert: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Änderungen werden nur gespeichert, wenn Sie explizit auf Speichern klicken. </p>
 </section>
 <section class="doc-section" data-doc="" id="privacy">
 <span class="doc-kicker">Zuverlässigkeit</span>
 <h2>Privatsphäre auf den Punkt gebracht</h2>
-<p> Die Daten der Umgebungen werden lokal auf dem Computer gespeichert. Durch das Öffnen eines Links oder einer Software entsteht die übliche Kommunikation dieses Ziels - beispielsweise führt das Öffnen einer Website in einem Browser zu dieser Website. </p>
+<p> Im aktuellen Design werden die Daten der Umgebungen lokal auf dem Computer gespeichert. Durch das Öffnen eines Links oder einer Software entsteht die übliche Kommunikation dieses Ziels - beispielsweise führt das Öffnen einer Website in einem Browser zu dieser Website. </p>
 <p> Diese Website selbst enthält keine Formulare, Analysen, Remote-Schriftarten oder Dienste Dritter. </p>
 </section>
 <section class="doc-section" data-doc="" id="faq">
@@ -213,7 +218,8 @@
 </footer>
 <div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
 <script src="../i18n.js"></script><script src="../download-pointer.js"></script>
-<script src="../download-wire.js"></script>
+<script src="../download-catalog.js"></script>
+    <script src="../download-wire.js"></script>
 <script src="../docs.js"></script>
 <script src="../site-nav.js"></script>
 </body>

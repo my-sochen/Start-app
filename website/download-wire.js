@@ -62,6 +62,8 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   function applyLoading() {
     var badge = document.getElementById("availability-badge");
     if (badge) badge.textContent = tr("בודק זמינות הורדה…");
+    document.querySelectorAll("[data-cta-version]").forEach(function (node) { node.textContent = ""; node.hidden = true; });
+    renderOffers(null, true);
     ctas().forEach(function (button) {
       // Fail closed first: even on an already-enabled CTA (init called again),
       // the button is disabled, the old handler removed and the verification
@@ -81,8 +83,43 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     });
   }
 
+  // Truthful loading state: while a check is in progress the offers region says
+  // so; it never claims "unavailable" before any answer arrived.
+  function renderOffers(result, loading) {
+    document.querySelectorAll('[data-prototype-offers]').forEach(function (target) {
+      target.querySelectorAll('button').forEach(function (button) {
+        button.onclick = null;
+        button.disabled = true;
+      });
+      target.replaceChildren();
+      if (loading || result.state !== 'ok') {
+        var empty = document.createElement('p');
+        empty.className = 'inventory-note';
+        empty.textContent = tr(loading ? 'בודק זמינות הורדה…' : result.state === 'none' ? 'אין הורדה זמינה כרגע' : 'הורדה לא זמינה');
+        target.appendChild(empty);
+        return;
+      }
+      var row = document.createElement('div');
+      row.className = 'prototype-offer';
+      var version = document.createElement('bdi');
+      version.textContent = result.pointer.version;
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.disabled = true;
+      window.StartAppPointer.render({button: button}, result);
+      // Accessible name mirrors the full localized visible free-download
+      // wording, then the exact version and tag (LTR-isolated).
+      button.setAttribute('aria-label', tr('הורדה חינם') + ' \u2066' + result.pointer.version + '\u2069 (\u2066' + result.pointer.tag + '\u2069)');
+      row.appendChild(version);
+      row.appendChild(button);
+      target.appendChild(row);
+    });
+  }
+
   function renderAll(result) {
     applyStaticState(result.state);
+    renderOffers(result);
+    document.querySelectorAll("[data-cta-version]").forEach(function (node) { node.textContent = result.state === "ok" ? result.pointer.version : ""; node.hidden = result.state !== "ok"; });
     ctas().forEach(function (button) {
       window.StartAppPointer.render(
         {
@@ -96,24 +133,88 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     });
   }
 
+  function guideLayout(result) {
+    var layout = result.state === "ok" ? result.pointer.layout : "unknown";
+    document.querySelectorAll("[data-layout-legacy]").forEach(function (node) { node.hidden = layout !== "legacy-flat-v1"; });
+    // Historical runtime claim belongs only to the exact documented package,
+    // never to every package which happens to share its folder layout.
+    // Schema/channel/asset and exact tag URL already pass the fixed validator.
+    var documented = {"version": "0.1.0-proto.1", "tag": "v0.1.0-proto.1", "commit": "db94adc19056b6dd68d338c030c6ce4983a3057c", "label": "אב-טיפוס להערכה - לא גרסה יציבה", "size": 65356245, "sha256": "7e8ee4d53bcba3626543aebae97c08c5bfc41057582af1e03f3762f68ec6c702"};
+    var qualified = result.state === "ok" && Object.keys(documented).every(function (key) { return result.pointer[key] === documented[key]; });
+    document.querySelectorAll("[data-layout-legacy-qualification]").forEach(function (node) { node.hidden = !qualified; });
+    // Package-specific claims (self-contained runtime, no sign-in, exact local
+    // data path) are identity-gated the same way: without the exact documented
+    // package the guide shows only clearly current-project-design wording.
+    document.querySelectorAll("[data-layout-legacy-unqualified]").forEach(function (node) { node.hidden = qualified; });
+    document.querySelectorAll("[data-layout-portable]").forEach(function (node) { node.hidden = layout !== "portable-v1"; });
+    document.querySelectorAll("[data-layout-unknown]").forEach(function (node) { node.hidden = layout === "legacy-flat-v1" || layout === "portable-v1"; });
+  }
+
+  function historyHint(complete) {
+    document.querySelectorAll(".download-all-hint").forEach(function (node) {
+      node.textContent = tr(complete ? "ארכיון אב-טיפוס מאומת · תמונת מצב בעת הפרסום" : "היצע מאומת נוכחי · לא ארכיון גרסאות מלא");
+    });
+  }
+
+  // Static review flagged a pointer-init render error leaving the page mid-state
+  // as an unreproduced potential risk. It stays unreproduced; this guard makes
+  // the outcome deterministic anyway: any render failure fails closed, every
+  // control disabled with the honest cannot-verify state, no stale handler.
+  function failClosed() {
+    try { applyStaticState("invalid"); } catch (_) {}
+    try { guideLayout({state: "invalid"}); } catch (_) {}
+    try { historyHint(false); } catch (_) {}
+    try { renderOffers({state: "invalid"}); } catch (_) {}
+    ctas().forEach(function (button) {
+      try {
+        button.disabled = true;
+        button.onclick = null;
+        var label = labelOf(button);
+        if (label) label.textContent = tr("הורדה לא זמינה"); else button.textContent = tr("הורדה לא זמינה");
+        var note = byId(button.getAttribute("aria-describedby"));
+        if (note) note.textContent = tr("לא ניתן לאמת כרגע גרסה להורדה. ההורדה נשארת כבויה.");
+        var detail = byId(button.getAttribute("data-verify"));
+        if (detail && detail.parentNode) { detail.textContent = ""; detail.parentNode.hidden = true; }
+      } catch (_) {}
+    });
+  }
+
   function init() {
+    var mine = ++seq;
     if (!window.StartAppPointer) {
-      applyStaticState("invalid");
+      applyLoading(); applyStaticState("invalid"); guideLayout({state: "invalid"});
       return;
     }
-    // Every call (first load AND every client-side page swap) re-fetches the
-    // pointer with no-store and shows the disabled "checking" state until it
-    // validates, so a withdrawn or changed release closes the gate on the next
-    // page view, exactly like a full reload. Only the newest request may
-    // render; an older, slower response never overwrites a newer one.
-    var mine = ++seq;
     applyLoading();
-    // Same-origin resolution: pointer.json sits next to this page in the
-    // deployed artifact; an absolute https URL satisfies load()'s own check.
-    var url = new URL((document.documentElement.getAttribute("data-site-root") || ".") + "/pointer.json", window.location.href).href;
+    guideLayout({state: "invalid"});
+    historyHint(false);
+    var root = (document.documentElement.getAttribute("data-site-root") || ".") + "/";
+    var url = new URL(root + "pointer.json", window.location.href).href;
     window.StartAppPointer.load(url).then(function (result) {
       if (mine !== seq) return;
-      renderAll(result);
+      // Independently valid primary/guide renders without waiting on history.
+      try {
+        renderAll(result);
+        guideLayout(result);
+      } catch (_) { failClosed(); return; }
+      if (!window.StartAppCatalog || !document.querySelector("[data-prototype-offers]")) return;
+      var catalogUrl = new URL(root + "downloads.json", window.location.href).href;
+      window.StartAppCatalog.load(catalogUrl, result).then(function (history) {
+        if (mine !== seq) return;
+        try {
+          // Old schema1 pointer without layout remains a usable singleton when
+          // catalog absent/conflicting. Never relabel that fallback complete.
+          if (history.state === "invalid" && result.state === "ok" && result.pointer.layout === "unknown") {
+            renderOffers(result); historyHint(false); return;
+          }
+          document.querySelectorAll("[data-prototype-offers]").forEach(function (target) { window.StartAppCatalog.render(target, history); });
+          historyHint(history.state === "ok" || history.state === "none");
+        } catch (_) {
+          // A history render failure only clears history rows; the independently
+          // validated primary and guide keep their own verified state.
+          try { renderOffers({state: "invalid"}); historyHint(false); } catch (_) {}
+        }
+      });
     });
   }
 

@@ -80,9 +80,13 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     if (doc.size !== null && (!Number.isInteger(doc.size) || doc.size <= 0)) {
       return invalid("size is not a positive integer");
     }
+    if (doc.layout !== undefined && !["legacy-flat-v1", "portable-v1", "unknown"].includes(doc.layout)) {
+      return invalid("unsupported package layout");
+    }
     return {
       state: "ok",
       pointer: {
+        layout: doc.layout === undefined ? "unknown" : doc.layout,
         version: doc.version,
         tag: doc.tag,
         commit: doc.commit,
@@ -124,8 +128,9 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     if (result.state === "ok") {
       const p = result.pointer;
       button.disabled = false;
-      // Keep the primary action simple; the exact version remains in technical details.
-      setLabel(tr("הורדה ל־Windows"));
+      // Keep the primary action simple; the exact actual version stays visible
+      // in the button's version element and in the technical details.
+      setLabel(tr("הורדה חינם"));
       // onclick assignment, not addEventListener: repeated renders replace the
       // binding instead of accumulating handlers, and a later non-ok render can
       // clear it (no stale URL stays clickable).
