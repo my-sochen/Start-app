@@ -208,8 +208,10 @@ h1:focus, h1:focus-visible { outline: none; }
 .brand { unicode-bidi: isolate; }
 .s-long { display: inline-block; transform: scaleX(1.4); transform-origin: left center; margin-right: .27em; }
 
-/* Keep the website icon on the right and the complete wordmark LTR. */
-.brand { display: inline-flex; flex-direction: row-reverse; align-items: center; gap: 8px; }
+/* Brand icon sits at the reading start of the wordmark: left on LTR pages,
+ * right on RTL pages. The wordmark itself stays LTR and complete in both. */
+.brand { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; }
+html[dir="rtl"] .brand { flex-direction: row-reverse; }
 .brand i { margin-right: 0; flex-shrink: 0; }
 .wordmark { direction: ltr; unicode-bidi: isolate; }
 
@@ -255,6 +257,20 @@ html[lang="ja"] body { font-family: "Yu Gothic", "Meiryo", "Droid Sans Fallback"
 .download-direct:disabled,.doc-download button.primary:disabled{background:#eef2f9;color:#6b7a90;cursor:not-allowed}
 .download-direct:hover:not(:disabled),.doc-download button.primary:hover:not(:disabled){border-color:#8fb4ea;background:#d9e7fc}
 .download-card .hero-download-state{font-size:12px;line-height:1.6;text-align:start;margin:2px 0 0;color:#666}
+
+/* Gentle native drift for the dedicated home line art: --art-y is published
+ * from the real scroll position by site-nav.js as continuous half-speed
+ * compensation with no cap, so the art lags the scroll as one layer and no
+ * content element moves relative to any other, preserving the static
+ * design's relationships, clearances and hit targets. The art exists only on
+ * the home page, whose real scroll span is short, so geometry bounds the
+ * travel. Transform-only: layout, focus order and RTL are unaffected, and
+ * the art is pointer-events:none so it can never intercept a click. The
+ * native scroll listener works on touch phones and does not depend on CSS
+ * scroll-timeline support; with JS disabled the art simply stays static, and
+ * reduced-motion users get the static page automatically. */
+.page-line-art img,.page-line-top img,.page-line-bottom img{transform:translate3d(0,var(--art-y,0px),0)}
+@media (prefers-reduced-motion:reduce){.page-line-art img,.page-line-top img,.page-line-bottom img{transform:none!important}}
 
 .download-card .verify{text-align:start;margin:2px 0 0}
 .download-all{margin-top:12px;background:#fff;color:#171717}
@@ -332,15 +348,16 @@ html{scroll-padding-top:97px}
  .doc-section{scroll-margin-top:221px}
 }
 
-/* Continuous private depth candidate. One fixed decorative layer is behind
- * all content on home and guide, not separate mobile flow illustrations.
- * Native-scroll contract: --depth-y is -(scrollTop * 0.5) modulo 720, in px.
- * 720px is the exact repeated tile height. The extra tile above and below the viewport
- * prevents blank edges as it moves. No CSS timeline is required. */
+/* Guide-only continuous backdrop: the guide keeps the fixed decorative layer
+ * behind all content moving at half scroll speed; the home page uses its
+ * dedicated flow illustrations instead. Scoped by data-page, which
+ * site-nav.js maintains across client-side navigation, so the two
+ * compositions never appear together and SPA page swaps stay correct.
+ * --depth-y is -(scrollTop * 0.5) modulo 720, in px; 720px is the exact
+ * repeated tile height, and the extra tile above and below the viewport
+ * prevents blank edges as it moves. */
 body{isolation:isolate}
-body::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
-/* Existing flow art is replaced by the continuous backdrop, not doubled. */
-.page-line-art,.page-line-top,.page-line-bottom{display:none}
-@media(max-width:700px){body::before{background-size:600px 360px}}
-@media(prefers-reduced-motion:reduce){body::before{transform:none!important}}
-@media print{body::before{display:none}}
+body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+@media(max-width:700px){body[data-page="docs.html"]::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body[data-page="docs.html"]::before{transform:none!important}}
+@media print{body[data-page="docs.html"]::before{display:none}}
