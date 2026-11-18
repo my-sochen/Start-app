@@ -8,6 +8,7 @@ public sealed class InstalledBuildIdentityTests
     [Theory]
     [InlineData("0.2.0-proto.1")]
     [InlineData("1.0.1")]
+    [InlineData("1.0.0-beta.1")]
     public void Explicit_version_and_matching_commit_are_required(string version)
     {
         var identity = InstalledBuildIdentity.Parse(version + "+sha." + Sha, Sha);
@@ -19,7 +20,7 @@ public sealed class InstalledBuildIdentityTests
     [InlineData("1.0.0.0")]
     [InlineData("1.0.0+other")]
     [InlineData("01.0.0+sha.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
-    [InlineData("1.0.0-beta.1+sha.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("1.0.0-preview.1+sha.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     public void Unstamped_or_unsupported_identity_stays_disabled(string? stamp) =>
         Assert.Null(InstalledBuildIdentity.Parse(stamp, Sha));
     [Fact] public void Mismatched_commit_is_not_installed_identity() =>

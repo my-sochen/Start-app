@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
@@ -28,6 +28,8 @@ env:
   REPO: ${{ github.repository }}
 jobs:
   resolve:
+    outputs:
+      profile: ${{ steps.profile.outputs.profile }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -47,6 +49,13 @@ jobs:
           for f in .github/release/verify_candidate.py .github/release/make_manifest.py .github/release/ui_gate_check.py .github/release/KNOWN-LIMITS.txt .github/e2e/smoke-package.ps1; do [ -f "$f" ] || { echo "workflow revision lacks $f"; exit 1; }; done
           for f in .github/e2e/cycle1-flow.ps1 .github/e2e/capture-flow.ps1; do git cat-file -e "$SHA:$f" || { echo "candidate sha lacks $f (UI gate cannot run)"; exit 1; }; done
           bash .github/release/check_tag_free.sh "$REPO" "v$VERSION" || echo "(validation: tag state noted, not blocking)"
+
+      - name: Resolve exact-ref validation profile (unexpected refs fail closed)
+        id: profile
+        shell: bash
+        run: |
+          python .github/e2e/validation-profile.py --ref "$GITHUB_REF" --output "$GITHUB_OUTPUT"
+          python tests/validation/test_profiles.py
 
       - name: Static release wiring policy checks (no release execution)
         shell: bash
@@ -68,7 +77,8 @@ jobs:
           dotnet test StartApp.slnx --configuration Release
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-  ui-gate:          # HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
+  ui-gate:          # DEV subset is NOT QA or a candidate. Full profile HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
+    name: UI checks (${{ needs.resolve.outputs.profile }}, not human QA)
     needs: [resolve, tests]
     runs-on: windows-latest
     timeout-minutes: 40
@@ -78,6 +88,12 @@ jobs:
         with: { path: trusted }
       - uses: actions/setup-dotnet@v6.1.0
         with: { dotnet-version: '10.0.404' }
+      - name: Record local source and command binding (no cross-run reuse)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diag | Out-Null
+          python .github/e2e/validation-profile.py --ref $env:GITHUB_REF --evidence diag/validation-binding.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Checks before any UI run
         shell: pwsh
         run: |
@@ -100,45 +116,29 @@ jobs:
       - name: Synthetic update state captures (no network or real browser)
         shell: pwsh
         run: |
-          python tests/update-notifier/test_overlay_rows.py
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          dotnet build tests/StartApp.UpdateUiCapture/StartApp.UpdateUiCapture.csproj --configuration Release
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          $output = Join-Path $env:RUNNER_TEMP ("update-capture-" + [guid]::NewGuid().ToString('N'))
-          if (Test-Path $output) { throw 'capture output already exists; refusing reuse' }
-          $destination = Join-Path $PWD 'out-images/update-states'
-          if (Test-Path $destination) { throw 'capture destination already exists; refusing nested copy/reuse' }
-          $binary = Join-Path $PWD 'tests/StartApp.UpdateUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
-          # Bounded child lifetime; only this capture process tree is terminated. No
-          # machine-wide cleanup or real LOCALAPPDATA access by this test program.
-          $capture = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '"') -PassThru
-          try {
-            if (-not $capture.WaitForExit(60000)) {
-              $capture.Kill($true)
-              throw 'synthetic WPF capture timed out'
-            }
-            if ($capture.ExitCode -ne 0) { throw "capture exited $($capture.ExitCode)" }
-          } finally {
-            if (Test-Path $output) { Copy-Item -Path $output -Destination $destination -Recurse }
-            $capture.Dispose()
-          }
-          $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
-          if ($pngs.Count -ne 18) { throw "Expected eighteen WPF state images (eight main, eight settings, two startup popups), found $($pngs.Count)" }
-          if (-not (Test-Path out-images/update-states/capture-evidence.json)) { throw 'capture metadata missing' }
+          & ./.github/e2e/synthetic-update-capture.ps1
       - name: Cycle-1 flow UI run (hard - a failing step fails this job)
+        if: needs.resolve.outputs.profile == 'full'
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA   # scripts write $env:GITHUB_SHA into their completion marker; make the source explicit
           pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Capture readiness helper discrimination tests
+        if: needs.resolve.outputs.profile == 'full'
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/capture-policy/test_capture_readiness.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Capture flow UI run (hard)
+        if: needs.resolve.outputs.profile == 'full'
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA
           pwsh -NoProfile -File .github/e2e/capture-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
-        if: always()
+        if: ${{ always() && needs.resolve.outputs.profile == 'full' }}
         shell: pwsh
         run: |
           python trusted/.github/release/ui_gate_check.py --diag diag --sha $env:SHA
@@ -155,7 +155,7 @@ jobs:
 
   package:          # same steps as the proposed package job; runs after tests passed on this sha
     needs: [resolve, tests, ui-gate]
-    if: ${{ always() && needs.tests.result == 'success' }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed
+    if: ${{ always() && needs.resolve.result == 'success' && needs.resolve.outputs.profile == 'full' && needs.tests.result == 'success' }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -187,7 +187,7 @@ jobs:
           New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
           foreach ($out in 'pkg-a','pkg-b') {
             if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
-            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -p:StartAppReleaseVersion=$env:VERSION -p:StartAppSourceCommit=$env:SHA --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
             if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
           }
           if (Test-Path diag/errors.txt) { exit 1 }
@@ -251,6 +251,11 @@ jobs:
             "sha256: $hash"
           ) | Out-File -Encoding utf8 cand/BUILDINFO.txt
           Copy-Item src/diag/reproducibility.txt cand/reproducibility.txt
+          Push-Location src
+          try {
+            python .github/e2e/validation-profile.py --ref $env:GITHUB_REF --evidence ../cand/validation-binding.json --zip ../cand/StartApp-win-x64.zip
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally { Pop-Location }
           python trusted/.github/release/make_manifest.py --dir cand --sha $env:SHA --version $env:VERSION --ui-gate $env:UI_GATE --layout portable
       - name: Verify candidate consistency (verifier)
         shell: pwsh
@@ -267,7 +272,7 @@ jobs:
         if: always()
         with:
           name: portable-candidate-smoke
-          retention-days: 1
+          retention-days: 5
           if-no-files-found: warn
           path: portable-evidence/*
       - uses: actions/upload-artifact@v7.0.2
@@ -276,5 +281,24 @@ jobs:
           retention-days: 5
           if-no-files-found: error
           path: cand/*
+
+  validation-status:
+    name: Profile result (automation only, not QA approval)
+    if: always()
+    needs: [resolve, tests, ui-gate, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check required profile results; no skipped required gate may pass
+        env:
+          PROFILE: ${{ needs.resolve.outputs.profile }}
+          RESOLVE: ${{ needs.resolve.result }}
+          TESTS: ${{ needs.tests.result }}
+          UI: ${{ needs.ui-gate.result }}
+          PACKAGE: ${{ needs.package.result }}
+        shell: bash
+        run: |
+          python .github/e2e/validation-profile.py --status
 
 # Validation artifacts only. Distribution and main promotion remain separate decisions.

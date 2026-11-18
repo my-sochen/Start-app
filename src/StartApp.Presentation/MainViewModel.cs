@@ -12,6 +12,8 @@ public sealed record ItemRow(string InstanceId, string ItemId, string Name, stri
     /// <summary>Short name shown next to the program icon (icon + name display, settled Nov 14). The full Program path
     /// itself is untouched: it stays as the tooltip/help-text source and in the open-with popup.</summary>
     public string ProgramDisplayName => ProgramDisplayNames.Resolve(Program);
+    /// <summary>A saved program item is itself the program, so its menu has no open-with entry.</summary>
+    public bool IsProgram => Type == nameof(ItemType.Program);
 }
 
 /// <summary>UI state only. Persistence via IStoreRepository, OS actions via IItemLauncher. A store that failed to load puts the app in a
@@ -269,7 +271,7 @@ public sealed partial class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
     // unsaved item/address edit (PR19 review: edits disappeared on unrelated mutations). A dirty form stays
     // open with its fields. Safety does not rest on the selection staying put: saves validate the
@@ -601,7 +603,8 @@ public sealed partial class MainViewModel : ObservableBase
     }
 
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
-    public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); RaiseCommands(); } }
+    public bool ItemEditOpen { get => _itemEditOpen; private set { Set(ref _itemEditOpen, value); Raise(nameof(EditingItemInstanceId)); RaiseCommands(); } }
+    public string EditingItemInstanceId => ItemEditOpen && _editItemWsId == Selected?.Id ? _editItemId : "";
     private bool _itemEditOpen;
     private string _editItemId = "", _editItemWsId = "";
     public string EditItemName { get => _editItemName; set { Set(ref _editItemName, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
@@ -617,9 +620,10 @@ public sealed partial class MainViewModel : ObservableBase
     private void BeginItemEdit(ItemRow row)
     {
         if (!TryOpenEditorForm()) return;
+        ClearFieldErrors();
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
-        ItemEditOpen = true;
+        ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
     private bool SaveItemEdit()
     {
@@ -1059,6 +1063,8 @@ public sealed partial class MainViewModel : ObservableBase
     public sealed class StagedRow : ObservableBase
     {
         private string _name, _description = "", _target, _openWith = "";
+        private bool _isEditing;
+        public bool IsEditing { get => _isEditing; internal set => Set(ref _isEditing, value); }
         /// <summary>A staged site starts with the browser it was captured in already filled as its default (spec Nov 11);
         /// the staged פתח באמצעות popup can still change or clear it before שמור writes anything.</summary>
         public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; _openWith = i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? i.Browser! : ""; }
@@ -1141,6 +1147,8 @@ public sealed partial class MainViewModel : ObservableBase
     public ICommand CaptureCloseCommand { get; private set; } = null!;
     public ICommand CaptureCreateCommand { get; private set; } = null!;
     public ICommand RemoveStagedCommand { get; private set; } = null!;
+    public ICommand EditStagedCommand { get; private set; } = null!;
+    public ICommand CloseStagedEditCommand { get; private set; } = null!;
     public ICommand StagedCopyAddressCommand { get; private set; } = null!;
     public ICommand StagedMoveUpCommand { get; private set; } = null!;
     public ICommand StagedMoveDownCommand { get; private set; } = null!;
@@ -1163,6 +1171,13 @@ public sealed partial class MainViewModel : ObservableBase
         CaptureBackCommand = Cmd(_ => CaptureBack(), _ => IsCaptureSide && CaptureIdle);
         CaptureCloseCommand = Cmd(_ => CaptureClose(), _ => CaptureOpen && CaptureIdle);
         CaptureCreateCommand = Cmd(_ => CreateFromCapture(), _ => IsCaptureNew && NewName.Length > 0 && !ReadOnly && !IsScanning);
+        // Only an explicit per-row action expands editing. Switching preserves unsaved row values.
+        EditStagedCommand = Cmd(p =>
+        {
+            foreach (var row in StagedRows) row.IsEditing = ReferenceEquals(row, p);
+        }, p => p is StagedRow row && StagedRows.Contains(row) && IsCaptureSide && CaptureIdle && !ReadOnly);
+        CloseStagedEditCommand = Cmd(p => ((StagedRow)p!).IsEditing = false,
+            p => p is StagedRow row && StagedRows.Contains(row) && IsCaptureSide);
         RemoveStagedCommand = Cmd(p => { StagedRows.Remove((StagedRow)p!); Raise(nameof(CaptureDirty)); RaiseCommands(); }, p => p is StagedRow && IsCaptureSide);
         // Settled capture rule: a staged item offers the FULL item action set (מחיקה, העתק כתובת, עריכת כתובת, פתח באמצעות,
         // הזז למעלה/למטה; שיתוף לסביבה אחרת stays visible-disabled while that action is undefined) with staged semantics:
