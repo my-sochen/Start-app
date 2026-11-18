@@ -211,6 +211,26 @@ internal static partial class Program
                 stagedHost.Focus();ContextKey(false);await Task.Delay(250);await Idle(window);
                 Check("no automatic persistence or launch in staged context",store.Load().Workspaces.First().Items.Count==4&&launcher.Sent.Count==0);
                 CaptureContext(stagedHost.ContextMenu,window,output,"staged");stagedHost.ContextMenu.IsOpen=false;Capture(window,output,"staged-direct-edit");
+                var stagedReachStoreBefore=JsonSerializer.Serialize(store.Load());
+                // Individually reveal existing staged controls, not the whole taller-than-viewport row.
+                foreach(var rowHost in stagedMenuHosts){
+                    var exactRow=(MainViewModel.StagedRow)rowHost.DataContext;
+                    var fields=Descendants(rowHost).OfType<TextBox>().Where(field=>field.IsVisible).ToArray();
+                    var expectedNames=new[]{"Added item name","Added item description","Added item address","Added item open with"};
+                    Check("staged individual field inventory "+exactRow.Type,fields.Length==4&&expectedNames.All(label=>fields.Count(field=>AutomationProperties.GetName(field)==label)==1));
+                    var remove=Descendants(rowHost).OfType<Button>().Single(button=>ReferenceEquals(button.Command,vm.RemoveStagedCommand)&&ReferenceEquals(button.CommandParameter,exactRow));
+                    var retained=new[]{exactRow.Name,exactRow.Description,exactRow.Target,exactRow.OpenWith};
+                    var controls=fields.Cast<FrameworkElement>().Append(remove).ToArray();
+                    foreach(var control in controls){
+                        var label=AutomationProperties.GetName(control);control.BringIntoView();await Idle(window);
+                        Check("staged individual exact row and focus "+exactRow.Type+" "+label,ReferenceEquals(control.DataContext,exactRow)&&control.IsEnabled&&control.Focus()&&ReferenceEquals(Keyboard.FocusedElement,control)&&launcher.Sent.Count==0);
+                        await Idle(window);CheckReachable(control,window,"staged focused individual "+exactRow.Type+" "+label);
+                        Check("staged individual focus retained after layout "+exactRow.Type+" "+label,ReferenceEquals(Keyboard.FocusedElement,control));
+                        Check("staged individual retains all field values "+exactRow.Type+" "+label,retained.SequenceEqual(new[]{exactRow.Name,exactRow.Description,exactRow.Target,exactRow.OpenWith})&&expectedNames.Select((name,index)=>fields.Single(field=>AutomationProperties.GetName(field)==name).Text==retained[index]).All(value=>value)&&vm.StagedRows.Any(row=>ReferenceEquals(row,exactRow)));
+                        Capture(window,output,"staged-reachable-"+exactRow.Type+"-"+Array.IndexOf(controls,control));
+                    }
+                }
+                Check("staged reachability did not save or remove rows",vm.StagedRows.Count==2&&JsonSerializer.Serialize(store.Load())==stagedReachStoreBefore&&launcher.Sent.Count==0);
                 vm.CaptureCloseCommand.Execute(null);vm.ExitWithoutSavingCommand.Execute(null);
                 File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(UxGeometry,new JsonSerializerOptions{WriteIndented=true,NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals}));File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(0);
             }catch(Exception e){File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());File.WriteAllText(Path.Combine(output,"geometry.json"),JsonSerializer.Serialize(UxGeometry,new JsonSerializerOptions{WriteIndented=true,NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals}));try{Capture(window,output,"failure-current-state");}catch(Exception captureError){File.WriteAllText(Path.Combine(output,"failure-capture-error.txt"),captureError.ToString());}File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));app.Shutdown(1);}
