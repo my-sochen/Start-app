@@ -106,15 +106,15 @@ internal static class Program
         {
             var handler = new CatalogHandler(JsonSerializer.SerializeToUtf8Bytes(doc)); var opened = new List<string>();
             var updates = UpdateComposition.CreateWithTransport(new("https://my-sochen.github.io/Start-app/synthetic-beta-notice.json"), handler, uri=>opened.Add(uri.AbsoluteUri), ()=>now);
-            if (updates.InstalledVersionDisplay != "גרסה מותקנת: \u202A0.1.0-proto.2\u202C") throw new Exception("Actual App identity not composed");
+            if (updates.InstalledVersionDisplay != "גרסה מותקנת: 0.1.0-proto.2") throw new Exception("Actual App identity not composed");
             using var store = new JsonStore(Path.Combine(output,"event-store-"+width,"store.json"));
             var actual = new MainWindow(updates) { Owner=owner, Width=width, Height=560, DataContext=new MainViewModel(store,new NotImplementedLauncher()) };
             actual.Show();
             var deadline=DateTime.UtcNow.AddSeconds(5); UpdateAvailableWindow[] notices=[];
             do {await actual.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);notices=actual.OwnedWindows.OfType<UpdateAvailableWindow>().ToArray();if(notices.Length==1)break;await Task.Delay(25);}while(DateTime.UtcNow<deadline);
             if(notices.Length!=1||handler.Calls!=1||opened.Count!=0||!updates.UpdateAvailable)throw new Exception("Real Loaded/source/event/popup chain failed");
-            if(updates.Status != "גרסת בטא זמינה \u202A0.2.0-beta.1\u202C. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.")throw new Exception("Exact isolated offered beta version missing");
-            var popup=notices.Single();Capture(popup,output,width+"-event-beta-popup");CaptureSettings(actual,updates,output,width+"-event-beta-settings",width);
+            if(updates.Status != "גרסת בטא זמינה 0.2.0-beta.1. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.")throw new Exception("Exact isolated offered beta version missing");
+            var popup=notices.Single();CheckVersionInlines(popup);Capture(popup,output,width+"-event-beta-popup");CaptureSettings(actual,updates,output,width+"-event-beta-settings",width);
             await updates.CheckOnStartupOnceAsync();
             if(handler.Calls!=1||actual.OwnedWindows.OfType<UpdateAvailableWindow>().Count()!=1)throw new Exception("Duplicate startup discovery/popup");
             popup.Close();await actual.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ContextIdle);
@@ -125,6 +125,22 @@ internal static class Program
             actual.Close();
         }
     }
+    private static void CheckVersionInlines(Window window)
+    {
+        var probe=new VersionDisplayText {FlowDirection=FlowDirection.RightToLeft,DisplayText="גרסת בטא זמינה 0.2.0-beta.1. ההתקנה ידנית."};
+        if(probe.Inlines.OfType<System.Windows.Documents.Run>().Count(r=>r.Text=="0.2.0-beta.1"&&r.FlowDirection==FlowDirection.LeftToRight)!=1)throw new Exception("LTR inline before sentence period missing");
+        probe.DisplayText="אין כרגע גרסה מאושרת";
+        if(string.Concat(probe.Inlines.OfType<System.Windows.Documents.Run>().Select(r=>r.Text))!=probe.DisplayText||probe.Inlines.OfType<System.Windows.Documents.Run>().Any(r=>r.ReadLocalValue(System.Windows.Documents.Inline.FlowDirectionProperty)!=DependencyProperty.UnsetValue))throw new Exception("Old version inline retained after status changed");
+        var displays=Descendants(window).OfType<VersionDisplayText>().ToArray();
+        if(displays.Length==0)throw new Exception("No version display controls");
+        foreach(var block in displays)
+        {
+            var runs=block.Inlines.OfType<System.Windows.Documents.Run>().ToArray();
+            if(string.Concat(runs.Select(r=>r.Text))!=block.DisplayText)throw new Exception("Version display changed original text");
+            foreach(var token in new[]{"0.1.0-proto.2","0.2.0-beta.1"}.Where(block.DisplayText.Contains))
+                if(runs.Count(r=>r.Text==token&&r.FlowDirection==FlowDirection.LeftToRight)!=1)throw new Exception("Exact LTR version inline missing");
+        }
+    }
     private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
         var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460, Height = 300 };
@@ -133,7 +149,7 @@ internal static class Program
         if (!buttons.Any(b => ReferenceEquals(b.Command, updates.DownloadCommand) && b.IsEnabled))
             throw new Exception("Popup official update button missing or disabled");
         if (!buttons.Any(b => b.Content as string == "לא עכשיו")) throw new Exception("Popup dismissal missing");
-        Capture(popup, output, name); popup.Close();
+        CheckVersionInlines(popup);Capture(popup, output, name); popup.Close();
         if (!updates.UpdateAvailable) throw new Exception("Popup dismissal changed update state");
     }
     private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
@@ -148,9 +164,9 @@ internal static class Program
             throw new Exception("Manual check must not remain in main top bar");
         if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
             throw new Exception("Exact versions/settings section missing");
-        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == updates.InstalledVersionDisplay))
+        if (!Descendants(settings).OfType<TextBlock>().Any(t => (t is VersionDisplayText versionDisplay ? versionDisplay.DisplayText : t.Text) == updates.InstalledVersionDisplay))
             throw new Exception("Installed version display missing");
-        Capture(settings, output, name); settings.Close();
+        CheckVersionInlines(settings);Capture(settings, output, name); settings.Close();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

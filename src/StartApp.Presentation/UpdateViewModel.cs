@@ -72,17 +72,13 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     {
         _revalidateBeforeDownload = revalidateBeforeDownload; _discoveryEnabled = source is not InactiveUpdateSource;
         _source = source; _current = UpdateVersion.Parse(installedVersion); _openBrowser = openBrowser;
-        InstalledVersionDisplay = _current is null ? "גרסה מותקנת: זהות הבנייה טרם אומתה" : $"גרסה מותקנת: {VersionForRtl(installedVersion!)}";
+        InstalledVersionDisplay = _current is null ? "גרסה מותקנת: זהות הבנייה טרם אומתה" : $"גרסה מותקנת: {installedVersion}";
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
         if (_timeout <= TimeSpan.Zero || _timeout > TimeSpan.FromSeconds(30)) throw new ArgumentOutOfRangeException(nameof(timeout));
         _status = _current is null || !_discoveryEnabled ? "בדיקת עדכונים תופעל לאחר אישור מקור הגרסאות וזהות הבנייה." : "בדיקת עדכונים זמינה לפי בקשה.";
         CheckCommand = new(_ => CurrentCheck = CheckAsync(), _ => !_disposed && !IsBusy && _current is not null && _discoveryEnabled);
         DownloadCommand = new(_ => OpenDownload(), _ => !_disposed && UpdateAvailable && !IsBusy);
     }
-
-    // Version tokens are validated ASCII identities. Explicit LTR embedding keeps their
-    // hyphen/dot groups in logical order inside Hebrew RTL sentences; surrounding text stays RTL.
-    private static string VersionForRtl(string version) => "\u202A" + version + "\u202C";
 
     // One discovery attempt per application updater instance, not per Settings
     // opening or repeated Window.Loaded event. Inactive identity still reads zero.
@@ -121,7 +117,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             { Status = "אין עדכון מתאים לערוץ הגרסה המותקנת."; return; }
             UpdateAvailable = version.CompareTo(_current) > 0;
             if (UpdateAvailable) _offered = candidate;
-            Status = UpdateAvailable ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {VersionForRtl(candidate.Version)}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
+            Status = UpdateAvailable ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
         }
         catch (OperationCanceledException) { if (!_disposed) Status = "בדיקת העדכונים לא הסתיימה בזמן. אפשר לנסות שוב ידנית."; }
         // A future source may fail with an adapter-specific exception. The optional
