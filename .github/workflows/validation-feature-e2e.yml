@@ -187,7 +187,7 @@ jobs:
           New-Item -ItemType Directory -Force pkg-a, pkg-b, diag | Out-Null
           foreach ($out in 'pkg-a','pkg-b') {
             if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
-            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
+            dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -p:StartAppReleaseVersion=$env:VERSION -p:StartAppSourceCommit=$env:SHA --artifacts-path artifacts -nr:false -o $out 2>&1 | Tee-Object "diag/publish-$out.txt" | Select-Object -Last 2
             if ($LASTEXITCODE -ne 0) { "publish failed for $out" | Out-File -Append diag/errors.txt }
           }
           if (Test-Path diag/errors.txt) { exit 1 }

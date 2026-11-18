@@ -6,11 +6,7 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class MainWindow : Window
 {
-    // Deliberately unconfigured until an owner-approved publication source and
-    // stamped installed-version contract are reviewed. The startup hook runs,
-    // but this inactive composition makes no transport request.
-    public UpdateViewModel Updates { get; } = new(new InactiveUpdateSource(), null,
-        uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); });
+    public UpdateViewModel Updates { get; } = UpdateComposition.Create();
     private UpdateSettingsWindow? _settingsWindow;
     private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;

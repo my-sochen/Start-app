@@ -53,6 +53,17 @@ internal static class Program
                     CapturePopup(window, available, output, $"{width}-startup-popup", width);
                     available.DownloadCommand.Execute(null);
                     if (opened.Count != 1 || opened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Synthetic handoff target mismatch");
+                    var betaOpened = new List<string>();
+                    using var beta = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(new("0.2.0-beta.1", new string('a',40), new string('b',64)))),
+                        "0.1.0-proto.2", uri => betaOpened.Add(uri.AbsoluteUri), revalidateBeforeDownload: true);
+                    int betaNotices = 0; beta.StartupUpdateAvailable += () => betaNotices++;
+                    await beta.CheckOnStartupOnceAsync(); await beta.CheckOnStartupOnceAsync();
+                    if (betaNotices != 1 || !beta.UpdateAvailable || !beta.Status.Contains("בטא")) throw new Exception("Beta startup notice missing");
+                    CaptureSettings(window, beta, output, $"{width}-beta-settings", width);
+                    CapturePopup(window, beta, output, $"{width}-beta-startup-popup", width);
+                    if (betaOpened.Count != 0) throw new Exception("Beta notice opened browser without explicit click");
+                    beta.DownloadCommand.Execute(null); await beta.CurrentCheck;
+                    if (betaOpened.Count != 1 || betaOpened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Beta handoff mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
                     row.DataContext = failure; await failure.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
