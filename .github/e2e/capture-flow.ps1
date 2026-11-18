@@ -1313,7 +1313,7 @@ try {
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
-catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
+catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }); DumpState 'script-error' }
 finally {
   $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
   # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run
