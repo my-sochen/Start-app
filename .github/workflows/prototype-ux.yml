@@ -43,3 +43,53 @@ jobs:
           path: out-prototype-ux/
           if-no-files-found: error
           retention-days: 3
+
+  broader-regression:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with: { dotnet-version: '10.0.404' }
+      - name: Bind checkout and whole-solution tests
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -cne '${{ github.sha }}') { throw 'Checkout SHA mismatch' }
+          New-Item -ItemType Directory -Force diag, out-images | Out-Null
+          dotnet test StartApp.slnx --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Parse and build normal app
+        shell: pwsh
+        run: |
+          foreach ($f in '.github/e2e/cycle1-flow.ps1', '.github/e2e/capture-flow.ps1') {
+            $tokens = $null; $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$tokens, [ref]$errs)
+            if ($errs.Count -gt 0) { $errs | Format-List; throw 'E2E parse failure' }
+          }
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Full cycle-1 journey on this feature checkout
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .github/e2e/cycle1-flow.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Full capture journey on this feature checkout
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .github/e2e/capture-flow.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Require both complete SHA-bound assertion tails
+        if: always()
+        shell: pwsh
+        run: |
+          python .github/release/ui_gate_check.py --diag diag --sha '${{ github.sha }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: prototype-broader-regression
+          path: |
+            diag/
+            out-images/
+          if-no-files-found: error
+          retention-days: 3
