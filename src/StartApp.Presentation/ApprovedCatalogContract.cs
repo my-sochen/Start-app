@@ -10,13 +10,13 @@ public sealed record CatalogPolicy(int MaximumBytes, int MaximumRecords, TimeSpa
 public sealed record CatalogRelease(string Version, string Tag, string Commit, long ReleaseId,
     long AssetId, string Asset, long Size, string Sha256, string Layout, string ApprovalRecordId);
 public sealed record ValidatedCatalog(long Revision, DateTimeOffset GeneratedUtc, DateTimeOffset ExpiresUtc,
-    IReadOnlyList<CatalogRelease> Releases)
+    IReadOnlyList<CatalogRelease> Releases, string Channel = "prototype")
 {
     public CatalogRelease? SelectNewer(string installedVersion)
     {
         var current = UpdateVersion.Parse(installedVersion) ?? throw new ArgumentException("Invalid installed version.");
-        // First contract is explicitly prototype-only. No invented stable publisher.
-        if (current.Prototype is null) return null;
+        // Channel-specific reader: existing prototype catalog stays prototype-only; beta notices never target stable installs.
+        if (Channel == "prototype" ? current.Prototype is null : current.IsStable) return null;
         return Releases.Where(r => UpdateVersion.Parse(r.Version)!.CompareTo(current) > 0)
             .OrderByDescending(r => UpdateVersion.Parse(r.Version)).FirstOrDefault();
     }
@@ -26,8 +26,9 @@ public static class ApprovedCatalogContract
 {
     private static readonly string[] EnvelopeFields = ["schema", "revision", "generated_utc", "expires_utc", "channel", "releases"];
     private static readonly string[] RecordFields = ["version", "tag", "commit", "release_id", "asset_id", "asset", "size", "sha256", "layout", "approval_record_id"];
-    public static ValidatedCatalog Parse(ReadOnlyMemory<byte> bytes, DateTimeOffset now, CatalogPolicy policy, long? minimumRevision = null)
+    public static ValidatedCatalog Parse(ReadOnlyMemory<byte> bytes, DateTimeOffset now, CatalogPolicy policy, long? minimumRevision = null, string channel = "prototype")
     {
+        if (channel is not ("prototype" or "beta-notice")) throw new ArgumentException("Unsupported channel");
         if (policy.MaximumBytes <= 0 || policy.MaximumRecords <= 0 || policy.MaximumAge <= TimeSpan.Zero || policy.MaximumLifetime <= TimeSpan.Zero || minimumRevision is <= 0)
             throw new ArgumentOutOfRangeException(nameof(policy));
         if (bytes.Length > policy.MaximumBytes) throw Bad("Response byte limit.");
@@ -35,7 +36,7 @@ public static class ApprovedCatalogContract
         {
             using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
             var root = document.RootElement; Fields(root, EnvelopeFields);
-            if (Integer(root, "schema") != 1 || Text(root, "channel", 16) != "prototype") throw Bad("Unsupported schema/channel.");
+            if (Integer(root, "schema") != 1 || Text(root, "channel", 16) != channel) throw Bad("Unsupported schema/channel.");
             var revision = Integer(root, "revision");
             if (minimumRevision is long minimum && revision < minimum) throw Bad("Revision rollback.");
             var generated = Utc(root, "generated_utc"); var expires = Utc(root, "expires_utc");
@@ -49,7 +50,7 @@ public static class ApprovedCatalogContract
                 Fields(element, RecordFields);
                 var version = Text(element, "version", 64); var parsed = UpdateVersion.Parse(version);
                 var tag = Text(element, "tag", 65);
-                if (parsed?.Prototype is null || tag != "v" + version) throw Bad("Prototype version/tag mismatch.");
+                if ((channel == "prototype" ? parsed?.Prototype is null : parsed?.Beta is null) || tag != "v" + version) throw Bad("Channel version/tag mismatch.");
                 var commit = Text(element, "commit", 40); var hash = Text(element, "sha256", 64);
                 if (!Regex.IsMatch(commit, "\\A[0-9a-f]{40}\\z") || !Regex.IsMatch(hash, "\\A[0-9a-f]{64}\\z")) throw Bad("Commit/hash syntax.");
                 var releaseId = Integer(element, "release_id"); var assetId = Integer(element, "asset_id"); var size = Integer(element, "size");
@@ -58,7 +59,7 @@ public static class ApprovedCatalogContract
                 if (!versions.Add(version) || !assets.Add(assetId)) throw Bad("Duplicate version/asset identity.");
                 releases.Add(new(version, tag, commit, releaseId, assetId, asset, size, hash, layout, approval));
             }
-            return new(revision, generated, expires, releases.AsReadOnly());
+            return new(revision, generated, expires, releases.AsReadOnly(), channel);
         }
         catch (JsonException ex) { throw new InvalidDataException("Invalid catalog JSON.", ex); }
     }

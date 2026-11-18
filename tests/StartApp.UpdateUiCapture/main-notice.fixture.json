@@ -1,0 +1,12 @@
+{
+  "/git/ref/heads/main": "{\"ref\":\"refs/heads/main\",\"object\":{\"type\":\"commit\",\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+  "/git/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "{\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tree\":{\"sha\":\"cccccccccccccccccccccccccccccccccccccccc\"}}",
+  "/git/trees/cccccccccccccccccccccccccccccccccccccccc": "{\"sha\":\"cccccccccccccccccccccccccccccccccccccccc\",\"truncated\":false,\"tree\":[{\"path\":\".github\",\"mode\":\"040000\",\"type\":\"tree\",\"sha\":\"dddddddddddddddddddddddddddddddddddddddd\"}]}",
+  "/git/trees/dddddddddddddddddddddddddddddddddddddddd": "{\"sha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"truncated\":false,\"tree\":[{\"path\":\"release\",\"mode\":\"040000\",\"type\":\"tree\",\"sha\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\"}]}",
+  "/git/trees/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": "{\"sha\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"truncated\":false,\"tree\":[{\"path\":\"approved-beta-notice.json\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"47f1d2c4803ba863878eb3cb51e75097d9a266ce\"}]}",
+  "/git/blobs/47f1d2c4803ba863878eb3cb51e75097d9a266ce": "{\"sha\":\"47f1d2c4803ba863878eb3cb51e75097d9a266ce\",\"encoding\":\"base64\",\"size\":353,\"content\":\"eyJzY2hlbWEiOjEsImNoYW5uZWwiOiJiZXRhLW5vdGljZSIsImNhbmRpZGF0ZSI6eyJ2ZXJzaW9uIjoiMC4yLjAtYmV0YS4xIiwidGFnIjoidjAuMi4wLWJldGEuMSIsImNvbW1pdCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyZWxlYXNlX2lkIjoxLCJhc3NldF9pZCI6MiwiYXNzZXQiOiJTdGFydEFwcC13aW4teDY0LnppcCIsInNpemUiOjEwLCJzaGEyNTYiOiJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIiwibGF5b3V0IjoicG9ydGFibGUtdjEiLCJhcHByb3ZhbF9yZWNvcmRfaWQiOiJmaXh0dXJlLW9ubHkifX0=\"}",
+  "/releases/1": "{\"id\":1,\"draft\":false,\"prerelease\":true,\"tag_name\":\"v0.2.0-beta.1\",\"published_at\":\"2026-11-18T08:00:00Z\",\"assets\":[]}",
+  "/releases/assets/2": "{\"id\":2,\"name\":\"StartApp-win-x64.zip\",\"size\":10,\"state\":\"uploaded\",\"browser_download_url\":\"https://github.com/my-sochen/Start-app/releases/download/v0.2.0-beta.1/StartApp-win-x64.zip\"}",
+  "/releases/1/assets?per_page=100&page=1": "[{\"id\":2,\"name\":\"StartApp-win-x64.zip\",\"size\":10,\"state\":\"uploaded\",\"browser_download_url\":\"https://github.com/my-sochen/Start-app/releases/download/v0.2.0-beta.1/StartApp-win-x64.zip\"}]",
+  "/git/ref/tags/v0.2.0-beta.1": "{\"ref\":\"refs/tags/v0.2.0-beta.1\",\"object\":{\"type\":\"commit\",\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}"
+}
