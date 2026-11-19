@@ -1,0 +1,51 @@
+name: current-app-planning-images
+on:
+  push:
+    branches: [feat/current-app-planning-images-nov19]
+permissions:
+  contents: read
+concurrency:
+  group: current-app-planning-images-nov19
+  cancel-in-progress: false
+jobs:
+  capture:
+    if: github.event.repository.private == false && github.repository == 'my-sochen/Start-app'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      APP_SOURCE: 1f69483f9b3e482a138871c6196140f596d227f1
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind current app source and refuse product modifications
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -cne $env:GITHUB_SHA) { throw 'Checkout mismatch' }
+          git diff --exit-code $env:APP_SOURCE HEAD -- src
+          if ($LASTEXITCODE -ne 0) { throw 'Product source differs from intended current DEV' }
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build normal current app, no tests or publish
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Open actual app and capture three planning views
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .github/e2e/planning-current-ui.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save only current app images and source identity
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: current-app-planning-images
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            planning-images/*.png
+            planning-images/source-identity.json
