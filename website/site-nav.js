@@ -139,7 +139,8 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
       if (!focusEl.hasAttribute("tabindex")) focusEl.setAttribute("tabindex", "-1");
       focusEl.focus({ preventScroll: true });
     }
-    announce(tr("נטען: ") + document.title);
+    var pageHeading = document.querySelector("main h1");
+    announce(tr("נטען: ") + (pageHeading ? pageHeading.textContent.trim().replace(/\s+/g, " ") : document.title));
   }
 
   function flushScroll() {
