@@ -206,11 +206,11 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
     sections: document.querySelectorAll("[data-doc]").length, status: document.getElementById("search-status").textContent,
   }));
   ok(s.marker === 42, pre + ": home to guide did NOT reload the document");
-  ok(s.title.startsWith("מדריך למשתמש"), pre + ": title updated");
+  ok(s.title === "start app", pre + ": title updated");
   ok(s.focus === "H1" && s.focusText.includes("מדריך"), pre + ": focus moved to the new page heading");
   await sleep(150);
   s.ann = await page.evaluate(() => document.getElementById("route-announcer").textContent);
-  ok(s.ann.includes("מדריך למשתמש"), pre + ": polite announcement of the new page");
+  ok(s.ann.includes("מדריך Start-app"), pre + ": polite announcement of the new page");
   ok(s.cur.length === 1 && s.cur[0] === "docs.html", pre + ": aria-current moved to the guide");
   ok(s.sections === 12 && s.status.includes("12"), pre + ": guide initialized (12 chapters, search status)");
   ok(s.y === 0, pre + ": scrolled to top on forward navigation");
@@ -237,7 +237,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await sleep(400);
   s = await page.evaluate(() => ({ marker: window.__marker, y: scrollY, title: document.title }));
-  ok(s.marker === 42 && s.title.startsWith("מדריך"), pre + ": Back returns to guide without reload, title restored");
+  ok(s.marker === 42 && s.title === "start app", pre + ": Back returns to guide without reload, title restored");
   ok(Math.abs(s.y - y1) < 40, pre + ": Back restores scroll position (" + s.y + " vs " + y1 + ")");
   await page.goForward();
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
