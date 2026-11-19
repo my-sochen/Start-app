@@ -4,57 +4,302 @@
 # PROTOTYPE_RELEASE_ENABLE=true.
 # Design: .github/release/POINTER-WORKFLOW-DESIGN.md (guarantees AND limits).
 #
-# Trigger model (activated design, per author design addendum and reviewer
-# precision; every run still requires the owner's environments and variable):
+# Trampoline redesign (option A, candidate for review - see CHANGE-NOTES.md):
+# release events never deploy directly. A release event runs ONLY the tiny
+# `dispatch` job, which dispatches THIS workflow on the default branch as a
+# workflow_dispatch child and reports that child's result. Only the child runs
+# the `update-pointer` writer job, which holds the pages lock THROUGH
+# served-identity verification. A release-event parent therefore never holds
+# the pages lock while waiting (job-level concurrency, not workflow-level).
+#
+# Trigger model (activated design, unchanged event coverage):
 # - release: [published, unpublished, edited, deleted] - fires ONLY on the
 #   owner's own release actions: publish, withdraw-to-draft, edit, delete.
-#   Every one of them re-runs the selector, so withdrawal/rollback reconciles
-#   automatically to the next-highest qualifying build or the safe "none"
-#   document. No schedule, no push/merge trigger, no recurring watcher.
-# - workflow_dispatch - manual reconciliation and the bootstrap first deploy.
+#   Every one of them dispatches a child that re-runs the selector, so
+#   withdrawal/rollback reconciles automatically to the next-highest
+#   qualifying build or the safe "none" document. No schedule, no push/merge
+#   trigger, no recurring watcher.
+# - workflow_dispatch - the sole writer entry: manual reconciliation, the
+#   bootstrap first deploy, and every trampoline child.
 name: release-pointer-update
 on:
   workflow_dispatch:
+    inputs:
+      correlation:
+        description: "Parent-run correlation token, set by the release dispatcher; empty for manual runs"
+        required: false
+        type: string
+        default: ""
   release:
     types: [published, unpublished, edited, deleted]
 
 permissions: {}
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
+# The correlation token is embedded in the child's run name so the parent can
+# bind its exact child by listing recent dispatch runs; manual runs carry an
+# empty token. No other workflow behavior depends on the name.
+run-name: "pointer-update ${{ github.event_name }} corr=${{ inputs.correlation }}"
 
 jobs:
-  update-pointer:
-    # Guard: only that the prototype channel is owner-enabled. The release
-    # payload is deliberately NOT filtered by prerelease/tag shape: the
-    # selector re-evaluates the whole CURRENT published set, and a release
-    # EDITED out of the channel (prerelease cleared, tag changed) must still
-    # trigger reconciliation - filtering on the changed release's new shape
-    # would skip that run and strand a stale pointer. Manual dispatch is the
-    # same reconciliation path (bootstrap, asset-level changes).
-    if: vars.PROTOTYPE_RELEASE_ENABLE == 'true'
+  dispatch:
+    # Release events only. Same enablement guard as the writer: a release
+    # EDITED out of the channel must still dispatch reconciliation, so the
+    # guard is the enable variable and nothing about the release's shape.
+    if: vars.PROTOTYPE_RELEASE_ENABLE == 'true' && github.event_name == 'release'
     runs-on: ubuntu-latest
+    # Bounded SHORT wait (v2). Budget accounting against the hosted-runner
+    # 6h (360 min) job cap, which the v1 375 min value exceeded: runner
+    # start/setup is not controlled by this script and is covered by the
+    # slack below; correlation <= LOOKUP_BOUND_SECONDS (120) + one API call
+    # (30); binding read + identity freeze <= one API call (30); child wait
+    # <= PARENT_WAIT_SECONDS (1800) + one API call (30); final job inspection
+    # <= 2 API calls (60). Worst case ~2.3k s (~38 min),
+    # so 45 min is the hard cap that also covers setup. Far below 360 min, so
+    # the cap can always be honored. A child that outlives the wait (for
+    # example one paused on the github-pages environment reviewer) ends this
+    # parent as a loud PENDING failure; the child is NOT canceled and keeps
+    # running on its own.
+    # Cost: one hosted runner is held for up to 45 min per release event
+    # (four event types); on private repositories that is billable runner
+    # time, on public ones it uses concurrent-job capacity. Parents are not
+    # serialized with each other (only the writer job holds the pages lock).
+    timeout-minutes: 45
+    # Least privilege: dispatch + read of run state only. No checkout, no
+    # contents, no pages/OIDC grants, no environment.
+    permissions:
+      actions: write
+    env:
+      CORRELATION: ${{ github.run_id }}-${{ github.run_attempt }}
+      PARENT_WAIT_SECONDS: "1800"
+      LOOKUP_BOUND_SECONDS: "120"
+      LOOKUP_SLEEP_SECONDS: "10"
+      API_TIMEOUT_SECONDS: "30"
+      POLL_SECONDS: "30"
+      DEPLOY_STEP_NAME: "Deploy to GitHub Pages"
+      VERIFY_STEP_NAME: "Verify served identity matches staged bytes (bounded, no redeploy)"
+    steps:
+      - name: Dispatch pinned child run, bind it exactly, report its writer+verifier outcome
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          WF="release-pointer-update.yml"
+          WF_PATH=".github/workflows/$WF"
+          API="repos/$GITHUB_REPOSITORY/actions/workflows/$WF"
+          SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          # Every API call is individually time-bounded (gh has no timeout).
+          ghq() { timeout "$API_TIMEOUT_SECONDS" gh api "$@"; }
+          case "$CORRELATION" in ''|*[!0-9-]*) echo "::error::malformed correlation token"; exit 1;; esac
+          # The child's run-name is "pointer-update <event_name> corr=<token>";
+          # a child is always a workflow_dispatch run. The REST field that
+          # carries the evaluated run-name is display_title ("name" is the
+          # WORKFLOW name and must not be used).
+          EXPECTED_TITLE="pointer-update workflow_dispatch corr=$CORRELATION"
+          echo "parent run $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT; release event '${EVENT_ACTION}' tag '${EVENT_TAG:-n/a}'; correlation=$CORRELATION"
+          # Read-only: resolve the fixed workflow's numeric id and path.
+          WF_JSON="$(ghq "$API")" || { echo "::error::cannot read workflow metadata; nothing was dispatched"; exit 1; }
+          WF_ID="$(printf '%s' "$WF_JSON" | jq -r 'select(.path == "'"$WF_PATH"'") | .id | if type == "number" and . > 0 and . == floor then tostring else empty end')"
+          case "$WF_ID" in ''|*[!0-9]*) echo "::error::workflow metadata did not validate (id/path); nothing was dispatched"; exit 1;; esac
+          NOW="$(date +%s)"
+          SINCE=$(( NOW - 120 ))      # allowance for runner/server clock skew; the token is the identity
+          # Exact binding of a run object to what this parent dispatched:
+          # repo, workflow id, event, default-branch ref, exact display_title,
+          # first attempt, creation time window, numeric id.
+          BIND='(.id | type == "number" and . > 0 and . == floor)
+            and .repository.full_name == $repo
+            and .workflow_id == ($wfid | tonumber)
+            and .event == "workflow_dispatch"
+            and .head_branch == $branch
+            and .display_title == $title
+            and .run_attempt == 1
+            and ((.created_at | fromdateiso8601) >= ($from | tonumber))
+            and ((.created_at | fromdateiso8601) <= (($upto | tonumber) + 300))'
+          bind_args=(--arg repo "$GITHUB_REPOSITORY" --arg wfid "$WF_ID" --arg branch "$DEFAULT_BRANCH" --arg title "$EXPECTED_TITLE" --arg from "$SINCE")
+          DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # ONE dispatch POST, never repeated. A POST error is terminal: no
+          # silent fallback, because the child may or may not exist (a timeout
+          # can still have created it); the owner must look, delivery NOT presumed.
+          # Documented REST behavior may return 200 with workflow_run_id or 204
+          # with an empty body; both are handled. gh client behavior must be
+          # confirmed at integration time.
+          if ! RESP="$(ghq "$API/dispatches" -X POST -f ref="$DEFAULT_BRANCH" -f "inputs[correlation]=$CORRELATION")"; then
+            echo "::error::dispatch POST failed; NOT retried; a child may or may not exist; delivery NOT presumed (look for display_title '$EXPECTED_TITLE')"
+            exit 1
+          fi
+          CHILD_ID=""
+          if [ -n "$RESP" ]; then
+            if ! CHILD_ID="$(printf '%s' "$RESP" | jq -r 'if type == "object" and has("workflow_run_id") then (.workflow_run_id | tostring) else "" end')"; then
+              echo "dispatch response was not JSON; using exact lookup"
+              CHILD_ID=""
+            fi
+          fi
+          if [ -n "$CHILD_ID" ]; then
+            case "$CHILD_ID" in
+              [1-9]*) case "$CHILD_ID" in *[!0-9]*) echo "::error::returned child id is not numeric; refusing"; exit 1;; esac ;;
+              *) echo "::error::returned child id is not numeric; refusing"; exit 1 ;;
+            esac
+            [ "${#CHILD_ID}" -le 18 ] || { echo "::error::returned child id out of range; refusing"; exit 1; }
+            RUN_JSON="$(ghq "repos/$GITHUB_REPOSITORY/actions/runs/$CHILD_ID")" || { echo "::error::cannot read returned child run $CHILD_ID"; exit 1; }
+            if ! printf '%s' "$RUN_JSON" | jq -e "${bind_args[@]}" --arg upto "$(date +%s)" "$BIND" > /dev/null; then
+              echo "::error::returned child run $CHILD_ID does not match the expected repo/workflow/event/ref/title/time/attempt; refusing"
+              exit 1
+            fi
+          else
+            # Unique exact lookup, bounded by an absolute clock, never repeats the POST.
+            LOOKUP_END=$(( SECONDS + LOOKUP_BOUND_SECONDS ))
+            while :; do
+              sleep "$LOOKUP_SLEEP_SECONDS"
+              if LIST="$(ghq "$API/runs?event=workflow_dispatch&branch=$DEFAULT_BRANCH&created=%3E%3D${DISPATCHED_AT}&per_page=100")"; then
+                if ! printf '%s' "$LIST" | jq -e '(.workflow_runs | length) == .total_count' > /dev/null; then
+                  echo "::error::run listing is truncated or malformed; uniqueness cannot be established; delivery NOT presumed"
+                  exit 1
+                fi
+                IDS="$(printf '%s' "$LIST" | jq -r "${bind_args[@]}" --arg upto "$(date +%s)" '.workflow_runs[] | select('"$BIND"') | .id')"
+                N="$(printf '%s' "$IDS" | grep -c . || true)"
+                if [ "$N" -gt 1 ]; then
+                  echo "::error::$N runs match the exact display_title; ambiguous; refusing to guess; delivery NOT presumed"
+                  exit 1
+                fi
+                if [ "$N" -eq 1 ]; then CHILD_ID="$IDS"; break; fi
+              else
+                echo "run listing call failed; will retry within the lookup bound"
+              fi
+              if [ "$SECONDS" -ge "$LOOKUP_END" ]; then
+                echo "::error::dispatched child could not be uniquely correlated within ${LOOKUP_BOUND_SECONDS}s; delivery NOT presumed"
+                exit 1
+              fi
+            done
+            case "$CHILD_ID" in ''|*[!0-9]*) echo "::error::looked-up child id is not numeric; refusing"; exit 1;; esac
+            RUN_JSON="$(ghq "repos/$GITHUB_REPOSITORY/actions/runs/$CHILD_ID")" || { echo "::error::cannot read looked-up child run $CHILD_ID"; exit 1; }
+            if ! printf '%s' "$RUN_JSON" | jq -e "${bind_args[@]}" --arg upto "$(date +%s)" "$BIND" > /dev/null; then
+              echo "::error::looked-up child run $CHILD_ID does not match the expected repo/workflow/event/ref/title/time/attempt; refusing"
+              exit 1
+            fi
+          fi
+          # Freeze the bound child's complete identity from the run object just
+          # validated. Head policy: the bound head_sha is captured HERE, at
+          # binding, not compared against the parent's release tag SHA - the
+          # default branch may legitimately move before the child starts, so
+          # the authorized identity is whatever attempt 1 of the exactly-bound
+          # run carried at bind time. Any later change to any frozen field is
+          # drift: this run id no longer denotes the delivery this parent made.
+          BOUND_ATTEMPT="$(printf '%s' "$RUN_JSON" | jq -r '.run_attempt | if . == 1 then "1" else empty end')"
+          BOUND_SHA="$(printf '%s' "$RUN_JSON" | jq -r '.head_sha | if type == "string" and test("^[0-9a-f]{40}$") then . else empty end')"
+          BOUND_CREATED="$(printf '%s' "$RUN_JSON" | jq -r '.created_at | if type == "string" and . != "" then . else empty end')"
+          if [ -z "$BOUND_ATTEMPT" ] || [ -z "$BOUND_SHA" ] || [ -z "$BOUND_CREATED" ]; then
+            echo "::error::bound child run $CHILD_ID lacks a complete identity (attempt/head_sha/created_at); refusing to track it"
+            exit 1
+          fi
+          # Revalidation applied to EVERY later status response for this id:
+          # the same numeric id can come to name a DIFFERENT attempt (a rerun
+          # reports the new attempt under the old id). Same id is not same run.
+          DRIFT='(.id | tostring) == $id
+            and .repository.full_name == $repo
+            and .workflow_id == ($wfid | tonumber)
+            and .event == "workflow_dispatch"
+            and .head_branch == $branch
+            and .display_title == $title
+            and (.run_attempt | tostring) == $attempt
+            and .head_sha == $sha
+            and .created_at == $created'
+          drift_args=(--arg id "$CHILD_ID" --arg repo "$GITHUB_REPOSITORY" --arg wfid "$WF_ID" --arg branch "$DEFAULT_BRANCH"
+                      --arg title "$EXPECTED_TITLE" --arg attempt "$BOUND_ATTEMPT" --arg sha "$BOUND_SHA" --arg created "$BOUND_CREATED")
+          CHILD_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$CHILD_ID"
+          {
+            echo "### Release trampoline correlation"
+            echo "- parent: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "- event: release ${EVENT_ACTION} ${EVENT_TAG:-}"
+            echo "- correlation: $CORRELATION"
+            echo "- child: $CHILD_URL"
+          } >> "$SUMMARY"
+          echo "bound child run: $CHILD_ID $CHILD_URL"
+          echo "frozen child identity: attempt $BOUND_ATTEMPT sha $BOUND_SHA created $BOUND_CREATED"
+          # Absolute wait deadline on the shell clock (request times included).
+          WAIT_END=$(( SECONDS + PARENT_WAIT_SECONDS ))
+          while :; do
+            STATUS="unknown"; CONCLUSION="-"
+            if RUN_JSON="$(ghq "repos/$GITHUB_REPOSITORY/actions/runs/$CHILD_ID")"; then
+              # Revalidate the COMPLETE frozen binding on EVERY status response
+              # before any field is trusted: attempt, title, ref, head_sha,
+              # created_at, repo, workflow, event. A rerun presents a new
+              # attempt under the same id; accepting it would let a rerun
+              # masquerade as the original delivery. Fail visibly, never
+              # cancel, redispatch or rerun.
+              if ! printf '%s' "$RUN_JSON" | jq -e "${drift_args[@]}" "$DRIFT" > /dev/null; then
+                echo "::error::child run identity changed after binding: the run now served under id $CHILD_ID is NOT the attempt this parent dispatched (attempt/title/ref/head/created drift); a rerun or replacement is not the original delivery; delivery NOT presumed; child: $CHILD_URL"
+                echo "- RESULT: IDENTITY DRIFT (bound attempt superseded or replaced): $CHILD_URL" >> "$SUMMARY"
+                exit 1
+              fi
+              read -r STATUS CONCLUSION < <(printf '%s' "$RUN_JSON" | jq -r '(.status // "unknown") + " " + (.conclusion // "-")')
+            else
+              echo "child status call failed; will retry until the wait deadline"
+            fi
+            if [ "$STATUS" = "completed" ]; then
+              # Evidence is pinned to the EXACT bound attempt, never the
+              # latest attempt: a rerun's jobs are not this delivery's jobs.
+              JOBS="$(ghq "repos/$GITHUB_REPOSITORY/actions/runs/$CHILD_ID/attempts/$BOUND_ATTEMPT/jobs?per_page=100")" || JOBS='{}'
+              printf '%s' "$JOBS" | jq -r '(.jobs // [])[] | "- job \(.name): \(.conclusion // "-")"' >> "$SUMMARY" || true
+              if [ "$CONCLUSION" != "success" ]; then
+                # failure / cancelled / timed_out / skipped: loud, never presumed.
+                echo "::error::child run concluded '$CONCLUSION'; delivery NOT presumed; child: $CHILD_URL"
+                exit 1
+              fi
+              # Run conclusion alone is NOT proof: a skipped writer (for example
+              # the enablement guard) can still yield a successful run. Require
+              # exactly one writer job that succeeded, with the deploy step and
+              # the served-identity verifier step each succeeded.
+              if printf '%s' "$JOBS" | jq -e --arg d "$DEPLOY_STEP_NAME" --arg v "$VERIFY_STEP_NAME" '
+                  (.jobs | length) == .total_count
+                  and ([.jobs[] | select(.name == "update-pointer")] | length) == 1
+                  and ([.jobs[] | select(.name == "update-pointer")][0]
+                       | .conclusion == "success"
+                         and ([.steps[] | select(.name == $d and .conclusion == "success")] | length) == 1
+                         and ([.steps[] | select(.name == $v and .conclusion == "success")] | length) == 1)' > /dev/null; then
+                echo "child completed: writer job update-pointer, deploy step and served-identity verify step all succeeded"
+                echo "- RESULT: writer + deploy + verify succeeded" >> "$SUMMARY"
+                exit 0
+              fi
+              echo "::error::child run concluded success but the writer/deploy/verify job evidence is missing (writer skipped or steps not successful); delivery NOT presumed; child: $CHILD_URL"
+              echo "- RESULT: NO writer/verify evidence" >> "$SUMMARY"
+              exit 1
+            fi
+            if [ "$SECONDS" -ge "$WAIT_END" ]; then
+              echo "::error::PENDING: child still '$STATUS' after the ${PARENT_WAIT_SECONDS}s bounded wait; delivery NOT presumed; this parent did NOT cancel it and it may still run to completion on its own (possibly waiting for environment approval); check $CHILD_URL"
+              echo "- RESULT: PENDING (child not canceled by this parent): $CHILD_URL" >> "$SUMMARY"
+              exit 1
+            fi
+            sleep "$POLL_SECONDS"
+          done
+
+  update-pointer:
+    # Writer entry: workflow_dispatch ONLY (manual reconciliation, bootstrap,
+    # and trampoline children). Guard unchanged: enable variable only, never
+    # the triggering release's shape. Release events never reach this job.
+    if: vars.PROTOTYPE_RELEASE_ENABLE == 'true' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Finite writer budget includes collection/build/deploy and the 20-minute
+    # verifier step backstop. Environment approval remains an owner gate.
+    timeout-minutes: 35
     # deploy-pages convention (auto-created if absent). Protection policy is
-    # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver":
-    # recommended baseline there is the OWNER as required reviewer with
-    # prevent-self-review OFF. Deployment-branch restriction to the default
-    # branch is NOT the coherent mechanism here: release-event runs deploy
-    # from the tag ref, so a main-only restriction would block them.
+    # the owner's choice - see POINTER-WORKFLOW-DESIGN.md "Actor / approver".
     environment: github-pages
+    # Single-writer serialization moved from workflow level to THIS job, and
+    # held through served-identity verification: inventory is collected after
+    # the lock is acquired, no second writer can deploy mid-verification, and
+    # release-event parents never hold the lock while waiting for a child.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       contents: read      # checkout
       pages: write        # deploy-pages
       id-token: write     # deploy-pages OIDC
     steps:
       # Trusted reviewed source ONLY: always the default branch, never the
-      # release event's tag/sha. On a release event GITHUB_SHA is the tagged
-      # commit - a bare checkout would let an OLD release roll the website
-      # BACK, and a DELETED tag would fail checkout entirely and block the
-      # withdrawal reconciliation it was meant to run. The workflow file
-      # itself also runs from the default branch on release events; this pins
-      # the site+selector provenance to that same reviewed source. No
-      # gh-pages branch, no second writer.
+      # triggering ref. Unchanged from the pre-trampoline workflow.
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
@@ -66,8 +311,38 @@ jobs:
       # failure) stops the job BEFORE deployment: the previously deployed
       # site+pointer stays live untouched. A "no qualifying candidate" result
       # is NOT a failure - it deploys the safe disabled-download document.
+      - name: Freeze staged identity bytes before upload
+        run: |
+          set -euo pipefail
+          mkdir -p .served-expected
+          cp _site/pointer.json .served-expected/pointer.json
+          cp _site/downloads.json .served-expected/downloads.json
+          sha256sum _site/pointer.json _site/downloads.json | tee .served-expected/SHA256SUMS
+      # Expected served bytes are the STAGED files, frozen here. They are
+      # never regenerated at verify time (pointer.json carries generated_utc;
+      # a fresh render would never match what was deployed).
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - uses: actions/deploy-pages@v4
+      - id: deploy
+        name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+      # Post-deploy served-identity verification runs INSIDE the pages lock.
+      # Mismatch fails loudly (job failure, no redeploy); a legitimate later
+      # generation cannot interleave because the lock is still held here.
+      - name: Verify served identity matches staged bytes (bounded, no redeploy)
+        # Hard backstop above the verifier's own absolute deadline (900s) plus
+        # one request and the SIGALRM grace; covers DNS stalls a socket timeout
+        # cannot.
+        timeout-minutes: 20
+        env:
+          VERIFY_BASE_URL: ${{ steps.deploy.outputs.page_url }}
+          VERIFY_INTERVAL_SECONDS: "60"
+          VERIFY_DEADLINE_SECONDS: "900"
+        run: >-
+          python3 .github/release/verify_served.py
+          --base-url "$VERIFY_BASE_URL"
+          --expected .served-expected
+          --interval "$VERIFY_INTERVAL_SECONDS"
+          --deadline "$VERIFY_DEADLINE_SECONDS"
