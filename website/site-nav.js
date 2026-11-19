@@ -264,12 +264,18 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   }
   if ("ResizeObserver" in window) {
     var ro = new ResizeObserver(publish);
-    var watch = function () { var el = bar(); if (el) { try { ro.unobserve(el); } catch (e) {} ro.observe(el); } };
-    watch();
-    document.addEventListener("DOMContentLoaded", watch);
+    // The <header> element persists across client-side page swaps (it is
+    // reparented in and out of .pinned-top, never recreated). Observing the
+    // wrapper instead goes stale on the detached node after Guide->Home, and
+    // the returned Guide gets a NEW wrapper the observer never saw - the
+    // variable then keeps a pre-swap height and the dock slips under the
+    // real bar. publish() always measures the CURRENT bar.
+    var header = document.querySelector("header");
+    if (header) ro.observe(header);
   }
   window.addEventListener("resize", publish, { passive: true });
   window.addEventListener("load", publish);
+  window.addEventListener("popstate", publish);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(publish);
   document.addEventListener("DOMContentLoaded", publish);
   publish();
