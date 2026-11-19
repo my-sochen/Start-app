@@ -236,14 +236,14 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.goBack();
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await sleep(400);
-  s = await page.evaluate(() => ({ marker: window.__marker, y: scrollY, title: document.title }));
-  ok(s.marker === 42 && s.title === "start app", pre + ": Back returns to guide without reload, title restored");
+  s = await page.evaluate(() => ({ marker: window.__marker, y: scrollY, title: document.title, page: document.body.dataset.page, sections: document.querySelectorAll("[data-doc]").length }));
+  ok(s.marker === 42 && s.title === "start app" && s.page === "docs.html" && s.sections === 12, pre + ": Back returns to guide without reload, title restored");
   ok(Math.abs(s.y - y1) < 40, pre + ": Back restores scroll position (" + s.y + " vs " + y1 + ")");
   await page.goForward();
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await sleep(300);
-  s = await page.evaluate(() => ({ marker: window.__marker, hasHero: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title }));
-  ok(s.marker === 42 && s.hasHero && !s.t.startsWith("מדריך"), pre + ": Forward returns home without reload");
+  s = await page.evaluate(() => ({ marker: window.__marker, hasHero: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title, page: document.body.dataset.page, sections: document.querySelectorAll("[data-doc]").length }));
+  ok(s.marker === 42 && s.hasHero && s.t === "start app" && s.page === "index.html" && s.sections === 0, pre + ": Forward returns home without reload");
   // modifier click is NOT intercepted (new-tab semantics preserved)
   const prevented = await page.evaluate(() => {
     const a = document.querySelector('header nav a[href="docs.html"]');
@@ -351,8 +351,8 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   await sleep(300);
   await page.evaluate(() => document.querySelector('header .brand').click());
   await sleep(2500);
-  const s = await page.evaluate(() => ({ p: location.pathname, m: window.__m, home: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title }));
-  ok(!s.p.endsWith("/docs.html") && s.home && s.m === 5 && !s.t.startsWith("מדריך"), "Home click during delayed guide fetch is not overridden by the late guide");
+  const s = await page.evaluate(() => ({ p: location.pathname, m: window.__m, home: !!document.querySelector(".download-direct, .hero-download-button"), t: document.title, page: document.body.dataset.page, sections: document.querySelectorAll("[data-doc]").length }));
+  ok(!s.p.endsWith("/docs.html") && s.home && s.m === 5 && s.t === "start app" && s.page === "index.html" && s.sections === 0, "Home click during delayed guide fetch is not overridden by the late guide");
   await page.close();
 }
 {
