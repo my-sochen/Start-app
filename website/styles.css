@@ -364,12 +364,16 @@ body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -72
 
 /* Owner feedback (Nov 19), desktop guide: the chapter list must scroll on its
  * own wherever the main page is, not only after the page reaches a boundary.
- * The sticky sidebar is capped to the viewport below the pinned header (97px,
- * the measured header clearance used for scroll-padding) and becomes its own
- * scroll container; the aside is focusable (tabindex) so keyboard users can
- * scroll it too. Mobile keeps the static inline chapter list. */
+ * The sticky sidebar becomes its own viewport-capped scroll container; the
+ * aside is focusable (tabindex) so keyboard users can scroll it too. Mobile
+ * keeps the static inline chapter list.
+ * Clearance follow-up (Nov 19): the pinned header is taller than the base
+ * 85px when the nav wraps (narrow widths) or text is enlarged, and a fixed
+ * offset docked the list's top controls underneath it. The dock now follows
+ * the header's MEASURED height via --pinned-top-h, published from the live
+ * layout by site-nav.js; the fallback reproduces the base 85px header. */
 @media (min-width: 701px) {
-  .sidebar { top: 97px; max-height: calc(100vh - 117px); overflow-y: auto; }
+  .sidebar { top: calc(var(--pinned-top-h, 85px) + 12px); max-height: calc(100vh - var(--pinned-top-h, 85px) - 32px); overflow-y: auto; }
 }
 .sidebar:focus-visible { outline: 3px solid #975016; outline-offset: 3px; }
 

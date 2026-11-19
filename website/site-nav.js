@@ -249,3 +249,28 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   else if (motion.addListener) motion.addListener(requestUpdate);
   update();
 })();
+
+/* Adaptive clearance for the desktop guide chapter list: the pinned header's
+ * real height varies (nav wrapping on narrow widths, enlarged text, native
+ * zoom), and a fixed offset can dock the list's top under it. Measure the
+ * pinned bar and publish --pinned-top-h; styles.css docks the sidebar below
+ * it. Fallback in CSS reproduces the base 85px header when JS is off. */
+(function () {
+  "use strict";
+  function bar() { return document.querySelector(".pinned-top") || document.querySelector("header"); }
+  function publish() {
+    var el = bar();
+    if (el) document.body.style.setProperty("--pinned-top-h", el.getBoundingClientRect().height + "px");
+  }
+  if ("ResizeObserver" in window) {
+    var ro = new ResizeObserver(publish);
+    var watch = function () { var el = bar(); if (el) { try { ro.unobserve(el); } catch (e) {} ro.observe(el); } };
+    watch();
+    document.addEventListener("DOMContentLoaded", watch);
+  }
+  window.addEventListener("resize", publish, { passive: true });
+  window.addEventListener("load", publish);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(publish);
+  document.addEventListener("DOMContentLoaded", publish);
+  publish();
+})();
