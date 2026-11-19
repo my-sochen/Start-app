@@ -1,0 +1,50 @@
+# Read-only targeted release-source tests. No writer dispatch or Pages effects.
+name: pages-remedy-tests
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - '.github/workflows/pages-remedy-tests.yml'
+      - '.github/workflows/release-pointer-update.yml'
+      - '.github/release/**'
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      EXPECTED_REPOSITORY: my-sochen/Start-app
+      ACTUAL_REPOSITORY: ${{ github.repository }}
+      IS_PRIVATE: ${{ github.event.repository.private }}
+    steps:
+      - name: Require the intended public repository and candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$IS_PRIVATE" = "false" ] || { echo 'Private or unknown repository: refusing paid fallback'; exit 1; }
+          [ "$ACTUAL_REPOSITORY" = "$EXPECTED_REPOSITORY" ] || { echo 'Unexpected repository'; exit 1; }
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid head SHA'; exit 1; }
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Bind exact head and check test prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse HEAD)" = "$EXPECTED_HEAD" ] || { echo 'Checkout/head mismatch'; exit 1; }
+          git show -s --format='head=%H tree=%T' HEAD
+          python3 --version
+          bash --version | head -n 1
+          jq --version
+          timeout --version | head -n 1
+      - name: Install the pinned test parser
+        shell: bash
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
+      - name: Run targeted offline release tests, not a deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s .github/release/tests -v
