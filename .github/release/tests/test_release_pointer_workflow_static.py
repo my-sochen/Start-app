@@ -93,7 +93,7 @@ class DeployShapeTests(unittest.TestCase):
         steps = WRITER["steps"]
         uses = [str(s.get("uses", "")) for s in steps]
         run_steps = [s["run"] for s in steps if "run" in s]
-        self.assertTrue(any("update_pointer.py" in r and "--website website" in r
+        self.assertTrue(any("update_pointer.py" in r and "--website .website-source" in r
                             and "--out _site" in r for r in run_steps))
         i_upload = next(i for i, u in enumerate(uses) if "upload-pages-artifact" in u)
         i_deploy = next(i for i, u in enumerate(uses) if "deploy-pages" in u)
