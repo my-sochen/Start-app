@@ -888,7 +888,20 @@ public sealed partial class MainViewModel : ObservableBase
         var detector = _detector is IOpenSnapshotSource ? new NoOpenStateDetection() : _detector;
         var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
         var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
-        var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = 0; // results[] is written by workers and read once at the deadline: both under gate
+        var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = false;
+        // Publication is also the fault-ownership handoff. Before it, Guard owns the
+        // error and OpenTask includes its delivery. Afterwards, report immediately:
+        // another worker or even a launch call may remain blocked indefinitely.
+        void ObserveFault(Exception error)
+        {
+            Exception? late = null;
+            lock (gate)
+            {
+                fault ??= error;
+                if (published && !reported) { reported = true; late = fault; }
+            }
+            if (late is not null) ReportLate(late);
+        }
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
             try { while (!stop.Token.IsCancellationRequested)
@@ -897,7 +910,7 @@ public sealed partial class MainViewModel : ObservableBase
                 try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, detector); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
                 { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
-                catch (Exception e) { Interlocked.CompareExchange(ref fault, e, null); stop.Cancel(); bool late; lock (gate) late = published; if (late && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(e); return; } // after the deadline nobody awaits this worker: report now, not when all workers finish // a programming bug is not "unavailable": stop and surface it
+                catch (Exception e) { ObserveFault(e); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
             } }
             finally { Interlocked.Decrement(ref _activeCheckWorkers); }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -909,17 +922,20 @@ public sealed partial class MainViewModel : ObservableBase
         }
         var all = Task.WhenAll(workers);
         await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
-        // Workers still running at the deadline are not awaited, but a fault they hit is still observed exactly once: either thrown here or reported through ReportLate.
-        _ = all.ContinueWith(t => { var late = Volatile.Read(ref fault) ?? t.Exception?.GetBaseException(); if (late != null && Interlocked.Exchange(ref reported, 1) == 0) ReportLate(late); }, TaskScheduler.Default);
+        // Observe infrastructure faults too, without competing for pre-publication
+        // error delivery. This fallback waits for all workers: only errors caught
+        // by a worker's Evaluate catch are guaranteed prompt late reporting.
+        _ = all.ContinueWith(t => ObserveFault(t.Exception!.GetBaseException()), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
-        lock (gate) { published = true; done = ((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[])results.Clone(); }
-        var f0 = Volatile.Read(ref fault);
-        if (f0 != null)
+        Exception? f0;
+        lock (gate)
         {
-            if (Interlocked.Exchange(ref reported, 1) == 0) ExceptionDispatchInfo.Capture(f0).Throw();
-            if (gen == _generation) { IsChecking = false; Status = "Open stopped by an unexpected error: " + f0.GetType().Name; } // already reported through ReportLate
-            return;
+            published = true;
+            done = ((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[])results.Clone();
+            f0 = fault;
+            if (f0 is not null) reported = true; // Guard owns delivery, including no-subscriber rethrow.
         }
+        if (f0 is not null) ExceptionDispatchInfo.Capture(f0).Throw();
         if (gen != _generation || token.IsCancellationRequested) return;
         stop.Cancel();
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
@@ -978,12 +994,17 @@ public sealed partial class MainViewModel : ObservableBase
         var gen = ++_generation; OpenTask = Guard(gen, LaunchAsync(plan, declined));
     }
 
-    /// <summary>The last unexpected error that arrived after its operation was already over (late worker fault) and had no <see cref="UnexpectedError"/> subscriber.</summary>
+    /// <summary>The last unexpected error from a worker after the preflight deadline publication, with no <see cref="UnexpectedError"/> subscriber.
+    /// Other work may still be active. Faults caught around Evaluate report without waiting for another worker or launch call;
+    /// infrastructure faults escaping that catch have a WhenAll fallback and may wait for the other workers.</summary>
     public Exception? LateError { get; private set; }
     private void ReportLate(Exception e) { var h = UnexpectedError; if (h is null) LateError = e; else h(e); }
 
     /// <summary>Raised for an unexpected (programming) error in an open operation, after the view model has reset its busy state and published what it knows.
-    /// The host decides how to surface it (the App rethrows it on the UI dispatcher so it is not silent). With no subscriber the error is rethrown into <see cref="OpenTask"/>.</summary>
+    /// The host decides how to surface it (the App rethrows it on the UI dispatcher so it is not silent). With no subscriber an operation error is rethrown into <see cref="OpenTask"/>.
+    /// Exception: an Evaluate fault caught by a worker after preflight publication is reported immediately, independently of OpenTask or any still-blocked work.
+    /// Infrastructure faults escaping the worker catch are observed only when all workers complete.
+    /// Such a late or stale report does not reset current busy state or overwrite another operation's results; with no subscriber it is stored in <see cref="LateError"/>.</summary>
     public event Action<Exception>? UnexpectedError;
 
     /// <summary>A fire-and-forget command must not leave a silently faulted task. Resets busy flags (only if this operation is still the current one),
