@@ -22,6 +22,31 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   var cache = {};
   var token = 0;
   var saveTimer = null;
+  // Latest scroll position a Back/Forward navigation restored whose page is
+  // still settling: post-swap the download CTA re-validates fail-closed, then
+  // its details panel un-hides, growing content above the restored spot, and
+  // scroll anchoring drifts it. The drift surfaces as scroll events, so the
+  // saved position is re-applied while this restore is pending. A pending
+  // restore ends at the first of three real events: this navigation's CTA
+  // render lifecycle settling ("startapp:download-settled" with this token),
+  // the user's first real scroll or focus input, or any newer navigation. One
+  // singleton - no timers, no accumulating listeners, no guessing when async
+  // work finishes.
+  var pendingRestore = null;
+  function noteUserScroll() { if (pendingRestore) pendingRestore.userScrolled = true; }
+  addEventListener("wheel", noteUserScroll, { passive: true });
+  addEventListener("touchmove", noteUserScroll, { passive: true });
+  addEventListener("keydown", function (e) {
+    if ([" ", "PageUp", "PageDown", "ArrowUp", "ArrowDown", "Home", "End"].indexOf(e.key) !== -1) noteUserScroll();
+  });
+  // Focus movement is navigation intent too: keyboard tabbing, assistive tech
+  // and programmatic focus must be allowed to scroll to the focused element
+  // even while a restore is pending. The router's own post-swap heading focus
+  // (preventScroll) is marked so it does not cancel its own restore.
+  var internalFocus = false;
+  document.addEventListener("focusin", function () {
+    if (!internalFocus) noteUserScroll();
+  });
   // Site directory (e.g. "/Start-app/"), taken once from the page that loaded
   // this script. A same-named file in another directory is not enhanced.
   var BASE = location.pathname.replace(/[^\/]*$/, "");
@@ -120,15 +145,19 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     if (languageMenu && nextLanguageMenu) copyChildren(nextLanguageMenu, languageMenu);
     setCurrentNav(page);
     document.body.setAttribute("data-page", page);
-    if (window.StartAppDownload) window.StartAppDownload.init();
     if (window.StartAppDocs) window.StartAppDocs.init();
   }
 
   function afterSwap(url, restoreY) {
     var u = new URL(url, location.href);
     var target = u.hash ? document.getElementById(decodeURIComponent(u.hash.slice(1))) : null;
+    pendingRestore = null;
     if (typeof restoreY === "number") {
       window.scrollTo({ top: restoreY, left: 0, behavior: "instant" });
+      // Only arm the correction when this page run will signal settlement;
+      // without the CTA lifecycle there is no async re-render to defend
+      // against and nothing would ever clear the pending state.
+      if (window.StartAppDownload) pendingRestore = { token: token, y: restoreY, userScrolled: false };
     } else if (target) {
       target.scrollIntoView({ behavior: "instant" });
     } else {
@@ -137,10 +166,21 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     var focusEl = target || document.querySelector("main h1");
     if (focusEl) {
       if (!focusEl.hasAttribute("tabindex")) focusEl.setAttribute("tabindex", "-1");
-      focusEl.focus({ preventScroll: true });
+      internalFocus = true;
+      try {
+        focusEl.focus({ preventScroll: true });
+      } finally {
+        internalFocus = false;
+      }
     }
     var pageHeading = document.querySelector("main h1");
     announce(tr("נטען: ") + (pageHeading ? pageHeading.textContent.trim().replace(/\s+/g, " ") : document.title));
+    // Re-validate the CTAs only after the swap's scroll/focus state (and any
+    // armed pending restore) exists: a terminal render path that settles
+    // synchronously (the missing-StartAppPointer fail-closed path) dispatches
+    // its settlement immediately, and it must find the restore already armed
+    // instead of being lost before it.
+    if (window.StartAppDownload) window.StartAppDownload.init(token);
   }
 
   function flushScroll() {
@@ -214,6 +254,25 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   window.addEventListener("scroll", function () {
     if (saveTimer === null) saveTimer = setTimeout(function () { saveTimer = null; history.replaceState({ y: window.scrollY }, ""); }, 120);
   }, { passive: true });
+
+  // While a restore is pending, re-apply its saved position whenever async
+  // post-swap growth (the CTA panel un-hide) drifts it via scroll anchoring.
+  window.addEventListener("scroll", function () {
+    if (!pendingRestore || pendingRestore.userScrolled || pendingRestore.token !== token) return;
+    if (Math.abs(window.scrollY - pendingRestore.y) <= 1) return;
+    window.scrollTo({ top: pendingRestore.y, left: 0, behavior: "instant" });
+  }, { passive: true });
+
+  // This navigation's CTA render lifecycle settled: no more async growth from
+  // this swap is coming, so the restore stops being defended. Later focus
+  // moves, hash navigation and programmatic scrolls are free again.
+  document.addEventListener("startapp:download-settled", function (e) {
+    if (!pendingRestore || !e.detail || e.detail.token !== pendingRestore.token || e.detail.token !== token) return;
+    if (!pendingRestore.userScrolled && Math.abs(window.scrollY - pendingRestore.y) > 1) {
+      window.scrollTo({ top: pendingRestore.y, left: 0, behavior: "instant" });
+    }
+    pendingRestore = null;
+  });
 
   document.body.setAttribute("data-page", currentPage() || "");
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
