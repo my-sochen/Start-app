@@ -379,3 +379,16 @@ body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -72
  * width alone (the SVG's intrinsic 1200x720 ratio) keeps its geometry constant
  * however tall the hero grows; overflow stays clipped as before. */
 .page-line-art img { height: auto; }
+
+/* OPTIONAL PREVIEW PROPOSAL (owner suggestion, Nov 19, via Yitzhak) - NOT an
+ * approved redesign, kept as a separable candidate for review: give the home
+ * page the guide's continuous fixed line-art backdrop instead of the dedicated
+ * hero illustration composition. Same tile, opacity and half-speed depth drift
+ * as the guide; the hero/top/bottom illustrations are hidden while this
+ * proposal is applied. Progressive enhancement: needs the same data-page
+ * marker the guide backdrop already relies on. */
+body[data-page="index.html"]::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+@media(max-width:700px){body[data-page="index.html"]::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body[data-page="index.html"]::before{transform:none!important}}
+@media print{body[data-page="index.html"]::before{display:none}}
+body[data-page="index.html"] .page-line-art,body[data-page="index.html"] .page-line-top,body[data-page="index.html"] .page-line-bottom{display:none}
