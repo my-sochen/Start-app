@@ -80,7 +80,7 @@ No new hosted CI run was started.
 
 ## Evidence and limits
 
-The fresh offline publisher suite passed 191 tests on the revised candidate content. This is local source/test evidence, not hosted workflow or Pages
+The fresh offline publisher suite passed 193 tests on the V4 candidate content. This is local source/test evidence, not hosted workflow or Pages
 qualification. The helper creates `website-source.json` with the content
 commit, subtree and file hashes; it is staged and frozen with the artifact.
 The existing automated live verifier still checks pointer.json and
@@ -118,3 +118,43 @@ Rollback before activation is simply not installing the candidate. After
 activation any missing branch/pin fails before deployment and leaves the
 previous served site intact, but pointer updates will be unavailable until
 owner-approved recovery. This dependency must not be described as harmless.
+
+## V3 infrastructure-only PR coverage boundary
+
+The current live website baseline has no npm lockfile. The separately
+qualified PR74 website-content change includes it. Running npm ci on the
+infrastructure-only PR would fail without testing the publisher change.
+CI therefore always runs publisher regression tests and the five offline
+website suites, but runs npm ci and actual Chrome DOM/all-eight-locale
+harnesses only when the exact base-to-head diff includes website/ paths.
+Nested additions, removals and rename destinations count. Infrastructure
+and workflow changes receive publisher/static workflow policy tests; they
+are NOT claimed to have fresh hosted browser qualification. The skipped
+coverage is explicitly written to the job summary. The later content PR
+must run the full browser harness with its committed lockfile. No old
+baseline missing-lock failure is reported as a pass. V2 review does not
+cover this V3 CI behavior change; fresh finite review is required.
+
+## V4 rename and check-identity correction
+
+The inline guard now uses git diff --no-renames --name-only -z. Both sides
+of every rename are visible as delete/add paths, regardless of diff.renames.
+A regression builds real temporary Git repositories, explicitly enables
+rename detection, confirms R100 pairs, then executes the actual inline
+workflow guard using real git. Software-to-website renames reject; website
+to allowed infrastructure and nested website renames require browser coverage.
+
+Infrastructure/static qualification and full website browser qualification
+now have separate job IDs and visible check names. `infrastructure-checks`
+is "Website infrastructure and static checks". `website-browser-full` is
+"Website full Chrome DOM and eight locales" and visibly SKIPPED when there
+is no website delta. It cannot appear as a successful browser job just
+because infrastructure passes. The browser job waits for infrastructure
+success, checks out and binds the same exact PR head, and runs the unchanged
+full DOM and eight-locale harness without conditional individual probes.
+No branch protection/required-check settings are changed. If protection is
+later desired, its policy and GitHub skipped-job semantics require a separate
+owner-approved settings decision. A skipped browser check is not evidence
+of website runtime coverage and must never be reported as such.
+V3 is superseded and was not uploaded or opened as a PR. Fresh finite V4
+review is required before advancing this preparation.
