@@ -13,8 +13,8 @@ class WebsiteLifecycleTests(unittest.TestCase):
         self.assertEqual(set(triggers), {'pull_request'})
         self.assertEqual(triggers['pull_request']['branches'], ['website/dev', 'website/test', 'website/main'])
         self.assertEqual(doc['permissions'], {'contents': 'read'})
-        self.assertEqual(set(doc['jobs']), {'website-tests'})
-        self.assertNotIn('environment', doc['jobs']['website-tests'])
+        self.assertEqual(set(doc['jobs']), {'infrastructure-checks', 'website-browser-full'})
+        self.assertNotIn('environment', doc['jobs']['infrastructure-checks'])
         self.assertNotIn('deploy-pages', str(doc))
         self.assertNotIn('dotnet', str(doc))
 
@@ -35,7 +35,7 @@ class WebsiteLifecycleTests(unittest.TestCase):
 
     def test_ci_guard_rejects_app_and_unrelated_infrastructure(self):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
-        step = next(s for s in doc['jobs']['website-tests']['steps'] if s['name'] == 'Reject software changes in website lifecycle')
+        step = next(s for s in doc['jobs']['infrastructure-checks']['steps'] if s['name'] == 'Reject software changes in website lifecycle')
         script = step['run']
         # Inspect and execute only the policy expressions without git/environment reads.
         policy = script[script.index('infra = '):script.index('rejected = ')]
@@ -45,6 +45,74 @@ class WebsiteLifecycleTests(unittest.TestCase):
             self.assertFalse(scope['allowed'](path), path)
         self.assertTrue(scope['allowed']('website/index.html'))
         self.assertTrue(scope['allowed']('.github/release/stage_website.py'))
+
+    def test_website_scope_detection_includes_nested_delete_and_rename_destinations(self):
+        import os, tempfile
+        from unittest import mock
+        doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
+        steps = doc['jobs']['infrastructure-checks']['steps']
+        scope_step = next(s for s in steps if s.get('id') == 'scope')
+        script = scope_step['run'].split("python3 - <<'PYGUARD'\n", 1)[1].rsplit('PYGUARD', 1)[0]
+        cases = [(['website/index.html'], True), (['website/en/deep/file.css'], True),
+                 (['website/tests/lock.json'], True),
+                 (['website/removed.html', 'website/renamed.html'], True),
+                 (['.github/workflows/website-pr-tests.yml', '.github/release/stage_website.py'], False),
+                 ([], False)]
+        for paths, expected in cases:
+            with self.subTest(paths=paths), tempfile.TemporaryDirectory() as t:
+                output = Path(t) / 'outputs'
+                with mock.patch.dict(os.environ, {'BASE_SHA': 'a'*40, 'EXPECTED_HEAD': 'b'*40, 'GITHUB_OUTPUT': str(output)}), mock.patch('subprocess.check_output', return_value=('\0'.join(paths)+'\0').encode()):
+                    exec(script, {})
+                self.assertEqual(output.read_text(), 'website_changed=' + str(expected).lower() + '\n')
+        browser = doc['jobs']['website-browser-full']
+        self.assertEqual(browser['needs'], 'infrastructure-checks')
+        self.assertIn("needs.infrastructure-checks.outputs.website_changed == 'true'", browser['if'])
+        self.assertEqual(browser['name'], 'Website full Chrome DOM and eight locales')
+        self.assertNotEqual(browser['name'], doc['jobs']['infrastructure-checks']['name'])
+        self.assertEqual(doc['jobs']['infrastructure-checks']['outputs']['website_changed'], '${{ steps.scope.outputs.website_changed }}')
+        for name in ('Install pinned harness dependencies (requires committed lockfile)', 'Run DOM behavior harness', 'Run locale harness (all 8 locales, default run)'):
+            self.assertNotIn('if', next(s for s in browser['steps'] if s['name'] == name))
+        for name in ('Run offline publisher regression tests (isolated Python, no deploy)', 'Run offline website tests (no dependencies, no server)'):
+            self.assertNotIn('if', next(s for s in steps if s['name'] == name))
+        self.assertIn('NOT website runtime qualification', str(steps))
+
+    def test_real_git_rename_source_cannot_bypass_scope_or_browser_coverage(self):
+        import os, tempfile, subprocess
+        from unittest import mock
+        doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
+        step = next(s for s in doc['jobs']['infrastructure-checks']['steps'] if s.get('id') == 'scope')
+        script = step['run'].split("python3 - <<'PYGUARD'\n", 1)[1].rsplit('PYGUARD', 1)[0]
+        cases = [('src/app.txt', 'website/app.txt', True, None),
+                 ('website/source.txt', '.github/release/WEBSITE-LIFECYCLE.md', False, True),
+                 ('website/deep/source.txt', 'website/new.txt', False, True),
+                 ('.github/release/WEBSITE-LIFECYCLE.md', '.github/release/website-live.json', False, False)]
+        for old, new, rejected, browser in cases:
+            with self.subTest(old=old, new=new), tempfile.TemporaryDirectory() as t:
+                repo = Path(t)
+                def git(*args):
+                    return subprocess.check_output(['git', '-C', t, *args], stderr=subprocess.STDOUT).decode().strip()
+                git('init', '-q'); git('config', 'user.email', 'test@example.invalid'); git('config', 'user.name', 'Offline Test')
+                git('config', 'diff.renames', 'true')
+                src = repo / old; src.parent.mkdir(parents=True, exist_ok=True)
+                src.write_text('same exact content\n' * 30)
+                git('add', '.'); git('commit', '-qm', 'base'); base = git('rev-parse', 'HEAD')
+                dst = repo / new; dst.parent.mkdir(parents=True, exist_ok=True)
+                git('mv', old, new); git('commit', '-qm', 'rename'); head = git('rev-parse', 'HEAD')
+                detected = git('diff', '--name-status', base, head)
+                self.assertTrue(detected.startswith('R100'), detected)
+                output = repo / 'out'
+                with mock.patch.dict(os.environ, {'BASE_SHA': base, 'EXPECTED_HEAD': head, 'GITHUB_OUTPUT': str(output)}):
+                    # Real subprocess/git and actual inline guard, no mocked diff list.
+                    previous = Path.cwd()
+                    try:
+                        os.chdir(t)
+                        if rejected:
+                            with self.assertRaises(SystemExit): exec(script, {})
+                            self.assertFalse(output.exists())
+                        else:
+                            exec(script, {})
+                            self.assertEqual(output.read_text(), 'website_changed=' + str(browser).lower() + '\n')
+                    finally: os.chdir(previous)
 
 
 if __name__ == '__main__':
