@@ -26,12 +26,13 @@ if (!existsSync(join(CERTS, "cert.pem"))) {
     "-addext", "subjectAltName=IP:127.0.0.1"]);
 }
 
-// Temp site: website files + fixtures (repo tree stays clean).
+// Temp site: website files + asset directories + fixtures (repo tree stays clean).
+const ASSET_DIRS = ["shots", "fonts", "icons", "illustrations", "locales", "en", "de", "es", "fr", "ja", "ru", "zh-Hans"];
 const SITE = mkdtempSync(join(tmpdir(), "dom-harness-site-"));
 for (const name of readdirSync(SITE_SRC)) {
   if (name === "tests") continue;
   const src = join(SITE_SRC, name);
-  if (statSync(src).isFile() || name === "shots" || name === "fonts") cpSync(src, join(SITE, name), { recursive: true });
+  if (statSync(src).isFile() || ASSET_DIRS.includes(name)) cpSync(src, join(SITE, name), { recursive: true });
 }
 cpSync(join(HERE, "fixtures"), join(SITE, "fixtures"), { recursive: true });
 
@@ -41,8 +42,7 @@ for (const name of readdirSync(SITE)) {
   const src = join(SITE, name);
   if (name !== "Start-app" && name !== "fixtures" && statSync(src).isFile()) cpSync(src, join(SITE, "Start-app", name));
 }
-cpSync(join(SITE, "shots"), join(SITE, "Start-app", "shots"), { recursive: true });
-cpSync(join(SITE, "fonts"), join(SITE, "Start-app", "fonts"), { recursive: true });
+for (const d of ASSET_DIRS) cpSync(join(SITE, d), join(SITE, "Start-app", d), { recursive: true });
 
 const server = spawn(process.execPath, [join(HERE, "server.js")], {
   env: { ...process.env, SITE_ROOT: SITE, CERT_DIR: CERTS, PORT },
@@ -124,7 +124,8 @@ for (const path of ["/", "/docs.html"]) {
     const s = await ctaState(page);
     if (state === "ok") {
       ok(!s.disabled && s.onclick && s.cursor === "pointer", `${tag} ok: CTA enabled with handler`);
-      ok(s.label === "הורדה ל־Windows", `${tag} ok: label carries tag`);
+      ok(s.label === "הורדה חינם", `${tag} ok: label is the current approved wording`);
+      ok(s.note.includes("Windows x64"), `${tag} ok: platform tag carried in the visible note`);
       ok(!s.detailHidden && s.detailText.includes("0.1.0-proto.3") && s.detailText.includes("a".repeat(64)) && !s.detailText.includes("הקובץ לא נבדק מחדש"),
          `${tag} ok: version/sha retained and implementation disclaimer absent`);
       ok(!s.note.includes("sha256") && s.note.length < 90, `${tag} ok: visible note stays short`);
@@ -215,7 +216,10 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   ok(s.sections === 12 && s.status.includes("12"), pre + ": guide initialized (12 chapters, search status)");
   ok(s.y === 0, pre + ": scrolled to top on forward navigation");
   const cs = await ctaState(page);
-  ok(!cs.disabled && cs.onclick && cs.label === "הורדה ל־Windows", pre + ": guide CTA rendered from the validated pointer after swap");
+  ok(!cs.disabled, pre + ": guide CTA enabled after swap");
+  ok(cs.onclick, pre + ": guide CTA has a handler after swap");
+  ok(cs.label === "הורדה חינם", pre + ": guide CTA label is the current wording after swap");
+  ok(cs.note.includes("Windows x64"), pre + ": guide CTA platform tag carried in the visible note after swap");
   // guide search still works after swap
   await page.type("#doc-search", "פרטיות");
   s = await page.evaluate(() => ({ vis: [...document.querySelectorAll("[data-doc]")].filter((e) => !e.hidden).length }));
@@ -273,17 +277,29 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await sleep(300);
   const s = await page.evaluate(() => {
     const j = document.querySelector(".docs-jump");
+    const pt = document.querySelector(".pinned-top");
+    const hd = document.querySelector("header");
     const r = j.getBoundingClientRect();
-    return { top: r.top, h: r.height, links: [...j.querySelectorAll("a")].map((a) => a.getBoundingClientRect().height) };
+    return { top: r.top, wrapTop: pt.getBoundingClientRect().top, wrapPos: getComputedStyle(pt).position, headerBottom: hd.getBoundingClientRect().bottom, h: r.height, links: [...j.querySelectorAll("a")].map((a) => a.getBoundingClientRect().height) };
   });
-  ok(Math.abs(s.top) < 1 && s.links.every((h) => h >= 44), "mobile: jump bar is sticky with 44px targets");
+  ok(s.wrapPos === "sticky" && Math.abs(s.wrapTop) < 1, "mobile: pinned header/jump wrapper stays sticky at the top");
+  ok(Math.abs(s.top - s.headerBottom) < 2, "mobile: jump bar docks directly below the pinned header");
+  ok(s.links.every((h) => h >= 44), "mobile: jump bar links keep 44px hit targets");
   await page.screenshot({ path: join(SHOTS, "guide-sticky-jump-390.png") });
   await page.click('.docs-jump a[href="#main"]');
   await sleep(700);
   ok(await page.evaluate(() => scrollY) < 400, "mobile: back-to-top returns to the top of the guide");
   await page.click('.docs-jump a[href="#toc"]');
   await sleep(700);
-  ok(await page.evaluate(() => document.getElementById("toc").getBoundingClientRect().top) < 120, "mobile: chapters jump reaches the contents");
+  const tocView = await page.evaluate(() => {
+    const pt = document.querySelector(".pinned-top").getBoundingClientRect();
+    const tt = document.getElementById("toc").getBoundingClientRect();
+    const sr = document.getElementById("doc-search").getBoundingClientRect();
+    return { hash: location.hash, tocTop: tt.top, searchTop: sr.top, pinnedBottom: pt.bottom, vh: innerHeight };
+  });
+  ok(tocView.hash === "#toc", "mobile: chapters jump sets the #toc hash");
+  ok(tocView.tocTop >= tocView.pinnedBottom - 1 && tocView.tocTop < tocView.vh, "mobile: chapters jump lands the TOC below the pinned bar, within the viewport");
+  ok(tocView.searchTop >= tocView.pinnedBottom - 1 && tocView.searchTop < tocView.vh, "mobile: guide search stays visible below the pinned bar after the chapters jump");
   await page.close();
 }
 
