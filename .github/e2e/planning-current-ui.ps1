@@ -58,6 +58,8 @@ function Screenshot([string]$name) {
  $r = [PlanningWindow+Rect]::new()
  if (-not [PlanningWindow]::GetWindowRect($p.MainWindowHandle,[ref]$r)) { throw 'Window bounds unavailable' }
  $w = $r.Right-$r.Left; $h = $r.Bottom-$r.Top
+ $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+ if ($r.Left -lt $area.Left -or $r.Top -lt $area.Top -or $r.Right -gt $area.Right -or $r.Bottom -gt $area.Bottom) { throw 'App window extends outside the usable desktop; refusing a clipped image' }
  if ($w -lt 600 -or $h -lt 400) { throw 'Window too small for useful screenshot' }
  $bitmap = [Drawing.Bitmap]::new($w,$h)
  $graphics = [Drawing.Graphics]::FromImage($bitmap)
@@ -69,7 +71,11 @@ try {
  $clock = [Diagnostics.Stopwatch]::StartNew()
  while ($clock.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited) { throw 'App exited at startup' }; if ($p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 200 }
  if ($p.MainWindowHandle -eq 0) { throw 'No actual app window' }
- [void][PlanningWindow]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,0,0,1200,850,0x0040)
+ $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+ $width = [Math]::Min(1200, $area.Width - 16)
+ $height = [Math]::Min(850, $area.Height - 16)
+ if ($width -lt 720 -or $height -lt 400) { throw 'Desktop work area too small to capture the whole app' }
+ if (-not [PlanningWindow]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,($area.Left+8),($area.Top+8),$width,$height,0x0040)) { throw 'Could not fit app inside desktop work area' }
  [void][PlanningWindow]::SetForegroundWindow($p.MainWindowHandle)
  $script:window = $A::FromHandle($p.MainWindowHandle)
  $card = AwaitElement { ById 'WorkspaceTitle' }
