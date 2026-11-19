@@ -303,6 +303,148 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.close();
 }
 
+// ---- Back restoration under a slow pointer re-validation (fail-closed panel
+// un-hides late, grows content above the restored position, and scroll
+// anchoring would drift it): the correction holds the position until the CTA
+// render lifecycle SETTLES, then ends - later focus moves, hash navigation and
+// programmatic scrolls are free; real user input during the window wins ----
+async function delayedBackFlow(userWheel) {
+  const page = await open("/", "ok", { width: 1440, height: 900 });
+  await page.evaluate(() => { window.__marker = 42; });
+  await page.click('header nav a[href="docs.html"]');
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await sleep(200);
+  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await page.setRequestInterception(true);
+  page.on("request", (r) => { if (r.url().endsWith("/pointer.json")) setTimeout(() => r.continue(), 1000); else r.continue(); });
+  await page.goBack();
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  return page;
+}
+{
+  const page = await delayedBackFlow(false);
+  await sleep(400);
+  ok(await page.evaluate(() => scrollY) === 1500, "slow revalidation Back: restored position holds at 400ms");
+  await sleep(1200);
+  ok((await page.evaluate(() => scrollY)) === 1500, "slow revalidation Back: restored position survives the late panel un-hide");
+  ok((await page.evaluate(() => !document.querySelector("[data-download-cta]").disabled)), "slow revalidation Back: CTA settled enabled after the delayed pointer");
+  await page.evaluate(() => window.scrollTo({ top: 3000, left: 0, behavior: "instant" }));
+  await sleep(300);
+  ok((await page.evaluate(() => scrollY)) === 3000, "slow revalidation Back: correction ends at CTA settlement (later programmatic scroll stands)");
+  await page.evaluate(() => { const h = document.querySelector("#faq h2"); h.setAttribute("tabindex", "-1"); h.focus(); });
+  // The site's stylesheet sets html { scroll-behavior: smooth }, so the focus
+  // scroll animates: wait for it to land instead of sampling mid-flight.
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#faq h2").getBoundingClientRect().top;
+    return top >= 0 && top <= innerHeight;
+  }, { timeout: 8000 });
+  ok(true, "slow revalidation Back: post-settlement focus navigation scrolls the focused heading into view");
+  await page.evaluate(() => document.querySelector('#toc a[href="#storage"]').click());
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#storage").getBoundingClientRect().top;
+    return top >= 0 && top <= innerHeight;
+  }, { timeout: 8000 });
+  ok(true, "slow revalidation Back: post-settlement hash navigation reaches its target");
+  await page.close();
+}
+{
+  const page = await delayedBackFlow(true);
+  await sleep(400);
+  ok(await page.evaluate(() => scrollY) === 1500, "slow revalidation Back (wheel): restored position holds at 400ms");
+  await page.mouse.wheel({ deltaY: 250 });
+  await sleep(300);
+  const afterWheel = await page.evaluate(() => scrollY);
+  ok(afterWheel > 1500, "slow revalidation Back (wheel): a user wheel after the restore is not undone");
+  await sleep(1300);
+  ok((await page.evaluate(() => scrollY)) >= afterWheel, "slow revalidation Back (wheel): settlement does not revert the user's scroll");
+  await page.close();
+}
+{
+  const page = await delayedBackFlow(false);
+  // A newer same-page navigation supersedes the pending restore: the hash
+  // jump scrolls to its target and the old settlement never pins scroll back.
+  await page.evaluate(() => document.querySelector('#toc a[href="#storage"]').click());
+  await page.waitForFunction(() => location.hash === "#storage", { timeout: 5000 });
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#storage").getBoundingClientRect().top;
+    return top >= 0 && top <= innerHeight;
+  }, { timeout: 8000 });
+  ok(true, "slow revalidation: a newer hash navigation supersedes the pending restore and reaches its target");
+  await sleep(1600);
+  const storageStable1 = await page.evaluate(() => scrollY);
+  await sleep(300);
+  const storageStable2 = await page.evaluate(() => scrollY);
+  ok(Math.abs(storageStable2 - storageStable1) <= 2 && storageStable2 > 3000, "slow revalidation: the old CTA settlement never pins scroll after a newer navigation");
+  await page.evaluate(() => window.scrollTo({ top: 1000, left: 0, behavior: "instant" }));
+  await sleep(300);
+  ok((await page.evaluate(() => scrollY)) === 1000, "slow revalidation: programmatic scroll stands after the superseded restore settled");
+  await page.close();
+}
+
+// ---- Pre-settlement focus intent: with the pointer still in flight, a real
+// focus move (keyboard/AT/programmatic) must yield the restore correction so
+// the focused heading can scroll into view; the late settlement must not
+// revert it ----
+{
+  const page = await open("/", "ok", { width: 1440, height: 900 });
+  await page.evaluate(() => { window.__marker = 42; });
+  await page.click('header nav a[href="docs.html"]');
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await sleep(200);
+  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await page.setRequestInterception(true);
+  page.on("request", (r) => { if (r.url().endsWith("/pointer.json")) setTimeout(() => r.continue(), 3000); else r.continue(); });
+  await page.goBack();
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await sleep(400);
+  ok(await page.evaluate(() => scrollY) === 1500, "pre-settlement focus: restored position holds at 400ms");
+  await page.evaluate(() => { const h = document.querySelector("#faq h2"); h.setAttribute("tabindex", "-1"); h.focus(); });
+  ok((await page.evaluate(() => document.activeElement.closest("section").id)) === "faq", "pre-settlement focus: FAQ heading took focus");
+  ok((await page.evaluate(() => document.querySelector("[data-download-cta]").disabled)), "pre-settlement focus: CTA still unsettled at focus time");
+  await page.waitForFunction(() => scrollY !== 1500, { timeout: 2000 });
+  ok(true, "pre-settlement focus: the correction yields to the focus move while the pointer is still in flight");
+  await page.waitForFunction(() => {
+    const top = document.querySelector("#faq h2").getBoundingClientRect().top;
+    return top >= 0 && top <= innerHeight;
+  }, { timeout: 8000 });
+  ok(true, "pre-settlement focus: focused heading scrolls into view before settlement");
+  await sleep(2500);
+  const faqTopAfterSettle = await page.evaluate(() => document.querySelector("#faq h2").getBoundingClientRect().top);
+  ok(faqTopAfterSettle >= 0 && faqTopAfterSettle <= 900, "pre-settlement focus: the late settlement does not revert the focused position");
+  await page.close();
+}
+
+// ---- Synchronous terminal settlement (missing StartAppPointer fail-closed
+// path settles during the swap itself): the settlement must still find the
+// armed restore and end it, never leave the correction running forever ----
+{
+  const page = await open("/", "ok", { width: 1440, height: 900 });
+  await page.evaluate(() => { window.__marker = 42; });
+  await page.click('header nav a[href="docs.html"]');
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await sleep(200);
+  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await page.evaluate(() => { window.StartAppPointer = null; });
+  await page.goBack();
+  await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
+  await sleep(400);
+  ok(await page.evaluate(() => scrollY) === 1500, "sync fail-closed settlement: restored position holds at 400ms");
+  await sleep(1200);
+  await page.evaluate(() => window.scrollTo({ top: 3000, left: 0, behavior: "instant" }));
+  await sleep(300);
+  ok((await page.evaluate(() => scrollY)) === 3000, "sync fail-closed settlement: the synchronous settlement ends the correction (later programmatic scroll stands)");
+  await page.close();
+}
+
 // ---- navigation regressions from independent review ----
 const clickPrevented = (page, href) => page.evaluate((href) => new Promise((resolve) => {
   const a = document.createElement("a");
