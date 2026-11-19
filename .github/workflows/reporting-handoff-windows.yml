@@ -1,0 +1,45 @@
+name: reporting-handoff-windows
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'src/StartApp.Presentation/MainViewModel.cs'
+      - 'tests/StartApp.Presentation.Tests/UnexpectedErrorTests.cs'
+      - '.github/workflows/reporting-handoff-windows.yml'
+permissions:
+  contents: read
+jobs:
+  tests:
+    if: github.event.repository.private == false && github.repository == 'my-sochen/Start-app' && github.head_ref == 'fix/open-error-reporting-handoff'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Bind exact candidate identity
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD) -cne $env:EXPECTED_HEAD) { throw 'Checkout mismatch' }
+          git show -s --format='head=%H tree=%T' HEAD
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
+        with:
+          dotnet-version: '10.0.404'
+      - name: Run Windows solution unit tests, no UI or publication
+        shell: pwsh
+        run: |
+          dotnet test StartApp.slnx --configuration Release --logger trx --results-directory test-results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve test evidence only
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: reporting-handoff-windows-results
+          retention-days: 3
+          if-no-files-found: error
+          path: test-results/*.trx
