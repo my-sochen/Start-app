@@ -1,0 +1,105 @@
+# Read-only website PR checks: offline Node assertions, then the real-Chrome
+# DOM harness and the full 8-locale harness, all sequential in one job.
+# No deploy, package, release, secrets, billing, protection or settings
+# effects. contents: read only.
+#
+# Proposed path: .github/workflows/website-pr-tests.yml
+# Authored against PR74 head d3e099accc13de517e7e45787013f00a5bd08978
+# (tree ce85054916c1c4d8f2231b4b9f8d38cc132614ac), base dev.
+#
+# Revision 2 (single standard Ubuntu job, per consolidated author
+# corrections relayed by Yitzhak's Instinct, 2026-11-19):
+#   - One sequential job: five static suites, npm ci, node drive.mjs, then
+#     node test-locales.mjs with its default all-8-locale run. No
+#     ONLY_LOCALE split, no matrix, one install.
+#   - Node 22 is set up before every command, including the static suites.
+#   - Repository identity and public-repository guard run at job level
+#     (the job-level `if` is evaluated before a runner is allocated), with
+#     the shell guards kept as defense in depth.
+#   - Actions pinned by commit SHA, verified against the GitHub API
+#     2026-11-19:
+#       actions/checkout v7.0.1 = 3d3c42e5aac5ba805825da76410c181273ba90b1
+#       actions/setup-node v7.1.0 = 949feb2413d6458794dcd2491c4babbbce0c15c1
+#
+# Preconditions before this job can go green (see proposal):
+#   1. Owner commits website/tests/dom-harness/package-lock.json (npm ci
+#      below is intentionally the only install path; it fails closed until
+#      the lockfile lands, per Moshe's alignment).
+#   2. Moshe's pending remediation of the 7 known unwaived DOM failures.
+name: website-pr-tests
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website-pr-tests.yml'
+permissions:
+  contents: read
+concurrency:
+  group: website-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  website-tests:
+    # Evaluated before runner allocation: only the intended public
+    # repository may run this job. The shell guard inside repeats the
+    # check on the runner itself.
+    if: >-
+      github.event.repository.private == false &&
+      github.repository == 'my-sochen/Start-app'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      EXPECTED_REPOSITORY: my-sochen/Start-app
+      ACTUAL_REPOSITORY: ${{ github.repository }}
+      IS_PRIVATE: ${{ github.event.repository.private }}
+    steps:
+      - name: Require the intended public repository and candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$IS_PRIVATE" = "false" ] || { echo 'Private or unknown repository: refusing paid fallback'; exit 1; }
+          [ "$ACTUAL_REPOSITORY" = "$EXPECTED_REPOSITORY" ] || { echo 'Unexpected repository'; exit 1; }
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid head SHA'; exit 1; }
+      - name: Check out the exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Bind exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse HEAD)" = "$EXPECTED_HEAD" ] || { echo 'Checkout/head mismatch'; exit 1; }
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Run offline website tests (no dependencies, no server)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node website/tests/test-download-pointer.mjs
+          node website/tests/test-download-catalog.mjs
+          node website/tests/test-i18n.mjs
+          node website/tests/test-meaning-corrections.mjs
+          node website/tests/test-search-visibility.mjs
+      - name: Verify Chrome binary and OpenSSL on the runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl version
+          # Both harnesses default to /usr/bin/google-chrome (drive.mjs via
+          # HARNESS_CHROME, test-locales.mjs hardcoded with port 8778). Use
+          # exactly that default; no overrides, no port changes.
+          [ -x /usr/bin/google-chrome ] || { echo 'Chrome not found at /usr/bin/google-chrome'; exit 1; }
+          /usr/bin/google-chrome --version
+      - name: Install pinned harness dependencies (requires committed lockfile)
+        working-directory: website/tests/dom-harness
+        run: npm ci
+      - name: Run DOM behavior harness
+        working-directory: website/tests/dom-harness
+        run: node drive.mjs
+      - name: Run locale harness (all 8 locales, default run)
+        working-directory: website/tests/dom-harness
+        run: node test-locales.mjs
