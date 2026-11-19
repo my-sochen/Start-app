@@ -361,3 +361,14 @@ body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -72
 @media(max-width:700px){body[data-page="docs.html"]::before{background-size:600px 360px}}
 @media(prefers-reduced-motion:reduce){body[data-page="docs.html"]::before{transform:none!important}}
 @media print{body[data-page="docs.html"]::before{display:none}}
+
+/* Owner feedback (Nov 19), desktop guide: the chapter list must scroll on its
+ * own wherever the main page is, not only after the page reaches a boundary.
+ * The sticky sidebar is capped to the viewport below the pinned header (97px,
+ * the measured header clearance used for scroll-padding) and becomes its own
+ * scroll container; the aside is focusable (tabindex) so keyboard users can
+ * scroll it too. Mobile keeps the static inline chapter list. */
+@media (min-width: 701px) {
+  .sidebar { top: 97px; max-height: calc(100vh - 117px); overflow-y: auto; }
+}
+.sidebar:focus-visible { outline: 3px solid #975016; outline-offset: 3px; }
