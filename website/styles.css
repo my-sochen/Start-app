@@ -372,3 +372,10 @@ body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -72
   .sidebar { top: 97px; max-height: calc(100vh - 117px); overflow-y: auto; }
 }
 .sidebar:focus-visible { outline: 3px solid #975016; outline-offset: 3px; }
+
+/* Owner feedback (Nov 19), home: opening/closing "All versions" must not move
+ * the decorative line art. The art used to be stretched to the hero box
+ * (height:100%), so any change in hero height refit the artwork. Sizing it by
+ * width alone (the SVG's intrinsic 1200x720 ratio) keeps its geometry constant
+ * however tall the hero grows; overflow stays clipped as before. */
+.page-line-art img { height: auto; }
