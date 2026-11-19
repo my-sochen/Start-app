@@ -52,7 +52,7 @@ try:
   if guide:
    js('window.scrollTo(0,document.querySelector("#install").getBoundingClientRect().top+scrollY-20)');h=min(height,int(js('Math.ceil(document.querySelector(".doc-download").getBoundingClientRect().bottom)+20')))
   else:
-   js('window.scrollTo(0,0)');h=min(height,int(js('Math.ceil(document.querySelector("footer").getBoundingClientRect().bottom)+12')))
+   js('window.scrollTo(0,0)');h=min(height,int(js('Math.ceil(document.body.getBoundingClientRect().bottom)+12')))
   image=wait(send('Page.captureScreenshot',{'format':'png','captureBeyondViewport':False}));raw=base64.b64decode(image['data'])
   from PIL import Image
   import io
