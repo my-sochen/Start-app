@@ -4,8 +4,12 @@
 # effects. contents: read only.
 #
 # Proposed path: .github/workflows/website-pr-tests.yml
-# Authored against PR74 head d3e099accc13de517e7e45787013f00a5bd08978
-# (tree ce85054916c1c4d8f2231b4b9f8d38cc132614ac), base dev.
+# Historic authoring base: PR74 head d3e099accc13de517e7e45787013f00a5bd08978
+# (tree ce85054916c1c4d8f2231b4b9f8d38cc132614ac), base dev. Kept for
+# history only; not a current or pending reference. This copy was supplied
+# for review at head 07c8ee8a0b5a5a9859800ca1ae2d0b0ff1f356e4 (tree
+# c0cd3f443efd79dfe8ed00d384b422c9a7e3d98e); the final head is not
+# predicted here.
 #
 # Revision 2 (single standard Ubuntu job, per consolidated author
 # corrections relayed by Yitzhak's Instinct, 2026-11-19):
@@ -21,11 +25,16 @@
 #       actions/checkout v7.0.1 = 3d3c42e5aac5ba805825da76410c181273ba90b1
 #       actions/setup-node v7.1.0 = 949feb2413d6458794dcd2491c4babbbce0c15c1
 #
-# Preconditions before this job can go green (see proposal):
-#   1. Owner commits website/tests/dom-harness/package-lock.json (npm ci
-#      below is intentionally the only install path; it fails closed until
-#      the lockfile lands, per Moshe's alignment).
-#   2. Moshe's pending remediation of the 7 known unwaived DOM failures.
+# Status, as stated by Yitzhak's Instinct on 2026-11-19 (attributed, not
+# independently verified here):
+#   1. Integrated: the dom-harness lockfile is committed and the
+#      remediation of the previously known DOM failures is in. npm ci
+#      below remains intentionally the only install path and fails
+#      closed without a committed lockfile.
+#   2. Still pending, as a separate item: the lockfile integrity
+#      metadata correction.
+#   This workflow is not final corrected-head qualification and no pass
+#   is predicted.
 name: website-pr-tests
 on:
   pull_request:
