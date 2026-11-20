@@ -178,8 +178,9 @@ distinct; neither replaces the other.
    a private transition disables Actions entirely, the check never
    reports and a required gate stays pending). The same scope set is the
    allowlist on website lifecycle branches: software or unrelated tooling
-   changes there are rejected. `test_live_pin_matches_approved_baseline` records the exact pin
-   the owner approved at publication on 2026-11-20 (website/main commit
+   changes there are rejected.
+   `test_live_pin_matches_approved_baseline` records the exact pin the
+   owner approved at publication on 2026-11-20 (website/main commit
    f94789e0f94c6f8a30c544bc4d6beb61a8409d4b, whose served bytes an
    independent post-publication review verified byte-identical to the
    pinned source), so any later pin change must update the test in the same
@@ -189,24 +190,27 @@ distinct; neither replaces the other.
 2. Enforcement (repository settings, applied and maintained by the owner,
    not by any file change): on the `main` branch rule, require the status
    check whose exact name is `Website infrastructure and static checks`,
-   keep requiring pull request reviews, and disallow bypassing these
-   settings, so a pin change can only arrive through an open, reviewed,
-   green pull request. The conditional browser job `Website full Chrome DOM
-   and eight locales` is skipped by design when no website bytes change and
-   must never be a universally required check, or unrelated pull requests
-   would deadlock.
+   so a pin change can only arrive through an open pull request whose
+   automated gate is green. Merge decisions remain the owner's alone.
+   The conditional browser job `Website full Chrome DOM and eight locales`
+   is skipped by design when no website bytes change and must never be a
+   universally required check, or unrelated pull requests would deadlock.
 
 3. Deployment approval (already in place, to preserve): the `github-pages`
    environment requires the owner as reviewer on every release-pointer
    deployment. This is the standing approval layer between any pin and the
    live site, independent of how the pin arrived.
 
-Prerequisite recorded from review: requiring approvals while disallowing
-bypass deadlocks owner-authored pull requests unless an eligible reviewer
-distinct from the author exists, because the code-owner entry is the owner's
-own account and authors cannot approve their own pull requests. The
-reviewer arrangement is an owner decision recorded outside this file; these
-settings must only be tightened once it is resolved.
+Independent review stays advisory, not a merge dependency: the owner
+decided on 2026-11-20 that merges must not depend on a specific person.
+The one settings tradeoff this leaves: the existing `main` rule requires
+code-owner review, and the only code owner is the owner's own account, so
+an owner-authored infrastructure pull request formally needs an approval
+no one else is designated to give. Until the owner relaxes that
+requirement or names another code owner (both owner settings decisions,
+outside this change), the enforced gate is the automated check plus the
+owner's own merge decision. Nothing here changes or removes any existing
+protection.
 
 Residual exposure not addressed here: other repository workflows remain
 dispatchable by repository-write actors; the scope guard in the gate
