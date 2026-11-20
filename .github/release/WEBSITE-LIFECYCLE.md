@@ -158,3 +158,27 @@ owner-approved settings decision. A skipped browser check is not evidence
 of website runtime coverage and must never be reported as such.
 V3 is superseded and was not uploaded or opened as a PR. Fresh finite V4
 review is required before advancing this preparation.
+
+## Publication safeguards (required repository protection)
+
+The LIVE pin only stays meaningful if changing it is review-gated in
+practice, not just in this document. The repository owner applies and
+maintains these settings; the workflow and tests assume them:
+
+1. Default branch `main` protection: require a pull request before
+   merging, require at least one approving review, and require review
+   from a code owner (`.github/CODEOWNERS` assigns `* @my-sochen`).
+2. Required status check on `main`: the `website-pr-tests` workflow
+   (job `infrastructure-checks`) must pass for pull requests that touch
+   the publisher workflow, `.github/release/**`, or `website/**`. The
+   workflow's pull_request trigger includes `main` for exactly this.
+3. Bypass disabled: the protection rule must not allow administrators
+   to bypass ("Do not allow bypassing the above settings" or a ruleset
+   with an empty bypass list). A LIVE pin change must never reach
+   `main` without an open, reviewed, green pull request.
+4. `github-pages` environment keeps a required reviewer (the owner):
+   every release-pointer deployment waits for explicit owner approval,
+   independently of the pin's history.
+5. `test_live_pin_is_exact_and_review_gated` asserts the exact approved
+   pin value; any pin change must update it in the same pull request,
+   so an unreviewed pin cannot reach `main` with green checks.
