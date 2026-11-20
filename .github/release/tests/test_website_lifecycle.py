@@ -11,7 +11,7 @@ class WebsiteLifecycleTests(unittest.TestCase):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
         triggers = doc.get('on', doc.get(True))
         self.assertEqual(set(triggers), {'pull_request'})
-        self.assertEqual(triggers['pull_request']['branches'], ['website/dev', 'website/test', 'website/main'])
+        self.assertEqual(triggers['pull_request']['branches'], ['main', 'website/dev', 'website/test', 'website/main'])
         self.assertEqual(doc['permissions'], {'contents': 'read'})
         self.assertEqual(set(doc['jobs']), {'infrastructure-checks', 'website-browser-full'})
         self.assertNotIn('environment', doc['jobs']['infrastructure-checks'])
@@ -29,9 +29,11 @@ class WebsiteLifecycleTests(unittest.TestCase):
         self.assertIn('refs/heads/website/main:refs/remotes/origin/website/main', '\n'.join(commands))
         self.assertNotIn('--website website ', '\n'.join(commands))
 
-    def test_bootstrap_pin_is_exact_and_not_moving_test(self):
+    def test_live_pin_is_exact_and_review_gated(self):
+        # Tripwire: any LIVE pin change must update this expected value in the
+        # same PR, so a pin change cannot pass CI without appearing in review.
         pin = json.loads((ROOT / '.github/release/website-live.json').read_text())
-        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': '3779d174923a592d7c56a22671624cbe041404b1'})
+        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': 'f94789e0f94c6f8a30c544bc4d6beb61a8409d4b'})
 
     def test_ci_guard_rejects_app_and_unrelated_infrastructure(self):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
