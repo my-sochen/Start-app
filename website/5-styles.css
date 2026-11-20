@@ -1,0 +1,398 @@
+/* Local review only. No network calls or build step. Heebo (SIL OFL) is served from fonts/. */
+@font-face { font-family: "Heebo"; src: url("fonts/Heebo-var.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+:root {
+  --paper: #f3f6fc;
+  --white: #ffffff;
+  --ink: #142743;
+  --muted: #465a75;
+  --green: #214fc2;
+  --line: #cbd6e8;
+  --wash: #e6edf9;
+  --accent: #a9cffd;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 32px; }
+body { margin: 0; color: var(--ink); background: var(--paper); font: 17px/1.8 "Heebo", "Segoe UI", "Noto Sans Hebrew", sans-serif; }
+a { color: inherit; text-underline-offset: 5px; }
+a:hover { color: var(--green); }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #975016; outline-offset: 5px; }
+button, input { font: inherit; }
+header { max-width: 1240px; margin: auto; padding: 20px 32px; display: flex; justify-content: space-between; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); }
+nav { display: flex; gap: 30px; flex-wrap: wrap; }
+nav a { text-decoration: none; font-size: 14px; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+nav a[aria-current="page"] { text-decoration: underline; }
+.brand { font-family: Arial, "Noto Sans Hebrew", sans-serif; font-size: 23px; font-weight: 700; letter-spacing: -.8px; direction: ltr; text-decoration: none; white-space: nowrap; }
+.brand i { display: inline-flex; background: var(--ink); color: var(--accent); width: 29px; height: 29px; align-items: center; justify-content: center; font-style: normal; margin-right: 8px; font-size: 21px; }
+.wrap { max-width: 1240px; margin: auto; padding: 0 32px; }
+.hero { padding: 96px 0 120px; max-width: 720px; margin-inline: auto; text-align: center; }
+.hero .lead { margin-inline: auto; }
+.hero h1 { font-family: Arial, "Noto Sans Hebrew", sans-serif; margin: 0 0 20px; direction: ltr; unicode-bidi: isolate; }
+.hero-download-state, .verify { margin-inline: auto; }
+.hero .actions { justify-content: center; }
+.hero .verify summary { list-style-position: inside; text-align: center; }
+.hero .verify .note { text-align: center; }
+.proto-note { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+.eyebrow { font-size: 13px; font-weight: 700; color: var(--green); margin: 0 0 24px; }
+.pill { display: inline-block; border-inline-start: 3px solid var(--green); padding: 0 10px; font-size: 12px; color: var(--muted); font-weight: 600; line-height: 1.7; }
+h1 { font-size: clamp(38px, 4.3vw, 62px); line-height: 1.18; letter-spacing: -1.8px; font-weight: 700; margin: 24px 0; }
+h2 { font-size: 34px; line-height: 1.3; letter-spacing: -.7px; font-weight: 600; margin: 8px 0 24px; }
+h3 { font-size: 21px; line-height: 1.45; margin: 12px 0; }
+p { margin: 0 0 18px; }
+.lead { font-size: 20px; color: var(--muted); max-width: 570px; line-height: 1.85; }
+.actions { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; margin: 30px 0 16px; }
+.button, button.primary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 11px 20px; background: var(--green); color: white; border: 0; border-radius: 2px; text-decoration: none; font-size: 15px; font-weight: 600; }
+a.button:hover { background: var(--ink); color: white; }
+.text-link { font-size: 15px; min-height: 44px; display: inline-flex; align-items: center; }
+.hero-download { margin: 36px 0 8px; }
+.hero-download-button { display: inline-flex; align-items: center; justify-content: center; gap: 16px; min-height: 78px; padding: 20px 40px; background: var(--green); color: #fff; border: 0; border-radius: 4px; font-size: 22px; font-weight: 700; letter-spacing: -.3px; cursor: pointer; }
+.hero-download-button:hover:not([disabled]) { background: var(--ink); }
+.hero-download-button[disabled] { background: #55645d; color: #fff; cursor: not-allowed; }
+.hero-download-button svg { width: 26px; height: 26px; flex-shrink: 0; }
+.hero-download-button span { text-align: center; }
+.hero-download-state { font-size: 14px; color: var(--muted); max-width: 560px; margin: 14px 0 0; }
+button.primary:not([disabled]) { cursor: pointer; }
+button[disabled] { background: #55645d; color: #fff; cursor: not-allowed; }
+.note { font-size: 13px; color: var(--muted); }
+/* Pointer metadata: LTR data stays isolated and unbroken (tags, versions,
+   sizes); only the long hash token may wrap, so narrow viewports never clip
+   the line and never split a version in half. */
+.ptr-ltr { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+.ptr-sha { direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; word-break: break-all; }
+.section { padding: 62px 0; border-top: 1px solid var(--line); }
+.section-intro { max-width: 740px; color: var(--muted); }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 42px; margin-top: 36px; }
+.step { border-top: 1px solid var(--ink); padding-top: 16px; }
+.step p { color: var(--muted); }
+.number { font-size: 13px; color: var(--green); font-weight: 700; }
+.status-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; margin-top: 30px; border-block: 1px solid var(--line); }
+.panel { padding: 30px; background: var(--wash); }
+.panel.white { background: var(--white); border-inline-start: 1px solid var(--line); }
+.panel ul { padding-right: 20px; margin: 20px 0; }
+.panel li { margin-bottom: 9px; }
+.small { font-size: 14px; color: var(--muted); }
+.callout { border-inline-start: 3px solid var(--green); background: var(--wash); padding: 20px 24px; margin: 28px 0; max-width: 960px; }
+.download { padding: 38px 40px; background: var(--ink); color: #f4f6f0; border-top: 5px solid var(--accent); }
+.download h2 { max-width: 750px; font-size: 38px; }
+.download > p:not(.eyebrow) { max-width: 780px; }
+.download .eyebrow, .download .note, .download .small, .download .pill { color: #d5dfd6; }
+.download .pill { border-color: var(--accent); }
+.download a:hover { color: var(--accent); }
+.download button { margin: 8px 0 14px; border: 1px solid #93a098; }
+.faq { display: grid; grid-template-columns: 1fr 1.6fr; column-gap: 70px; align-items: start; }
+.faq > .eyebrow { grid-column: 1; grid-row: 1; }
+.faq > h2 { grid-column: 1; grid-row: 2 / span 3; max-width: 280px; }
+.faq details { grid-column: 2; border-top: 1px solid var(--line); padding: 13px 0; }
+.faq details:first-of-type { grid-row: 1 / span 2; }
+.faq summary { cursor: pointer; min-height: 44px; font-weight: 600; display: list-item; align-content: center; }
+.faq details p { max-width: 800px; color: var(--muted); padding: 10px 0; }
+footer { border-top: 1px solid var(--line); padding: 28px 0; color: var(--muted); font-size: 12px; }
+.footer-row { display: flex; gap: 18px; justify-content: space-between; flex-wrap: wrap; }
+.skip { position: absolute; top: -80px; background: white; padding: 12px; z-index: 30; }
+.skip:focus { top: 0; }
+.docs-intro { padding: 54px 0 36px; max-width: 980px; }
+.docs-intro h1 { font-size: 48px; }
+.doc-layout { display: grid; grid-template-columns: 245px minmax(0, 1fr); gap: 60px; padding-bottom: 70px; }
+.sidebar { align-self: start; position: sticky; top: 20px; font-size: 14px; }
+.sidebar a { display: block; padding: 9px 0; text-decoration: none; min-height: 44px; border-bottom: 1px solid var(--line); }
+.sidebar label { font-size: 13px; font-weight: 600; }
+.sidebar input { width: 100%; min-height: 44px; padding: 9px; border: 1px solid #9aada0; border-radius: 2px; margin: 8px 0; background: white; color: var(--ink); }
+.doc-section { padding: 28px 0 35px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.doc-section h2 { font-size: 30px; margin: 8px 0 20px; }
+.doc-section h3 { margin: 28px 0 8px; font-size: 19px; }
+.doc-section p { font-size: 16px; color: var(--muted); max-width: 760px; }
+.doc-kicker { font-size: 13px; color: var(--green); font-weight: 600; }
+.source-links { display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 14px; }
+.source-links a { min-height: 44px; display: inline-flex; align-items: center; }
+.search-status { font-size: 12px; color: var(--muted); min-height: 24px; }
+.no-results { padding: 30px; border: 1px solid var(--line); }
+.shot { margin: 24px 0; max-width: 760px; }
+.shot img { max-width: 100%; height: auto; display: block; border: 1px solid var(--line); background: var(--white); }
+.shot figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.print-only { display: none; }
+[hidden] { display: none !important; }
+bdi, code { direction: ltr; unicode-bidi: isolate; }
+code { font: 13px monospace; background: var(--wash); padding: 2px 4px; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  h1 { font-size: 43px; }
+  .faq { column-gap: 30px; }
+  .doc-layout { gap: 30px; }
+}
+@media (max-width: 700px) {
+  header { padding: 16px 20px 12px; display: block; }
+  .brand { font-size: 22px; }
+  header > nav { gap: 22px; margin-top: 8px; }
+  nav a { font-size: 13px; }
+    .wrap { padding: 0 22px; }
+  .hero { padding: 48px 0 64px; }
+  .eyebrow { margin-bottom: 18px; }
+  h1 { font-size: clamp(34px, 9.4vw, 48px); letter-spacing: -1.2px; margin: 20px 0; }
+  h2 { font-size: 29px; }
+  .lead { font-size: 18px; }
+  .actions { gap: 12px 22px; margin-top: 24px; }
+  .hero-download { margin: 28px 0 4px; }
+  .hero-download-button { width: 100%; min-height: 66px; padding: 14px 22px; font-size: 17px; gap: 12px; }
+  .hero-download-button svg { width: 22px; height: 22px; }
+  .grid3, .status-grid { grid-template-columns: 1fr; gap: 0; }
+  .grid3 { margin-top: 28px; }
+  .step { padding: 18px 0 8px; }
+  .panel { padding: 24px; }
+  .panel.white { border-inline-start: 0; border-bottom: 1px solid var(--line); }
+  .section { padding: 40px 0; }
+  .callout { padding: 18px 20px; }
+  .download { padding: 28px 24px; }
+  .download h2 { font-size: 30px; }
+  .download button { width: 100%; padding-inline: 10px; font-size: 14px; }
+  .faq { display: block; }
+  .faq > h2 { max-width: none; }
+  .doc-layout { grid-template-columns: 1fr; gap: 25px; }
+  .sidebar { position: static; }
+  .sidebar nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+  .docs-intro { padding-top: 32px; }
+  .docs-intro h1 { font-size: 38px; }
+  .doc-section h2 { font-size: 27px; }
+}
+@media (max-width: 360px) {
+  .wrap { padding: 0 18px; }
+  header { padding-inline: 18px; }
+  header > nav { gap: 15px; }
+  .sidebar nav { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print {
+  body { background: white; color: #111; font-size: 11pt; }
+  header, .sidebar, .actions, .skip { display: none; }
+  .wrap { max-width: none; padding: 0; }
+  .doc-layout { display: block; }
+  .doc-section { break-inside: avoid; page-break-inside: avoid; }
+  h1 { font-size: 30pt; }
+  h2 { font-size: 21pt; }
+  .hero { padding: 20px 0; }
+  .section { padding: 22px 0; }
+  .print-only { display: block; }
+  .source-links { display: block; }
+  .source-links a { display: block; margin-bottom: 5px; }
+  .download { background: white; color: #111; border: 1px solid #777; }
+  .download .eyebrow, .download .note, .download .small, .download .pill { color: #333; }
+  footer { font-size: 9pt; }
+}
+
+/* Clean download-first home */
+.verify { margin: 12px 0 0; max-width: 560px; }
+.verify summary { cursor: pointer; font-size: 14px; min-height: 32px; display: list-item; align-content: center; color: var(--muted); }
+.verify .note { margin: 6px 0 0; }
+.doc-download { margin: 20px 0 28px; }
+.steps-list { max-width: 760px; color: var(--muted); font-size: 16px; padding-inline-start: 24px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+h1:focus, h1:focus-visible { outline: none; }
+.docs-jump { display: none; }
+@media (max-width: 700px) {
+  .docs-jump { display: flex; justify-content: space-between; gap: 12px; background: var(--paper); border-bottom: 1px solid var(--line); padding: 0 22px; }
+  .docs-jump a { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 600; }
+  .doc-layout { gap: 0; }
+  .sidebar { scroll-margin-top: 52px; padding-top: 20px; }
+  .doc-section { scroll-margin-top: 56px; }
+}
+@media (max-width: 360px) { .docs-jump { padding: 0 18px; } }
+@media print { .docs-jump { display: none; } }
+/* centered hero blocks (must follow the generic .verify / state rules) */
+.hero .hero-download-state, .hero .verify { margin-inline: auto; text-align: center; }
+.hero .proto-note { text-align: center; }
+
+/* Technical data is optional and separate from the primary download action. */
+.verify:not([open]) > :not(summary) { display: none; }
+.verify .ptr-row { display: block; margin-top: 10px; }
+.verify .ptr-sha { display: block; text-align: left; font: 12px/1.7 monospace; user-select: all; }
+.verify .ptr-honesty { display: block; margin-top: 14px; }
+
+/* Wordmark: horizontally longer initial S; other letters keep the original font. */
+.brand { unicode-bidi: isolate; }
+.s-long { display: inline-block; transform: scaleX(1.4); transform-origin: left center; margin-right: .27em; }
+
+/* Brand icon sits at the reading start of the wordmark: left on LTR pages,
+ * right on RTL pages. The wordmark itself stays LTR and complete in both. */
+.brand { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; }
+html[dir="rtl"] .brand { flex-direction: row-reverse; }
+.brand i { margin-right: 0; flex-shrink: 0; }
+.wordmark { direction: ltr; unicode-bidi: isolate; }
+
+/* Language links are progressive enhancement, not a translation-service widget. */
+header { flex-wrap: wrap; }
+.language-switch { position: relative; margin-inline-start: auto; font-size: 13px; }
+.language-switch > summary { cursor: pointer; min-height: 44px; display: list-item; align-content: center; padding: 0 10px; }
+.language-switch > nav { position: absolute; inset-inline-end: 0; top: 100%; z-index: 40; display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; width: 280px; padding: 12px 16px; background: var(--white); border: 1px solid var(--line); box-shadow: 0 10px 25px #14274318; }
+.language-switch a { min-height: 44px; }
+.language-switch a[aria-current="true"] { color: var(--green); text-decoration: underline; }
+html:not([lang="he"]) .hero h1 { direction: ltr; }
+html:not([lang="he"]) .panel ul { padding-inline-start: 20px; padding-inline-end: 0; }
+html:not([lang="he"]) .verify .ptr-sha { text-align: left; }
+html[lang="zh-Hans"] body { font-family: "Microsoft YaHei", "PingFang SC", "Droid Sans Fallback", sans-serif; }
+html[lang="ja"] body { font-family: "Yu Gothic", "Meiryo", "Droid Sans Fallback", sans-serif; }
+@media(max-width:700px){ header { display: flex; gap: 4px 14px; } header > nav { order: 3; flex-basis: 100%; margin-top: 0; } .language-switch { margin-inline-start: auto; } .language-switch > nav { max-width: calc(100vw - 40px); } }
+@media print { .language-switch { display: none; } }
+
+.brand i { background: transparent; color: var(--ink); }
+/* Approved website-only illustration layout. SVGs are separate images so filter IDs stay isolated. */
+.hero { position: relative; max-width: none; min-height: 720px; padding: 100px 0 150px; }
+.hero > div:not(.page-line-art) { position: relative; z-index: 1; max-width: 580px; margin-inline: auto; }
+.page-line-art { position: absolute; inset: 0; pointer-events: none; user-select: none; overflow: hidden; }
+.page-line-art img { width: 100%; height: 100%; display: block; }
+.page-line-top, .page-line-bottom { display: none; pointer-events: none; user-select: none; }
+@media (max-width: 1050px) {
+  .hero { padding: 4px 0 16px; min-height: 0; }
+  .page-line-art { display: none; }
+  .page-line-top, .page-line-bottom { display: block; width: 100%; }
+  .page-line-top { margin: 0 auto 16px; max-width: 350px; }
+  .page-line-bottom { margin: 16px auto 0; max-width: 350px; }
+  .page-line-top img, .page-line-bottom img { display: block; width: 100%; height: auto; }
+}
+
+/* Download component: real controls, scoped to home and existing guide CTA. */
+.hero-download{max-width:346px;margin-inline:auto;text-align:start}
+.download-card{background:#fff;border-radius:12px;padding:16px 22px;color:#171717}
+.download-platform{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600;line-height:1.3;margin:0 0 16px}
+.download-platform svg{width:18px;height:18px;flex:none}
+.download-direct,.doc-download button.primary{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:2px 10px;min-height:54px;padding:7px 18px;border:1px solid #c2d5f2;border-radius:8px;background:#e3edfc;color:#142743;font-size:15px;line-height:1.35;font-weight:600;cursor:pointer;box-shadow:none;font-family:"Heebo","Segoe UI","Microsoft YaHei","Yu Gothic","Noto Sans Hebrew",sans-serif}
+.download-direct{width:100%;text-align:start}
+.download-kind{flex-basis:100%;font-size:12px;line-height:1.4;color:#3d4f68;font-weight:400}
+.download-direct:disabled,.doc-download button.primary:disabled{background:#eef2f9;color:#6b7a90;cursor:not-allowed}
+.download-direct:hover:not(:disabled),.doc-download button.primary:hover:not(:disabled){border-color:#8fb4ea;background:#d9e7fc}
+.download-card .hero-download-state{font-size:12px;line-height:1.6;text-align:start;margin:2px 0 0;color:#666}
+
+/* Gentle native drift for the dedicated home line art: --art-y is published
+ * from the real scroll position by site-nav.js as continuous half-speed
+ * compensation with no cap, so the art lags the scroll as one layer and no
+ * content element moves relative to any other, preserving the static
+ * design's relationships, clearances and hit targets. The art exists only on
+ * the home page, whose real scroll span is short, so geometry bounds the
+ * travel. Transform-only: layout, focus order and RTL are unaffected, and
+ * the art is pointer-events:none so it can never intercept a click. The
+ * native scroll listener works on touch phones and does not depend on CSS
+ * scroll-timeline support; with JS disabled the art simply stays static, and
+ * reduced-motion users get the static page automatically. */
+.page-line-art img,.page-line-top img,.page-line-bottom img{transform:translate3d(0,var(--art-y,0px),0)}
+@media (prefers-reduced-motion:reduce){.page-line-art img,.page-line-top img,.page-line-bottom img{transform:none!important}}
+
+.download-card .verify{text-align:start;margin:2px 0 0}
+.download-all{margin-top:12px;background:#fff;color:#171717}
+.download-all>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 22px;min-height:64px;background:#f6f6f6;cursor:pointer;list-style:none;border-bottom:1px solid #e7e7e7}
+.download-all>summary::-webkit-details-marker{display:none}
+.download-all>summary strong{font-size:15px;font-weight:600;display:block}
+.download-all-hint{display:block;font-size:13px;line-height:1.45;color:#737373;margin-top:2px}
+.download-chevron{width:8px;height:8px;border-right:1px solid #777;border-bottom:1px solid #777;transform:rotate(45deg);flex:none;margin:0 2px 4px}
+.download-all[open]>summary .download-chevron{transform:rotate(225deg);margin-top:7px}
+.download-inventory{padding:22px}
+.download-inventory .download-platform{font-size:16px;margin-bottom:20px}
+.download-inventory h4{font-size:16px;line-height:1.4;font-weight:500;margin:24px 0 6px}
+.download-inventory h4:first-of-type{margin-top:0}
+.inventory-note{font-size:13px;line-height:1.6;color:#737373;margin:0 0 12px}
+.prototype-offer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #ededed;padding:8px 0;flex-wrap:wrap}
+/* Owner correction: no double rule under the section heading; the heading
+ * divider and the separators between later rows stay. The regular section
+ * keeps its own boundary immediately below the retained Windows row, above
+ * the no-regular-versions notice. */
+.download-inventory .prototype-offer:first-of-type{border-top:0}
+.download-inventory .download-platform{border-bottom:1px solid #ededed;padding-bottom:10px;margin-bottom:10px}
+.prototype-offer bdi{font-size:13px;color:#666;overflow-wrap:anywhere}
+.prototype-offer button{min-height:44px;max-width:100%;border:0;background:none;color:#22759d;font:inherit;font-size:13px;padding:8px 0;cursor:pointer;text-align:start;white-space:normal}
+.prototype-offer button:disabled{background:none;color:#737373;cursor:not-allowed}
+.doc-download button.primary{display:inline-flex;align-items:center;text-align:center}
+@media(max-width:360px){.download-card,.download-inventory{padding:18px}.download-all>summary{padding-inline:18px}}
+/* Reference component alignment remains left-to-right in every site locale. */
+.hero-download{direction:ltr;text-align:left;font-family:Arial,Helvetica,sans-serif;line-height:1.45}
+.download-platform{font-weight:400}
+.download-direct{font-weight:600;text-align:left}
+.download-all>summary strong{font-weight:500}
+.download-inventory h4{font-weight:400}
+.hero .download-card .hero-download-state,.hero .download-card .verify{text-align:left}
+html[lang="he"] .hero-download [data-cta-label],html[lang="he"] .hero-download .prototype-offer button{direction:rtl;unicode-bidi:isolate;text-align:left}
+.download-card .verify{margin-inline:0}
+.download-card .verify summary{text-align:left}
+
+/* Requested compact spacing and matching visible focus, download scope only. */
+.download-card .verify summary{min-height:28px;padding-block:2px}
+.download-card .verify .note{margin-block:4px 0}
+.download-inventory h4:first-of-type{border-bottom:1px solid #ededed;padding-bottom:10px;margin-bottom:10px}
+.hero-download button:focus-visible,.hero-download summary:focus-visible,.doc-download button.primary:focus-visible{outline:3px solid #1b5de0;outline-offset:3px}
+
+.hero-download summary,.hero-download button,.doc-download button.primary{border-radius:8px}
+[data-cta-version]{font-size:12px;font-weight:400;line-height:1.3}
+[data-cta-version][hidden],[data-layout-legacy][hidden],[data-layout-legacy-qualification][hidden],[data-layout-legacy-unqualified][hidden],[data-layout-portable][hidden],[data-layout-unknown][hidden]{display:none}
+[data-layout-portable] bdi{white-space:nowrap;direction:ltr;unicode-bidi:isolate}
+
+/* Private owner-requested delta: the top website navigation stays pinned
+ * while scrolling, at every width. On pages without a secondary bar the
+ * header itself sticks; on the guide the header and the mobile jump bar are
+ * wrapped together in .pinned-top, one sticky container, so the jump bar
+ * always docks directly below the header however tall the header wraps - no
+ * magic-number offsets and no script measurement. Sticky keeps everything in
+ * normal flow: no content shifts when it engages; the opaque paper background
+ * with the existing bottom border keeps scrolled content readable underneath.
+ * z-index 25 sits above page content and below the skip link (30) and the
+ * language dropdown (40). */
+header{position:sticky;top:0;z-index:25;background:var(--paper)}
+.pinned-top{position:sticky;top:0;z-index:25;background:var(--paper)}
+.pinned-top header{position:static}
+/* In-page anchor targets clear the pinned bars: header 85px at >=701px, 121px
+ * at <=700px, about 165px when fully wrapped below 361px; guide jump 44px.
+ * Measured in the rendered pages; generous offsets only lower the target,
+ * never hide it. */
+html{scroll-padding-top:97px}
+@media (max-width:700px){
+ html{scroll-padding-top:133px}
+ .sidebar{scroll-margin-top:177px}
+ .doc-section{scroll-margin-top:177px}
+}
+@media (max-width:360px){
+ html{scroll-padding-top:189px}
+ .sidebar{scroll-margin-top:221px}
+ .doc-section{scroll-margin-top:221px}
+}
+
+/* Guide-only continuous backdrop: the guide keeps the fixed decorative layer
+ * behind all content moving at half scroll speed; the home page uses its
+ * dedicated flow illustrations instead. Scoped by data-page, which
+ * site-nav.js maintains across client-side navigation, so the two
+ * compositions never appear together and SPA page swaps stay correct.
+ * --depth-y is -(scrollTop * 0.5) modulo 720, in px; 720px is the exact
+ * repeated tile height, and the extra tile above and below the viewport
+ * prevents blank edges as it moves. */
+body{isolation:isolate}
+body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+@media(max-width:700px){body[data-page="docs.html"]::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body[data-page="docs.html"]::before{transform:none!important}}
+@media print{body[data-page="docs.html"]::before{display:none}}
+
+/* Owner feedback (Nov 19), desktop guide: the chapter list must scroll on its
+ * own wherever the main page is, not only after the page reaches a boundary.
+ * The sticky sidebar becomes its own viewport-capped scroll container; the
+ * aside is focusable (tabindex) so keyboard users can scroll it too. Mobile
+ * keeps the static inline chapter list.
+ * Clearance follow-up (Nov 19): the pinned header is taller than the base
+ * 85px when the nav wraps (narrow widths) or text is enlarged, and a fixed
+ * offset docked the list's top controls underneath it. The dock now follows
+ * the header's MEASURED height via --pinned-top-h, published from the live
+ * layout by site-nav.js; the fallback reproduces the base 85px header. */
+@media (min-width: 701px) {
+  .sidebar { top: calc(var(--pinned-top-h, 85px) + 12px); max-height: calc(100vh - var(--pinned-top-h, 85px) - 32px); overflow-y: auto; }
+}
+.sidebar:focus-visible { outline: 3px solid #975016; outline-offset: 3px; }
+
+/* Owner feedback (Nov 19), home: opening/closing "All versions" must not move
+ * the decorative line art. The art used to be stretched to the hero box
+ * (height:100%), so any change in hero height refit the artwork. Sizing it by
+ * width alone (the SVG's intrinsic 1200x720 ratio) keeps its geometry constant
+ * however tall the hero grows; overflow stays clipped as before. */
+.page-line-art img { height: auto; }
+
+/* OPTIONAL PREVIEW PROPOSAL (owner suggestion, Nov 19, via Yitzhak) - NOT an
+ * approved redesign, kept as a separable candidate for review: give the home
+ * page the guide's continuous fixed line-art backdrop instead of the dedicated
+ * hero illustration composition. Same tile, opacity and half-speed depth drift
+ * as the guide; the hero/top/bottom illustrations are hidden while this
+ * proposal is applied. Progressive enhancement: needs the same data-page
+ * marker the guide backdrop already relies on. */
+body[data-page="index.html"]::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+@media(max-width:700px){body[data-page="index.html"]::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body[data-page="index.html"]::before{transform:none!important}}
+@media print{body[data-page="index.html"]::before{display:none}}
+body[data-page="index.html"] .page-line-art,body[data-page="index.html"] .page-line-top,body[data-page="index.html"] .page-line-bottom{display:none}
