@@ -17,6 +17,14 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
  * init() is idempotent and is called again by the client-side router after a
  * page swap; each call revalidates the pointer (no cache), so a CTA is only
  * ever enabled or labeled from a freshly validated pointer result.
+ *
+ * Settlement signal: when the router passes its navigation token as
+ * init(navToken), the terminal render of this init (success, fail-closed, and
+ * every catalog branch) dispatches "startapp:download-settled" on the document
+ * with detail.token set to it. A superseded init (a newer init started first)
+ * never dispatches: the newest navigation's own init settles it. The router
+ * uses the event to end its scroll-restore defense at the real render
+ * settlement instead of a timer or a permanent correction.
  */
 (function () {
   var TEXTS = {
@@ -179,10 +187,22 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     });
   }
 
-  function init() {
+  function init(navToken) {
     var mine = ++seq;
+    var settled = false;
+    // Exactly one settlement signal per init that reaches its terminal render.
+    function settle() {
+      if (settled) return;
+      settled = true;
+      document.dispatchEvent(
+        new CustomEvent("startapp:download-settled", {
+          detail: { token: navToken === undefined ? null : navToken },
+        })
+      );
+    }
     if (!window.StartAppPointer) {
       applyLoading(); applyStaticState("invalid"); guideLayout({state: "invalid"});
+      settle();
       return;
     }
     applyLoading();
@@ -196,8 +216,8 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
       try {
         renderAll(result);
         guideLayout(result);
-      } catch (_) { failClosed(); return; }
-      if (!window.StartAppCatalog || !document.querySelector("[data-prototype-offers]")) return;
+      } catch (_) { failClosed(); settle(); return; }
+      if (!window.StartAppCatalog || !document.querySelector("[data-prototype-offers]")) { settle(); return; }
       var catalogUrl = new URL(root + "downloads.json", window.location.href).href;
       window.StartAppCatalog.load(catalogUrl, result).then(function (history) {
         if (mine !== seq) return;
@@ -205,7 +225,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
           // Old schema1 pointer without layout remains a usable singleton when
           // catalog absent/conflicting. Never relabel that fallback complete.
           if (history.state === "invalid" && result.state === "ok" && result.pointer.layout === "unknown") {
-            renderOffers(result); historyHint(false); return;
+            renderOffers(result); historyHint(false); settle(); return;
           }
           document.querySelectorAll("[data-prototype-offers]").forEach(function (target) { window.StartAppCatalog.render(target, history); });
           historyHint(history.state === "ok" || history.state === "none");
@@ -214,6 +234,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
           // validated primary and guide keep their own verified state.
           try { renderOffers({state: "invalid"}); historyHint(false); } catch (_) {}
         }
+        settle();
       });
     });
   }
