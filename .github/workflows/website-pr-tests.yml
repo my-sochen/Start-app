@@ -2,12 +2,11 @@
 name: website-pr-tests
 on:
   pull_request:
+    # No paths filter: this gate must run on EVERY pull request to these
+    # branches so its status check is always present and safe to require.
+    # Pull requests without website or publisher changes pass trivially
+    # after cheap scope detection; only the relevant steps then run.
     branches: [main, website/dev, website/test, website/main]
-    paths:
-      - 'website/**'
-      - '.github/release/**'
-      - '.github/workflows/release-pointer-update.yml'
-      - '.github/workflows/website-pr-tests.yml'
 permissions:
   contents: read
 concurrency:
@@ -30,6 +29,7 @@ jobs:
       EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
       EXPECTED_REPOSITORY: my-sochen/Start-app
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      BASE_REF: ${{ github.base_ref }}
       ACTUAL_REPOSITORY: ${{ github.repository }}
       IS_PRIVATE: ${{ github.event.repository.private }}
     steps:
@@ -61,21 +61,30 @@ jobs:
           infra = {'.github/workflows/website-pr-tests.yml', '.github/workflows/release-pointer-update.yml', '.github/release/stage_website.py', '.github/release/update_pointer.py', '.github/release/website-live.json', '.github/release/WEBSITE-LIFECYCLE.md', '.github/release/tests/test_stage_website.py', '.github/release/tests/test_website_lifecycle.py', '.github/release/tests/test_release_pointer_workflow_static.py'}
           allowed = lambda p: p.startswith('website/') or p in infra
           rejected = [p for p in paths if p and not allowed(p)]
-          if rejected: raise SystemExit('Software or unrelated files in website change: ' + repr(rejected))
+          # Software changes are rejected only inside the website lifecycle
+          # branches. On main, application changes are ordinary work and the
+          # gate limits itself to website/publisher scope.
+          if os.environ.get('BASE_REF', '').startswith('website/') and rejected:
+              raise SystemExit('Software or unrelated files in website change: ' + repr(rejected))
+          relevant = any(p and allowed(p) for p in paths)
           website_changed = any(p.startswith('website/') for p in paths if p)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('relevant=' + str(relevant).lower() + '\n')
               out.write('website_changed=' + str(website_changed).lower() + '\n')
           PYGUARD
       - name: Run offline publisher regression tests (isolated Python, no deploy)
+        if: steps.scope.outputs.relevant == 'true'
         run: |
           python3 -m venv /tmp/website-publisher-tests
           /tmp/website-publisher-tests/bin/pip install PyYAML==6.0.2
           /tmp/website-publisher-tests/bin/python -m unittest discover -s .github/release/tests -v
       - name: Set up Node 22
+        if: steps.scope.outputs.relevant == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Run offline website tests (no dependencies, no server)
+        if: steps.scope.outputs.relevant == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -85,9 +94,13 @@ jobs:
           node website/tests/test-meaning-corrections.mjs
           node website/tests/test-search-visibility.mjs
       - name: Record browser coverage boundary for infrastructure-only changes
-        if: steps.scope.outputs.website_changed != 'true'
+        if: steps.scope.outputs.relevant == 'true' && steps.scope.outputs.website_changed != 'true'
         run: |
           echo 'Website bytes unchanged: browser/locale harness NOT RUN. Publisher regression and static website suites ran; this is NOT website runtime qualification. Old live baseline has no npm lockfile; full browser coverage is required on the separate website-content PR.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Record trivial pass for unrelated changes
+        if: steps.scope.outputs.relevant != 'true'
+        run: |
+          echo 'No website/ or publisher infrastructure paths changed: the always-present gate passes without running the publisher or website suites. The browser harness is intentionally not involved.' >> "$GITHUB_STEP_SUMMARY"
   website-browser-full:
     name: Website full Chrome DOM and eight locales
     needs: infrastructure-checks
