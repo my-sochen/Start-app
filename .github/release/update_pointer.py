@@ -61,7 +61,7 @@ def build_artifact(website_dir, pointer_doc, out_dir, catalog_doc=None):
     tmp = tempfile.mkdtemp(prefix=".artifact-", dir=parent)
     try:
         shutil.copytree(website_dir, tmp, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns(*EXCLUDE_DIRS))
+                        ignore=lambda directory, names: [n for n in names if os.path.abspath(directory) == os.path.abspath(website_dir) and n in EXCLUDE_DIRS])
         with open(os.path.join(tmp, "pointer.json"), "w", encoding="utf-8") as f:
             json.dump(pointer_doc, f, ensure_ascii=False, indent=2)
         if catalog_doc is not None:
