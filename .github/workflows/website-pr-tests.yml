@@ -2,7 +2,7 @@
 name: website-pr-tests
 on:
   pull_request:
-    branches: [website/dev, website/test, website/main]
+    branches: [main, website/dev, website/test, website/main]
     paths:
       - 'website/**'
       - '.github/release/**'
