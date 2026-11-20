@@ -7,14 +7,32 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class WebsiteLifecycleTests(unittest.TestCase):
-    def test_ci_targets_only_website_lifecycle(self):
+    def test_ci_targets_website_lifecycle_and_main_gate(self):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
         triggers = doc.get('on', doc.get(True))
         self.assertEqual(set(triggers), {'pull_request'})
-        self.assertEqual(triggers['pull_request']['branches'], ['website/dev', 'website/test', 'website/main'])
+        self.assertEqual(triggers['pull_request']['branches'], ['main', 'website/dev', 'website/test', 'website/main'])
+        # Always-present gate: no paths filter, so the check appears on every
+        # pull request to these branches and is safe to make required.
+        self.assertNotIn('paths', triggers['pull_request'])
         self.assertEqual(doc['permissions'], {'contents': 'read'})
         self.assertEqual(set(doc['jobs']), {'infrastructure-checks', 'website-browser-full'})
-        self.assertNotIn('environment', doc['jobs']['infrastructure-checks'])
+        # The gate job keeps this exact unique name: it is the status check an
+        # owner may require on main. The browser job is intentionally
+        # conditional and must never be a universally required check.
+        gate = doc['jobs']['infrastructure-checks']
+        self.assertEqual(gate['name'], 'Website infrastructure and static checks')
+        # Fail-closed: the gate job carries no job-level skip condition on
+        # repository identity or visibility, so a rename or private
+        # transition fails the check instead of silently skipping a
+        # required one. The in-runner identity guard performs the check.
+        self.assertNotIn('if', gate)
+        self.assertEqual(doc['jobs']['website-browser-full']['name'], 'Website full Chrome DOM and eight locales')
+        heavy = [s for s in gate['steps'] if str(s.get('name', '')).startswith(('Run offline', 'Set up Node'))]
+        self.assertTrue(heavy)
+        for step in heavy:
+            self.assertIn("relevant == 'true'", str(step.get('if', '')), step['name'])
+        self.assertNotIn('environment', gate)
         self.assertNotIn('deploy-pages', str(doc))
         self.assertNotIn('dotnet', str(doc))
 
@@ -29,9 +47,17 @@ class WebsiteLifecycleTests(unittest.TestCase):
         self.assertIn('refs/heads/website/main:refs/remotes/origin/website/main', '\n'.join(commands))
         self.assertNotIn('--website website ', '\n'.join(commands))
 
-    def test_bootstrap_pin_is_exact_and_not_moving_test(self):
+    def test_live_pin_matches_approved_baseline(self):
+        # Visibility tripwire, NOT authorization: the expected value records the
+        # website commit the owner approved for promotion through the website
+        # lifecycle and for publication on 2026-11-20, whose served bytes an
+        # independent post-publication review verified byte-identical to the
+        # pinned source. A later pin change must update this value in the same
+        # pull request, making every pin move visible in review. Enforcement
+        # comes only from the repository protection settings documented in
+        # WEBSITE-LIFECYCLE.md, never from this test.
         pin = json.loads((ROOT / '.github/release/website-live.json').read_text())
-        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': '3779d174923a592d7c56a22671624cbe041404b1'})
+        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': 'f94789e0f94c6f8a30c544bc4d6beb61a8409d4b'})
 
     def test_ci_guard_rejects_app_and_unrelated_infrastructure(self):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
@@ -41,10 +67,14 @@ class WebsiteLifecycleTests(unittest.TestCase):
         policy = script[script.index('infra = '):script.index('rejected = ')]
         scope = {}
         exec(policy, scope)
-        for path in ('src/App.cs', 'tests/App.cs', '.github/release/make_manifest.py', '.github/workflows/release-prototype.yml'):
+        for path in ('src/App.cs', 'tests/App.cs', '.github/e2e/cycle1-flow.ps1', '.github/workflows/release-prototype.yml', '.github/CODEOWNERS'):
             self.assertFalse(scope['allowed'](path), path)
         self.assertTrue(scope['allowed']('website/index.html'))
         self.assertTrue(scope['allowed']('.github/release/stage_website.py'))
+        # Precise coverage includes the whole publisher/release tooling tree,
+        # not only the originally reviewed nine files.
+        self.assertTrue(scope['allowed']('.github/release/make_manifest.py'))
+        self.assertTrue(scope['allowed']('.github/release/tests/test_verify_served.py'))
 
     def test_website_scope_detection_includes_nested_delete_and_rename_destinations(self):
         import os, tempfile
@@ -53,17 +83,31 @@ class WebsiteLifecycleTests(unittest.TestCase):
         steps = doc['jobs']['infrastructure-checks']['steps']
         scope_step = next(s for s in steps if s.get('id') == 'scope')
         script = scope_step['run'].split("python3 - <<'PYGUARD'\n", 1)[1].rsplit('PYGUARD', 1)[0]
-        cases = [(['website/index.html'], True), (['website/en/deep/file.css'], True),
-                 (['website/tests/lock.json'], True),
-                 (['website/removed.html', 'website/renamed.html'], True),
-                 (['.github/workflows/website-pr-tests.yml', '.github/release/stage_website.py'], False),
-                 ([], False)]
-        for paths, expected in cases:
-            with self.subTest(paths=paths), tempfile.TemporaryDirectory() as t:
+        cases = [(['website/index.html'], 'main', True, True),
+                 (['website/en/deep/file.css'], 'website/dev', True, True),
+                 (['website/tests/lock.json'], 'website/test', True, True),
+                 (['website/removed.html', 'website/renamed.html'], 'website/main', True, True),
+                 (['.github/workflows/website-pr-tests.yml', '.github/release/stage_website.py'], 'main', False, True),
+                 (['.github/release/make_manifest.py'], 'main', False, True),
+                 ([], 'main', False, False),
+                 (['src/App.cs', 'README.md'], 'main', False, False)]
+        for paths, base_ref, expected_website, expected_relevant in cases:
+            with self.subTest(paths=paths, base_ref=base_ref), tempfile.TemporaryDirectory() as t:
                 output = Path(t) / 'outputs'
-                with mock.patch.dict(os.environ, {'BASE_SHA': 'a'*40, 'EXPECTED_HEAD': 'b'*40, 'GITHUB_OUTPUT': str(output)}), mock.patch('subprocess.check_output', return_value=('\0'.join(paths)+'\0').encode()):
+                env = {'BASE_SHA': 'a'*40, 'EXPECTED_HEAD': 'b'*40, 'GITHUB_OUTPUT': str(output), 'BASE_REF': base_ref}
+                with mock.patch.dict(os.environ, env), mock.patch('subprocess.check_output', return_value=('\0'.join(paths)+'\0').encode()):
                     exec(script, {})
-                self.assertEqual(output.read_text(), 'website_changed=' + str(expected).lower() + '\n')
+                lines = dict(line.split('=') for line in output.read_text().splitlines())
+                self.assertEqual(lines['website_changed'], str(expected_website).lower())
+                self.assertEqual(lines['relevant'], str(expected_relevant).lower())
+        # The software-change rejection applies only inside website lifecycle
+        # branches; on main the same paths are a trivial-pass gate result.
+        with tempfile.TemporaryDirectory() as t:
+            output = Path(t) / 'outputs'
+            env = {'BASE_SHA': 'a'*40, 'EXPECTED_HEAD': 'b'*40, 'GITHUB_OUTPUT': str(output), 'BASE_REF': 'website/dev'}
+            with mock.patch.dict(os.environ, env), mock.patch('subprocess.check_output', return_value=b'src/App.cs\0'):
+                with self.assertRaises(SystemExit):
+                    exec(script, {})
         browser = doc['jobs']['website-browser-full']
         self.assertEqual(browser['needs'], 'infrastructure-checks')
         self.assertIn("needs.infrastructure-checks.outputs.website_changed == 'true'", browser['if'])
@@ -73,7 +117,7 @@ class WebsiteLifecycleTests(unittest.TestCase):
         for name in ('Install pinned harness dependencies (requires committed lockfile)', 'Run DOM behavior harness', 'Run locale harness (all 8 locales, default run)'):
             self.assertNotIn('if', next(s for s in browser['steps'] if s['name'] == name))
         for name in ('Run offline publisher regression tests (isolated Python, no deploy)', 'Run offline website tests (no dependencies, no server)'):
-            self.assertNotIn('if', next(s for s in steps if s['name'] == name))
+            self.assertIn("relevant == 'true'", next(s for s in steps if s['name'] == name)['if'])
         self.assertIn('NOT website runtime qualification', str(steps))
 
     def test_real_git_rename_source_cannot_bypass_scope_or_browser_coverage(self):
@@ -101,7 +145,9 @@ class WebsiteLifecycleTests(unittest.TestCase):
                 detected = git('diff', '--name-status', base, head)
                 self.assertTrue(detected.startswith('R100'), detected)
                 output = repo / 'out'
-                with mock.patch.dict(os.environ, {'BASE_SHA': base, 'EXPECTED_HEAD': head, 'GITHUB_OUTPUT': str(output)}):
+                # Lifecycle-branch scenario: the software-change rejection only
+                # applies to website/* targets, so BASE_REF names one here.
+                with mock.patch.dict(os.environ, {'BASE_SHA': base, 'EXPECTED_HEAD': head, 'GITHUB_OUTPUT': str(output), 'BASE_REF': 'website/test'}):
                     # Real subprocess/git and actual inline guard, no mocked diff list.
                     previous = Path.cwd()
                     try:
@@ -111,7 +157,9 @@ class WebsiteLifecycleTests(unittest.TestCase):
                             self.assertFalse(output.exists())
                         else:
                             exec(script, {})
-                            self.assertEqual(output.read_text(), 'website_changed=' + str(browser).lower() + '\n')
+                            lines = dict(line.split('=') for line in output.read_text().splitlines())
+                            self.assertEqual(lines['website_changed'], str(browser).lower())
+                            self.assertEqual(lines['relevant'], 'true')
                     finally: os.chdir(previous)
 
 
