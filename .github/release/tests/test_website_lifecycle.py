@@ -22,6 +22,11 @@ class WebsiteLifecycleTests(unittest.TestCase):
         # conditional and must never be a universally required check.
         gate = doc['jobs']['infrastructure-checks']
         self.assertEqual(gate['name'], 'Website infrastructure and static checks')
+        # Fail-closed: the gate job carries no job-level skip condition on
+        # repository identity or visibility, so a rename or private
+        # transition fails the check instead of silently skipping a
+        # required one. The in-runner identity guard performs the check.
+        self.assertNotIn('if', gate)
         self.assertEqual(doc['jobs']['website-browser-full']['name'], 'Website full Chrome DOM and eight locales')
         heavy = [s for s in gate['steps'] if str(s.get('name', '')).startswith(('Run offline', 'Set up Node'))]
         self.assertTrue(heavy)
@@ -62,10 +67,14 @@ class WebsiteLifecycleTests(unittest.TestCase):
         policy = script[script.index('infra = '):script.index('rejected = ')]
         scope = {}
         exec(policy, scope)
-        for path in ('src/App.cs', 'tests/App.cs', '.github/release/make_manifest.py', '.github/workflows/release-prototype.yml'):
+        for path in ('src/App.cs', 'tests/App.cs', '.github/e2e/cycle1-flow.ps1', '.github/workflows/release-prototype.yml', '.github/CODEOWNERS'):
             self.assertFalse(scope['allowed'](path), path)
         self.assertTrue(scope['allowed']('website/index.html'))
         self.assertTrue(scope['allowed']('.github/release/stage_website.py'))
+        # Precise coverage includes the whole publisher/release tooling tree,
+        # not only the originally reviewed nine files.
+        self.assertTrue(scope['allowed']('.github/release/make_manifest.py'))
+        self.assertTrue(scope['allowed']('.github/release/tests/test_verify_served.py'))
 
     def test_website_scope_detection_includes_nested_delete_and_rename_destinations(self):
         import os, tempfile
@@ -79,6 +88,7 @@ class WebsiteLifecycleTests(unittest.TestCase):
                  (['website/tests/lock.json'], 'website/test', True, True),
                  (['website/removed.html', 'website/renamed.html'], 'website/main', True, True),
                  (['.github/workflows/website-pr-tests.yml', '.github/release/stage_website.py'], 'main', False, True),
+                 (['.github/release/make_manifest.py'], 'main', False, True),
                  ([], 'main', False, False),
                  (['src/App.cs', 'README.md'], 'main', False, False)]
         for paths, base_ref, expected_website, expected_relevant in cases:
