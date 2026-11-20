@@ -1,0 +1,64 @@
+# One isolated free public-repo Windows diagnostic. No release, deployment or product build.
+name: capture-network-nov20
+on:
+  push:
+    branches: [diag/capture-network-nov20]
+permissions:
+  contents: read
+concurrency:
+  group: capture-network-nov20
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    if: github.repository == 'my-sochen/Start-app' && github.event.repository.private == false && github.event_name == 'push' && github.ref == 'refs/heads/diag/capture-network-nov20' && github.run_attempt == 1
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind test-only branch and immutable published package
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git merge-base --is-ancestor 42d33fd341951225e22dbbdb009049cf2da28b88 HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic branch does not descend from approved DEV' }
+          $allowed=@('.github/workflows/capture-network-nov20.yml','qualification/capture-network/Run.ps1','qualification/capture-network/README.md')
+          $paths=@(git diff --name-only --no-renames 42d33fd341951225e22dbbdb009049cf2da28b88 HEAD)
+          if ($paths.Count -ne 3 -or @($paths | Where-Object {$_ -notin $allowed}).Count) { throw 'Unexpected source changes; product must remain unmodified' }
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path qualification/capture-network/Run.ps1).Path,[ref]$tokens,[ref]$errors)
+          if($errors.Count){$errors | Format-List *;throw 'Diagnostic parse failed'}
+          New-Item -ItemType Directory -Force evidence,package | Out-Null
+          Invoke-WebRequest -UseBasicParsing 'https://github.com/my-sochen/Start-app/releases/download/v0.1.0-proto.2/StartApp-win-x64.zip' -OutFile package/proto2.zip
+          if((Get-FileHash package/proto2.zip -Algorithm SHA256).Hash.ToLowerInvariant() -cne 'f5084c0898bccb9e2e69943cdbf40fb41087c86c656b0a71c34896e2ce766a57'){throw 'Published artifact hash mismatch'}
+          Expand-Archive package/proto2.zip -DestinationPath package/extracted
+          Get-FileHash qualification/capture-network/Run.ps1,package/extracted/App/StartApp.App.exe,package/extracted/App/StartApp.App.dll -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/verified-files.json -Encoding UTF8
+          Get-Content package/extracted/App/BUILDINFO.txt -ErrorAction SilentlyContinue
+      - name: Exact published UI offline-start and restored-online matrix
+        shell: powershell
+        run: |
+          & ./qualification/capture-network/Run.ps1 -PackageDir package/extracted/App -Output evidence
+          exit $LASTEXITCODE
+      - name: Remove only diagnostic-owned firewall rules and bound evidence
+        if: always()
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          # Safety net for a test exception; timeout still destroys the ephemeral runner.
+          Get-NetFirewallRule -Name 'StartAppCaptureDiag-*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction Stop
+          $files=@(Get-ChildItem evidence -File -ErrorAction SilentlyContinue)
+          foreach($file in $files){
+            if($file.Extension -notin @('.json','.png') -or $file.Length -gt 6MB){throw 'Unexpected evidence file or cap exceeded'}
+          }
+          if(($files | Measure-Object Length -Sum).Sum -gt 90MB){throw 'Evidence total cap exceeded'}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: capture-network-nov20-${{ github.sha }}
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            evidence/*.json
+            evidence/*.png
