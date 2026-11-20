@@ -159,26 +159,49 @@ of website runtime coverage and must never be reported as such.
 V3 is superseded and was not uploaded or opened as a PR. Fresh finite V4
 review is required before advancing this preparation.
 
-## Publication safeguards (required repository protection)
+## Publication safeguards: visibility and enforcement layers
 
-The LIVE pin only stays meaningful if changing it is review-gated in
-practice, not just in this document. The repository owner applies and
-maintains these settings; the workflow and tests assume them:
+Changing the LIVE pin must be both visible and review-gated. The layers are
+distinct; neither replaces the other.
 
-1. Default branch `main` protection: require a pull request before
-   merging, require at least one approving review, and require review
-   from a code owner (`.github/CODEOWNERS` assigns `* @my-sochen`).
-2. Required status check on `main`: the `website-pr-tests` workflow
-   (job `infrastructure-checks`) must pass for pull requests that touch
-   the publisher workflow, `.github/release/**`, or `website/**`. The
-   workflow's pull_request trigger includes `main` for exactly this.
-3. Bypass disabled: the protection rule must not allow administrators
-   to bypass ("Do not allow bypassing the above settings" or a ruleset
-   with an empty bypass list). A LIVE pin change must never reach
-   `main` without an open, reviewed, green pull request.
-4. `github-pages` environment keeps a required reviewer (the owner):
-   every release-pointer deployment waits for explicit owner approval,
-   independently of the pin's history.
-5. `test_live_pin_is_exact_and_review_gated` asserts the exact approved
-   pin value; any pin change must update it in the same pull request,
-   so an unreviewed pin cannot reach `main` with green checks.
+1. Visibility (this repository, in this change): the always-present pull
+   request gate `Website infrastructure and static checks` runs on every
+   pull request to `main` and the website lifecycle branches. Pull requests
+   that do not touch `website/**`, the publisher workflow, or
+   `.github/release/**` pass trivially after cheap scope detection; pull
+   requests that do touch them run the publisher regression and website
+   suites. `test_live_pin_matches_approved_baseline` records the exact pin
+   the owner approved at publication on 2026-11-20 (website/main commit
+   f94789e0f94c6f8a30c544bc4d6beb61a8409d4b, whose served bytes an
+   independent post-publication review verified byte-identical to the
+   pinned source), so any later pin change must update the test in the same
+   pull request and cannot pass unnoticed. This is a consistency and
+   visibility mechanism only; it does not by itself authenticate review.
+
+2. Enforcement (repository settings, applied and maintained by the owner,
+   not by any file change): on the `main` branch rule, require the status
+   check whose exact name is `Website infrastructure and static checks`,
+   keep requiring pull request reviews, and disallow bypassing these
+   settings, so a pin change can only arrive through an open, reviewed,
+   green pull request. The conditional browser job `Website full Chrome DOM
+   and eight locales` is skipped by design when no website bytes change and
+   must never be a universally required check, or unrelated pull requests
+   would deadlock.
+
+3. Deployment approval (already in place, to preserve): the `github-pages`
+   environment requires the owner as reviewer on every release-pointer
+   deployment. This is the standing approval layer between any pin and the
+   live site, independent of how the pin arrived.
+
+Prerequisite recorded from review: requiring approvals while disallowing
+bypass deadlocks owner-authored pull requests unless an eligible reviewer
+distinct from the author exists, because the code-owner entry is the owner's
+own account and authors cannot approve their own pull requests. The
+reviewer arrangement is an owner decision recorded outside this file; these
+settings must only be tightened once it is resolved.
+
+Residual exposure not addressed here: other repository workflows remain
+dispatchable by repository-write actors; the scope guard in the gate
+workflow is co-editable in the same pull requests it guards and must itself
+be watched in review; administrator bypass on the `github-pages`
+environment protection remains available to the owner account.
