@@ -166,11 +166,19 @@ distinct; neither replaces the other.
 
 1. Visibility (this repository, in this change): the always-present pull
    request gate `Website infrastructure and static checks` runs on every
-   pull request to `main` and the website lifecycle branches. Pull requests
-   that do not touch `website/**`, the publisher workflow, or
-   `.github/release/**` pass trivially after cheap scope detection; pull
-   requests that do touch them run the publisher regression and website
-   suites. `test_live_pin_matches_approved_baseline` records the exact pin
+   pull request to `main` and the website lifecycle branches. Precise
+   coverage: `website/**`, the whole publisher/release tooling tree
+   `.github/release/**`, and the two lifecycle workflows; pull requests
+   that touch none of them pass trivially after cheap scope detection,
+   pull requests that do run the publisher regression and website
+   suites. The gate is fail-closed on repository identity: it carries no
+   job-level skip condition on repository name or visibility, so if this
+   repository is renamed or made private, the in-runner identity guard
+   fails the check rather than silently skipping a required one (and if
+   a private transition disables Actions entirely, the check never
+   reports and a required gate stays pending). The same scope set is the
+   allowlist on website lifecycle branches: software or unrelated tooling
+   changes there are rejected. `test_live_pin_matches_approved_baseline` records the exact pin
    the owner approved at publication on 2026-11-20 (website/main commit
    f94789e0f94c6f8a30c544bc4d6beb61a8409d4b, whose served bytes an
    independent post-publication review verified byte-identical to the
