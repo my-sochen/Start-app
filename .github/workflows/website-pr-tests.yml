@@ -17,12 +17,11 @@ jobs:
     name: Website infrastructure and static checks
     outputs:
       website_changed: ${{ steps.scope.outputs.website_changed }}
-    # Evaluated before runner allocation: only the intended public
-    # repository may run this job. The shell guard inside repeats the
-    # check on the runner itself.
-    if: >-
-      github.event.repository.private == false &&
-      github.repository == 'my-sochen/Start-app'
+    # Fail-closed by design: no skip condition on repository identity or
+    # visibility at job level. If the repository is renamed or made
+    # private, the in-runner identity guard below FAILS this check
+    # instead of silently skipping what an owner may have made a
+    # required status check.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -58,8 +57,11 @@ jobs:
           python3 - <<'PYGUARD'
           import os, subprocess
           paths = subprocess.check_output(['git', 'diff', '--no-renames', '--name-only', '-z', os.environ['BASE_SHA'], os.environ['EXPECTED_HEAD']]).decode().split('\0')
-          infra = {'.github/workflows/website-pr-tests.yml', '.github/workflows/release-pointer-update.yml', '.github/release/stage_website.py', '.github/release/update_pointer.py', '.github/release/website-live.json', '.github/release/WEBSITE-LIFECYCLE.md', '.github/release/tests/test_stage_website.py', '.github/release/tests/test_website_lifecycle.py', '.github/release/tests/test_release_pointer_workflow_static.py'}
-          allowed = lambda p: p.startswith('website/') or p in infra
+          # Precise coverage: website/** plus the whole publisher/release
+          # tooling tree .github/release/** plus the two lifecycle
+          # workflows. Everything else is software or unrelated tooling.
+          infra = {'.github/workflows/website-pr-tests.yml', '.github/workflows/release-pointer-update.yml'}
+          allowed = lambda p: p.startswith(('website/', '.github/release/')) or p in infra
           rejected = [p for p in paths if p and not allowed(p)]
           # Software changes are rejected only inside the website lifecycle
           # branches. On main, application changes are ordinary work and the
