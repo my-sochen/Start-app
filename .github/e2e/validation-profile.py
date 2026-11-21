@@ -16,6 +16,7 @@ FULL_REFS = {
     'feat/approved-update-notifier', 'feat/portable-release-wiring-local',
     'feat/portable-candidate-integration', 'feat/per-instance-items',
     'feat/browser-icon-display', 'feat/release-integration-unified',
+    'feat/capture-hover-animation',
     'test/validation',
 }
 
