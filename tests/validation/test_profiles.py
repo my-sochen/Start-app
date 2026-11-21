@@ -67,7 +67,7 @@ class Profiles(unittest.TestCase):
 
     def test_synthetic_capture_guard_contracts_preserved(self):
         text = (ROOT / '.github/e2e/synthetic-update-capture.ps1').read_text()
-        for required in ['$pngs.Count -ne 30', 'StartAppSourceCommit=$env:SHA',
+        for required in ['$pngs.Count -ne 34', 'StartAppSourceCommit=$env:SHA',
                          'default-factory-source-selection', 'MainBetaNoticeSource',
                          '$width in 900,720', 'startupReads -ne 11', 'clickReads -ne 11',
                          'explicitBrowserSinkCalls -ne 1', 'WaitForExit(60000)',
@@ -76,7 +76,7 @@ class Profiles(unittest.TestCase):
 
     def test_synthetic_body_is_exact_previous_qualified_definition(self):
         text = (ROOT / '.github/e2e/synthetic-update-capture.ps1').read_text().split('}\n', 1)[1]
-        self.assertEqual('6339bad06f3ebcefc8b2c8e0c1998f224cd0a3a9e4b2ad7152ddac5478ed3da2',
+        self.assertEqual('7d8ded64fac6069f38673588b5f40f59f20a76bfea2e01c6a4b6f4370d14fd4e',
                          hashlib.sha256(text.encode()).hexdigest())
 
     def test_evidence_rejects_wrong_sha_and_dirty_checkout(self):
