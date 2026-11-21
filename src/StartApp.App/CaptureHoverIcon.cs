@@ -29,7 +29,7 @@ public sealed class CaptureHoverIcon : Canvas
     private readonly Path _beamLeft = BeamPath(CaptureHoverMotion.BeamWidth);
     private readonly Path _beamRight = BeamPath(CaptureHoverMotion.BeamWidth);
     private readonly Canvas _beams = new();
-    private readonly Path[] _dots;
+    private Path[] _dots;
     private readonly Path[] _boxes = { BoxPath(), BoxPath() };
     private readonly TranslateTransform _bob = new();
     private readonly RotateTransform _tilt = new();
