@@ -26,7 +26,7 @@ try {
   $capture.Dispose()
 }
 $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
-if ($pngs.Count -ne 30) { throw "Expected thirty WPF state images (eighteen original states plus twelve beta/event/MAIN states), found $($pngs.Count)" }
+if ($pngs.Count -ne 34) { throw "Expected thirty-four WPF state images (eighteen original states plus twelve beta/event/MAIN states plus four capture-hover frames), found $($pngs.Count)" }
 if (-not (Test-Path out-images/update-states/capture-evidence.json)) { throw 'capture metadata missing' }
 $evidence = @(Get-Content out-images/update-states/capture-evidence.json -Raw | ConvertFrom-Json)
 $identity = @($evidence | Where-Object { $_.state -ceq 'loaded-App-identity' })
