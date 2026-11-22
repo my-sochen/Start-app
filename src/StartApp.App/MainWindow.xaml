@@ -17,6 +17,17 @@
             <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.Tag.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <Separator/><MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+            <!-- path 2 (approved 22.11): separator + final row; sets/clears סביבת ברירת המחדל immediately, no confirm dialog. -->
+            <Separator/>
+            <MenuItem Command="{Binding PlacementTarget.Tag.ToggleDefaultForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
+                      AutomationProperties.Name="Toggle default workspace">
+                <MenuItem.Header>
+                    <MultiBinding Converter="{StaticResource DefaultMenuHeader}">
+                        <Binding Path="."/>
+                        <Binding Path="PlacementTarget.Tag" RelativeSource="{RelativeSource AncestorType=ContextMenu}"/>
+                    </MultiBinding>
+                </MenuItem.Header>
+            </MenuItem>
         </ContextMenu>
         <!-- תצוגה templates (approved 22.11): כרטיסים ברירת מחדל, רשימה, אייקונים (שם וצבע בלבד) -->
         <DataTemplate x:Key="WorkspaceCardTemplate">
@@ -144,6 +155,8 @@
         <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
                 DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
             <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="אופציות ▾" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
+                        AutomationProperties.Name="Options menu"/>
                 <Button DockPanel.Dock="Right" Content="תצוגה ▾" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
                         AutomationProperties.Name="View menu"/>
                 <Button DockPanel.Dock="Right" Content="הגדרות" Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
@@ -252,6 +265,11 @@
             <!-- ============ DETAILS: פרטי סביבה ============ -->
             <DockPanel Margin="8" Visibility="{Binding InDetails, Converter={StaticResource B2V}}">
                 <DockPanel DockPanel.Dock="Top">
+                    <!-- path 3 (approved 22.11): the quiet set/clear-default button is first (rightmost) in the actions row.
+                         The mock's h1 green dot is pending the approved details-screen redesign (no h1 exists on this screen yet). -->
+                    <Button DockPanel.Dock="Right" Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}"
+                            Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Padding="8,2"
+                            AutomationProperties.Name="Toggle default workspace"/>
                     <Button DockPanel.Dock="Left" Content="Back" Command="{Binding BackCommand}" Padding="8,2"/>
                     <Button DockPanel.Dock="Right" Content="שגר" Command="{Binding OpenWorkspaceCommand}" Padding="8,2"/>
                     <TextBlock Text="{Binding CreatedAtText, StringFormat='Created: {0}'}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="Gray" Margin="0,0,10,0"/>
