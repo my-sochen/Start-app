@@ -96,7 +96,7 @@ function OpenContextEl($el, $settle = 900) {
 function ContextAnchors($name) {
   $hostWindow = $win
   if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
-  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Item row')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
   if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Added item name')))) }
   return @()
 }
@@ -278,12 +278,10 @@ try {
   }
   Info 'details viewport scroll before the first-row menu' $scrollDiag
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-  $ifound = @('מחק','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
   MenuInsideWindow 'first-row item menu'
-  Assert 'full edit action is offered in the item menu' ($null -ne (MenuItemByName 'ערוך')) ''
-  $shareMi = MenuItemByName 'הוסף לסביבה'
-  Assert 'share cannot target a nonexistent other workspace' ($null -ne $shareMi -and -not $shareMi.Current.IsEnabled) ''
+  Assert 'full edit action is offered directly on the item row' ($null -ne (Btn 'Edit item')) ''
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
   $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
   $eName = $null; for ($t=0; $t -lt 40 -and -not $eName; $t++) { $eName = NamedEdit 'Edit item name'; if (-not $eName) { Start-Sleep -Milliseconds 100 } }; Assert 'item edit form opened' ($null -ne $eName) ''
@@ -405,11 +403,13 @@ try {
   OpenCreateScreen
   SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
   Assert 'empty workspace created into details with the Hebrew empty message' (WaitText 'עדיין אין אייטמים בסביבה' 15) ((Texts) -join ' | ')
-  $c = ClickBtn 'שגר' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
-  Assert 'empty workspace dialog with the spec title' (WaitText 'סביבת עבודה ריקה' 15) ((Texts) -join ' | ')
-  Shot 'empty-workspace-dialog'
-  $c = ClickBtn 'עבור לפרטי הסביבה' 900; Assert 'go-to-details clicked' ($c -eq 'ok') $c
-  Assert 'dialog closed, still in details with the empty message' (-not (WaitText 'This workspace has no items yet' 2) -and (WaitText 'עדיין אין אייטמים בסביבה' 5)) ((Texts) -join ' | ')
+  # Empty details keep launch disabled, without opening a launch decision or changing the store.
+  $emptyBeforeLaunch = StoreJson
+  $emptyLaunch = Btn 'שגר'
+  Assert 'empty workspace launch is present and disabled' ($null -ne $emptyLaunch -and -not $emptyLaunch.Current.IsEnabled) ''
+  Assert 'empty workspace has no launch-selection dialog' (-not (Btn 'Confirm opening selection')) ''
+  Assert 'empty workspace disabled launch leaves the store unchanged' ((StoreJson) -ceq $emptyBeforeLaunch) ''
+  Shot 'empty-workspace-launch-disabled'
   # 8. card actions menu (spec: הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה; workspace deletion was rejected by the user)
   $c = ClickBtn 'Back' 900; Assert 'back to overview for the menu check' ($c -eq 'ok') $c
   Assert 'no workspace deletion offered anywhere' ($null -eq (BtnLike 'Delete') -and $null -eq (BtnLike 'מחק') -and $null -eq (BtnLike 'מחיקה')) ((ListLines) -join ' || ')
