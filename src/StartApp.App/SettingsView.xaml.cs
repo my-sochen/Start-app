@@ -39,7 +39,7 @@ public partial class SettingsView : UserControl
         var vm = DataContext as UpdateViewModel;
         UncheckedNotice.Visibility = !available && vm?.IsUpToDate != true ? Visibility.Visible : Visibility.Collapsed;
         StatusLine.Visibility = UncheckedNotice.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        UncheckedText.Text = vm?.CheckCommand.CanExecute(null) == true ? "עדיין לא נבדקו עדכונים בהפעלה זו. לחיצה על בדוק עדכונים תבדוק עכשיו." : vm?.Status ?? "טרם נבדק";
+        UncheckedText.Text = vm?.CheckCommand.CanExecute(null) == true && vm.Status == "בדיקת עדכונים זמינה לפי בקשה." ? "עדיין לא נבדקו עדכונים בהפעלה זו. לחיצה על בדוק עדכונים תבדוק עכשיו." : vm?.Status ?? "טרם נבדק";
         UpdateNotice.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         CheckButton.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
         UpdateNowButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
