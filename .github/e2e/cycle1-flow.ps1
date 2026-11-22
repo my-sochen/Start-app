@@ -2811,21 +2811,12 @@ public static class WinCap {
   Shot 'create-form-design-controls-minsize'
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rMin.Rt - $rMin.L), ($rMin.B - $rMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   SetText (NamedEdit 'Workspace name') 'E2E designed'
-  SetText (NamedEdit 'Create card color') 'notacolor'
-  $storeBeforeBad = StoreJson
-  $c = ClickBtn 'Create workspace' 900; Assert 'create with an invalid color clicked' ($c -eq 'ok') $c
-  Assert 'invalid color refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
-  Assert 'refused create changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
-  Assert 'refused create keeps the typed values for correction' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq 'notacolor') ("name=$(ValOf (NamedEdit 'Workspace name')) color=$(ValOf (NamedEdit 'Create card color'))")
-  SetText (NamedEdit 'Create card color') ''
-  SetText (NamedEdit 'Create card image path') 'not-a-path'
-  $c = ClickBtn 'Create workspace' 900; Assert 'create with a malformed image path clicked' ($c -eq 'ok') $c
-  Assert 'malformed image path refused at the boundary with the app error' (WaitText 'בדקו את הצבע ואת נתיב התמונה' 5) ((Texts) -join ' | ')
-  Assert 'refused create (image) changed nothing in the store' ((StoreJson) -eq $storeBeforeBad) ''
-  SetText (NamedEdit 'Create card image path') ''
-  $sw = Btn '#FDE68A'; Assert 'create palette swatch present with its color as the automation name' ($null -ne $sw) ''
-  [void](InvokeEl $sw 'create palette #FDE68A'); Start-Sleep -Milliseconds 400
-  Assert 'palette click fills the typed color' ((ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') (ValOf (NamedEdit 'Create card color'))
+  # The new creation UI deliberately offers palette/native picker only, not raw color/path inputs.
+  # Invalid raw values remain covered by CreateFormDesignTests, not simulated as unreachable UI actions.
+  $storeBeforePalette = StoreJson
+  $sw = Btn 'Create color gold'; Assert 'current create palette gold swatch exists' ($null -ne $sw) ''
+  [void](InvokeEl $sw 'create palette gold'); Start-Sleep -Milliseconds 400
+  Assert 'palette remains a draft until explicit creation' ((StoreJson) -eq $storeBeforePalette) ''
   # app-close guard: TRUE design-only input (palette color only, NO name) is unsaved and guarded; cancelling
   # the close keeps editing with the design values intact, then the name is restored for the rest of the flow
   SetText (NamedEdit 'Workspace name') ''
@@ -2833,7 +2824,7 @@ public static class WinCap {
   Assert 'app-close guard shown for design-only create input (color only, no name)' (WaitText 'יש שינויים שלא נשמרו' 10) ((Texts) -join ' | ')
   Shot 'create-design-unsaved-guard'
   $c = ClickBtn 'Back to editing' 600; Assert 'guard cancelled, keep editing' ($c -eq 'ok') $c
-  Assert 'cancelled close kept the design-only values (color kept, name still empty)' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') ("name='$(ValOf (NamedEdit 'Workspace name'))' color='$(ValOf (NamedEdit 'Create card color'))'")
+  Assert 'cancelled close keeps create screen and empty name' ($null -ne (Btn 'Create workspace') -and (ValOf (NamedEdit 'Workspace name')) -eq '') ''
   SetText (NamedEdit 'Workspace name') 'E2E designed'
   Assert 'name restored after the design-only guard cycle' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed') ''
   # native picker CANCEL from an empty path: nothing is set, the other typed values are kept
@@ -2843,18 +2834,9 @@ public static class WinCap {
   $openedP = $false; for ($t = 0; $t -lt 20 -and -not $openedP; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedP = $true } }
   Assert 'native picker opened from the create form' $openedP (AppWindowDump)
   Close-OwnedPickers 'create-image picker cancelled from an empty path'
-  Assert 'cancel from an empty path sets nothing and keeps the other typed values' ((ValOf (NamedEdit 'Create card image path')) -eq '' -and (ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') ''
-  # native picker CANCEL with a typed path present: the existing text is preserved, never cleared
-  SetText (NamedEdit 'Create card image path') $createImg
-  Assert 'typed image path shown' ((ValOf (NamedEdit 'Create card image path')) -eq $createImg) ''
-  [void](InvokeEl $upC 'upload create image (preserve cancel flow)')
-  $openedP2 = $false; for ($t = 0; $t -lt 20 -and -not $openedP2; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedP2 = $true } }
-  Assert 'native picker reopened with a typed path present' $openedP2 (AppWindowDump)
-  Close-OwnedPickers 'create-image picker cancelled over a typed path'
-  Assert 'cancel preserves the typed image path (cancel never clears existing text)' ((ValOf (NamedEdit 'Create card image path')) -eq $createImg -and (ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed') (ValOf (NamedEdit 'Create card image path'))
-  $rmC = Btn 'Remove create image'; Assert 'remove create image button present' ($null -ne $rmC) ''
-  [void](InvokeEl $rmC 'remove create image'); Start-Sleep -Milliseconds 300
-  Assert 'remove clears the typed image path' ((ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  Assert 'cancel preserves create draft and saved store' ((ValOf (NamedEdit 'Workspace name')) -eq 'E2E designed' -and (StoreJson) -eq $storeBeforePalette) ''
+  # The new create screen has no typed path or remove-image control. Picker cancellation
+  # is checked above; existing-image cancellation/removal remains tested in the design popup.
   # native picker ACCEPT through the NEW shared creation handler: the SAME vetted native-drive protocol as the
   # design popup above (unique owned #32770 root + exact ComboBoxEx32>ComboBox>Edit ctrlId-1148 chain + exactly one
   # direct-child Button ctrlId 1 title-corroborated, full-chain revalidation before WM_SETTEXT / readback / click,
@@ -2987,8 +2969,9 @@ public static class WinCap {
     $storeSameA = ($storeAfterA -ceq $storeBeforeA)
     Assert 'store.json unchanged by the create picker accept alone (strict raw before/after compare; persist happens only at the explicit Create)' $storeSameA ("beforeLen=$($storeBeforeA.Length) afterLen=$($storeAfterA.Length)")
   }
-  $imgEditA = NamedEdit 'Create card image path'; Assert 'create image path editor present for accept readback' ($null -ne $imgEditA) ''
-  $accPathA = ''; $accReadA = (Read-EditValue $imgEditA ([ref]$accPathA))
+  $imgEditA = AnyByName $createImg; Assert 'accepted create image path is displayed' ($null -ne $imgEditA) ''
+  $accPathA = ''; $accReadA = $false
+  if ($imgEditA) { $accPathA = $imgEditA.Current.Name; $accReadA = $true }
   Assert 'create image path readback succeeded after the accept (no fail-open empty)' $accReadA ''
   Assert 'create image path filled by the ACCEPTED native picker (code-behind result, not typed)' ($accReadA -and $accPathA -eq $createImg) ("edit='$accPathA' probe='$createImg' drive=$driveNoteA")
   $appPathOkA = ($accReadA -and $accPathA -eq $createImg)
@@ -3000,10 +2983,13 @@ public static class WinCap {
   Assert 'designed workspace opened in details' (DetailsShown) ((Texts) -join ' | ')
   $o = StoreObj
   $wsD = @($o.workspaces | Where-Object { $_.name -eq 'E2E designed' })[0]
-  Assert 'store: create-time color and picker-accepted image persisted on the new workspace' ($null -ne $wsD -and $wsD.color -eq '#FDE68A' -and $wsD.imagePath -eq $createImg) ("color=$($wsD.color) image=$($wsD.imagePath)")
+  Assert 'store: create-time color and picker-accepted image persisted on the new workspace' ($null -ne $wsD -and $wsD.color -eq '#E6CE9A' -and $wsD.imagePath -eq $createImg) ("color=$($wsD.color) image=$($wsD.imagePath)")
   $c = ClickBtn 'Back' 900; Assert 'back to overview with the designed card' ($c -eq 'ok') $c
   Shot 'created-with-design-card'
-  Assert 'create form fully reset after a successful create' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Workspace description')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  OpenCreateScreen
+  Assert 'create form name and description reset after creation' ($null -ne (NamedEdit 'Workspace name') -and (ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Workspace description')) -eq '') ''
+  Assert 'create image path reset after creation' ($null -eq (AnyByName $createImg)) ''
+  $c = ClickBtn 'ביטול וחזרה' 600; Assert 'clean create screen returns home' ($c -eq 'ok' -and (HomeShown)) $c
   # 31. תצוגה menu captures (approved 22.11 design): menu rows, active filter chip, list template, restore to cards.
   $c = ClickBtn 'View menu' 1200; Assert 'view menu button clicked' ($c -eq 'ok') $c
   Assert 'view menu shows the four approved rows' ($null -ne (MenuItemByName 'גודל כרטיסים') -and $null -ne (MenuItemByName 'מיון') -and $null -ne (MenuItemByName 'סינון') -and $null -ne (MenuItemByName 'תבנית תצוגה')) ''
@@ -3033,7 +3019,7 @@ public static class WinCap {
   $c = ClickBtn 'Confirm global add' 900; Assert 'whitelist add confirmed' ($c -eq 'ok') $c
   Assert 'whitelist row shows the new entry' (WaitText 'E2E whitelist' 5) ((Texts) -join ' | ')
   Shot 'global-env-whitelist-row'
-  $c = ClickBtn 'Remove whitelist entry' 900; Assert 'whitelist entry removed' ($c -eq 'ok' -and -not (WaitText 'E2E whitelist' 3)) $c
+  $c = ClickBtn 'Remove global entry' 900; Assert 'whitelist entry removed' ($c -eq 'ok' -and -not (WaitText 'E2E whitelist' 3)) $c
   Shot 'global-env-removed'
   $c = ClickBtn 'Back to workspaces' 900; Assert 'back from global environment' ($c -eq 'ok') $c
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
