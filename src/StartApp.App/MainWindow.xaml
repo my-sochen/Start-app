@@ -35,7 +35,7 @@
                                  #A7AEB9 when unset), category chip, stats line, styled שגר + "הצגת פרטים ←" footer.
                                  With a background image the Nov 11 design still applies: image surface + thick-top
                                  color frame, and the top bar hides. -->
-                            <Border ContextMenuService.Placement="Custom" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,4" CornerRadius="8">
+                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,4" CornerRadius="8">
                                 <Border.Background>
                                     <MultiBinding Converter="{StaticResource CardSurface}">
                                         <Binding Path="Color"/>
@@ -112,7 +112,7 @@
                             </Border>
                         </DataTemplate>
         <DataTemplate x:Key="WorkspaceListTemplate">
-            <Border ContextMenuService.Placement="Custom" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,1" Padding="6,2" CornerRadius="3"
+            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,1" Padding="6,2" CornerRadius="3"
                     BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}" BorderThickness="4,0,0,0" Background="White">
                 <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
                 <DockPanel>
@@ -130,7 +130,7 @@
             </Border>
         </DataTemplate>
         <DataTemplate x:Key="WorkspaceIconsTemplate">
-            <Border ContextMenuService.Placement="Custom" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="2" Padding="6,3" CornerRadius="3"
+            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="2" Padding="6,3" CornerRadius="3"
                     BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}" BorderThickness="1" Background="{Binding Color, Converter={StaticResource ColorBrush}}">
                 <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
                 <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
@@ -335,7 +335,7 @@
                     </ListView.GroupStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Grid ContextMenuService.Placement="Custom" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Item row">
+                            <Grid ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Item row">
                                 <Grid.ContextMenu>
                                             <ContextMenu>
                                                 <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
