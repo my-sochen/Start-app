@@ -25,7 +25,7 @@
             <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <Separator/>
             <MenuItem Command="{Binding PlacementTarget.Tag.ToggleDefaultForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
-                      AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown">
+                      AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus">
                 <MenuItem.Header>
                     <MultiBinding Converter="{StaticResource DefaultMenuHeader}">
                         <Binding Path="."/>
@@ -233,6 +233,7 @@
                         <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבת ברירת מחדל: נקודה ירוקה ליד השם + כפתור ביטול · כשאין ברירת מחדל הכפתור הוא &quot;הגדר כברירת מחדל&quot;"/></MultiDataTrigger>
                         <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבה שאינה ברירת מחדל: בלי נקודה ירוקה · הכפתור מגדיר אותה כברירת מחדל ומחליף את הקיימת"/></MultiDataTrigger>
                         <DataTrigger Binding="{Binding InAllItems}" Value="True"><Setter Property="Text" Value="רשימת אייטמים כללית · לחיצה על שם משגרת · לחיצה ימנית לפעולות"/></DataTrigger>
+<DataTrigger Binding="{Binding CaptureOpen}" Value="True"><Setter Property="Text" Value="סגירת הלכידה מאפסת את רשימת הסריקה בלבד. שינויים שטרם נשמרו דורשים החלטה."/></DataTrigger>
                     </Style.Triggers></Style></TextBlock.Style>
                 </TextBlock>
                 <Button DockPanel.Dock="Left" Content="פתח הורדה רשמית" Command="{Binding Updates.DownloadCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2"
@@ -342,7 +343,7 @@
                             <Button Content="שגר" Command="{Binding OpenWorkspaceCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="57" Height="38"/>
                             <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinWidth="112" Height="38" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                             <Button Content="חזרה לסביבות" Command="{Binding BackCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="123" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Back to workspaces"/>
-                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown"/>
+                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus"/>
                         </StackPanel>
                         <StackPanel HorizontalAlignment="Right" FlowDirection="RightToLeft">
                             <StackPanel Orientation="Horizontal">
@@ -502,19 +503,16 @@
         </Border>
 
         <!-- ============ capture screen (מסך לכידה): open-now list on one side; new-workspace form, workspace search or the chosen workspace on the other ============ -->
-        <Grid Grid.Row="2" Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="White">
-            <DockPanel Margin="8">
-                <DockPanel DockPanel.Dock="Top">
-                    <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CaptureCloseCommand}" Padding="8,2" AutomationProperties.Name="Close capture" ToolTip="Close capture"/>
-                    <TextBlock Text="לכידה" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
-                </DockPanel>
-                <Expander DockPanel.Dock="Top" Header="מה ניתן ללכוד?" FlowDirection="RightToLeft" Margin="0,3,0,6"><TextBlock Text="הלכידה קוראת חלונות ולשוניות נגישים בלבד ואינה רשימה מלאה של כל מה שפתוח. בדיקת לשוניות עשויה להחליף ביניהן לרגע. מסמכים פתוחים בתוך תוכנות אינם מזוהים באופן כללי. דפדפנים וגרסאות שונים, חלונות מוגנים ולשוניות לא פעילות עשויים לא להיקרא. אותו אתר בכמה דפדפנים מופיע בנפרד לכל דפדפן. הדפדפן נשמר כשזוהה; הפרופיל אינו נשמר. אפשר להוסיף פריטים ידנית." TextWrapping="Wrap"/></Expander>
-                <Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-
-                    <!-- left: depends on the stage -->
-                    <Grid Grid.Column="0">
-                        <StackPanel Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}">
+        <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" Grid.Row="2" Visibility="{Binding CaptureOpen, Converter={StaticResource B2V}}" Background="#F7F8FB">
+ <Grid Margin="32,24,32,24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <TextBlock Text="סביבות העבודה  /  לכידה לסביבה" FontSize="12" Foreground="#667388" HorizontalAlignment="Right" Margin="0,0,0,20"/>
+  <Grid Grid.Row="1" Margin="0,0,0,20"><Button Content="סגירת הלכידה ×" Command="{Binding CaptureCloseCommand}" Style="{StaticResource HomeToolbarButton}" Height="38" Padding="16,7" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="Close capture"/>
+   <StackPanel HorizontalAlignment="Right"><TextBlock Text="הוסף ממה שפתוח" FontSize="24" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/><TextBlock Text="בחר פריטים שנמצאו במחשב והוסף אותם לסביבה שבחרת." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#667388" Margin="0,4,0,0"/></StackPanel>
+  </Grid>
+  <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="24"/><ColumnDefinition/></Grid.ColumnDefinitions>
+   <Border Background="White" BorderBrush="#CFD7E6" BorderThickness="1" CornerRadius="4"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Border Background="#EDF1F7" BorderBrush="#CFD7E6" BorderThickness="0,0,0,1" Padding="16,14"><Grid><Button Content="חזרה לבחירת סביבה" Command="{Binding CaptureBackCommand}" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" Style="{StaticResource QuietTextButton}" Foreground="#315CC5" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="Capture back"/><StackPanel HorizontalAlignment="Right"><TextBlock Text="{Binding CaptureTargetHeader}" FontSize="16" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/><TextBlock Text="הפריטים שהוספת יישמרו רק בלחיצה על שמור." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#667388" Margin="0,6,0,0"/></StackPanel></Grid></Border>
+    <Grid Grid.Row="1" Margin="24,16"><StackPanel Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}">
                             <TextBlock Text="סביבה חדשה" FontWeight="SemiBold"/>
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
                                 <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace name"/></DockPanel>
@@ -533,10 +531,7 @@
                                          overlay, so the two palettes' hex-named swatches are ambiguous in the window-wide UIA tree -->
                                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate><DataTemplate>
-                                        <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
-                                                Background="{Binding ., Converter={StaticResource ColorBrush}}"
-                                                Command="{Binding DataContext.ApplyCreatePaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                ToolTip="{Binding}" AutomationProperties.Name="{Binding}"/>
+                                        <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1" Background="{Binding ., Converter={StaticResource ColorBrush}}" Command="{Binding DataContext.ApplyCreatePaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="{Binding}" AutomationProperties.Name="{Binding}"/>
                                     </DataTemplate></ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </DockPanel>
@@ -554,9 +549,7 @@
                             <ListBox ItemsSource="{Binding CaptureWorkspaceResults}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Command="{Binding DataContext.CapturePickWorkspaceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
-                                                HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0" Padding="6,2"
-                                                AutomationProperties.Name="{Binding Name, StringFormat='Pick workspace {0}'}">
+                                        <Button Command="{Binding DataContext.CapturePickWorkspaceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0" Padding="6,2" AutomationProperties.Name="{Binding Name, StringFormat='Pick workspace {0}'}">
                                             <StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/></StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -565,22 +558,13 @@
                         </DockPanel>
 
                         <DockPanel x:Name="CaptureDropZone" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" AllowDrop="True" Background="Transparent" Drop="CaptureDropZone_Drop" DragOver="CaptureDropZone_DragOver">
-                            <DockPanel DockPanel.Dock="Top">
-                                <Button DockPanel.Dock="Left" Content="חזור" Command="{Binding CaptureBackCommand}" Padding="8,1" Margin="0,0,6,0" FontSize="11" AutomationProperties.Name="Capture back"/>
-                                <Button DockPanel.Dock="Right" Content="שמור" Command="{Binding CaptureSaveCommand}" Padding="12,2" AutomationProperties.Name="Capture save"/>
-                                <TextBlock Text="{Binding CaptureWorkspaceName}" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/>
-                            </DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Drag items here or use the add button. Nothing is saved until שמור." Foreground="Gray" FontSize="11" Margin="0,2,0,4"/>
-                            <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate><StackPanel><DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/></TextBlock></DockPanel><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11"/></StackPanel></DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <TextBlock DockPanel.Dock="Top" Text="Added, not saved yet" FontWeight="SemiBold" Margin="0,6,0,2"/>
-                            <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet">
+      <TextBlock DockPanel.Dock="Top" Text="{Binding CaptureWorkspaceItems.Count, StringFormat='כבר שמור בסביבה · {0}'}" HorizontalAlignment="Right" FlowDirection="RightToLeft" FontSize="12" Foreground="#667388" Margin="0,0,0,12"/>
+      <ListBox DockPanel.Dock="Top" MaxHeight="130" ItemsSource="{Binding CaptureWorkspaceItems}" BorderThickness="0" Background="White" Padding="0" FlowDirection="RightToLeft" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved items in the workspace"><ListBox.ItemTemplate><DataTemplate><Border BorderBrush="#E6EAF1" BorderThickness="0,0,0,1" Padding="0,12"><Grid FlowDirection="LeftToRight"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Target}" Foreground="#667388" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0"/><TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><Border Grid.Column="2" Width="30" Height="30" CornerRadius="5" Background="#F0F4FB" BorderBrush="#D5DFF1" BorderThickness="1" HorizontalAlignment="Right"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></Grid></Border></DataTemplate></ListBox.ItemTemplate></ListBox>
+      <TextBlock DockPanel.Dock="Top" Text="נוסף כעת, עדיין לא נשמר" HorizontalAlignment="Right" FlowDirection="RightToLeft" FontSize="12" Foreground="#667388" Margin="0,12,0,0"/>
+      <ListBox ItemsSource="{Binding StagedRows}" HorizontalContentAlignment="Stretch" ScrollViewer.CanContentScroll="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Added items not saved yet" BorderThickness="0" Background="White" FlowDirection="RightToLeft" Padding="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="0,2" Focusable="True" KeyboardNavigation.IsTabStop="True" ToolTip="פעולות האייטם: קליק ימני, Menu או Shift+F10" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Staged item row">
+                                        <StackPanel Margin="0,10" Focusable="True" KeyboardNavigation.IsTabStop="True" ToolTip="פעולות האייטם: קליק ימני, Menu או Shift+F10" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Staged item row" FlowDirection="LeftToRight">
                                             <StackPanel.ContextMenu>
                                                         <ContextMenu>
                                                             <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
@@ -594,13 +578,11 @@
                                                         </ContextMenu>
                                                     </StackPanel.ContextMenu>
                                             <DockPanel>
-                                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}"
-                                                        Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <Button DockPanel.Dock="Right" Content="עריכה" Click="EditStaged_Click" Padding="6,0" Margin="0,0,4,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}"
-                                                        Command="{Binding DataContext.EditStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Remove added {0}'}" Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Visibility="Collapsed"/>
+                                                <Button DockPanel.Dock="Left" Content="ערוך" Click="EditStaged_Click" Padding="16,7" Margin="0,0,12,0" AutomationProperties.Name="{Binding OriginalName, StringFormat='Edit added {0}'}" Command="{Binding DataContext.EditStagedCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Style="{StaticResource HomeToolbarButton}" Height="38"/>
                                                 <StackPanel>
-                                                    <DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemName"/><TextBlock Text="{Binding Group}" Foreground="Gray" Margin="6,0,0,0"/></DockPanel>
-                                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemAddress"/>
+                                                    <DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemName" FontSize="14"/><TextBlock Text="{Binding TypeLabel}" Foreground="Gray" Margin="6,0,0,0" FontSize="12"/></DockPanel>
+                                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemAddress" FlowDirection="LeftToRight"/>
                                                 </StackPanel>
                                             </DockPanel>
                                             <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor"><Border Background="#F4F6FD" BorderBrush="#C8D5F5" BorderThickness="0,1,0,0" Padding="10" Margin="0,4,0,0"><StackPanel FlowDirection="LeftToRight">
@@ -611,7 +593,7 @@
  <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" Height="34" MinHeight="34" FontSize="14" Padding="10,6" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Added item description"/>
  <TextBlock Text="{Binding TargetLabel}" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Added item address"/>
  </StackPanel></Border>
- <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="12,7" Margin="0,12,0,0" AutomationProperties.Name="Done editing added item" Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+ <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="16,7" Margin="0,12,0,0" AutomationProperties.Name="Done editing added item" Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Style="{StaticResource HomeToolbarButton}" Height="38"/>
  <TextBlock Text="השינויים עדיין לא נשמרו בסביבה" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" HorizontalAlignment="Right"/>
  </StackPanel>
                                         </StackPanel>
@@ -619,30 +601,24 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </DockPanel>
-                    </Grid>
+    </Grid>
+    <Border Grid.Row="2" BorderBrush="#D8E0ED" BorderThickness="0,1,0,0" Background="#F7F9FC" Padding="16,12" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}"><DockPanel><Button DockPanel.Dock="Right" Content="שמור בסביבה" Command="{Binding CaptureSaveCommand}" Style="{StaticResource PrimaryActionButton}" Height="38" Padding="16,7" AutomationProperties.Name="Capture save"/><TextBlock Text="אחרי השמירה אפשר לבחור יעד נוסף" Foreground="#667388" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"/></DockPanel></Border>
+   </Grid></Border>
+   <Border Grid.Column="2" Background="White" BorderBrush="#CFD7E6" BorderThickness="1" CornerRadius="4"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Border Background="#EDF1F7" BorderBrush="#CFD7E6" BorderThickness="0,0,0,1" Padding="16,14"><StackPanel><TextBlock Text="מה נמצא במחשב" FontSize="16" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/><TextBlock Text="מקור לבחירה בלבד. הפריטים כאן לא נערכים." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#667388" Margin="0,6,0,0"/></StackPanel></Border>
+    <DockPanel Grid.Row="1" Margin="24,16">
+     <Grid DockPanel.Dock="Top" Margin="0,0,0,12"><TextBlock Text="{Binding CaptureRows.Count, StringFormat='נמצאו {0} פריטים'}" HorizontalAlignment="Right" FlowDirection="RightToLeft" Foreground="#667388" FontSize="12"/><TextBlock Text="{Binding CaptureSelectionText}" Foreground="#667388" FontSize="12"/></Grid>
+     <TextBlock DockPanel.Dock="Top" Text="סורק מה פתוח עכשיו..." Foreground="#667388" FontSize="12" Visibility="{Binding IsScanning, Converter={StaticResource B2V}}"/>
+     <TextBlock DockPanel.Dock="Top" Text="לא נמצאו פריטים פתוחים" Foreground="#667388" FontSize="13" HorizontalAlignment="Right" Visibility="{Binding CaptureEmpty, Converter={StaticResource B2V}}"/>
+     <Border DockPanel.Dock="Bottom" BorderBrush="#E6EAF1" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,12,0,0"><TextBlock Text="לא נמצא קובץ? קבצים פתוחים בתוך תוכנות לא נלכדים בבטא. אפשר להוסיף קובץ ידנית לסביבה." FlowDirection="RightToLeft" TextAlignment="Left" Foreground="#667388" FontSize="12" TextWrapping="Wrap" ToolTip="הלכידה קוראת חלונות ולשוניות נגישים בלבד ואינה רשימה מלאה של כל מה שפתוח. בדיקת לשוניות עשויה להחליף ביניהן לרגע. מסמכים פתוחים בתוך תוכנות אינם מזוהים באופן כללי. דפדפנים וגרסאות שונים, חלונות מוגנים ולשוניות לא פעילות עשויים לא להיקרא. אותו אתר בכמה דפדפנים מופיע בנפרד לכל דפדפן. הדפדפן נשמר כשזוהה; הפרופיל אינו נשמר. אפשר להוסיף פריטים ידנית." ToolTipService.ShowDuration="30000"/></Border>
+     <ListBox x:Name="CaptureList" ItemsSource="{Binding CaptureRows}" BorderThickness="0" Background="White" Padding="0" FlowDirection="RightToLeft" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" PreviewMouseLeftButtonDown="CaptureList_PreviewMouseLeftButtonDown" PreviewMouseMove="CaptureList_PreviewMouseMove" AutomationProperties.Name="Open now list"><ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style></ListBox.ItemContainerStyle><ListBox.ItemTemplate><DataTemplate><Border BorderBrush="#E6EAF1" BorderThickness="0,0,0,1" Padding="0,12"><CheckBox IsChecked="{Binding IsChecked}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center" AutomationProperties.Name="{Binding Label}"><Grid FlowDirection="LeftToRight" Margin="0,0,12,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Target}" FontSize="12" Foreground="#667388" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,10,0"/><StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding DetailsLabel}" FontSize="12" Foreground="#667388" TextAlignment="Right" Margin="0,2,0,0"/></StackPanel><Border Grid.Column="2" Width="30" Height="30" CornerRadius="5" Background="#F0F4FB" BorderBrush="#D5DFF1" BorderThickness="1" HorizontalAlignment="Right"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></Grid></CheckBox></Border></DataTemplate></ListBox.ItemTemplate></ListBox>
+    </DockPanel>
+    <Border Grid.Row="2" BorderBrush="#D8E0ED" BorderThickness="0,1,0,0" Background="#F7F9FC" Padding="16,12"><Button Content="{Binding CaptureAddLabel}" Command="{Binding CaptureAddCommand}" Style="{StaticResource PrimaryActionButton}" Height="38" Padding="16,7" HorizontalAlignment="Right" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" AutomationProperties.Name="Add selected capture items"/></Border>
+   </Grid></Border>
+  </Grid>
+ </Grid>
+</Grid>
 
-                    <!-- right: the capture list (default details only; no actions, no editing) -->
-                    <DockPanel Grid.Column="2">
-                        <TextBlock DockPanel.Dock="Top" Text="Open now" FontWeight="SemiBold"/>
-                        <TextBlock DockPanel.Dock="Top" Text="סורק מה פתוח עכשיו..." Foreground="Gray" Margin="0,2,0,2" Visibility="{Binding IsScanning, Converter={StaticResource B2V}}"/>
-                        <Button DockPanel.Dock="Top" Content="{Binding CaptureAddLabel}" Command="{Binding CaptureAddCommand}" HorizontalAlignment="Left" Margin="0,4,0,4" Padding="10,2" AutomationProperties.Name="{Binding CaptureAddLabel}"
-                                Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}"/>
-                        <TextBlock DockPanel.Dock="Top" Text="Nothing open was detected" Foreground="Gray" Visibility="{Binding CaptureEmpty, Converter={StaticResource B2V}}"/>
-                        <ListBox x:Name="CaptureList" ItemsSource="{Binding CaptureRows}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 PreviewMouseLeftButtonDown="CaptureList_PreviewMouseLeftButtonDown" PreviewMouseMove="CaptureList_PreviewMouseMove" AutomationProperties.Name="Open now list">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Label}">
-                                        <StackPanel><DockPanel><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding Group, Mode=OneWay}" Foreground="Gray"/><Run Text="{Binding BrowserSuffix, Mode=OneWay}" Foreground="Gray"/></TextBlock></DockPanel>
-                                            <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis"/></StackPanel>
-                                    </CheckBox>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
-                </Grid>
-            </DockPanel>
-        </Grid>
 
         <!-- duplicate warning for ONE dragged item -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">

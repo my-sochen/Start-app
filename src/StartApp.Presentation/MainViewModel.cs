@@ -1123,6 +1123,7 @@ public sealed partial class MainViewModel : ObservableBase
     // ---- capture (לכידה, settled Nov 12 07:14-07:45): scan what is open now, show it read-only (checkbox, original name, address under it),
     // add to a NEW workspace (create form, items checked by default) or to an EXISTING one side by side. Staged additions are NOT saved until
     // שמור; the snapshot survives workspace changes and saves; X resets it. Duplicates: one warning per drag, one grouped dialog for add-all/selected. ----
+    public static string TypeName(ItemType type) => type switch { ItemType.Link => "אתר", ItemType.Program => "תוכנה", ItemType.File => "קובץ", _ => "תיקייה" };
     public enum CaptureStage { None, NewForm, PickWorkspace, SideBySide }
     /// <summary>One line of the capture list. Shows default details only: no actions menu, no editing (settled).</summary>
     public sealed class CaptureRow : ObservableBase
@@ -1134,6 +1135,7 @@ public sealed partial class MainViewModel : ObservableBase
         public string Name => Item.Name;
         public string Target => Item.Target;
         public string Group => GroupOf(Item.Type);
+        public string DetailsLabel => TypeName(Type) + (BrowserName is null ? "" : " · " + BrowserName);
         /// <summary>The captured browser's display name (Edge, Chrome, ...), null when no browser was identified. The same
         /// site open in two browsers stays one row per browser (owner decision Nov 14), and this name is how the user tells
         /// them apart before choosing.</summary>
@@ -1154,6 +1156,7 @@ public sealed partial class MainViewModel : ObservableBase
         public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; _openWith = i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? i.Browser! : ""; }
         public ItemType Type { get; }
         public string OriginalName { get; }
+        public string TypeLabel => TypeName(Type);
         public string Group => GroupOf(Type);
         public string Label => "Added: " + OriginalName;
         public string Name { get => _name; set => Set(ref _name, value ?? ""); }
@@ -1187,7 +1190,7 @@ public sealed partial class MainViewModel : ObservableBase
     public ObservableCollection<StagedRow> StagedRows { get; } = new();
     public ObservableCollection<DupChoice> CaptureDupChoices { get; } = new();
     private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
-    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); RaiseCommands(); } }
+    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); Raise(nameof(CaptureTargetHeader)); RaiseCommands(); } }
     public bool CaptureOpen => _captureStage != CaptureStage.None;
     public bool IsCaptureNew => _captureStage == CaptureStage.NewForm;
     public bool IsCapturePick => _captureStage == CaptureStage.PickWorkspace;
@@ -1210,6 +1213,8 @@ public sealed partial class MainViewModel : ObservableBase
     private const int MaxOpenScans = 1;
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
     public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
+    public string CaptureSelectionText => CaptureRows.Count(r => r.IsChecked) + " נבחרו";
+    public string CaptureTargetHeader => IsCaptureSide ? "היעד: " + CaptureWorkspaceName : IsCaptureNew ? "סביבה חדשה" : "בחירת סביבה";
     public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
     public string CaptureSearch { get => _captureSearch; set { Set(ref _captureSearch, value ?? ""); RefreshCaptureResults(); } }
     private string _captureSearch = "";
@@ -1282,12 +1287,12 @@ public sealed partial class MainViewModel : ObservableBase
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
         CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _dupGroup);
     }
-    private void OnCaptureCheckChanged() => Raise(nameof(CaptureAddLabel));
+    private void OnCaptureCheckChanged() { Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); }
     private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
     {
         CaptureRows.Clear(); CaptureNotes.Clear();
         StagedRows.Clear(); CaptureDupChoices.Clear(); _dupSingle = null; CaptureDupGroupPending = false; CaptureSearch = "";
-        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
+        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
         // The screen opens right away; the scan itself runs off the UI thread, so a stuck COM/UIA call can never freeze the window.
         if (wsId != null) EnterSideBySide(wsId);
         else { RefreshCaptureResults(); CaptureStageNow = stage; }
@@ -1338,7 +1343,7 @@ public sealed partial class MainViewModel : ObservableBase
         }
         if (CaptureNotes.Count > 0) ShowToast("הלכידה הושלמה עם מגבלה או תקלה. ייתכן שחסרים פריטים; אפשר להוסיף ידנית או לנסות שוב.", true, string.Join(Environment.NewLine, CaptureNotes));
         IsScanning = false;
-        Raise(nameof(CaptureAddLabel)); RaiseCommands();
+        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); RaiseCommands();
         Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
     }
     private void RefreshCaptureResults()

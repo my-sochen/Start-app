@@ -294,18 +294,18 @@ try {
     $fixture.Text = 'StartApp design capture fixture'
     $fixture.Show()
     [System.Windows.Forms.Application]::DoEvents()
-    InvokeNamed 'פיתוח לפרויקט'
+    InvokeNamed 'אולפן ביתי'
     InvokeNamed 'Add from open items'
     $candidate = $null
     for ($i = 0; $i -lt 40 -and !$candidate; $i++) {
       [System.Windows.Forms.Application]::DoEvents()
       Start-Sleep -Milliseconds 250
       $openItems = RootNamed 'Open now list'
-      $candidate = $openItems.FindFirst($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox)))
+      $candidate = $openItems.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox))) | Where-Object { $_.Current.Name -like '*לוח משימות*' } | Select-Object -First 1
     }
     if (!$candidate) { throw 'No desktop fixture candidate detected' }
     $candidate.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
-    InvokeNamed 'הוסף נבחרים'
+    InvokeNamed 'Add selected capture items'
     $added = RootNamed 'Added items not saved yet'
     $edit = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' } | Select-Object -First 1
     if (!$edit) { throw 'No staged fixture editor available' }
