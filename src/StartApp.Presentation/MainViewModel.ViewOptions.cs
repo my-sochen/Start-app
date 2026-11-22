@@ -63,6 +63,35 @@ public sealed partial class MainViewModel
         return string.Join(" · ", parts);
     }
 
+    /// <summary>The סביבת ברירת מחדל currently marked (null = "ללא סביבת ברירת מחדל"), set from אופציות > הגדר סביבה
+    /// כברירת מחדל (approved 22.11) or the card/details actions (paths 2+3 spec landing).</summary>
+    public string? DefaultWorkspaceId => _current.DefaultWorkspaceId;
+
+    /// <summary>Details-screen state (path 3, approved 22.11): the quiet button label and the h1 green dot.</summary>
+    public bool SelectedIsDefault => Selected is { } s && IsDefaultWorkspace(s);
+    /// <summary>The quiet details button reads "בטל הגדרה כברירת מחדל" on the default, "הגדר כסביבת ברירת מחדל" otherwise.</summary>
+    public string DefaultToggleLabel => SelectedIsDefault ? "בטל הגדרה כברירת מחדל" : "הגדר כסביבת ברירת מחדל";
+
+    /// <summary>Paths 2+3 (approved 22.11): one command from the card context menu and the details button; the parameter is
+    /// the workspace. Setting replaces any existing default immediately (single reversible selection, no confirm dialog).
+    /// The label on the menu row comes from DefaultMenuHeaderConverter.</summary>
+    public ICommand ToggleDefaultForCommand => _toggleDefaultFor ??= Cmd(p =>
+    { if (p is Workspace w) SetDefaultWorkspace(IsDefaultWorkspace(w) ? null : w.Id); }, _ => !ReadOnly);
+    private ICommand? _toggleDefaultFor;
+
+    /// <summary>Persist the סביבת ברירת מחדל choice (null = "ללא סביבת ברירת מחדל") and refresh the cards so the green
+    /// badge moves immediately. Exactly one workspace can hold it at a time. Confirms with the ~3s launch-style toast
+    /// (approved wording 22.11).</summary>
+    public void SetDefaultWorkspace(string? workspaceId)
+    {
+        if (!Apply(c => c.Store.DefaultWorkspaceId = workspaceId)) return;
+        Raise(nameof(DefaultWorkspaceId)); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel));
+        if (workspaceId is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == workspaceId) is { } w)
+            ShowToast($"הסביבה '{w.Name}' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", false);
+        else
+            ShowToast("בוטלה סביבת ברירת המחדל", false);
+    }
+
     /// <summary>True when this workspace is the one marked סביבת ברירת מחדל (Store.DefaultWorkspaceId): its card carries
     /// the 11px green-dot badge (approved 22.11 handoff). Exactly one card can match; none matches when no default is set.
     /// When filters hide that card the badge hides with it, because it renders on the card itself.</summary>
