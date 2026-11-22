@@ -67,7 +67,7 @@ class Profiles(unittest.TestCase):
         self.assertIn('needs: [resolve, tests, ui-gate, package]', self.workflow)
         self.assertIn("if: ${{ always() && github.event.inputs.ui_scope != 'cycle1-only' && !(github.event_name == 'push' && github.ref_name == 'feat/settings-tab') }}", self.workflow)
         # feat/settings-tab pushes run resolve+tests only; UI/package/status via dispatch
-        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' }}", self.workflow)
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' || contains(github.event.head_commit.message, '[ui]') }}", self.workflow)
         self.assertEqual(4, self.workflow.count("github.event.inputs.ui_scope != 'cycle1-only'"))
         self.assertNotIn('retention-days: 1', self.workflow)
 
