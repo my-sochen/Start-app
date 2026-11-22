@@ -19,14 +19,14 @@ public partial class MainWindow
         menu.Items.Add(ActionItem("סביבה חדשה", () => NewWorkspaceFocus_Click(sender, e)));
 
         var capture = new MenuItem { Header = "לכידה" };
-        capture.Items.Add(ActionItem("סביבה קיימת", () => vm.CaptureExistingCommand.Execute(null)));
-        capture.Items.Add(ActionItem("סביבה חדשה", () => vm.CaptureNewCommand.Execute(null)));
+        capture.Items.Add(CommandItem("סביבה קיימת", vm.CaptureExistingCommand));
+        capture.Items.Add(CommandItem("סביבה חדשה", vm.CaptureNewCommand));
         menu.Items.Add(capture);
 
         menu.Items.Add(ActionItem("הגדר סביבה כברירת מחדל", () => OpenDefaultEnvPicker(vm)));
-        menu.Items.Add(ActionItem("רשימה לבנה", () => vm.OpenGlobalEnvCommand.Execute(null)));
-        menu.Items.Add(ActionItem("רשימה שחורה", () => vm.OpenGlobalEnvCommand.Execute(null)));
-        menu.Items.Add(ActionItem("רשימת אייטמים כללית", () => vm.OpenGlobalEnvCommand.Execute(null)));
+        menu.Items.Add(CommandItem("רשימה לבנה", vm.OpenGlobalEnvCommand));
+        menu.Items.Add(CommandItem("רשימה שחורה", vm.OpenGlobalEnvCommand));
+        menu.Items.Add(CommandItem("רשימת אייטמים כללית", vm.OpenGlobalEnvCommand));
         // Design-only until the results screen exists (designer note 21.11 19:14: the new-feature rows are placeholders).
         menu.Items.Add(new MenuItem { Header = "תוצאות פתיחה אחרונה", IsEnabled = false });
         menu.Items.Add(ActionItem("יציאה", Close));
@@ -42,6 +42,9 @@ public partial class MainWindow
         if (picker.ShowDialog() == true)
             vm.SetDefaultWorkspace(picker.ChosenWorkspaceId);
     }
+
+    private static MenuItem CommandItem(string header, System.Windows.Input.ICommand command) =>
+        new() { Header = header, Command = command };
 
     private static MenuItem ActionItem(string header, Action action)
     {

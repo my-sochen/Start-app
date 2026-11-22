@@ -59,7 +59,7 @@
                                     <!-- סביבת ברירת מחדל badge (approved 22.11 handoff): 11px green dot #3F9D63 directly left of the
                                          name (RTL: second child in the horizontal stack), only on the one default workspace's card. -->
                                     <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#222833" TextAlignment="Right"
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right"
                                                    FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
                                         <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,6,0" VerticalAlignment="Center"
                                                  AutomationProperties.Name="Default workspace badge"
@@ -241,13 +241,13 @@
             </Grid.RowDefinitions>
 
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
-            <DockPanel Margin="28,32,28,16" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
+            <DockPanel Margin="28,39,28,16" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
                 <!-- approved 22.11 home toolbar: capture + new-workspace buttons at the left, workspace search at the right -->
-                <Grid DockPanel.Dock="Top" Margin="0,0,0,16" Height="42">
+                <Grid DockPanel.Dock="Top" Margin="4,0,4,16" Height="42">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                         <Button Width="44" Height="42" Style="{StaticResource HomeToolbarButton}" Margin="0,0,10,0" AutomationProperties.Name="Capture"
                                 Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                            <Image Source="Assets/start-app-ufo.png" Width="22" Height="22"/>
+                            <Image Source="Assets/start-app-ufo.png" Width="20" Height="20" RenderTransformOrigin="0.5,0.5"><Image.RenderTransform><RotateTransform Angle="180"/></Image.RenderTransform></Image>
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
@@ -304,7 +304,7 @@
                     </DockPanel>
                     </Grid>
                 </Border>
-                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Workspaces.Count, StringFormat={}{0} סביבות עבודה · תוצאות הפתיחה האחרונות זמינות בתפריט אופציות}" FontSize="12" Foreground="#626B79" HorizontalAlignment="Right" Margin="0,12,0,0"/>
+                <TextBlock DockPanel.Dock="Bottom" FlowDirection="RightToLeft" Text="{Binding Workspaces.Count, StringFormat={}{0} סביבות עבודה · תוצאות הפתיחה האחרונות זמינות בתפריט אופציות}" FontSize="12" Foreground="#626B79" HorizontalAlignment="Right" Margin="0,12,0,0"/>
                 <ListBox x:Name="WorkspaceList" ItemsSource="{Binding DisplayWorkspaces}" ItemTemplate="{StaticResource WorkspaceCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" AutomationProperties.Name="Workspace list">
                     <ListBox.ItemContainerStyle>
