@@ -13,12 +13,18 @@ public partial class MainWindow
         if ((sender as Button)?.Tag is not MainViewModel vm) return;
         var menu = NewAnchoredMenu((Button)sender);
 
-        menu.Items.Add(ActionItem("סביבה חדשה", () => NewWorkspaceFocus_Click(sender, e)));
+        menu.MinWidth = 244;
+        menu.Padding = new Thickness(6);
+        menu.Resources["MenuIconColumnWidth"] = new GridLength(12);
+        var optionItemStyle = new Style(typeof(MenuItem), (Style)FindResource(typeof(MenuItem)));
+        optionItemStyle.Setters.Add(new Setter(MinHeightProperty, 36d));
+        menu.Resources[typeof(MenuItem)] = optionItemStyle;
 
         var capture = new MenuItem { Header = "לכידה" };
         capture.Items.Add(CommandItem("סביבה קיימת", vm.CaptureExistingCommand));
         capture.Items.Add(CommandItem("סביבה חדשה", vm.CaptureNewCommand));
         menu.Items.Add(capture);
+        menu.Items.Add(ActionItem("סביבה חדשה", () => NewWorkspaceFocus_Click(sender, e)));
 
         menu.Items.Add(ActionItem("הגדר סביבה כברירת מחדל", () => OpenDefaultEnvPicker(vm)));
         menu.Items.Add(CommandItem("סביבה גלובלית", vm.OpenGlobalEnvCommand));

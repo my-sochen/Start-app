@@ -41,6 +41,7 @@
     </Style>
 
     <!-- MenuItem: hot row #EEF2FA, ✓ in the icon column, ▶ submenu arrow at the row edge (#7A8496), disabled #9AA1AD -->
+    <GridLength x:Key="MenuIconColumnWidth">24</GridLength>
     <Style TargetType="MenuItem">
         <Setter Property="Foreground" Value="#414856"/>
         <Setter Property="FontSize" Value="13"/>
@@ -64,7 +65,7 @@
                         <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Margin="1,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="{DynamicResource MenuIconColumnWidth}"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
@@ -140,7 +141,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>

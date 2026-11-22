@@ -81,7 +81,11 @@ try {
   Capture 'home-caption-restored' 1224 786
   InvokeNamed 'Options menu'
   Capture 'options-mock-size' 1224 786
-  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  $globalMenu = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'סביבה גלובלית')))
+  $globalMenu.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 350
+  Capture 'global-env-menu-entry' 1224 786
+  InvokeNamed 'Back to workspaces'
   Capture 'home-900x560' 900 560
   InvokeNamed 'View menu'
   Capture 'view-menu-900x560' 900 560
@@ -100,8 +104,10 @@ try {
   InvokeNamed 'פיתוח'
   Capture 'details-default-mock-size' 1224 786
   InvokeNamed 'Toggle default workspace'
+  InvokeNamed 'Dismiss notification'
   Capture 'details-nondefault-mock-size' 1224 786
   InvokeNamed 'Toggle default workspace'
+  InvokeNamed 'Dismiss notification'
   $nameInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
   $nameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פיתוח לפרויקט')
   $descriptionInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace description')))
@@ -113,6 +119,11 @@ try {
   InvokeNamed 'Save workspace details'
   InvokeNamed 'Edit item'
   Capture 'details-item-editor' 1224 786
+  $editInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Edit item name')))
+  $editInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיעוד הפרויקט מעודכן')
+  Capture 'details-item-editor-dirty' 1224 786
+  InvokeNamed 'Save item edit'
+  InvokeNamed 'Edit item'
   InvokeNamed 'Cancel item edit'
   InvokeNamed 'Back to workspaces'
   InvokeNamed 'New workspace button'
