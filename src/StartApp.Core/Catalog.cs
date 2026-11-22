@@ -135,7 +135,12 @@ public sealed class Catalog
     }
 
     /// <summary>Records a real open (שגר) of the workspace for the card's "last opened" display.</summary>
-    public void TouchLastOpened(string workspaceId) => Ws(workspaceId).LastOpenedAt = DateTime.UtcNow;
+    public void TouchLastOpened(string workspaceId)
+    {
+        var w = Ws(workspaceId);
+        w.LastOpenedAt = DateTime.UtcNow;
+        w.LaunchCount++;
+    }
 
     // ---- managed categories (פופאפ עריכת קטגוריה, settled Nov 11): built-ins are defined in code and can never be edited or
     // deleted; the user creates, renames and deletes custom ones. כללי is the default and the one guaranteed built-in; the exact
