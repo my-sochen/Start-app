@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -16,9 +17,17 @@ public partial class MainWindow : Window
         Updates = updates ?? throw new ArgumentNullException(nameof(updates));
         InitializeComponent();
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
+        Updates.StagedUpdateReady += OnStagedUpdateReady;
         DataContextChanged += (_, _) => Hook();
         Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
-        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.Dispose(); };
+        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.StagedUpdateReady -= OnStagedUpdateReady; Updates.Dispose(); };
+    }
+    // Phase 2: the verified package is staged - launch the apply helper and close for the swap.
+    private void OnStagedUpdateReady(StagedUpdate staged)
+    {
+        try { UpdateApplyLauncher.Launch(staged); _closeApproved = true; Close(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { Updates.NotifyApplyFailed(); }
     }
     private void ShowStartupUpdate()
     {
