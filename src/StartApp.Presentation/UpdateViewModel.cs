@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 
 namespace StartApp.Presentation;
@@ -52,6 +53,8 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private readonly TimeSpan _timeout;
     private readonly bool _revalidateBeforeDownload;
     private readonly bool _discoveryEnabled;
+    private readonly IUpdatePackageTransport? _packageTransport;
+    private readonly string? _updateWorkRoot;
     private ApprovedUpdate? _offered;
     private readonly Func<DateTime> _clock;
     private DateTime? _lastChecked;
@@ -78,9 +81,14 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     public RelayCommand DownloadCommand { get; }
     public Task CurrentCheck { get; private set; } = Task.CompletedTask;
     public event Action? StartupUpdateAvailable;
+    /// <summary>Phase 2: a verified package is staged; the app launches the apply helper and closes.</summary>
+    public event Action<StagedUpdate>? StagedUpdateReady;
+    private bool InAppInstallEnabled => _packageTransport is not null && _updateWorkRoot is not null;
 
-    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false, Func<DateTime>? clock = null)
+    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false, Func<DateTime>? clock = null,
+        IUpdatePackageTransport? packageTransport = null, string? updateWorkRoot = null)
     {
+        _packageTransport = packageTransport; _updateWorkRoot = updateWorkRoot;
         _clock = clock ?? (() => DateTime.Now);
         _revalidateBeforeDownload = revalidateBeforeDownload; _discoveryEnabled = source is not InactiveUpdateSource;
         _source = source; _current = UpdateVersion.Parse(installedVersion); _openBrowser = openBrowser;
@@ -142,7 +150,9 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
                 _offered = candidate;
                 OfferedVersionDisplay = version.Beta is not null ? $"קיימת גרסה חדשה: {candidate.Version} (בטא)" : $"קיימת גרסה חדשה: {candidate.Version}";
             }
-            Status = UpdateAvailable ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
+            Status = UpdateAvailable ? (InAppInstallEnabled
+                ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. לחיצה על \"עדכן עכשיו\" מורידה ומתקינה אותה בתוך האפליקציה, בלי אתר ובלי התקנה ידנית."
+                : $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.") : "לא נמצאה גרסה מאושרת חדשה יותר.";
         }
         catch (NoticeCheckDeferredException ex)
         {
@@ -173,21 +183,50 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         var previous = _offered;
         await CheckCoreAsync(true);
         if (_disposed || !UpdateAvailable || !_lastCheckVerified) return;
-        if (previous != _offered) { Status = "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לפתיחת האתר."; return; }
+        if (previous != _offered) { Status = InAppInstallEnabled ? "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לעדכון." : "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לפתיחת האתר."; return; }
         OpenDownloadCore();
     }
     private void OpenDownloadCore()
     {
         if (_disposed || !UpdateAvailable) return;
+        // Phase 2: the approved package is downloaded, verified and staged in-app; the browser
+        // route remains only for compositions without the package transport (dev/test seams).
+        if (InAppInstallEnabled && StagedUpdateReady is not null) { CurrentCheck = StageAndApplyAsync(); return; }
         try { _openBrowser(new Uri(OfficialWebsite)); }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         { Status = "לא ניתן לפתוח דפדפן. כתובת האתר הרשמי: " + OfficialWebsite; }
     }
+    private async Task StageAndApplyAsync()
+    {
+        var offer = _offered;
+        if (offer is null) return;
+        IsBusy = true;
+        var progress = new Progress<int>(p => { if (!_disposed) Status = $"מוריד את הגרסה החדשה… {p}%"; });
+        Status = "מוריד את הגרסה החדשה…";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromMinutes(5));
+        try
+        {
+            var staged = await UpdatePackageStager.StageAsync(offer, _packageTransport!, _updateWorkRoot!, progress, timeout.Token).ConfigureAwait(false);
+            if (_disposed) return;
+            Status = $"ההורדה הושלמה. האפליקציה נסגרת כעת, מתעדכנת לגרסה {offer.Version} ונפתחת מחדש.";
+            StagedUpdateReady?.Invoke(staged);
+        }
+        catch (OperationCanceledException) { if (!_disposed) Status = "הורדת העדכון לא הושלמה בזמן. אפשר לנסות שוב."; }
+        catch (UpdatePackageVerificationException) { if (!_disposed) Status = "לא ניתן לאמת את חבילת העדכון. ההתקנה בוטלה והגרסה הנוכחית ממשיכה לעבוד."; }
+        catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidDataException or UnauthorizedAccessException)
+        { if (!_disposed) Status = "הורדת העדכון לא הושלמה. אפשר לנסות שוב. להורדה ידנית: " + OfficialWebsite; }
+        finally { if (!_disposed) IsBusy = false; }
+    }
+    /// <summary>The apply helper could not start; the staged files are unused and the app stays open.</summary>
+    public void NotifyApplyFailed()
+    { if (!_disposed) { IsBusy = false; Status = "לא ניתן להתחיל את התקנת העדכון. אפשר לנסות שוב."; } }
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true; _lifetime.Cancel(); _lifetime.Dispose();
         if (_source is IDisposable owned) owned.Dispose();
+        if (_packageTransport is IDisposable transport) transport.Dispose();
         CheckCommand.Raise(); DownloadCommand.Raise();
     }
 }
