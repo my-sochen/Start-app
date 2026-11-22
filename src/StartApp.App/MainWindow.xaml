@@ -214,7 +214,7 @@
                     <!-- single content filter (approved mock home-filter-program): "מסונן: סביבות שמכילות X · N מתוך M" + ✕ ניקוי סינון -->
                     <DockPanel Visibility="{Binding IsSingleContentFilter, Converter={StaticResource B2V}}">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#2B6250" Margin="4,0,6,0">
-                            <Run Text="מסונן: סביבות שמכילות "/><Run Text="{Binding SingleContentFilterName}" FontWeight="Bold"/><Run Text=" · "/><Run Text="{Binding SingleFilterCountText}"/>
+                            <Run Text="מסונן: סביבות שמכילות "/><Run Text="{Binding SingleContentFilterName, Mode=OneWay}" FontWeight="Bold"/><Run Text=" · "/><Run Text="{Binding SingleFilterCountText, Mode=OneWay}"/>
                         </TextBlock>
                         <Button DockPanel.Dock="Left" Content="✕ ניקוי סינון" Background="Transparent" BorderThickness="0" Foreground="#2B6250" Padding="4,0"
                                 Command="{Binding ClearFiltersCommand}" AutomationProperties.Name="Clear all filters"/>
