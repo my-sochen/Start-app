@@ -10,7 +10,7 @@ MODALS = {
     'CaptureDupSinglePending', 'CaptureDupGroupPending', 'EmptyWorkspaceOpen',
     'AddressEditOpen', 'OpenWithOpen', 'PickerOpen', 'DesignEditOpen',
     'CategoryEditOpen', 'UnsavedOpen', 'SelectionPending',
-    'OpenDecisionPending', 'LastResultsOpen',
+    'OpenDecisionPending', 'LastResultsOpen', 'InSettings',
 }
 
 
