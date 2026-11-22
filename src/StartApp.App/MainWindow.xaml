@@ -253,7 +253,7 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                         <Button Width="44" Height="42" Style="{StaticResource HomeToolbarButton}" Margin="0,0,10,0" AutomationProperties.Name="Capture"
                                 Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                            <Image Source="Assets/start-app-ufo.png" Width="20" Height="20" RenderTransformOrigin="0.5,0.5"><Image.RenderTransform><RotateTransform Angle="180"/></Image.RenderTransform></Image>
+                            <Viewbox Width="22" Height="22" IsHitTestVisible="False"><local:CaptureHoverIcon/></Viewbox>
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>

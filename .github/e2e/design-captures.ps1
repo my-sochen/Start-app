@@ -133,6 +133,17 @@ try {
   }
   Start-Sleep -Seconds 2
   Capture 'home-mock-size' 1280 880
+  # Real hover evidence: capture several phases in-place, then verify the rest pose returns.
+  $captureButton = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Capture')))
+  $captureBounds = $captureButton.Current.BoundingRectangle
+  [void][DesignWindow]::SetCursorPos([int]($captureBounds.X+$captureBounds.Width/2), [int]($captureBounds.Y+$captureBounds.Height/2))
+  for ($phase = 0; $phase -lt 4; $phase++) {
+    Capture ('home-capture-hover-'+$phase) 1280 880 $true $true
+  }
+  [void][DesignWindow]::SetCursorPos(1,1)
+  Start-Sleep -Milliseconds 600
+  Capture 'home-capture-rest-after-hover' 1280 880 $true
+
   InvokeNamed 'Maximize window'
   InvokeNamed 'Restore window'
   Capture 'home-caption-restored' 1280 880
