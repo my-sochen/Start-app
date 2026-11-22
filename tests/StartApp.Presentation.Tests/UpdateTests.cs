@@ -109,7 +109,7 @@ public sealed class UpdateSettingsDisplayTests
     {
         var now = new DateTime(2026, 11, 22, 9, 12, 0);
         using var vm = new UpdateViewModel(Candidate("1.0.1"), "1.0.0", _ => { }, clock: () => now);
-        Assert.Equal("טרם נבדק בהפעלה זו", vm.LastCheckedDisplay);
+        Assert.Equal("טרם נבדק", vm.LastCheckedDisplay);
         Assert.Equal("1.0.0", vm.VersionValueDisplay);
         Assert.Equal("", vm.OfferedVersionDisplay);
         await vm.CheckAsync();
@@ -127,6 +127,6 @@ public sealed class UpdateSettingsDisplayTests
         Assert.Equal("קיימת גרסה חדשה: 0.9.1-beta.1 (בטא)", vm.OfferedVersionDisplay);
         using var failing = new UpdateViewModel(new Source(_ => throw new System.Net.Http.HttpRequestException("synthetic")), "1.0.0", _ => { }, clock: () => now);
         await failing.CheckAsync();
-        Assert.Equal("טרם נבדק בהפעלה זו", failing.LastCheckedDisplay);
+        Assert.Equal("טרם נבדק", failing.LastCheckedDisplay);
     }
 }

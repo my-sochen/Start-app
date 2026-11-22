@@ -25,7 +25,7 @@ public class ItemPopupsTests
     private static void AddLink(MainViewModel vm, string url, string name)
     { vm.NewItemType = ItemType.Link; vm.NewTarget = url; vm.NewItemName = name; vm.AddItemCommand.Execute(null); }
 
-    [Fact] public void Address_popup_change_is_instance_local_for_a_website_too()
+    [Fact] public void Full_editor_address_change_is_instance_local_for_a_website_too()
     {
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo, new RecordingLauncher());
@@ -38,12 +38,12 @@ public class ItemPopupsTests
         vm.Selected = vm.Workspaces.Single(w => w.Id == wsId);
         var row = vm.Items.Single();
         vm.EditAddressCommand.Execute(row);
-        Assert.True(vm.AddressEditOpen); Assert.False(vm.AddressEditDirty);
-        Assert.Equal("https://a.example/", vm.EditAddress); // the popup shows the full address
-        vm.EditAddress = "https://b.example/";
-        Assert.True(vm.AddressEditDirty);
-        vm.SaveAddressCommand.Execute(null);
-        Assert.Equal("Address saved", vm.Status); Assert.False(vm.AddressEditOpen);
+        Assert.True(vm.ItemEditOpen); Assert.False(vm.ItemEditDirty);
+        Assert.Equal("https://a.example/", vm.EditItemTarget); // the popup shows the full address
+        vm.EditItemTarget = "https://b.example/";
+        Assert.True(vm.ItemEditDirty);
+        vm.SaveItemEditCommand.Execute(null);
+        Assert.Equal("Item saved", vm.Status); Assert.False(vm.ItemEditOpen);
         var store = repo.Load();
         var edited = store.Workspaces.Single(w => w.Id == wsId).Items.Single();
         Assert.Equal(row.InstanceId, edited.Id); // same instance id across the address change
@@ -52,7 +52,7 @@ public class ItemPopupsTests
         Assert.Equal("https://a.example/", store.Items[other.ItemId].Target); // other workspace untouched
     }
 
-    [Fact] public void Address_popup_change_leaves_a_second_instance_of_the_same_address_in_this_workspace()
+    [Fact] public void Full_editor_address_change_leaves_a_second_instance_of_the_same_address_in_this_workspace()
     {
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo, new RecordingLauncher());
@@ -63,8 +63,8 @@ public class ItemPopupsTests
         Assert.Equal(2, vm.Items.Count);
         var row = vm.Items.Single(r => r.Name == "one");
         vm.EditAddressCommand.Execute(row);
-        vm.EditAddress = "https://b.example/";
-        vm.SaveAddressCommand.Execute(null);
+        vm.EditItemTarget = "https://b.example/";
+        vm.SaveItemEditCommand.Execute(null);
         var items = repo.Load().Workspaces.Single().Items;
         Assert.Equal(2, items.Count);
         var store = repo.Load();
@@ -72,7 +72,7 @@ public class ItemPopupsTests
         Assert.Equal("https://a.example/", store.Items[items.Single(m => m.Name == "two").ItemId].Target);
     }
 
-    [Fact] public void Address_popup_copy_and_the_dirty_close_guard()
+    [Fact] public void Full_editor_address_copy_and_the_dirty_close_guard()
     {
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo, new RecordingLauncher());
@@ -80,19 +80,19 @@ public class ItemPopupsTests
         string? copied = null; vm.CopyAddressRequested += a => copied = a;
         vm.EditAddressCommand.Execute(vm.Items.Single());
         // clean X closes silently
-        vm.CloseAddressEditCommand.Execute(null);
-        Assert.False(vm.AddressEditOpen); Assert.False(vm.UnsavedOpen);
+        vm.CancelItemEditCommand.Execute(null);
+        Assert.False(vm.ItemEditOpen); Assert.False(vm.UnsavedOpen);
         // dirty X asks via the unsaved-exit dialog
         vm.EditAddressCommand.Execute(vm.Items.Single());
-        vm.EditAddress = "https://draft.example/";
-        vm.CloseAddressEditCommand.Execute(null);
-        Assert.True(vm.UnsavedOpen); Assert.True(vm.UnsavedForAddress); Assert.True(vm.AddressEditOpen);
+        vm.EditItemTarget = "https://draft.example/";
+        vm.CancelItemEditCommand.Execute(null);
+        Assert.True(vm.UnsavedOpen); Assert.True(vm.UnsavedForItemEdit); Assert.True(vm.ItemEditOpen);
         vm.ExitWithoutSavingCommand.Execute(null);
-        Assert.False(vm.AddressEditOpen);
+        Assert.False(vm.ItemEditOpen);
         Assert.DoesNotContain("draft", repo.Load().Items.Values.Single().Target);
-        // the copy button copies the full value as shown
+        // row copy still copies the full saved address
         vm.EditAddressCommand.Execute(vm.Items.Single());
-        vm.CopyFullAddressCommand.Execute(null);
+        vm.CopyAddressCommand.Execute(vm.Items.Single());
         Assert.Equal("https://a.example/", copied); Assert.Equal("Address copied", vm.Status);
     }
 
@@ -196,11 +196,11 @@ public class ItemPopupsTests
         var vm = Vm(repo, new RecordingLauncher());
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\f.txt"; vm.NewItemName = "afile"; vm.AddItemCommand.Execute(null);
         vm.NewItemType = ItemType.Program; vm.NewTarget = "C:\\tool.exe"; vm.NewItemName = "aprog"; vm.AddItemCommand.Execute(null);
-        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "aprog", "afile" }, vm.Items.Select(r => r.Name).ToArray());
         vm.MoveItemUpCommand.Execute(vm.Items.Single(r => r.Name == "aprog")); // first in its group: no-op, stays out of Files
-        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "aprog", "afile" }, vm.Items.Select(r => r.Name).ToArray());
         vm.MoveItemDownCommand.Execute(vm.Items.Single(r => r.Name == "afile")); // last in its group: no-op, stays out of Programs
-        Assert.Equal(new[] { "afile", "aprog" }, vm.Items.Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "aprog", "afile" }, vm.Items.Select(r => r.Name).ToArray());
     }
 
     [Fact] public void Share_entry_display_condition_follows_workspace_count()

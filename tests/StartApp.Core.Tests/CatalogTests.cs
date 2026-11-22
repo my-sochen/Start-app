@@ -189,9 +189,9 @@ public class UpdateInstanceTests
         var w = c.CreateWorkspace("w", null);
         var m = c.AddToWorkspace(w.Id, item.Id, name: "one", description: "keep?");
         Assert.Throws<ArgumentException>(() => c.UpdateInstance(w.Id, m.Id!, " ", null)); // empty name rejected
-        c.UpdateInstance(w.Id, m.Id!, null, "  "); // null name = fallback to the item name; blank description = none
+        c.UpdateInstance(w.Id, m.Id!, null, "  "); // null name = fallback to the item name; blank description = explicit local clear
         var saved = c.Store.Workspaces.Single().Items.Single();
-        Assert.Null(saved.Name); Assert.Null(saved.Description);
+        Assert.Null(saved.Name); Assert.Equal("", saved.Description);
         Assert.Throws<KeyNotFoundException>(() => c.UpdateInstance(w.Id, "mi_missing", "x", null));
     }
 

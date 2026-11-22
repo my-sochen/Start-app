@@ -9,12 +9,12 @@ namespace StartApp.Presentation.Tests;
 /// startup. Pin the view source instead: well-formed XML, no generator artifacts, both create palettes really present.</summary>
 public class ViewSourceIntegrityTests
 {
-    private static string ViewSource()
+    private static string ViewSource(string filename = "MainWindow.xaml")
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         for (var i = 0; i < 12 && dir is not null; i++, dir = dir.Parent)
         {
-            var candidate = Path.Combine(dir.FullName, "src", "StartApp.App", "MainWindow.xaml");
+            var candidate = Path.Combine(dir.FullName, "src", "StartApp.App", filename);
             if (File.Exists(candidate)) return File.ReadAllText(candidate);
         }
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
@@ -31,7 +31,9 @@ public class ViewSourceIntegrityTests
 
     [Fact] public void Both_create_forms_have_a_real_palette_control()
     {
-        var hits = System.Text.RegularExpressions.Regex.Matches(ViewSource(), "ApplyCreatePaletteColorCommand").Count;
-        Assert.True(hits >= 2, $"expected the ordinary and the capture create palettes in the view, found {hits}");
+        Assert.Contains("ApplyCreatePaletteColorCommand", ViewSource()); // capture create
+        var ordinary = ViewSource("CreateWorkspaceView.xaml");
+        XDocument.Parse(ordinary);
+        Assert.Contains("ApplyCreatePaletteColorCommand", ordinary);
     }
 }

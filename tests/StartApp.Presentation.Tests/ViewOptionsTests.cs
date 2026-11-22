@@ -152,8 +152,8 @@ public class ViewOptionsTests
         });
         var stats = repo.Load().Workspaces.Single(w => w.Name == "סטטיסטיקה");
         var vmFresh = new MainViewModel(repo, new NotImplementedLauncher()); // constructed after the items exist
-        // approved order 22.11: אתרים · תוכנות · תיקיות · קבצים; 1 = singular without a number.
-        Assert.Equal("2 אתרים · תוכנה · תיקייה · 2 קבצים", vmFresh.StatsText(stats));
+        // approved order 22.11: אתרים · תוכנות · קבצים · תיקיות; 1 = singular without a number.
+        Assert.Equal("2 אתרים · תוכנה · 2 קבצים · תיקייה", vmFresh.StatsText(stats));
         var vm2 = Seed(out var repo2);
         repo2.Mutate(c => c.CreateWorkspace("ריקה"));
         Assert.Equal("עדיין אין אייטמים", vm2.StatsText(repo2.Load().Workspaces.Single(w => w.Name == "ריקה")));
@@ -167,7 +167,10 @@ public class ViewOptionsTests
         vm.SetDefaultWorkspace(alpha.Id);
         Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
         Assert.Equal(alpha.Id, vm.DefaultWorkspaceId);
-        vm.SetDefaultWorkspace(null); // "ללא סביבת ברירת מחדל"
+        vm.SetDefaultWorkspace(null); // removing an existing default needs confirmation
+        Assert.True(vm.DefaultConfirmOpen);
+        Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
+        vm.ConfirmDefaultReplaceCommand.Execute(null);
         Assert.Null(repo.Load().DefaultWorkspaceId);
     }
 
@@ -197,9 +200,12 @@ public class ViewOptionsTests
         Assert.False(vm.DefaultConfirmOpen);
         Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
         Assert.False(vm.IsDefaultWorkspace(alpha));
-        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it immediately ("הסר הגדרה כברירת מחדל")
+        vm.ToggleDefaultForCommand.Execute(bet); // removing the default asks before changing saved state
+        Assert.True(vm.DefaultConfirmOpen);
+        Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
+        vm.ConfirmDefaultReplaceCommand.Execute(null);
         Assert.Null(repo.Load().DefaultWorkspaceId);
-        Assert.False(vm.DefaultConfirmOpen); // removal never opens the dialog
+        Assert.False(vm.DefaultConfirmOpen); // confirmation completed
         Assert.Equal("הוסרה ההגדרה כברירת מחדל", vm.ToastMessage);
     }
 

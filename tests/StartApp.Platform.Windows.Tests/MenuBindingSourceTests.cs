@@ -45,27 +45,34 @@ public class MenuBindingSourceTests
             Assert.Contains(tag, xaml.Substring(open, close - open));
         }
     }
-    [Fact] public void Contextual_actions_replace_ellipsis_and_item_editor_is_row_local()
+    [Fact] public void Contextual_actions_replace_ellipsis_and_open_the_full_item_dialog()
     {
         var xaml=Xaml(); Assert.DoesNotContain("Content=\"⋯\"",xaml);
         Assert.Equal(5,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count); // card + list + icons workspace templates + item row + staged item row
         var start=xaml.IndexOf("<ListView.ItemTemplate>",StringComparison.Ordinal);
         var end=xaml.IndexOf("</ListView.ItemTemplate>",start,StringComparison.Ordinal);
         var row=xaml.Substring(start,end-start);
-        Assert.Contains("Content=\"ערוך\"",row);Assert.Contains("ItemEditorVisibility",row);
-        Assert.Contains("EditingItemInstanceId",row);Assert.Contains("SaveItemEditCommand",row);Assert.Contains("CancelItemEditCommand",row);
-        Assert.Equal(1,Regex.Matches(xaml,"AutomationProperties.Name=\"Edit item name\"").Count);
+        Assert.Contains("Content=\"ערוך\"",row);
+        Assert.Contains("EditItemCommand",row);
+        var dialog=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml"));
+        var dialogCode=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml.cs"));
+        Assert.Contains("EditItemTarget",dialog); Assert.Contains("EditItemDescription",dialog);
+        Assert.Contains("SaveItemEditCommand",dialogCode); Assert.Contains("CancelItemEditCommand",dialogCode);
+        Assert.Equal(1,Regex.Matches(dialog,"AutomationProperties.Name=\"Edit item name\"").Count);
     }
     [Fact] public void Minimum_height_details_and_text_context_contracts_remain_explicit()
     {
         var xaml=Xaml();
         Assert.Contains("AutomationProperties.Name=\"Workspace details viewport\"",xaml);
-        Assert.Contains("AutomationProperties.Name=\"Cancel item edit\"",xaml);
+        Assert.Contains("AutomationProperties.Name=\"Cancel item edit\"",File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml")));
         Assert.Contains("Focusable=\"True\" KeyboardNavigation.IsTabStop=\"True\"",xaml);
-        Assert.Equal(2,Regex.Matches(xaml,"Header=\"שיתוף לסביבה אחרת\" IsEnabled=\"False\" Visibility=\"Collapsed\"").Count);
+        Assert.DoesNotContain("Header=\"שיתוף לסביבה אחרת\" IsEnabled=\"False\"", xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
         Assert.Contains("if (source is TextBox) return;",code);
-        Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
+        Assert.Contains("ShowItemActions(anchor, allRow, detail)",code);
+        var actions=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"AllItemsView.xaml.cs"));
+        Assert.Contains("vm.AddItemToEnvironments(row, ids)",actions);
+        Assert.Contains("vm.ItemActionWorkspaces(row, true).Count > 0",actions);
         // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
         Assert.Contains("popupSize.Height + 18",code);
         Assert.Contains("Math.Max(8, anchorY - safeH)",code);
@@ -95,12 +102,13 @@ public class MenuBindingSourceTests
         var editorStart=row.IndexOf("AutomationProperties.Name=\"Staged item editor\"",StringComparison.Ordinal);
         Assert.True(editorStart>=0);
         Assert.DoesNotContain("<TextBox",row.Substring(0,editorStart));
-        Assert.Equal(4,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
+        Assert.Equal(3,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
+        Assert.Contains("<ComboBox",row.Substring(editorStart)); Assert.Contains("OpenWithPicker.Path=\"{Binding OpenWith",row.Substring(editorStart));
         Assert.DoesNotContain("SelectionChanged=",row); Assert.DoesNotContain("OpenItemCommand",row);
     }
-    [Fact] public void Explicit_staged_Edit_and_Done_request_identity_bound_product_reveal()
+    [Fact] public void Explicit_staged_toggle_requests_identity_bound_product_reveal()
     {
-        var xaml=Xaml(); Assert.Contains("Click=\"EditStaged_Click\"",xaml); Assert.Contains("Click=\"DoneStaged_Click\"",xaml);
+        var xaml=Xaml(); Assert.Contains("Click=\"ToggleStaged_Click\"",xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
         Assert.Contains("row.IsEditing != editing",code); Assert.Contains("!vm.StagedRows.Contains(row)",code);
         Assert.Contains("ReferenceEquals(host.DataContext, row)",code);

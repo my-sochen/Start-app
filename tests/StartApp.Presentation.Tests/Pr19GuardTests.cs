@@ -117,13 +117,13 @@ public class Pr19GuardTests
     {
         var (repo, vm) = ExistingStore(); using var _ = repo;
         vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
-        vm.EditAddressCommand.Execute(vm.Items.Single()); vm.EditAddress = "C:\\new.txt";
+        vm.EditAddressCommand.Execute(vm.Items.Single()); vm.EditItemTarget = "C:\\new.txt";
         var loaded = repo.Load(); var wsId = loaded.Workspaces.Single().Id; var instId = loaded.Workspaces.Single().Items.Single().Id!;
         repo.Mutate(c => c.RemoveInstance(wsId, instId));
         vm.Reload();
-        vm.SaveAddressCommand.Execute(null);                    // must not throw
-        Assert.True(vm.AddressEditOpen);
-        Assert.Equal("C:\\new.txt", vm.EditAddress);
+        vm.SaveItemEditCommand.Execute(null);                    // must not throw
+        Assert.True(vm.ItemEditOpen);
+        Assert.Equal("C:\\new.txt", vm.EditItemTarget);
         Assert.Contains("Not saved", vm.Status);
     }
 
@@ -165,36 +165,38 @@ public class Pr19GuardTests
         Assert.Contains("Save or cancel", vm.Status);
     }
 
-    [Fact] public void Address_popup_is_refused_while_the_item_edit_is_dirty_and_an_explicit_save_is_never_overwritten()
+    [Fact] public void Address_entry_does_not_replace_a_dirty_full_editor_or_overwrite_an_explicit_save()
     {
         var (repo, vm) = ExistingStore(); using var _ = repo;
         vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
         var row = vm.Items.Single();
         vm.EditItemCommand.Execute(row); vm.EditItemTarget = "C:\\inline.txt";
         vm.EditAddressCommand.Execute(row);                     // refused: a dirty editor owns the form
-        Assert.False(vm.AddressEditOpen);
+        Assert.True(vm.ItemEditOpen);
+        Assert.Equal("C:\\inline.txt", vm.EditItemTarget);
         Assert.Contains("Save or cancel", vm.Status);
         vm.SaveItemEditCommand.Execute(null);                   // the accepted edit wins legitimately
         Assert.Equal("C:\\inline.txt", repo.Load().Items[repo.Load().Workspaces.Single().Items.Single().ItemId].Target);
         vm.EditAddressCommand.Execute(row);                     // now clean: the popup opens
-        Assert.True(vm.AddressEditOpen);
-        vm.EditAddress = "C:\\popup.txt";
-        vm.SaveAddressCommand.Execute(null);                    // explicit save
+        Assert.True(vm.ItemEditOpen);
+        vm.EditItemTarget = "C:\\popup.txt";
+        vm.SaveItemEditCommand.Execute(null);                    // explicit save
         Assert.Equal("C:\\popup.txt", repo.Load().Items[repo.Load().Workspaces.Single().Items.Single().ItemId].Target);
         Assert.True(vm.RequestAppClose());                      // no stale draft remains to overwrite it on exit
         Assert.Equal("C:\\popup.txt", repo.Load().Items[repo.Load().Workspaces.Single().Items.Single().ItemId].Target);
     }
 
-    [Fact] public void Item_edit_is_refused_while_the_address_popup_is_dirty()
+    [Fact] public void Item_entry_does_not_replace_a_dirty_address_in_the_full_editor()
     {
         var (repo, vm) = ExistingStore(); using var _ = repo;
         vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
         var row = vm.Items.Single();
-        vm.EditAddressCommand.Execute(row); vm.EditAddress = "C:\\popup.txt";
+        vm.EditAddressCommand.Execute(row); vm.EditItemTarget = "C:\\popup.txt";
         vm.EditItemCommand.Execute(row);                        // reverse direction is guarded too
-        Assert.False(vm.ItemEditOpen);
-        Assert.Contains("address edit", vm.Status);
-        vm.SaveAddressCommand.Execute(null);
+        Assert.True(vm.ItemEditOpen);
+        Assert.Equal("C:\\popup.txt", vm.EditItemTarget);
+        Assert.Contains("Save or cancel", vm.Status);
+        vm.SaveItemEditCommand.Execute(null);
         Assert.Equal("C:\\popup.txt", repo.Load().Items[repo.Load().Workspaces.Single().Items.Single().ItemId].Target);
         vm.EditItemCommand.Execute(row);                        // opens once the popup is saved
         Assert.True(vm.ItemEditOpen);
@@ -254,12 +256,12 @@ public class Pr19GuardTests
     {
         var (repo, vm) = ExistingStore(); using var _ = repo;
         vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
-        vm.EditAddressCommand.Execute(vm.Items.Single()); vm.EditAddress = "C:\\new.txt";
+        vm.EditAddressCommand.Execute(vm.Items.Single()); vm.EditItemTarget = "C:\\new.txt";
         var loaded = repo.Load(); var wsId = loaded.Workspaces.Single().Id; var instId = loaded.Workspaces.Single().Items.Single().Id!;
         repo.Mutate(c => c.RemoveInstance(wsId, instId));       // no vm.Reload
-        vm.SaveAddressCommand.Execute(null);                    // must not throw
-        Assert.True(vm.AddressEditOpen);
-        Assert.Equal("C:\\new.txt", vm.EditAddress);
+        vm.SaveItemEditCommand.Execute(null);                    // must not throw
+        Assert.True(vm.ItemEditOpen);
+        Assert.Equal("C:\\new.txt", vm.EditItemTarget);
         Assert.Contains("Save failed", vm.Status);
     }
 
