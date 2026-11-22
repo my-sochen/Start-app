@@ -44,7 +44,7 @@ public static class WinN {
 '@
 $A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
 $results = New-Object System.Collections.ArrayList; $script:shot = 0; $runId = $env:GITHUB_RUN_ID
-function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
+function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail"; if (-not $ok) { throw "UI assertion failed: $name :: $detail" } }
 function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = $true; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
 function Shot($state) {
   [void][W]::SetCursorPos(5, 5); [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x27); Start-Sleep -Milliseconds 400
@@ -53,37 +53,67 @@ function Shot($state) {
   if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
   $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
 }
-function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { try { return $win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $ct))) } catch { if ($t -eq 2) { "UIA read failed after retries: $($_.Exception.Message) | appHasExited=$(if ($p) { $p.HasExited } else { "no-process" }) mainWindowHandle=$(if ($p) { $p.MainWindowHandle } else { "-" })" | Out-File -Append diag/uia-liveness.txt; throw }; Start-Sleep -Milliseconds 400 } } }
+function ActiveAppWindow() {
+  $owned = @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { $_ -ne $script:mainHwnd -and [WinN]::IsWindowVisible($_) -and (OwnerChainHas $_ $script:mainHwnd) -and [WinN]::ClassOf($_) -ne '#32770' })
+  if ($owned.Count -gt 0) { return $A::FromHandle($owned[0]) }
+  return $win
+}
+function OpenCreateScreen() {
+  if (Btn 'Create workspace') { return }
+  $b = Btn 'New workspace button'
+  if (-not $b) { throw 'New workspace button missing from home' }
+  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $deadline = [Diagnostics.Stopwatch]::StartNew()
+  while ($deadline.Elapsed.TotalSeconds -lt 10 -and -not (Btn 'Create workspace')) { Start-Sleep -Milliseconds 100 }
+  if (-not (Btn 'Create workspace')) { throw 'Dedicated create screen did not open' }
+}
+function EnsureDetailsAddForm() {
+  if (NamedEdit 'Item target') { return }
+  $b = Btn '+ הוסף אייטם'
+  if (-not $b) { $b = Btn 'הוסף אייטם' }
+  if (-not $b) { throw 'Add-item entry missing from details' }
+  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 300
+  if (-not (NamedEdit 'Item target')) { throw 'Details add form did not open' }
+}
+function DetailsShown() { return $null -ne (Btn 'Back to workspaces') -and $null -ne (NamedEdit 'Workspace name') }
+function HomeShown() { return $null -ne (Btn 'New workspace button') }
+function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { try { return (ActiveAppWindow).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $ct))) } catch { if ($t -eq 2) { "UIA read failed after retries: $($_.Exception.Message) | appHasExited=$(if ($p) { $p.HasExited } else { "no-process" }) mainWindowHandle=$(if ($p) { $p.MainWindowHandle } else { "-" })" | Out-File -Append diag/uia-liveness.txt; throw }; Start-Sleep -Milliseconds 400 } } }
 function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
 function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
-function Btn($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
-function BtnLike($needle) { @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function Btn($name) { (ActiveAppWindow).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+function BtnLike($needle) { @((ActiveAppWindow).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
 function OpenContextEl($el, $settle = 900) {
   if ($null -eq $el) { return 'context anchor missing' }
   try {
     $el.SetFocus()
     [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
     Start-Sleep -Milliseconds $settle
-    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג') -and $null -eq (MenuItemByName 'מחק')) { return 'native context menu did not open' }
     return 'ok'
   } catch { return "native context menu failed: $_" }
 }
 function ContextAnchors($name) {
   $hostWindow = $win
   if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
-  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Item row')))) }
   if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Added item name')))) }
   return @()
 }
 function ClickBtn($name, $settle = 900) {
+  if ($name -eq 'Back') { $name = 'Back to workspaces' }
+  if ($name -eq 'Global environment') {
+    $o = Btn 'Options menu'; if (-not $o) { return 'Options menu missing' }; [void](InvokeEl $o 'options'); Start-Sleep -Milliseconds 300
+    $m = MenuItemByName 'סביבה גלובלית'; if (-not $m) { return 'Global environment menu missing' }; [void](InvokeEl $m 'global environment menu'); Start-Sleep -Milliseconds $settle; return 'ok'
+  }
   if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
 }
 function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
-function NamedEdit($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
-function NamedCombo($name) { $win.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
+function NamedEdit($name) { (ActiveAppWindow).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
+function NamedCombo($name) { (ActiveAppWindow).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
 function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
 function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
 function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
@@ -166,13 +196,14 @@ try {
 
   Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
   # 1. overview: create form + create -> details screen opens (spec: אחרי היצירה נפתחים פרטי סביבה)
-  Assert 'overview shown at startup' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
+  Assert 'overview shown at startup' (HomeShown) ((Texts) -join ' | ')
+  OpenCreateScreen
   $wsNameBox = NamedEdit 'Workspace name'; $wsDescBox = NamedEdit 'Workspace description'
   Assert 'create form boxes found' ($null -ne $wsNameBox -and $null -ne $wsDescBox) ''
   SetText $wsNameBox 'E2E ws'; SetText $wsDescBox 'first workspace'
   $c = ClickBtn 'Create workspace'; Assert 'create workspace clicked' ($c -eq 'ok') $c
-  Assert 'details screen opened after create' (WaitText 'Created:' 15) ((Texts) -join ' | ')
-  Assert 'creation date shown, not unknown' (-not (WaitText 'Created: unknown' 2)) ((Texts) -join ' | ')
+  Assert 'details screen opened after create' (DetailsShown) ((Texts) -join ' | ')
+  Assert 'creation date persisted' ($null -ne (StoreObj).workspaces[0].createdAt) (StoreJson)
   Assert 'empty state message in Hebrew' (WaitText 'עדיין אין אייטמים בסביבה' 10) ((Texts) -join ' | ')
   Assert 'empty state has an add-item button' ($null -ne (Btn 'הוסף אייטם')) ''
   $catCombo = NamedCombo 'Workspace category'
@@ -181,6 +212,7 @@ try {
   Assert 'create without design leaves color and image empty (defaults)' ($null -ne $ws0 -and [string]::IsNullOrEmpty($ws0.color) -and [string]::IsNullOrEmpty($ws0.imagePath)) ("color='$($ws0.color)' image='$($ws0.imagePath)'")
   Shot 'details-after-create-empty'
   # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
+  EnsureDetailsAddForm
   $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
   Assert 'add form boxes found' ($null -ne $targetBox -and $null -ne $itemNameBox -and $null -ne $descBox) ''
   [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add' 600; Assert "add link" ($c -eq 'ok') $c
@@ -246,15 +278,15 @@ try {
   }
   Info 'details viewport scroll before the first-row menu' $scrollDiag
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-  $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  $ifound = @('מחק','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
   MenuInsideWindow 'first-row item menu'
-  Assert 'no עריכה inside the actions menu (direct row button is the only edit path)' ($null -eq (MenuItemByName 'עריכה')) ''
-  $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
-  Assert 'שיתוף לסביבה אחרת hidden with a single workspace' ($null -eq $shareMi -or $shareMi.Current.IsOffscreen) ''
+  Assert 'full edit action is offered in the item menu' ($null -ne (MenuItemByName 'ערוך')) ''
+  $shareMi = MenuItemByName 'הוסף לסביבה'
+  Assert 'share cannot target a nonexistent other workspace' ($null -ne $shareMi -and -not $shareMi.Current.IsEnabled) ''
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
   $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
-  $eName = NamedEdit 'Edit item name'; Assert 'item edit form opened' ($null -ne $eName) ''
+  $eName = $null; for ($t=0; $t -lt 40 -and -not $eName; $t++) { $eName = NamedEdit 'Edit item name'; if (-not $eName) { Start-Sleep -Milliseconds 100 } }; Assert 'item edit form opened' ($null -ne $eName) ''
   Assert 'edit form shows the address too' ($null -ne (NamedEdit 'Edit item target')) ''
   SetText $eName 'My link edited'
   $c = ClickBtn 'Save item edit' 900; Assert 'item edit saved' ($c -eq 'ok') $c
@@ -264,10 +296,10 @@ try {
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for address popup' ($c -eq 'ok') $c
   $mi = AnyByName 'עריכת כתובת'; Assert 'address edit entry exists' ($null -ne $mi) ''
   [void](InvokeEl $mi 'address edit entry'); Start-Sleep -Milliseconds 800
-  $addr = NamedEdit 'Full address'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
-  Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
+  $addr = NamedEdit 'Edit item target'; Assert 'address popup opened with the full address' ($null -ne $addr -and $addr.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'https://example.com/') ''
+  Assert 'full editor includes name and description' ($null -ne (NamedEdit 'Edit item name') -and $null -ne (NamedEdit 'Edit item description')) ''
   SetText $addr 'https://edited.example/'
-  $c = ClickBtn 'שמור' 900; Assert 'address saved from the popup' ($c -eq 'ok' -and (-not (NamedEdit 'Full address'))) ((Texts) -join ' | ')
+  $c = ClickBtn 'Save item edit' 900; Assert 'address saved from the full editor' ($c -eq 'ok' -and (-not (NamedEdit 'Edit item target'))) ((Texts) -join ' | ')
   Assert 'store.json: one instance re-pointed, the other keeps example.com' ((StoreJson) -match 'edited\.example' -and (StoreJson) -match 'example\.com') (StoreJson)
   # 3e. פופאפ פתח באמצעות: per-instance הגדר כברירת מחדל, then the open uses the chosen program
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
@@ -289,8 +321,8 @@ try {
   # icon + name display (settled Nov 14): the row shows the program icon and a short name; the full path stays in the
   # tooltip. A plain StackPanel has no UIA peer, so the accessible contract is the exposed TextBlock: content = UIA
   # name, AutomationProperties.HelpText = full path; the icon is the Image sibling under the same parent panel.
-  Assert 'opens-with shows the short name, not the path' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
-  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: Notepad')))
+  Assert 'opens-with shows the short name, not the path' (WaitText 'Notepad' 10) ((Texts) -join ' | ')
+  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Notepad')))
   Assert 'opens-with tooltip keeps the full path' ($null -ne $owTb -and $owTb.Current.HelpText -like '*notepad.exe*') ("help=$(if ($owTb) { $owTb.Current.HelpText } else { 'no-element' })")
   $owImg = $null; if ($owTb) { $owP = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($owTb); if ($owP) { $owImg = $owP.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) } }
   Assert 'opens-with icon element present next to the name' ($null -ne $owImg) ''
@@ -319,7 +351,7 @@ try {
   Start-Sleep -Milliseconds 500
   try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
   Start-Sleep -Milliseconds 300
-  Assert 'icon + name back after the restore' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  Assert 'icon + name back after the restore' (WaitText 'Notepad' 10) ((Texts) -join ' | ')
   Shot 'open-with-restored'
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'
@@ -332,18 +364,18 @@ try {
   # 5. unsaved-changes guard: edit, Back -> dialog, X returns to editing, Back -> exit without saving
   SetText (NamedEdit 'Workspace description') 'unsaved edit'
   $c = ClickBtn 'Back' 800; Assert 'back clicked' ($c -eq 'ok') $c
-  Assert 'unsaved dialog shown with both spec buttons' ((WaitText 'You have changes that were not saved' 10) -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
+  Assert 'unsaved dialog shown with both spec buttons' ((WaitText 'יש שינויים שלא נשמרו' 10) -and $null -ne (Btn 'שמור וצא') -and $null -ne (Btn 'צא בלי לשמור')) ((Texts) -join ' | ')
   Shot 'unsaved-dialog'
   $c = ClickBtn 'Back to editing' 600; Assert 'dialog X clicked' ($c -eq 'ok') $c
-  Assert 'X returned to editing, changes kept' ((WaitText 'Created:' 5) -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''
+  Assert 'X returned to editing, changes kept' ((DetailsShown) -and (ValOf (NamedEdit 'Workspace description')) -eq 'unsaved edit') ''
   $c = ClickBtn 'Back' 800; Assert 'back clicked again' ($c -eq 'ok') $c
   $c = ClickBtn 'צא בלי לשמור' 900; Assert 'exit without saving clicked' ($c -eq 'ok') $c
-  Assert 'back in overview, unsaved edit discarded' ((WaitText 'Create workspace' 10) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
+  Assert 'back in overview, unsaved edit discarded' ((HomeShown) -and -not ((StoreJson) -match 'unsaved edit')) ((Texts) -join ' | ')
   Shot 'overview-after-guard'
   # 6. Nov17 two-stage open: initial all-selected choice before any checks; cancel sends nothing.
   $card = BtnLike 'E2E ws renamed'; Assert 'workspace card found in overview' ($null -ne $card) ((ListLines) -join ' || ')
   [void](InvokeEl $card 'workspace card'); Start-Sleep -Milliseconds 900
-  Assert 'details reopened from card' (WaitText 'Created:' 10) ''
+  Assert 'details reopened from card' (DetailsShown) ''
   $npBefore = NotepadCount
   $c = ClickBtn 'שגר' 800; Assert 'open clicked' ($c -eq 'ok') $c
   Assert 'initial item selection is shown before checks' (WaitText 'מה לפתוח בסביבה' 10) ((Texts) -join ' | ')
@@ -370,6 +402,7 @@ try {
   Assert 'last opened recorded after a real open' ((StoreJson) -match 'lastOpenedAt') (StoreJson)
   # 7. empty workspace: open shows the dialog, go-to-details button leads to details
   $c = ClickBtn 'Back' 900; Assert 'back to overview clicked' ($c -eq 'ok') $c
+  OpenCreateScreen
   SetText (NamedEdit 'Workspace name') 'E2E empty'; $c = ClickBtn 'Create workspace' 900; Assert 'create empty workspace clicked' ($c -eq 'ok') $c
   Assert 'empty workspace created into details with the Hebrew empty message' (WaitText 'עדיין אין אייטמים בסביבה' 15) ((Texts) -join ' | ')
   $c = ClickBtn 'שגר' 2500; Assert 'open clicked on empty workspace' ($c -eq 'ok') $c
@@ -387,7 +420,7 @@ try {
   Shot 'card-actions-menu'
   $show = MenuItemByName 'הצג'
   [void](InvokeEl $show 'הצג menu entry'); Start-Sleep -Milliseconds 900
-  Assert 'details opened from the menu (הצג)' (WaitText 'Created:' 10) ''
+  Assert 'details opened from the menu (הצג)' (DetailsShown) ''
   # 9. card design popup + category popup (פופאפ עיצוב כרטיס / פופאפ עריכת קטגוריה)
   $c = ClickBtn 'Back' 900; Assert 'back to overview for the popups' ($c -eq 'ok') $c
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for design' ($c -eq 'ok') $c
@@ -2683,7 +2716,8 @@ public static class WinCap {
   # usage-sort behavior are unit-tested; the instance-name text also exists in the row below, so E2E does not assert on it)
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for details' ($c -eq 'ok') $c
   $mi = MenuItemByName 'הצג'; [void](InvokeEl $mi 'הצג menu entry for picker'); Start-Sleep -Milliseconds 900
-  Assert 'details opened for the picker' (WaitText 'Created:' 10) ''
+  Assert 'details opened for the picker' (DetailsShown) ''
+  EnsureDetailsAddForm
   $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c
   Assert 'picker shows the four type buttons' ((WaitText 'Program' 5) -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
   Shot 'resource-picker'
@@ -2705,8 +2739,10 @@ public static class WinCap {
   
   # 12. four-group visual proof (Nov 12 feedback: files and programs shown separately, like sites and folders)
   $c = ClickBtn 'Back' 900; Assert 'back to overview for the four-group workspace' ($c -eq 'ok') $c
+  OpenCreateScreen
   SetText (NamedEdit 'Workspace name') 'E2E four groups'; $c = ClickBtn 'Create workspace' 900; Assert 'create four-group workspace clicked' ($c -eq 'ok') $c
-  Assert 'four-group workspace opened in details' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+  Assert 'four-group workspace opened in details' (DetailsShown) ((Texts) -join ' | ')
+  EnsureDetailsAddForm
   $targetBox4 = NamedEdit 'Item target'; $itemNameBox4 = NamedEdit 'Item name'
   Assert 'four-group add form boxes found' ($null -ne $targetBox4 -and $null -ne $itemNameBox4) ''
   [void](SetType 'Link'); SetText $targetBox4 'https://four.example/'; SetText $itemNameBox4 'Four link'; $c = ClickBtn 'Add' 600; Assert 'add four link' ($c -eq 'ok') $c
@@ -2764,6 +2800,7 @@ public static class WinCap {
   # cancel, remove-image, invalid color/malformed image refused at the boundary with typed values kept, valid
   # color+image persist to the store, the form fully resets after a successful create
   $c = ClickBtn 'Back' 900; Assert 'back to overview for the create-design flow' ($c -eq 'ok') $c
+  OpenCreateScreen
   $createImg = "$root\create-card.png"
   $ib = New-Object System.Drawing.Bitmap 40, 40; $ig = [System.Drawing.Graphics]::FromImage($ib); $ig.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $ig.Dispose(); $ib.Save($createImg, [System.Drawing.Imaging.ImageFormat]::Png); $ib.Dispose()
   Shot 'create-form-design-controls'
@@ -2793,7 +2830,7 @@ public static class WinCap {
   # the close keeps editing with the design values intact, then the name is restored for the rest of the flow
   SetText (NamedEdit 'Workspace name') ''
   $null = $p.CloseMainWindow()
-  Assert 'app-close guard shown for design-only create input (color only, no name)' (WaitText 'You have changes that were not saved' 10) ((Texts) -join ' | ')
+  Assert 'app-close guard shown for design-only create input (color only, no name)' (WaitText 'יש שינויים שלא נשמרו' 10) ((Texts) -join ' | ')
   Shot 'create-design-unsaved-guard'
   $c = ClickBtn 'Back to editing' 600; Assert 'guard cancelled, keep editing' ($c -eq 'ok') $c
   Assert 'cancelled close kept the design-only values (color kept, name still empty)' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '#FDE68A') ("name='$(ValOf (NamedEdit 'Workspace name'))' color='$(ValOf (NamedEdit 'Create card color'))'")
@@ -2960,7 +2997,7 @@ public static class WinCap {
   if (-not $gateA.ok) { Close-OwnedPickers 'create native acceptance gate incomplete'; Shot 'picker-failure'; throw "create native acceptance gate incomplete: $($gateA.failed -join ',')" }
   Shot 'create-form-picker-accepted'
   $c = ClickBtn 'Create workspace' 1200; Assert 'create with color and picker-accepted image clicked' ($c -eq 'ok') $c
-  Assert 'designed workspace opened in details' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+  Assert 'designed workspace opened in details' (DetailsShown) ((Texts) -join ' | ')
   $o = StoreObj
   $wsD = @($o.workspaces | Where-Object { $_.name -eq 'E2E designed' })[0]
   Assert 'store: create-time color and picker-accepted image persisted on the new workspace' ($null -ne $wsD -and $wsD.color -eq '#FDE68A' -and $wsD.imagePath -eq $createImg) ("color=$($wsD.color) image=$($wsD.imagePath)")
