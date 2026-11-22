@@ -96,6 +96,26 @@ public sealed partial class MainViewModel
         RefreshGlobalEnvRows();
     }
 
+    /// <summary>--autostart (logon via the installer's Run key): opens every פריט סביבה גלובלית through the same honest
+    /// preflight the interactive open uses. Anything not opened is named on the status line, never silently skipped.</summary>
+    public void OpenGlobalItemsOnStart()
+    {
+        var entries = _current.GlobalItems;
+        if (entries.Count == 0) { Status = "אין פריטי סביבה גלובלית לפתיחה"; return; }
+        var opened = 0; var blocked = new List<string>();
+        foreach (var e in entries)
+        {
+            var it = new Item(e.Id, e.Type, e.Name, e.Target);
+            var f = PreflightRules.CheckForm(it, null) ?? _preflight?.Check(it, null) ?? new PreflightFinding(PreflightState.Ready);
+            if (f.State != PreflightState.Ready) { blocked.Add(e.Name); continue; }
+            var r = _launcher.Launch(it, null);
+            if (r.Status == LaunchStatus.Started) opened++; else blocked.Add(e.Name);
+        }
+        Status = blocked.Count == 0
+            ? "נפתחו " + opened + " פריטי סביבה גלובלית"
+            : "נפתחו " + opened + "; לא ניתן לפתוח: " + string.Join(", ", blocked);
+    }
+
     private void RefreshGlobalEnvRows()
     {
         static void Fill(ObservableCollection<GlobalEntryRow> rows, GlobalListKind kind, IReadOnlyList<GlobalListEntry> entries)
