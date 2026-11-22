@@ -342,6 +342,45 @@ public sealed class Catalog
     /// <summary>Reverse lookup by scan (no persisted counter/index, per decision).</summary>
     public IEnumerable<Workspace> WorkspacesContaining(string itemId) => _s.Workspaces.Where(w => w.Items.Any(m => m.ItemId == itemId));
 
+    // ---- סביבה גלובלית (approved 22.11 03:08): one tab with three lists — global items (open with the computer start),
+    // capture whitelist (display priority only) and capture blacklist (never shown). Shared by all workspaces. ----
+
+    /// <summary>The rows of one סביבה גלובלית list, in the order they are shown.</summary>
+    public IReadOnlyList<GlobalListEntry> GlobalEntries(GlobalListKind kind) => GlobalList(kind);
+
+    private List<GlobalListEntry> GlobalList(GlobalListKind kind) => kind switch
+    {
+        GlobalListKind.GlobalItems => _s.GlobalItems,
+        GlobalListKind.Whitelist => _s.CaptureWhitelist,
+        _ => _s.CaptureBlacklist,
+    };
+
+    /// <summary>Adds one row to a סביבה גלובלית list. Same validation as catalog targets; a row with the same type+target
+    /// already in the list is returned as-is (never duplicated).</summary>
+    public GlobalListEntry AddGlobalEntry(GlobalListKind kind, ItemType type, string name, string target)
+    {
+        var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required");
+        var list = GlobalList(kind);
+        var key = Key(type, target);
+        var existing = list.FirstOrDefault(e => Key(e.Type, e.Target) == key);
+        if (existing != null) return existing;
+        var entry = new GlobalListEntry
+        {
+            Id = NewId("ge_", id => _s.GlobalItems.Any(x => x.Id == id) || _s.CaptureWhitelist.Any(x => x.Id == id) || _s.CaptureBlacklist.Any(x => x.Id == id)),
+            Type = type,
+            Name = name.Trim(),
+            Target = target.Trim(),
+            AddedAt = DateTime.UtcNow,
+        };
+        list.Add(entry);
+        return entry;
+    }
+
+    /// <summary>Removes one row from a סביבה גלובלית list (הסרה). Removing a blacklist default returns it to captures — the
+    /// row is simply gone. Returns false when the id is not in the list.</summary>
+    public bool RemoveGlobalEntry(GlobalListKind kind, string entryId) => GlobalList(kind).RemoveAll(e => e.Id == entryId) > 0;
+
     public IReadOnlyList<string> Validate()
     {
         var errs = new List<string>();
