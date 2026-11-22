@@ -360,6 +360,9 @@ try {
     Capture 'capture-embedded-full-editor' 1280 880
     $captureScroll = (RootNamed 'Capture target viewport').GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
     if ($captureScroll.Current.VerticallyScrollable) { $captureScroll.SetScrollPercent(-1,100) }
+    $visibleEditorName = $added.FindAll($ts, (New-Object $pc($a::NameProperty, 'Added item name'))) | Where-Object { !$_.Current.IsOffscreen } | Select-Object -First 1
+    if (!$visibleEditorName) { throw 'Expanded capture name field is not visible' }
+    $visibleEditorName.SetFocus()
     Capture 'capture-website-expanded-hint' 1280 880
     $other = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *תיקיית מסמכים*' } | Select-Object -First 1
     if (!$other) { throw 'No second staged accordion arrow detected' }
