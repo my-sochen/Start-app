@@ -99,6 +99,8 @@
                         AutomationProperties.Name="View menu"/>
                 <Button DockPanel.Dock="Right" Content="הגדרות" Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
                         AutomationProperties.Name="Settings"/>
+                <Button DockPanel.Dock="Right" Content="סביבה גלובלית" Command="{Binding DataContext.OpenGlobalEnvCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
+                        AutomationProperties.Name="Global environment"/>
                 <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
                         Visibility="{Binding UpdateAvailable, Converter={StaticResource B2V}}" AutomationProperties.Name="Open official download"/>
                 <local:VersionDisplayText DisplayText="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap" FlowDirection="RightToLeft"
@@ -775,6 +777,10 @@
             <Grid Grid.RowSpan="2" Panel.ZIndex="20"
                   Visibility="{Binding InSettings, Converter={StaticResource B2V}}">
                 <local:SettingsView DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}"/>
+            </Grid>
+            <Grid Grid.RowSpan="2" Panel.ZIndex="20"
+                  Visibility="{Binding InGlobalEnv, Converter={StaticResource B2V}}">
+                <local:GlobalEnvView DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
             </Grid>
     </Grid>
 </Window>
