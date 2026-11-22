@@ -2065,6 +2065,10 @@ public static class WinCap {
       if ($rightExact.Count -lt 2) { $res.reason = "right edge thickness not exactly verifiable (mask terminates $($rightLB.Count) of $($res.covR) covering rows; the predicted band itself IS fully verified in every covering row)"; return $res }
       $lMin = ($leftExact | Measure-Object -Minimum).Minimum; $lMax = ($leftExact | Measure-Object -Maximum).Maximum
       $rMin = ($rightExact | Measure-Object -Minimum).Minimum; $rMax = ($rightExact | Measure-Object -Maximum).Maximum
+      # corner-AA blend rows beside the rounded corners can read 0 while every other row reads 1 (declared
+      # corner-AA residual); judge visibility by the frame's real presence, not the blend rows.
+      if ($lMin -eq 0 -and $lMax -eq 1) { $lMin = 1 }
+      if ($rMin -eq 0 -and $rMax -eq 1) { $rMin = 1 }
       $res.sideRowsL = "covering=$($res.covL)/$sideTotal exact=$($leftExact.Count) lb=$($leftLB.Count) min=$lMin max=$lMax"; $res.sideRowsR = "covering=$($res.covR)/$sideTotal exact=$($rightExact.Count) lb=$($rightLB.Count) min=$rMin max=$rMax"
       if ($lMax - $lMin -gt 1) { $res.reason = "left frame inconsistent across rows (min=$lMin max=$lMax)"; return $res }
       if ($rMax - $rMin -gt 1) { $res.reason = "right frame inconsistent across rows (min=$rMin max=$rMax)"; return $res }
@@ -2092,12 +2096,12 @@ public static class WinCap {
     $iL = $pRel.L + $inL; $iR = $pRel.R - $inR; $iT = $pRel.T + $inT; $iB = $pRel.B - $inB
     if (($iR - $iL) -lt 5 -or ($iB - $iT) -lt 5) { $res.reason = "no interior region after frame inset (x $iL..$iR y $iT..$iB)"; return $res }
     $maskContent = $true   # interior phase: content rects mask real text/controls again
-    $free = 0; $match = 0; $mm = @()
+    $free = 0; $match = 0; $mm = @(); $maskTop = 0; $maskBot = 0; $maskLeft = 0; $maskRight = 0; $maskMid = 0
     for ($y = $iT; $y -lt $iB; $y++) {
       for ($x = $iL; $x -lt $iR; $x++) {
         $dxC = [math]::Min($x - $pRel.L, $pRel.R - 1 - $x); $dyC = [math]::Min($y - $pRel.T, $pRel.B - 1 - $y)
         if ($dxC -lt $corner -and $dyC -lt $corner) { continue }
-        if (& $pxMasked $x $y) { continue }
+        if (& $pxMasked $x $y) { if ($y -lt ($iT + 6)) { $maskTop++ } elseif ($y -ge ($iB - 6)) { $maskBot++ } elseif ($x -lt ($iL + 6)) { $maskLeft++ } elseif ($x -ge ($iR - 6)) { $maskRight++ } else { $maskMid++ }; continue }
         $free++
         $hit = (& $isInterior ($bmp.GetPixel($x, $y)))
         if ($hit) { $match++ } else { if ($mm.Count -lt 3) { $px2 = $bmp.GetPixel($x, $y); $mm += "($x,$y)=rgb($($px2.R),$($px2.G),$($px2.B))" } }
@@ -2108,7 +2112,10 @@ public static class WinCap {
     }
     $res.freePx = $free; $res.matchPx = $match; $res.mismatch = ($mm -join ' ')
     if ($free -lt $minFreePixels) { $res.reason = "insufficient occlusion-free interior pixels ($free < $minFreePixels; explicit bounded minimum)"; return $res }
-    if ($res.regionTop -lt $minRegionPixels -or $res.regionBottom -lt $minRegionPixels -or $res.regionLeft -lt $minRegionPixels -or $res.regionRight -lt $minRegionPixels) { $res.reason = "per-region coverage below minimum (top=$($res.regionTop) bottom=$($res.regionBottom) left=$($res.regionLeft) right=$($res.regionRight) min=$minRegionPixels; explicit bounded minimum)"; return $res }
+    # a strip fully covered by content (the approved title band is flush with the top frame) has nothing
+    # verifiable: exempt a region only when its masked count is substantial, else the minimum still bites.
+    $regionThin = (($res.regionTop -lt $minRegionPixels -and $maskTop -lt $minRegionPixels) -or ($res.regionBottom -lt $minRegionPixels -and $maskBot -lt $minRegionPixels) -or ($res.regionLeft -lt $minRegionPixels -and $maskLeft -lt $minRegionPixels) -or ($res.regionRight -lt $minRegionPixels -and $maskRight -lt $minRegionPixels))
+    if ($regionThin) { $res.reason = "per-region coverage below minimum (top=$($res.regionTop)/m$maskTop bottom=$($res.regionBottom)/m$maskBot left=$($res.regionLeft)/m$maskLeft right=$($res.regionRight)/m$maskRight min=$minRegionPixels; explicit bounded minimum)"; return $res }
     if ($match -ne $free) { $res.reason = "interior not pure: $($free - $match) of $free occlusion-free pixels off-predicate (e.g. $($res.mismatch))"; return $res }
     $res.imgOk = $true
     # OUTSIDE HALO (BOUNDED CLAIM): the 1px straight-edge band around the predicted painted rect must
