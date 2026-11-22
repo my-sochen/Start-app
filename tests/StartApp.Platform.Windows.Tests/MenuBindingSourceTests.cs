@@ -67,11 +67,12 @@ public class MenuBindingSourceTests
         Assert.Contains("if (source is TextBox) return;",code);
         Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
         Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
-        // Context menus are opened manually by the Opening handler (e.Handled + IsOpen): ContextMenuService
-        // would otherwise override the anchored/clamped Custom placement after the handler for keyboard opens.
-        Assert.Contains("e.Handled = true;",code);
-        Assert.Contains("menu.IsOpen = true;",code);
-        Assert.Contains("menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom",code);
+        // Context menus are re-placed on the next dispatcher tick after any open: ContextMenuService
+        // overrides the placement for keyboard/mouse opens, so the anchored/clamped Custom placement is
+        // re-applied post-open (reopen) where it always wins.
+        Assert.Contains("capturedMenu.Dispatcher.BeginInvoke",code);
+        Assert.Contains("capturedMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom",code);
+        Assert.Contains("capturedMenu.IsOpen = false;",code);
     }
     [Fact] public void Staged_fields_use_pixel_scrolling_when_row_is_taller_than_viewport()
     {
