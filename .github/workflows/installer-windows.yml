@@ -56,6 +56,18 @@ jobs:
         $text = [System.Text.Encoding]::ASCII.GetString($bytes)
         if ($text -notmatch 'Inno Setup') { 'missing Inno signature'; exit 1 }
         'Inno signature OK'
+    - name: 'Smoke: silent install registers logon autostart and payload'
+      shell: pwsh
+      run: |
+        $exe = (Get-ChildItem out/StartApp-Setup-*.exe).FullName
+        & $exe /VERYSILENT /NORESTART | Out-Null
+        if ($LASTEXITCODE -ne 0) { "installer exited $LASTEXITCODE"; exit 1 }
+        $runKey = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
+        if (-not $runKey) { 'autostart Run value missing'; exit 1 }
+        if ($runKey.'Start App' -notmatch '--autostart') { "autostart Run value lacks --autostart: $($runKey.'Start App')"; exit 1 }
+        $app = Join-Path $env:LOCALAPPDATA 'Programs\StartApp\StartApp.App.exe'
+        if (-not (Test-Path $app)) { 'installed payload exe missing'; exit 1 }
+        'silent install + autostart Run value OK'
     - uses: actions/upload-artifact@v7.0.2
       with:
         name: StartApp-installer-candidate
