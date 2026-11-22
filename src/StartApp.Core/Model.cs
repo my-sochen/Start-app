@@ -31,6 +31,8 @@ public sealed class Workspace
     public DateTime? CreatedAt { get; set; }
     /// <summary>Last time open requests were actually sent for this workspace (שגר). Null = never opened.</summary>
     public DateTime? LastOpenedAt { get; set; }
+    /// <summary>How many times open requests were sent for this workspace (כמות שיגורים). 0 in files written before this field existed.</summary>
+    public int LaunchCount { get; set; }
     /// <summary>Card design (פופאפ עיצוב כרטיס): user-chosen color as #RRGGBB; null = the app's default look. With an image it is
     /// the frame (thick top, thin other sides); without one it is the card background. Per workspace, never shared.</summary>
     public string? Color { get; set; }
