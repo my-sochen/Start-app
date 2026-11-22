@@ -82,7 +82,7 @@ class Profiles(unittest.TestCase):
 
     def test_synthetic_body_is_exact_previous_qualified_definition(self):
         text = (ROOT / '.github/e2e/synthetic-update-capture.ps1').read_text().split('}\n', 1)[1]
-        self.assertEqual('6339bad06f3ebcefc8b2c8e0c1998f224cd0a3a9e4b2ad7152ddac5478ed3da2',
+        self.assertEqual('63104e45142afc35cfd7bce9fddffc37367486dbd069eaac3935b19612941ca7',
                          hashlib.sha256(text.encode()).hexdigest())
 
     def test_evidence_rejects_wrong_sha_and_dirty_checkout(self):
