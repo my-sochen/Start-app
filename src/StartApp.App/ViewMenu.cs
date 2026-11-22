@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,10 +13,31 @@ namespace StartApp.App;
 /// Selecting an item applies immediately; checkmarks mark the active choice in every dimension.</summary>
 public partial class MainWindow
 {
+    /// <summary>Dropdown anchored at the button it came from (approved 22.11): top-left under the button's
+    /// bottom-left like the approved menu mocks, flipping above the button or clamping inside the window when
+    /// it would otherwise overflow. Programmatic IsOpen opens used the MousePoint default before, so a
+    /// keyboard/UIA open detached the menu to the cursor instead of the button.</summary>
+    private ContextMenu NewAnchoredMenu(Button target)
+    {
+        var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Custom };
+        menu.MaxHeight = Math.Max(120, ActualHeight - 16);
+        menu.MaxWidth = Math.Max(120, ActualWidth - 16);
+        menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+        {
+            var origin = target.TransformToAncestor(this).Transform(new Point(0, 0));
+            var x = Math.Clamp(origin.X, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
+            var y = origin.Y + targetSize.Height + 2;
+            if (y + popupSize.Height > ActualHeight - 8) y = Math.Max(8, origin.Y - popupSize.Height - 2);
+            y = Math.Min(y, Math.Max(8, ActualHeight - 8 - popupSize.Height));
+            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
+        };
+        return menu;
+    }
+
     private void ViewMenu_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not MainViewModel vm) return;
-        var menu = new ContextMenu { PlacementTarget = (Button)sender };
+        var menu = NewAnchoredMenu((Button)sender);
 
         var size = new MenuItem { Header = "גודל כרטיסים" };
         size.Items.Add(Choice("קטן", vm.CurrentCardSize == CardSizeOption.Small, () => vm.CurrentCardSize = CardSizeOption.Small));
