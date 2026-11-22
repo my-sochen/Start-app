@@ -15,7 +15,7 @@ public sealed partial class MainViewModel
     private CardSizeOption _cardSize = CardSizeOption.Medium;
     private ViewTemplate _template = ViewTemplate.Cards;
     private string _filterContainsText = "";
-    private string? _filterItemId; private string _filterItemLabel = "";
+    private string? _filterItemId; private string _filterItemLabel = ""; private string _filterItemName = "";
     private readonly HashSet<string> _filterCategories = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _filterColors = new(StringComparer.OrdinalIgnoreCase);
 
@@ -35,6 +35,43 @@ public sealed partial class MainViewModel
     public bool HasActiveFilters => _filterCategories.Count > 0 || _filterColors.Count > 0 || _filterItemId != null || _filterContainsText.Trim().Length > 0;
     /// <summary>Live counter on the filter bar, e.g. "מוצגת 2 מתוך 6".</summary>
     public string FilteredCountText => $"מוצגת {DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
+    /// <summary>Single-content-filter state (approved mock home-filter-program): the bar switches to the short form
+    /// "מסונן: סביבות שמכילות X · N מתוך M" + "✕ ניקוי סינון" instead of chips.</summary>
+    public bool IsSingleContentFilter => _filterItemId != null && _filterCategories.Count == 0 && _filterColors.Count == 0 && _filterContainsText.Trim().Length == 0;
+    /// <summary>The pinned item's plain name for the short-form bar ("סביבות שמכילות Visual Studio Code").</summary>
+    public string SingleContentFilterName => _filterItemName;
+    /// <summary>Short counter for the single-filter form, e.g. "2 מתוך 6".</summary>
+    public string SingleFilterCountText => $"{DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
+
+    /// <summary>Card stats line (approved mocks 22.11): per-type counts, e.g. "3 אתרים · 2 תוכנות · 2 קבצים";
+    /// a single item shows the singular without a number ("תיקייה"); empty: "עדיין אין אייטמים".</summary>
+    public string StatsText(Workspace w)
+    {
+        if (w.Items.Count == 0) return "עדיין אין אייטמים";
+        var counts = new Dictionary<ItemType, int>();
+        foreach (var m in w.Items)
+        {
+            var t = _current.Items.TryGetValue(m.ItemId, out var it) ? it.Type : ItemType.Program;
+            counts[t] = counts.TryGetValue(t, out var n) ? n + 1 : 1;
+        }
+        var parts = new List<string>();
+        void Add(ItemType t, string singular, string plural)
+        { if (counts.TryGetValue(t, out var n)) parts.Add(n == 1 ? singular : $"{n} {plural}"); }
+        Add(ItemType.Link, "אתר", "אתרים"); Add(ItemType.Program, "תוכנה", "תוכנות");
+        Add(ItemType.File, "קובץ", "קבצים"); Add(ItemType.Folder, "תיקייה", "תיקיות");
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>Card footer first line (approved mocks): "פתיחה אחרונה: היום, 09:40" / "אתמול, 16:00" / "18.11, 10:20";
+    /// an empty workspace shows "סביבה ריקה · הוסף אייטם בפרטים" instead of a date.</summary>
+    public string FooterLine1(Workspace w)
+    {
+        if (w.Items.Count == 0) return "סביבה ריקה · הוסף אייטם בפרטים";
+        if (w.LastOpenedAt is not { } t) return "פתיחה אחרונה: עוד לא נפתחה";
+        var l = t.ToLocalTime();
+        var day = l.Date == DateTime.Today ? "היום" : l.Date == DateTime.Today.AddDays(-1) ? "אתמול" : l.ToString("dd.MM");
+        return $"פתיחה אחרונה: {day}, {l:HH:mm}";
+    }
 
     /// <summary>Category choices for "לפי קטגוריה" (multi-select, OR): the built-ins and the user's custom categories.</summary>
     public IReadOnlyList<string> FilterCategoryOptions => Catalog.BuiltInCategories.Concat(_current.CustomCategories).ToList();
@@ -78,6 +115,7 @@ public sealed partial class MainViewModel
     {
         _filterItemId = item?.Id;
         _filterItemLabel = item == null ? "" : ContentTypeLabel(item.Type) + ": " + item.Name;
+        _filterItemName = item?.Name ?? "";
         ApplyView();
     }
 
@@ -86,7 +124,7 @@ public sealed partial class MainViewModel
     {
         if (key.StartsWith("color:", StringComparison.OrdinalIgnoreCase)) _filterColors.Remove(key["color:".Length..]);
         else if (key.StartsWith("cat:", StringComparison.Ordinal)) _filterCategories.Remove(key["cat:".Length..]);
-        else if (key == "item") { _filterItemId = null; _filterItemLabel = ""; }
+        else if (key == "item") { _filterItemId = null; _filterItemLabel = ""; _filterItemName = ""; }
         else if (key == "contains") _filterContainsText = "";
         else return;
         Raise(nameof(FilterContainsText));
@@ -96,7 +134,7 @@ public sealed partial class MainViewModel
     /// <summary>✕ ניקוי הכל: clears every active filter at once.</summary>
     public void ClearFilters()
     {
-        _filterCategories.Clear(); _filterColors.Clear(); _filterItemId = null; _filterItemLabel = ""; _filterContainsText = "";
+        _filterCategories.Clear(); _filterColors.Clear(); _filterItemId = null; _filterItemLabel = ""; _filterItemName = ""; _filterContainsText = "";
         Raise(nameof(FilterContainsText));
         ApplyView();
     }
@@ -142,5 +180,6 @@ public sealed partial class MainViewModel
             FilterColorOptions.Add(c!);
 
         Raise(nameof(HasActiveFilters)); Raise(nameof(FilteredCountText)); Raise(nameof(FilterCategoryOptions));
+        Raise(nameof(IsSingleContentFilter)); Raise(nameof(SingleContentFilterName)); Raise(nameof(SingleFilterCountText));
     }
 }
