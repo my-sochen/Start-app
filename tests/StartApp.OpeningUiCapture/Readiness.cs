@@ -63,7 +63,7 @@ internal static partial class Program
         var output = Path.GetFullPath(directory);
         if (Directory.Exists(output) || File.Exists(output)) return 3;
         Directory.CreateDirectory(output);
-        var app = new Application();
+        var app = new StartApp.App.App();
         using var store = new JsonStore(Path.Combine(output, "isolated-store", "store.json"));
         store.Mutate(c =>
         {
