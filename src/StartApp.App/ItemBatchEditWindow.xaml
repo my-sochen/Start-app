@@ -15,7 +15,7 @@
     <CheckBox x:Name="ClearLaunch" Content="ברירת המחדל של Windows בכל הסביבות שנבחרו" HorizontalAlignment="Right" Checked="ClearLaunch_Changed" Unchecked="ClearLaunch_Changed" Margin="0,0,0,10" FontSize="12"/>
     <TextBlock x:Name="DescriptionLabel" Text="תיאור" HorizontalAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox x:Name="DescriptionInput" Style="{StaticResource Input}" TextChanged="Input_Changed" MaxLength="500" AutomationProperties.Name="Selected item description"/>
     <CheckBox x:Name="ClearDescription" Content="נקה את התיאור בכל הסביבות שנבחרו" HorizontalAlignment="Right" Checked="ClearDescription_Changed" Unchecked="ClearDescription_Changed" Margin="0,0,0,10" FontSize="12"/>
-    <TextBlock Text="כתובת / נתיב" HorizontalAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox x:Name="TargetInput" Style="{StaticResource Input}" Margin="0,4,0,0" TextAlignment="Left" TextChanged="Input_Changed" FlowDirection="LeftToRight" AutomationProperties.Name="Selected item target"/>
+    <TextBlock x:Name="TargetLabel" Text="נתיב" HorizontalAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox x:Name="TargetInput" Style="{StaticResource Input}" Margin="0,4,0,0" TextAlignment="Left" TextChanged="Input_Changed" FlowDirection="LeftToRight" AutomationProperties.Name="Selected item target"/>
    </StackPanel>
   </Border>
   <TextBlock x:Name="Error" Foreground="#9B3030" TextAlignment="Right" TextWrapping="Wrap" Margin="0,8,0,0"/>

@@ -61,7 +61,7 @@
                                     <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right"
                                                    FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
-                                        <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,6,0" VerticalAlignment="Center"
+                                        <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="7,0,0,0" VerticalAlignment="Center"
                                                  AutomationProperties.Name="Default workspace badge"
                                                  ToolTip="סביבת ברירת מחדל · נפתחת אוטומטית עם הפעלת המחשב">
                                             <Ellipse.Visibility>
@@ -76,7 +76,7 @@
                                 <Border Grid.Row="2" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="8,3" Margin="16,7,16,0" HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding EffectiveCategory}" Foreground="#4B5563" FontSize="11"/>
                                 </Border>
-                                <TextBlock Grid.Row="3" TextAlignment="Right" Foreground="#586473" FontSize="13" Margin="16,12,16,11">
+                                <TextBlock Grid.Row="3" TextAlignment="Right" Foreground="#586473" FontSize="13" Margin="16,12,16,11" FlowDirection="RightToLeft" HorizontalAlignment="Right">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource StatsText}">
                                             <Binding Path="."/>
@@ -145,7 +145,7 @@
                                 <Border Background="#F3F4F6" CornerRadius="9" Padding="8,2" Margin="4,0,12,0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding EffectiveCategory}" Foreground="#4B5563" FontSize="11"/>
                                 </Border>
-                                <TextBlock VerticalAlignment="Center" Foreground="#586473" FontSize="13" MinWidth="210" TextAlignment="Right">
+                                <TextBlock VerticalAlignment="Center" Foreground="#586473" FontSize="13" MinWidth="210" TextAlignment="Right" FlowDirection="RightToLeft" HorizontalAlignment="Right">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource StatsText}">
                                             <Binding Path="."/>
@@ -469,7 +469,7 @@
  <StackPanel Grid.Column="0"><TextBlock Text="פתח באמצעות" TextAlignment="Right" FontSize="12" Foreground="#667388"/><ComboBox Style="{StaticResource OpenWithDropdown}" local:OpenWithPicker.Path="{Binding EditItemOpenWith, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FlowDirection="RightToLeft" Height="34" Margin="0,4,0,10" Background="White" BorderBrush="#C5CDDB" Padding="8,4" AutomationProperties.Name="Edit item open with" IsEnabled="{Binding EditItemOpenWithApplicable}"/></StackPanel>
  </Grid>
  <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" Height="34" MinHeight="34" FontSize="14" Padding="10,6" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Edit item description"/>
- <TextBlock Text="כתובת / נתיב" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Edit item target"/>
+ <TextBlock Text="{Binding EditItemTargetLabel}" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Edit item target"/>
  </StackPanel></Border>
 <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
@@ -609,7 +609,7 @@
  <StackPanel Grid.Column="0"><TextBlock Text="פתח באמצעות" TextAlignment="Right" FontSize="12" Foreground="#667388"/><ComboBox Style="{StaticResource OpenWithDropdown}" local:OpenWithPicker.Path="{Binding OpenWith, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FlowDirection="RightToLeft" Height="34" Margin="0,4,0,10" Background="White" BorderBrush="#C5CDDB" Padding="8,4" AutomationProperties.Name="Added item open with" IsEnabled="{Binding OpenWithApplicable}"/></StackPanel>
  </Grid>
  <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" Height="34" MinHeight="34" FontSize="14" Padding="10,6" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Added item description"/>
- <TextBlock Text="כתובת / נתיב" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Added item address"/>
+ <TextBlock Text="{Binding TargetLabel}" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Added item address"/>
  </StackPanel></Border>
  <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="12,7" Margin="0,12,0,0" AutomationProperties.Name="Done editing added item" Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
  <TextBlock Text="השינויים עדיין לא נשמרו בסביבה" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" HorizontalAlignment="Right"/>

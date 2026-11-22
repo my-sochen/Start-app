@@ -24,6 +24,7 @@ public partial class ItemBatchEditWindow : Window
         OpenWithInput.ToolTip = row.Type == "Program" ? "לא חל על אייטם תוכנה: האייטם הוא התוכנה עצמה" : "בחר תוכנה מותקנת או תוכנה אחרת. ברירת המחדל של Windows אינה משנה את הגדרות המחשב.";
         ClearLaunch.Visibility = programs.Length > 1 && row.Type != "Program" ? Visibility.Visible : Visibility.Collapsed;
         ClearDescription.Visibility = descriptions.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
+        TargetLabel.Text = row.Type == "Link" ? "כתובת האתר" : "נתיב";
         TitleLabel.Text = "עריכת " + row.Name; CaptionLabel.Text = "אייטמים · " + row.Name + " · עריכה";
         NameLabel.Text = names.Length > 1 ? "שם (ערכים שונים)" : "שם";
         DescriptionLabel.Text = descriptions.Length > 1 ? "תיאור (ערכים שונים)" : "תיאור";

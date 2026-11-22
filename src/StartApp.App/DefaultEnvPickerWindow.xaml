@@ -29,7 +29,7 @@
                        Text="הסביבה שנבחרה תסומן בתג הירוק במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/>
 
             <ListBox Grid.Row="3" x:Name="Rows" BorderThickness="0" Background="Transparent"
-                     SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="330">
+                     SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="458">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
@@ -54,9 +54,9 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <DockPanel Margin="2,13">
+                        <DockPanel VerticalAlignment="Center"><DockPanel.Style><Style TargetType="DockPanel"><Setter Property="Margin" Value="2,13"/><Style.Triggers><DataTrigger Binding="{Binding WorkspaceId}" Value="{x:Null}"><Setter Property="Height" Value="46"/><Setter Property="Margin" Value="2,0"/></DataTrigger></Style.Triggers></Style></DockPanel.Style>
                             <!-- radio circle on the left edge: empty ring; when the row is selected it fills blue with a ✓ -->
-                            <Border DockPanel.Dock="Right" Width="18" Height="18" CornerRadius="9" VerticalAlignment="Top" Margin="0,1,0,0"
+                            <Border DockPanel.Dock="Right" Width="18" Height="18" CornerRadius="9" VerticalAlignment="Center" Margin="0,0,0,0"
                                     BorderThickness="1.5">
                                 <Border.Style>
                                     <Style TargetType="Border"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#C5CAD4"/>
@@ -82,14 +82,14 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                             </Border>
-                            <StackPanel HorizontalAlignment="Right" Margin="0,0,12,0">
+                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0">
                                 <DockPanel HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#222833" VerticalAlignment="Center"/>
-                                    <Ellipse Width="11" Height="11" Margin="0,0,7,0" VerticalAlignment="Center"
+                                    <Ellipse Width="11" Height="11" Margin="8,0,0,0" VerticalAlignment="Center"
                                              Fill="{Binding ColorHex, Converter={StaticResource TopBarBrush}}"
                                              Visibility="{Binding HasColor, Converter={StaticResource B2V}}"/>
                                 </DockPanel>
-                                <TextBlock Text="{Binding Category}" FontSize="12" Foreground="#667388" TextAlignment="Right" Margin="0,2,0,0"/>
+                                <TextBlock Text="{Binding Category}" FontSize="12" Foreground="#667388" TextAlignment="Right" Margin="0,2,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Category}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                             </StackPanel>
                         </DockPanel>
                     </DataTemplate>
@@ -97,9 +97,9 @@
             </ListBox>
 
             <StackPanel Grid.Row="4" Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left" Margin="0,18,0,0">
-                <Button Content="ביטול" Click="Cancel_Click" Background="White" BorderBrush="#C5CAD4" BorderThickness="1"
+                <Button Content="ביטול" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" Height="38" MinWidth="68" FontSize="14" Background="White" BorderBrush="#C5CAD4" BorderThickness="1"
                         Foreground="#414856" Padding="16,7" Margin="0,0,8,0" Cursor="Hand" AutomationProperties.Name="Cancel default workspace choice"/>
-                <Button Content="אישור" Click="Confirm_Click" Style="{StaticResource PrimaryActionButton}" Padding="16,7"
+                <Button Content="אישור" Click="Confirm_Click" Height="38" MinWidth="68" FontSize="14" Style="{StaticResource PrimaryActionButton}" Padding="16,7"
                         AutomationProperties.Name="Confirm default workspace choice"/>
             </StackPanel>
         </Grid>

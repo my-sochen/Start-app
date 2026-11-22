@@ -628,6 +628,7 @@ public sealed partial class MainViewModel : ObservableBase
     private string _editItemOpenWith = "", _origItemOpenWith = "";
     private ItemType _editItemType;
     public bool EditItemOpenWithApplicable => _editItemType != ItemType.Program;
+    public string EditItemTargetLabel => _editItemType == ItemType.Link ? "כתובת האתר" : "נתיב";
     public string EditItemOpenWith { get => _editItemOpenWith; set { Set(ref _editItemOpenWith, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
     public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget || EditItemOpenWith != _origItemOpenWith);
     private void BeginItemEdit(ItemRow row)
@@ -637,7 +638,7 @@ public sealed partial class MainViewModel : ObservableBase
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
         _editItemType = Enum.Parse<ItemType>(row.Type);
         var membership = Selected?.Items.FirstOrDefault(m => (m.Id ?? m.ItemId) == row.InstanceId);
-        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable));
+        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemTargetLabel));
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
@@ -1162,6 +1163,7 @@ public sealed partial class MainViewModel : ObservableBase
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
         public bool OpenWithApplicable => !IsProgram;
+        public string TargetLabel => Type == ItemType.Link ? "כתובת האתר" : "נתיב";
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
     public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File");
