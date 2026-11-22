@@ -43,8 +43,9 @@ public sealed partial class MainViewModel
     /// <summary>Short counter for the single-filter form, e.g. "2 מתוך 6".</summary>
     public string SingleFilterCountText => $"{DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
 
-    /// <summary>Card stats line (approved mocks 22.11): per-type counts, e.g. "3 אתרים · 2 תוכנות · 2 קבצים";
-    /// a single item shows the singular without a number ("תיקייה"); empty: "עדיין אין אייטמים".</summary>
+    /// <summary>Card stats line (approved mocks 22.11): per-type counts in the fixed order אתרים · תוכנות · תיקיות · קבצים,
+    /// e.g. "3 אתרים · 2 תוכנות · תיקייה"; zero-count types are omitted, a count of 1 shows the singular without a number
+    /// ("תוכנה", "תיקייה"); empty: "עדיין אין אייטמים".</summary>
     public string StatsText(Workspace w)
     {
         if (w.Items.Count == 0) return "עדיין אין אייטמים";
@@ -58,9 +59,14 @@ public sealed partial class MainViewModel
         void Add(ItemType t, string singular, string plural)
         { if (counts.TryGetValue(t, out var n)) parts.Add(n == 1 ? singular : $"{n} {plural}"); }
         Add(ItemType.Link, "אתר", "אתרים"); Add(ItemType.Program, "תוכנה", "תוכנות");
-        Add(ItemType.File, "קובץ", "קבצים"); Add(ItemType.Folder, "תיקייה", "תיקיות");
+        Add(ItemType.Folder, "תיקייה", "תיקיות"); Add(ItemType.File, "קובץ", "קבצים");
         return string.Join(" · ", parts);
     }
+
+    /// <summary>True when this workspace is the one marked סביבת ברירת מחדל (Store.DefaultWorkspaceId): its card carries
+    /// the 11px green-dot badge (approved 22.11 handoff). Exactly one card can match; none matches when no default is set.
+    /// When filters hide that card the badge hides with it, because it renders on the card itself.</summary>
+    public bool IsDefaultWorkspace(Workspace w) => _current.DefaultWorkspaceId is { Length: > 0 } id && w.Id == id;
 
     /// <summary>Card footer first line (approved mocks): "פתיחה אחרונה: היום, 09:40" / "אתמול, 16:00" / "18.11, 10:20";
     /// an empty workspace shows "סביבה ריקה · הוסף אייטם בפרטים" instead of a date.</summary>
