@@ -32,10 +32,19 @@ public partial class MainWindow
         menu.Items.Add(sort);
 
         var filter = new MenuItem { Header = "סינון", StaysOpenOnClick = true };
-        filter.Items.Add(new MenuItem { Header = "לפי צבע · נצבע דרך הבחירה המתקדמת", IsEnabled = false });
-        foreach (var c in vm.FilterColorOptions)
-            filter.Items.Add(Choice(c, vm.IsColorFiltered(c), () => vm.ToggleColorFilter(c), staysOpen: true));
-        filter.Items.Add(new Separator());
+        // לפי צבע ▸ (owner correction 09:40:56 + structure 09:45:24): a regular row with an arrow opening a nested
+        // flyout - base palette first, separator, then the custom colors in use. Swatch 13px + hex in LTR, no note.
+        var colors = new MenuItem { Header = "לפי צבע" };
+        foreach (var c in vm.DesignPalette)
+            colors.Items.Add(ColorChoice(vm, c));
+        var customs = vm.FilterColorOptions.Where(c => !vm.DesignPalette.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (customs.Count > 0)
+        {
+            colors.Items.Add(new Separator());
+            foreach (var c in customs)
+                colors.Items.Add(ColorChoice(vm, c));
+        }
+        filter.Items.Add(colors);
         var cats = new MenuItem { Header = "לפי קטגוריה" };
         foreach (var cat in vm.FilterCategoryOptions)
             cats.Items.Add(Choice(cat, vm.IsCategoryFiltered(cat), () => vm.ToggleCategoryFilter(cat), staysOpen: true));
@@ -64,6 +73,25 @@ public partial class MainWindow
         menu.Items.Add(template);
 
         menu.IsOpen = true;
+    }
+
+    private static MenuItem ColorChoice(MainViewModel vm, string hex)
+    {
+        var head = new StackPanel { Orientation = Orientation.Horizontal };
+        head.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 13, Height = 13, VerticalAlignment = VerticalAlignment.Center,
+            Fill = ColorBrushConverter.BrushFrom(hex) ?? System.Windows.Media.Brushes.Transparent,
+            Stroke = TopBarBrushConverter.Frozen("#C9D0DC"), StrokeThickness = 1
+        });
+        head.Children.Add(new TextBlock
+        {
+            Text = hex.ToLowerInvariant(), FlowDirection = FlowDirection.LeftToRight, FontSize = 12,
+            Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center
+        });
+        var item = new MenuItem { Header = head, IsCheckable = true, IsChecked = vm.IsColorFiltered(hex), StaysOpenOnClick = true };
+        item.Click += (_, _) => vm.ToggleColorFilter(hex);
+        return item;
     }
 
     private static MenuItem Choice(string header, bool on, Action apply, bool staysOpen = false)
