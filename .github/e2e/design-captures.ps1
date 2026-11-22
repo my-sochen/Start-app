@@ -73,6 +73,8 @@ try {
   InvokeNamed 'Create color green'
   Capture 'create-live-preview-green' 1224 786
   Capture 'create-live-preview-900x560' 900 560
+  InvokeNamed 'Close window'
+  Capture 'create-unsaved-close-guard' 900 560
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
 } finally {
   if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }

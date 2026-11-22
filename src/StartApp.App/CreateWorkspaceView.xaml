@@ -4,7 +4,35 @@
  Background="#F7F8FB" Foreground="#222833" FlowDirection="RightToLeft">
  <UserControl.Resources>
   <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#505C6D"/><Setter Property="Margin" Value="0,0,0,6"/></Style>
-  <Style x:Key="FieldInput" TargetType="TextBox"><Setter Property="FontSize" Value="15"/><Setter Property="Foreground" Value="#263243"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CBD2DF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="38"/></Style>
+  <Style x:Key="FieldInput" TargetType="TextBox">
+   <Setter Property="FontSize" Value="15"/><Setter Property="Foreground" Value="#263243"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CBD2DF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="38"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox">
+    <Border x:Name="FieldBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+     <ScrollViewer x:Name="PART_ContentHost"/>
+    </Border>
+    <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FieldBorder" Property="BorderBrush" Value="#315CC5"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="FieldCombo" TargetType="ComboBox">
+   <Setter Property="MinHeight" Value="38"/><Setter Property="FontSize" Value="15"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
+    <Grid>
+     <ToggleButton Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+      <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="White" BorderBrush="#CBD2DF" BorderThickness="1" CornerRadius="4"/></ControlTemplate></ToggleButton.Template>
+     </ToggleButton>
+     <Grid IsHitTestVisible="False" FlowDirection="LeftToRight">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="⌄" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#263243"/>
+      <ContentPresenter Grid.Column="1" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,8" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+     </Grid>
+     <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+      <Border Background="White" BorderBrush="#CBD2DF" BorderThickness="1" CornerRadius="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+       <ScrollViewer MaxHeight="220"><ItemsPresenter/></ScrollViewer>
+      </Border>
+     </Popup>
+    </Grid>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
  </UserControl.Resources>
  <DockPanel>
   <Border DockPanel.Dock="Bottom" Height="37" Background="#EEF1F6" BorderBrush="#DCE0E7" BorderThickness="0,1,0,0" Padding="18,8">
@@ -13,9 +41,9 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <StackPanel Margin="32,22,32,32">
     <TextBlock FontSize="12" Foreground="#636E7D" Margin="0,0,0,17"><Run Text="סביבות העבודה"/><Run Text="   /   "/><Run Text="סביבה חדשה" Foreground="#222833"/></TextBlock>
-    <DockPanel>
+    <DockPanel FlowDirection="LeftToRight">
      <Button DockPanel.Dock="Left" Content="ביטול וחזרה" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" Padding="16,8" MinWidth="109" Height="38"/>
-     <StackPanel>
+     <StackPanel FlowDirection="RightToLeft">
       <TextBlock Text="יצירת סביבת עבודה" FontSize="22" FontWeight="SemiBold"/>
       <TextBlock Text="אפשר להתחיל גם מסביבה ריקה ולהוסיף אייטמים בהמשך." Foreground="#626B79" FontSize="13" Margin="0,5,0,0"/>
      </StackPanel>
@@ -27,8 +55,11 @@
       <TextBox x:Name="NameInput" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInput}" AutomationProperties.Name="Workspace name"/>
       <Grid Margin="0,18,0,0">
        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-       <StackPanel><TextBlock Text="קטגוריה" Style="{StaticResource FieldLabel}"/><ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinHeight="38" Padding="10,8" FontSize="15" Background="White" BorderBrush="#CBD2DF" AutomationProperties.Name="Workspace category"/></StackPanel>
-       <StackPanel Grid.Column="2"><TextBlock Text="תיאור · לא חובה" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInput}" MaxLength="500" ToolTip="למה מיועדת הסביבה?" AutomationProperties.Name="Workspace description"/></StackPanel>
+       <StackPanel><TextBlock Text="קטגוריה" Style="{StaticResource FieldLabel}"/><ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" Style="{StaticResource FieldCombo}" AutomationProperties.Name="Workspace category"/></StackPanel>
+       <StackPanel Grid.Column="2"><TextBlock Text="תיאור · לא חובה" Style="{StaticResource FieldLabel}"/><Grid>
+        <TextBlock Text="למה מיועדת הסביבה?" Foreground="#888888" Margin="11,8" IsHitTestVisible="False" Panel.ZIndex="1" Visibility="{Binding NewWorkspaceDescription, Converter={StaticResource StringEmptyToVisibility}}"/>
+        <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInput}" MaxLength="500" AutomationProperties.Name="Workspace description"/>
+       </Grid></StackPanel>
       </Grid>
       <Border BorderBrush="#DCE1E9" BorderThickness="1" CornerRadius="4" Background="White" Margin="0,22,0,0">
        <DockPanel>
@@ -36,16 +67,16 @@
         <StackPanel Margin="18">
          <TextBlock Text="צבע הכרטיס" FontSize="12" Foreground="#586678"/>
          <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#7189BB" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#7189BB" AutomationProperties.Name="Create color blue"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#8BAA9D" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#8BAA9D" AutomationProperties.Name="Create color green"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#B4A0C5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#B4A0C5" AutomationProperties.Name="Create color purple"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#E6CE9A" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#E6CE9A" AutomationProperties.Name="Create color gold"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#D6AEB5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D6AEB5" AutomationProperties.Name="Create color pink"/>
-          <Button Width="28" Height="28" Background="#D9DEE6" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D9DEE6" AutomationProperties.Name="Create color gray"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource HomeToolbarButton}" Background="#7189BB" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#7189BB" AutomationProperties.Name="Create color blue"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource HomeToolbarButton}" Background="#8BAA9D" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#8BAA9D" AutomationProperties.Name="Create color green"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource HomeToolbarButton}" Background="#B4A0C5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#B4A0C5" AutomationProperties.Name="Create color purple"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource HomeToolbarButton}" Background="#E6CE9A" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#E6CE9A" AutomationProperties.Name="Create color gold"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource HomeToolbarButton}" Background="#D6AEB5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D6AEB5" AutomationProperties.Name="Create color pink"/>
+          <Button Width="28" Height="28" Style="{StaticResource HomeToolbarButton}" Background="#D9DEE6" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D9DEE6" AutomationProperties.Name="Create color gray"/>
          </StackPanel>
-         <DockPanel Margin="0,22,0,0">
+         <DockPanel Margin="0,22,0,0" FlowDirection="LeftToRight">
           <Button DockPanel.Dock="Left" Content="בחר תמונה" Command="{Binding PickCreateImageCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="104" Height="38" AutomationProperties.Name="Upload create image"/>
-          <TextBlock Text="תמונת רקע" FontSize="12" Foreground="#586678" VerticalAlignment="Center"/>
+          <TextBlock Text="תמונת רקע" FontSize="12" Foreground="#586678" VerticalAlignment="Center" TextAlignment="Right"/>
          </DockPanel>
          <TextBlock Text="{Binding NewWorkspaceImagePath}" FontSize="11" Foreground="#626B79" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewWorkspaceImagePath}"/>
         </StackPanel>
@@ -72,14 +103,14 @@
           <Border.Background><MultiBinding Converter="{StaticResource CardSurface}"><Binding Path="Color"/><Binding Path="ImagePath"/></MultiBinding></Border.Background>
           <StackPanel Margin="16,15,16,11">
            <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,7"/>
-           <Border HorizontalAlignment="Left" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="8,3"><TextBlock Text="{Binding EffectiveCategory}" FontSize="11" Foreground="#596473"/></Border>
+           <Border HorizontalAlignment="Right" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="8,3"><TextBlock Text="{Binding EffectiveCategory}" FontSize="11" Foreground="#596473"/></Border>
            <TextBlock Text="עדיין אין אייטמים" FontSize="13" Foreground="#586473" Margin="0,12,0,0"/>
           </StackPanel>
          </Border>
          <Border Grid.Row="2" BorderBrush="#EDF0F5" BorderThickness="0,1,0,0" Padding="16,10">
-          <DockPanel>
+          <DockPanel FlowDirection="LeftToRight">
            <Border DockPanel.Dock="Left" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="20,8"><TextBlock Text="שגר" FontSize="11" Foreground="#596473"/></Border>
-           <StackPanel><TextBlock Text="סביבה ריקה" FontSize="12" Foreground="#626B79"/><TextBlock Text="הצגת פרטים ←" FontSize="13" Foreground="#626B79"/></StackPanel>
+           <StackPanel FlowDirection="RightToLeft"><TextBlock Text="סביבה ריקה" FontSize="12" Foreground="#626B79"/><TextBlock Text="הצגת פרטים ←" FontSize="13" Foreground="#626B79"/></StackPanel>
           </DockPanel>
          </Border>
         </Grid>

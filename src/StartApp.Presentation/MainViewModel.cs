@@ -846,6 +846,7 @@ public sealed partial class MainViewModel : ObservableBase
         var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory;
         if (string.IsNullOrWhiteSpace(n) || Catalog.ValidateDescription(d) is not null) { FieldError("create", "הזינו שם לסביבה ותיאור באורך עד 500 תווים.", "Not created: invalid workspace fields"); return; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
+        if (InCreate && color.Length == 0) color = "#7189BB";
         if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return; }
         string? id = null;
         if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
