@@ -7,7 +7,6 @@ namespace StartApp.App;
 public partial class MainWindow : Window
 {
     public UpdateViewModel Updates { get; }
-    private UpdateSettingsWindow? _settingsWindow;
     private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
     private MainViewModel? _hooked;
@@ -29,14 +28,6 @@ public partial class MainWindow : Window
         // Non-modal: dismissing or ignoring an optional update never blocks work.
         _updateAvailableWindow.Show();
     }
-    private void Settings_Click(object sender, RoutedEventArgs e)
-    {
-        if (_settingsWindow is not null) { _settingsWindow.Activate(); return; }
-        _settingsWindow = new UpdateSettingsWindow(Updates) { Owner = this };
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow.Show();
-    }
-
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
     // made one upload click queue two sequential OpenFileDialogs).
