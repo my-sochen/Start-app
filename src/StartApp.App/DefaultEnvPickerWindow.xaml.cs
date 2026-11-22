@@ -24,10 +24,10 @@ public partial class DefaultEnvPickerWindow : Window
     public DefaultEnvPickerWindow(MainViewModel vm)
     {
         InitializeComponent();
-        var rows = new[] { new Row { Name = "ללא ברירת מחדל" } }
-            .Concat(vm.Workspaces.Where(w => w.Id != vm.DefaultWorkspaceId).Select(w => new Row { WorkspaceId = w.Id, Name = w.Name, Category = w.EffectiveCategory, ColorHex = w.Color }))
-            .ToList();
-        rows[^1].IsLast = true;
+        var rows = new List<Row>();
+        if (vm.DefaultWorkspaceId is { Length: > 0 }) rows.Add(new Row { Name = "ללא ברירת מחדל" });
+        rows.AddRange(vm.Workspaces.Where(w => w.Id != vm.DefaultWorkspaceId).Select(w => new Row { WorkspaceId = w.Id, Name = w.Name, Category = w.EffectiveCategory, ColorHex = w.Color }));
+        if (rows.Count > 0) rows[^1].IsLast = true;
         Rows.ItemsSource = rows;
         Rows.SelectedIndex = -1;
     }

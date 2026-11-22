@@ -314,6 +314,12 @@ try {
   Capture 'default-picker-remove-confirmation' 1280 880
   InvokeNamed 'Confirm default-env replace'
   Capture 'home-no-default' 1280 880
+  InvokeNamed 'Options menu'
+  (RootNamed 'הגדר סביבה כברירת מחדל').SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Milliseconds 350
+  Capture 'default-picker-no-current-default' 1280 880
+  (RootNamed 'Close default workspace picker').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   # A disposable CI-only desktop window supplies a real capture candidate; nothing is launched by the app.
   $fixture = New-Object System.Windows.Forms.Form
   try {
