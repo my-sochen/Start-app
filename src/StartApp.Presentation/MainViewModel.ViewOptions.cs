@@ -73,23 +73,67 @@ public sealed partial class MainViewModel
     public string DefaultToggleLabel => SelectedIsDefault ? "הסר הגדרה כברירת מחדל" : "הגדר כברירת מחדל";
 
     /// <summary>Paths 2+3 (approved 22.11): one command from the card context menu and the details button; the parameter is
-    /// the workspace. Setting replaces any existing default immediately (single reversible selection, no confirm dialog).
-    /// The label on the menu row comes from DefaultMenuHeaderConverter.</summary>
+    /// the workspace. Setting with no existing default is immediate; replacing one opens the confirmation dialog first
+    /// (owner decision 22.11 11:16). Removal is always immediate. The menu row label comes from DefaultMenuHeaderConverter.</summary>
     public ICommand ToggleDefaultForCommand => _toggleDefaultFor ??= Cmd(p =>
     { if (p is Workspace w) SetDefaultWorkspace(IsDefaultWorkspace(w) ? null : w.Id); }, _ => !ReadOnly);
     private ICommand? _toggleDefaultFor;
 
-    /// <summary>Persist the סביבת ברירת מחדל choice (null = "ללא סביבת ברירת מחדל") and refresh the cards so the green
-    /// badge moves immediately. Exactly one workspace can hold it at a time. Confirms with the ~3s launch-style toast
-    /// (approved wording 22.11).</summary>
+    /// <summary>Set or clear the סביבת ברירת מחדל (null = "ללא סביבת ברירת מחדל"). Owner behavior matrix 22.11:
+    /// setting with NO existing default is immediate; setting while another workspace holds it first opens the
+    /// confirmation dialog (ConfirmDefaultReplaceCommand applies, CancelDefaultReplaceCommand / ✕ / outside change
+    /// nothing); removal is always immediate (reversible, no data loss).</summary>
     public void SetDefaultWorkspace(string? workspaceId)
+    {
+        if (workspaceId is { Length: > 0 } && _current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
+        {
+            _pendingDefaultId = workspaceId;
+            DefaultConfirmOpen = true;
+            Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice));
+            return;
+        }
+        ApplyDefaultWorkspace(workspaceId);
+    }
+
+    private string? _pendingDefaultId;
+    private string DefaultName(string? id) => id is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == id) is { } w ? w.Name : "";
+
+    /// <summary>Replace-confirm dialog state (approved dialog 22.11): open flag, dynamic body naming the current and
+    /// candidate workspaces, and the blue notice naming the candidate.</summary>
+    public bool DefaultConfirmOpen { get; private set; }
+    public string DefaultConfirmBody => $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_pendingDefaultId)}'?";
+    public string DefaultConfirmNotice => $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_pendingDefaultId)}', והיא זו שתיפתח עם הפעלת המחשב.";
+
+    /// <summary>Dialog confirm: move the green badge and fire the existing ~3s toast.</summary>
+    public ICommand ConfirmDefaultReplaceCommand => _confirmDefaultReplace ??= Cmd(_ =>
+    {
+        var id = _pendingDefaultId;
+        CloseDefaultConfirm();
+        ApplyDefaultWorkspace(id);
+    }, _ => !ReadOnly);
+    private ICommand? _confirmDefaultReplace;
+
+    /// <summary>Dialog cancel (also ✕ and outside click): nothing changes.</summary>
+    public ICommand CancelDefaultReplaceCommand => _cancelDefaultReplace ??= Cmd(_ => CloseDefaultConfirm(), _ => !ReadOnly);
+    private ICommand? _cancelDefaultReplace;
+
+    private void CloseDefaultConfirm()
+    {
+        _pendingDefaultId = null;
+        DefaultConfirmOpen = false;
+        Raise(nameof(DefaultConfirmOpen));
+    }
+
+    /// <summary>Persist the choice and refresh the cards so the green badge moves immediately. Exactly one workspace can
+    /// hold it at a time. Confirms with the ~3s launch-style toast (approved wording 22.11).</summary>
+    private void ApplyDefaultWorkspace(string? workspaceId)
     {
         if (!Apply(c => c.Store.DefaultWorkspaceId = workspaceId)) return;
         Raise(nameof(DefaultWorkspaceId)); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel));
         if (workspaceId is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == workspaceId) is { } w)
             ShowToast($"הסביבה '{w.Name}' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", false);
         else
-            ShowToast("בוטלה סביבת ברירת המחדל", false);
+            ShowToast("הוסרה ההגדרה כברירת מחדל", false);
     }
 
     /// <summary>True when this workspace is the one marked סביבת ברירת מחדל (Store.DefaultWorkspaceId): its card carries
