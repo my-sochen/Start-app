@@ -55,7 +55,14 @@ function Shot($state) {
 }
 function ActiveAppWindow() {
   $owned = @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { $_ -ne $script:mainHwnd -and [WinN]::IsWindowVisible($_) -and (OwnerChainHas $_ $script:mainHwnd) -and [WinN]::ClassOf($_) -ne '#32770' })
-  if ($owned.Count -gt 0) { return $A::FromHandle($owned[0]) }
+  foreach ($handle in $owned) {
+    try {
+      $candidate = $A::FromHandle($handle)
+      # Owned context menus are windows too, but must not replace the form's scope.
+      $windowPattern = $candidate.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+      if ($windowPattern.Current.IsModal) { return $candidate }
+    } catch { }
+  }
   return $win
 }
 function OpenCreateScreen() {
