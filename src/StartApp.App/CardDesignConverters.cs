@@ -165,12 +165,12 @@ public sealed class DefaultBadgeVisibilityConverter : IMultiValueConverter
 }
 
 /// <summary>Card context-menu default row (path 2, approved 22.11): values[0] Workspace, values[1] MainViewModel →
-/// "בטל הגדרה כברירת מחדל" on the current default's card, "הגדר כסביבת ברירת מחדל" on every other card.</summary>
+/// "הסר הגדרה כברירת מחדל" on the current default's card, "הגדר כברירת מחדל" on every other card (owner wording 22.11).</summary>
 public sealed class DefaultMenuHeaderConverter : IMultiValueConverter
 {
     public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture) =>
         values.Length > 1 && values[0] is StartApp.Core.Workspace w && values[1] is StartApp.Presentation.MainViewModel vm && vm.IsDefaultWorkspace(w)
-            ? "בטל הגדרה כברירת מחדל" : "הגדר כסביבת ברירת מחדל";
+            ? "הסר הגדרה כברירת מחדל" : "הגדר כברירת מחדל";
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
