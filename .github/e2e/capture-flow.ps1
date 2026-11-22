@@ -951,15 +951,16 @@ try {
   Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'Already in this workspace' 5) -and $null -ne (CheckByLike 'Add again: capfolder*') -and $null -eq (CheckByLike 'Add again: *example*')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
   $deepStaged = @(StagedAddrsDeep)
-  $expectDeep = @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*', '*example.net*')
+  $expectDeep = @('*WindowsTerminal.exe*', '*example.com*', '*example.org*', '*example.net*')   # msedge.exe is excluded from every capture by the seeded global blacklist (approved 22.11)
   $missingDeep = @(); foreach ($e in $expectDeep) { if (@($deepStaged | Where-Object { $_ -like $e }).Count -eq 0) { $missingDeep += $e } }
-  Assert 'deep staging: exactly the 5 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 5) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: exactly the 4 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 4) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: msedge.exe excluded by the seeded global blacklist (approved 22.11)' (@($deepStaged | Where-Object { $_ -like '*msedge.exe*' }).Count -eq 0) ($deepStaged -join ' | ')
   Assert 'deep staging: nothing saved before the choice' ((StoreJson) -eq $storeBeforeDeep) ''
   Shot 'deep-staging-staged'
   $c = ClickBtn 'Capture save' 1500; Assert 'deep staging save clicked' ($c -eq 'ok') $c
-  Assert 'deep staging: app reports saving all 5 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  Assert 'deep staging: app reports saving all 4 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
-  Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep staging: store holds the previous 3 plus exactly the 4 new in Cap B' (@($wsB.items).Count -eq 7) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   foreach ($ds in @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like 'https://example.*' })) {
     $mem = @($wsB.items | Where-Object { $_.itemId -eq $ds.id })[0]
     Assert "deep staging: staged site $($ds.target) kept its source browser (Edge) through the existing-workspace save" ($null -ne $mem -and $mem.launch.browser -like '*msedge.exe') ("browser=$($mem.launch.browser)")
@@ -976,11 +977,11 @@ try {
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
-  Assert 'deep removal: grouped dialog for every row now that all six are duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
   foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'Add again:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
-  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the five ticked duplicates (deep removal)' ($c -eq 'ok') $c
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the four ticked duplicates (deep removal)' ($c -eq 'ok') $c
   $deep2 = @(StagedAddrsDeep)
-  Assert 'deep removal: five duplicate rows staged beyond the viewport' (($deep2.Count -eq 5) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
+  Assert 'deep removal: four duplicate rows staged beyond the viewport' (($deep2.Count -eq 4) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
   $removedNet = $false
   for ($i = 0; $i -lt 20 -and -not $removedNet; $i++) {
     $rb = Btn 'Remove added example.net'
@@ -989,13 +990,13 @@ try {
   }
   Assert 'below-viewport staged row example.net realized and removed' $removedNet ''
   $deep3 = @(StagedAddrsDeep)
-  Assert 'deep removal: staged set is the four kept rows' (($deep3.Count -eq 4) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
+  Assert 'deep removal: staged set is the three kept rows' (($deep3.Count -eq 3) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
   $c = ClickBtn 'Capture save' 1500; Assert 'deep removal save clicked' ($c -eq 'ok') $c
-  Assert 'deep removal: app reports saving the 4 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  Assert 'deep removal: app reports saving the 3 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
-  Assert 'deep removal: Cap B holds exactly 12 rows after the kept four saved' (@($wsB.items).Count -eq 12) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep removal: Cap B holds exactly 10 rows after the kept three saved' (@($wsB.items).Count -eq 10) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
-  foreach ($e in @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
+  foreach ($e in @('*WindowsTerminal.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
   Assert 'deep removal: the folder stayed at its two instances' ((WsCountByTarget $wsB $o '*capfolder*') -eq 2) "count=$(WsCountByTarget $wsB $o '*capfolder*')"
   Assert 'deep removal: every instance effective name still non-empty (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
