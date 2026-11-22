@@ -37,14 +37,15 @@ public partial class ItemBatchEditWindow : Window
         NameLabel.Text = names.Length > 1 ? "שם האייטם (ערכים שונים)" : "שם האייטם";
         DescriptionLabel.Text = descriptions.Length > 1 ? "תיאור (ערכים שונים)" : "תיאור";
         Scope.Inlines.Add(new System.Windows.Documents.Run("טופס אחד לכל הסביבות שנבחרו: "));
-        foreach (var workspace in row.Workspaces.Where(w => targets.Any(t => t.WorkspaceId == w.Id)))
+        var affectedWorkspaces = row.Workspaces.Where(w => targets.Any(t => t.WorkspaceId == w.Id)).ToArray();
+        foreach (var workspace in affectedWorkspaces)
         {
             var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = ColorBrushConverter.BrushFrom(workspace.Color ?? "#A4ADBD"), Margin = new Thickness(5, 0, 3, 0) };
             Scope.Inlines.Add(new System.Windows.Documents.InlineUIContainer(dot) { BaselineAlignment = BaselineAlignment.Center });
-            Scope.Inlines.Add(new System.Windows.Documents.Run(workspace.Name + " · "));
+            Scope.Inlines.Add(new System.Windows.Documents.Run(workspace.Name + (workspace == affectedWorkspaces[^1] ? ". " : " · ")));
         }
-        Scope.Inlines.Add(new System.Windows.Documents.Run(targets.Count == 1 ? "מופע אחד" : targets.Count + " מופעים"));
-        if (targets.Select(t => t.WorkspaceId).Distinct().Count() < 2) Scope.Visibility = ScopeHelp.Visibility = Visibility.Collapsed;
+        Scope.Inlines.Add(new System.Windows.Documents.Run("העריכה תחול רק על העותקים הזהים לחלוטין בסביבות שנבחרו; עותק ששונה בו אפילו פרט אחד לא ישתנה. רק שדות שתשנה יוחלו - מה שלא תיגע בו יישאר כמו שהוא בכל סביבה."));
+        if (targets.Select(t => t.WorkspaceId).Distinct().Count() < 2) Scope.Visibility = Visibility.Collapsed;
         if (row.Type == "Link") OpenWithPicker.SetWebsiteTarget(OpenWithInput, row.Target);
         NameInput.Text = _name; DescriptionInput.Text = _description; TargetInput.Text = _target; _ready = true;
         PreviewKeyDown += (_, e) =>
