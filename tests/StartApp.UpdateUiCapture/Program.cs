@@ -43,7 +43,7 @@ internal static class Program
                 throw new Exception("Stamped default Create must select actual-identity MAIN source");
             Evidence.Add(new { state="default-factory-source-selection", factory="UpdateComposition.Create", selectedSource="MainBetaNoticeSource", installedVersion=defaultUpdates.InstalledVersionDisplay, scope="construction and source type only; no commands, startup, HTTP or browser execution" });
         }
-        var app = new Application();
+        var app = new StartApp.App.App();
         // Explicitly isolated root for fixtures. Production default composition is
         // now live-read capable and must not run against public APIs in this test.
         var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected fixture browser"))) { Width = 900, Height = 560 };
