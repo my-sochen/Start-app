@@ -627,6 +627,7 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>Any change in the item edit form shows its Save button (same rule as the details screen).</summary>
     private string _editItemOpenWith = "", _origItemOpenWith = "";
     private ItemType _editItemType;
+    public string EditItemOpenWithDefaultLabel => _editItemType == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
     public bool EditItemOpenWithApplicable => _editItemType != ItemType.Program;
     public string EditItemTargetLabel => _editItemType == ItemType.Link ? "כתובת האתר" : "נתיב";
     public string EditItemOpenWith { get => _editItemOpenWith; set { Set(ref _editItemOpenWith, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
@@ -638,7 +639,7 @@ public sealed partial class MainViewModel : ObservableBase
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
         _editItemType = Enum.Parse<ItemType>(row.Type);
         var membership = Selected?.Items.FirstOrDefault(m => (m.Id ?? m.ItemId) == row.InstanceId);
-        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemTargetLabel));
+        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemOpenWithDefaultLabel)); Raise(nameof(EditItemTargetLabel));
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
@@ -1165,6 +1166,7 @@ public sealed partial class MainViewModel : ObservableBase
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
+        public string OpenWithDefaultLabel => Type == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
         public bool OpenWithApplicable => !IsProgram;
         public string TargetLabel => Type == ItemType.Link ? "כתובת האתר" : "נתיב";
     }

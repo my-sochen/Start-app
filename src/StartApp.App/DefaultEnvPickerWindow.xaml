@@ -4,18 +4,17 @@
         xmlns:local="clr-namespace:StartApp.App"
         Title="בחירת סביבת ברירת מחדל" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStyle="None" WindowStartupLocation="CenterOwner" FlowDirection="LeftToRight"
-        FontFamily="./Assets/Fonts/#Noto Sans Hebrew, Arial" ShowInTaskbar="False" Background="Transparent" AllowsTransparency="True">
+        FontFamily="./Assets/Fonts/#Noto Sans Hebrew, Arial" ShowInTaskbar="False" Background="Transparent" AllowsTransparency="True" PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
     </Window.Resources>
-    <!-- options-default-env-f1 (approved 22.11 03:03): borderless white card, breadcrumb + ✕, h1, subtitle,
-         one radio row per workspace (color dot + name + category), "ללא ברירת מחדל" first, אישור + ביטול. -->
+    <!-- Immediate row selection with current-choice circles; the close button leaves the default unchanged. -->
     <Border Background="White" CornerRadius="10" Padding="26,18,26,20" BorderBrush="#C9D0DC" BorderThickness="1">
         <Border.Effect><DropShadowEffect BlurRadius="34" ShadowDepth="12" Direction="270" Opacity="0.18" Color="#1A2436"/></Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0" Margin="0,0,0,10">
@@ -29,7 +28,7 @@
                        Text="הסביבה שנבחרה תסומן בתג הירוק במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/>
 
             <ListBox Grid.Row="3" x:Name="Rows" BorderThickness="0" Background="Transparent"
-                     SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="458">
+                     SelectionMode="Single" PreviewMouseLeftButtonUp="Rows_MouseLeftButtonUp" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="458">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
@@ -44,7 +43,7 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Row" Property="Background" Value="#EEF2FA"/>
+                                            <Setter TargetName="Row" Property="Background" Value="#F6F9FF"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -95,13 +94,6 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-
-            <StackPanel Grid.Row="4" Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left" Margin="0,18,0,0">
-                <Button Content="ביטול" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" Height="38" MinWidth="68" FontSize="14" Background="White" BorderBrush="#C5CAD4" BorderThickness="1"
-                        Foreground="#414856" Padding="16,7" Margin="0,0,8,0" Cursor="Hand" AutomationProperties.Name="Cancel default workspace choice"/>
-                <Button Content="אישור" Click="Confirm_Click" Height="38" MinWidth="68" FontSize="14" Style="{StaticResource PrimaryActionButton}" Padding="16,7"
-                        AutomationProperties.Name="Confirm default workspace choice"/>
-            </StackPanel>
         </Grid>
     </Border>
 </Window>

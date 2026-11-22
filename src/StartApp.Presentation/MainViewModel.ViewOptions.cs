@@ -85,6 +85,7 @@ public sealed partial class MainViewModel
     /// nothing); every removal route asks for confirmation.</summary>
     public void SetDefaultWorkspace(string? workspaceId)
     {
+        if (_current.DefaultWorkspaceId == workspaceId) return;
         if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
         {
             _pendingDefaultId = workspaceId;

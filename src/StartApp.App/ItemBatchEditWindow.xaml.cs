@@ -20,8 +20,14 @@ public partial class ItemBatchEditWindow : Window
         var names = targets.Select(t => t.Name).Distinct().ToArray(); var descriptions = targets.Select(t => t.Description).Distinct().ToArray();
         _name = names.Length == 1 ? names[0] : ""; _description = descriptions.Length == 1 ? descriptions[0] : ""; _target = row.Target;
         var programs = targets.Select(t => t.Launch?.Browser ?? t.Launch?.OpenWith ?? "").Distinct().ToArray(); _program = programs.Length == 1 ? programs[0] : "";
+        if (row.Type == "Folder")
+        {
+            OpenWithPicker.SetDefaultLabel(OpenWithInput, "ללא");
+            ClearLaunch.Content = "ללא תוכנה חלופית בכל הסביבות שנבחרו";
+        }
         OpenWithInput.IsEnabled = ClearLaunch.IsEnabled = row.Type != "Program"; OpenWithPicker.SetPath(OpenWithInput, _program);
         OpenWithInput.ToolTip = row.Type == "Program" ? "לא חל על אייטם תוכנה: האייטם הוא התוכנה עצמה" : "בחר תוכנה מותקנת או תוכנה אחרת. ברירת המחדל של Windows אינה משנה את הגדרות המחשב.";
+        if (row.Type == "Folder") OpenWithInput.ToolTip = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
         ClearLaunch.Visibility = programs.Length > 1 && row.Type != "Program" ? Visibility.Visible : Visibility.Collapsed;
         ClearDescription.Visibility = descriptions.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
         TargetLabel.Text = row.Type == "Link" ? "כתובת האתר" : "נתיב";

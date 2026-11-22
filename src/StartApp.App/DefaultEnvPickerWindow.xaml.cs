@@ -1,13 +1,12 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using StartApp.Presentation;
 
 namespace StartApp.App;
 
-/// <summary>אופציות > הגדר סביבה כברירת מחדל picker (options-default-env-f1, approved 22.11 03:03): one radio row per
-/// workspace (color dot, name, category) plus "ללא סביבת ברירת מחדל" first. The current default starts selected;
-/// choosing another row only stages it — אישור commits (the caller persists), ביטול / ✕ close without saving.</summary>
+/// <summary>A row click chooses immediately; the caller handles any replacement or removal confirmation.</summary>
 public partial class DefaultEnvPickerWindow : Window
 {
     public sealed class Row
@@ -19,23 +18,46 @@ public partial class DefaultEnvPickerWindow : Window
         public bool HasColor => ColorHex is { Length: > 0 };
     }
 
-    /// <summary>The staged choice when the dialog closes with אישור: the workspace id, or null for "ללא סביבת ברירת מחדל".</summary>
     public string? ChosenWorkspaceId { get; private set; }
 
     public DefaultEnvPickerWindow(MainViewModel vm)
     {
         InitializeComponent();
-        var rows = new[] { new Row { WorkspaceId = null, Name = "ללא ברירת מחדל" } }
+        var rows = new[] { new Row { Name = "ללא ברירת מחדל" } }
             .Concat(vm.Workspaces.Select(w => new Row { WorkspaceId = w.Id, Name = w.Name, Category = w.EffectiveCategory, ColorHex = w.Color }))
             .ToList();
         Rows.ItemsSource = rows;
         Rows.SelectedItem = rows.FirstOrDefault(r => r.WorkspaceId == vm.DefaultWorkspaceId) ?? rows[0];
     }
 
-    private void Confirm_Click(object sender, RoutedEventArgs e)
+    private void Choose(Row row)
     {
-        ChosenWorkspaceId = (Rows.SelectedItem as Row)?.WorkspaceId;
+        ChosenWorkspaceId = row.WorkspaceId;
         DialogResult = true;
+    }
+
+    private void Rows_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source &&
+            ItemsControl.ContainerFromElement(Rows, source) is ListBoxItem { DataContext: Row row })
+        {
+            e.Handled = true;
+            Choose(row);
+        }
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            DialogResult = false;
+        }
+        else if (Rows.IsKeyboardFocusWithin && (e.Key is Key.Enter or Key.Space) && Rows.SelectedItem is Row row)
+        {
+            e.Handled = true;
+            Choose(row);
+        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;

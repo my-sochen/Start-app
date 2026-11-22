@@ -8,7 +8,11 @@ namespace StartApp.App;
 public static class OpenWithPicker
 {
     public sealed record Choice(string Label, string Value) { public override string ToString() => Label; }
+    private const string FolderDefaultHint = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
     private const string Browse = "\u0001browse";
+    public static readonly DependencyProperty DefaultLabelProperty = DependencyProperty.RegisterAttached("DefaultLabel", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("ברירת המחדל של Windows", Changed));
+    public static string GetDefaultLabel(DependencyObject o) => (string)o.GetValue(DefaultLabelProperty);
+    public static void SetDefaultLabel(DependencyObject o, string value) => o.SetValue(DefaultLabelProperty, value);
     public static readonly DependencyProperty PathProperty = DependencyProperty.RegisterAttached("Path", typeof(string), typeof(OpenWithPicker), new PropertyMetadata(null, Changed));
     private static readonly DependencyProperty UpdatingProperty = DependencyProperty.RegisterAttached("Updating", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     private static readonly DependencyProperty HookedProperty = DependencyProperty.RegisterAttached("Hooked", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
@@ -18,6 +22,8 @@ public static class OpenWithPicker
     private static void Changed(DependencyObject o, DependencyPropertyChangedEventArgs e)
     {
         if (o is not ComboBox combo) return;
+        if (GetDefaultLabel(combo) == "ללא") combo.ToolTip = FolderDefaultHint;
+        else if (Equals(combo.ToolTip, FolderDefaultHint)) combo.ClearValue(FrameworkElement.ToolTipProperty);
         if (!(bool)combo.GetValue(HookedProperty)) { combo.SetValue(HookedProperty, true); combo.SelectionChanged += Selected; }
         Populate(combo);
     }
@@ -27,7 +33,7 @@ public static class OpenWithPicker
         try
         {
             var current = GetPath(combo);
-            var choices = new List<Choice> { new("ברירת המחדל של Windows", "") };
+            var choices = new List<Choice> { new(GetDefaultLabel(combo), "") };
             void Add(string label, string path) { if (File.Exists(path) && !choices.Any(c => c.Value.Equals(path, StringComparison.OrdinalIgnoreCase))) choices.Add(new(label, path)); }
             foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) }.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct())
             {

@@ -37,8 +37,7 @@ public partial class MainWindow
         menu.IsOpen = true;
     }
 
-    /// <summary>אופציות > הגדר סביבה כברירת מחדל: the approved radio picker (options-default-env mock). Confirming
-    /// persists the choice and moves the green badge; ביטול / ✕ leave the current default untouched.</summary>
+    /// <summary>The picker chooses on row activation. The view model confirms replacement or removal.</summary>
     private void OpenDefaultEnvPicker(MainViewModel vm)
     {
         var picker = new DefaultEnvPickerWindow(vm) { Owner = this };

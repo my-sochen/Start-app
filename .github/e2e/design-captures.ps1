@@ -67,12 +67,12 @@ try {
   $ts = [System.Windows.Automation.TreeScope]::Descendants
   $pc = [System.Windows.Automation.PropertyCondition]
   $win = $a::FromHandle($p.MainWindowHandle)
-  function Capture($name, $width, $height, $preserveFocus = $false) {
+  function Capture($name, $width, $height, $preserveFocus = $false, $preserveCursor = $false) {
     if (!$preserveFocus) {
       [void][DesignWindow]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, $width, $height, 0x40)
       [void][DesignWindow]::SetForegroundWindow($p.MainWindowHandle)
     }
-    [void][DesignWindow]::SetCursorPos(1, 1)
+    if (!$preserveCursor) { [void][DesignWindow]::SetCursorPos(1, 1) }
     Start-Sleep -Milliseconds 900
     $r = New-Object DesignWindow+Rect
     [void][DesignWindow]::GetWindowRect($p.MainWindowHandle, [ref]$r)
@@ -83,10 +83,15 @@ try {
     finally { $g.Dispose(); $image.Dispose() }
   }
   function InvokeNamed($name) {
-    $button = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, $name)))
-    if (!$button) { throw "Missing app control: $name" }
+    $visible = New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, $name)), (New-Object $pc($a::IsOffscreenProperty, $false)))
+    if ($name -eq 'Toggle default workspace') {
+      $visible = New-Object System.Windows.Automation.AndCondition($visible, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))
+    }
+    $button = $win.FindFirst($ts, $visible)
+    if (!$button) { throw "Missing visible app control: $name" }
     if ($name -in @('Options menu', 'Toggle default workspace')) {
-      $point = $button.GetClickablePoint()
+      try { $point = $button.GetClickablePoint() }
+      catch { throw "Cannot mouse-click visible app control '$name': $_" }
       [void][DesignWindow]::SetCursorPos([int]$point.X, [int]$point.Y)
       [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
       [DesignWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
@@ -152,6 +157,12 @@ try {
   $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
   Capture 'all-items-open-with-options' 1280 880 $true
   $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיקיית הפרויקט')
+  $folderName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'תיקיית הפרויקט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
+  $folderName.SetFocus(); [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  (RootNamed 'ערוך').SetFocus(); [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Capture 'all-items-folder-full-editor' 1280 880
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
   $sharedName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
@@ -273,8 +284,12 @@ try {
   Start-Sleep -Milliseconds 500
   Capture 'default-workspace-picker' 1280 880
   $choice = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'אולפן ביתי')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
-  $choice.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  (RootNamed 'Confirm default workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $point = $choice.GetClickablePoint()
+  [void][DesignWindow]::SetCursorPos([int]$point.X, [int]$point.Y)
+  Capture 'default-workspace-picker-hover' 1280 880 $true $true
+  [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+  [DesignWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 350
   Capture 'default-picker-replace-confirmation' 1280 880
   InvokeNamed 'Cancel default-env replace'
   InvokeNamed 'Options menu'
@@ -282,9 +297,10 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Start-Sleep -Milliseconds 350
   $none = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'ללא ברירת מחדל')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
-  $none.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  Capture 'default-picker-none-selected' 1280 880
-  (RootNamed 'Confirm default workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'default-picker-before-removal' 1280 880
+  $none.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Milliseconds 350
   Capture 'default-picker-remove-confirmation' 1280 880
   InvokeNamed 'Confirm default-env replace'
   Capture 'home-no-default' 1280 880
