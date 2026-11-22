@@ -16,7 +16,7 @@ public partial class MainWindow
         if ((sender as Button)?.Tag is not MainViewModel vm) return;
         var menu = NewAnchoredMenu((Button)sender);
 
-        menu.Items.Add(ActionItem("סביבה חדשה", () => vm.CreateWorkspaceCommand.Execute(null)));
+        menu.Items.Add(ActionItem("סביבה חדשה", () => NewWorkspaceFocus_Click(sender, e)));
 
         var capture = new MenuItem { Header = "לכידה" };
         capture.Items.Add(ActionItem("סביבה קיימת", () => vm.CaptureExistingCommand.Execute(null)));

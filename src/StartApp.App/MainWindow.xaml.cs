@@ -65,6 +65,23 @@ public partial class MainWindow : Window
         _hooked.PropertyChanged -= OnViewOptionChanged;
         _hooked = null;
     }
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void ToggleMaximizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (MaximizeWindowButton is not null)
+        {
+            MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+            System.Windows.Automation.AutomationProperties.SetName(MaximizeWindowButton,
+                WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
+        }
+    }
     private void OnFocusAddRequested() => TargetBox.Focus();
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
     private void OnAppCloseApproved() { _closeApproved = true; Close(); }
