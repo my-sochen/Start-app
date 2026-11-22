@@ -20,35 +20,70 @@
         </ContextMenu>
         <!-- תצוגה templates (approved 22.11): כרטיסים ברירת מחדל, רשימה, אייקונים (שם וצבע בלבד) -->
         <DataTemplate x:Key="WorkspaceCardTemplate">
-                            <!-- card design: without an image the color is the background; with one it is the frame (thick top,
-                                 thin other sides, settled Nov 11; exact frame measurements are provisional). The readability
-                                 layer behind the text was explicitly left undecided, so there is none. -->
-                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,2" CornerRadius="4"
-                                    Padding="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizePadding}}"
-                                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}">
-                                <Border.BorderThickness>
-                                    <Binding Path="ImagePath" Converter="{StaticResource FrameThickness}"/>
-                                </Border.BorderThickness>
+                            <!-- approved 22.11 mocks (pixel-exact): white card, 4px colored top bar (workspace color,
+                                 #A7AEB9 when unset), category chip, stats line, styled שגר + "הצגת פרטים ←" footer.
+                                 With a background image the Nov 11 design still applies: image surface + thick-top
+                                 color frame, and the top bar hides. -->
+                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,4" CornerRadius="8">
                                 <Border.Background>
-                                    <MultiBinding Converter="{StaticResource CardBrush}">
+                                    <MultiBinding Converter="{StaticResource CardSurface}">
                                         <Binding Path="Color"/>
                                         <Binding Path="ImagePath"/>
                                     </MultiBinding>
                                 </Border.Background>
+                                <Border.Effect><DropShadowEffect BlurRadius="10" ShadowDepth="1" Direction="270" Opacity="0.12" Color="#101828"/></Border.Effect>
                             <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
-                                        Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Height="4" CornerRadius="7,7,0,0"
+                                        Background="{Binding Color, Converter={StaticResource TopBarBrush}}"
+                                        Visibility="{Binding ImagePath, Converter={StaticResource NoImageToVisibility}}"/>
+                                <Button Grid.Row="1" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
                                         Background="Transparent" BorderThickness="0"
-                                        HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
-                                        <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/>
-                                        <TextBlock Foreground="Gray" FontSize="11"><Run Text="Last opened: "/><Run Text="{Binding LastOpenedAt, ConverterCulture=en-US, StringFormat='{}{0:yyyy-MM-dd HH:mm}', TargetNullValue=never, FallbackValue=never}"/></TextBlock>
-                                    </StackPanel>
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Right" Padding="14,10,14,0" AutomationProperties.Name="{Binding Name}">
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#222833" TextAlignment="Right"
+                                               FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
                                 </Button>
-                            </DockPanel>
+                                <Border Grid.Row="2" Background="#F3F4F6" CornerRadius="9" Padding="8,2" Margin="14,4,14,0" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding EffectiveCategory}" Foreground="#4B5563" FontSize="11"/>
+                                </Border>
+                                <TextBlock Grid.Row="3" TextAlignment="Right" Foreground="#586473" FontSize="12" Margin="14,8,14,0">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource StatsText}">
+                                            <Binding Path="."/>
+                                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                                <DockPanel Grid.Row="4" Margin="14,10,14,12">
+                                    <Button DockPanel.Dock="Left" Content="שגר" Style="{StaticResource PrimaryActionButton}"
+                                            Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                    <StackPanel HorizontalAlignment="Right">
+                                        <TextBlock Foreground="#626B79" FontSize="11" TextAlignment="Right">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{StaticResource FooterLine1}">
+                                                    <Binding Path="."/>
+                                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                        <Button Content="הצגת פרטים ←" Style="{StaticResource QuietTextButton}" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                                Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                                AutomationProperties.Name="Show details"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <Border Grid.Row="0" Grid.RowSpan="5" CornerRadius="8" IsHitTestVisible="False"
+                                        BorderThickness="{Binding ImagePath, Converter={StaticResource CardFrameThickness}}">
+                                    <Border.BorderBrush>
+                                        <MultiBinding Converter="{StaticResource CardFrameBrush}">
+                                            <Binding Path="Color"/>
+                                            <Binding Path="ImagePath"/>
+                                        </MultiBinding>
+                                    </Border.BorderBrush>
+                                </Border>
+                            </Grid>
                             </Border>
                         </DataTemplate>
         <DataTemplate x:Key="WorkspaceListTemplate">
@@ -126,7 +161,8 @@
                 </Button>
                 <Border DockPanel.Dock="Top" Background="#EFF8F3" BorderBrush="#CADFD5" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="0,0,0,6"
                         Visibility="{Binding HasActiveFilters, Converter={StaticResource B2V}}" AutomationProperties.Name="Filter bar">
-                    <DockPanel>
+                    <Grid>
+                    <DockPanel Visibility="{Binding IsSingleContentFilter, Converter={StaticResource NotB2V}}">
                         <TextBlock DockPanel.Dock="Right" Text="מסונן:" VerticalAlignment="Center" Foreground="#2B6250" Margin="4,0,6,0"/>
                         <Button DockPanel.Dock="Left" Content="✕ ניקוי הכל" Background="Transparent" BorderThickness="0" Foreground="#2B6250" Padding="4,0"
                                 Command="{Binding ClearFiltersCommand}" AutomationProperties.Name="Clear all filters"/>
@@ -148,6 +184,15 @@
                             </DataTemplate></ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </DockPanel>
+                    <!-- single content filter (approved mock home-filter-program): "מסונן: סביבות שמכילות X · N מתוך M" + ✕ ניקוי סינון -->
+                    <DockPanel Visibility="{Binding IsSingleContentFilter, Converter={StaticResource B2V}}">
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="#2B6250" Margin="4,0,6,0">
+                            <Run Text="מסונן: סביבות שמכילות "/><Run Text="{Binding SingleContentFilterName}" FontWeight="Bold"/><Run Text=" · "/><Run Text="{Binding SingleFilterCountText}"/>
+                        </TextBlock>
+                        <Button DockPanel.Dock="Left" Content="✕ ניקוי סינון" Background="Transparent" BorderThickness="0" Foreground="#2B6250" Padding="4,0"
+                                Command="{Binding ClearFiltersCommand}" AutomationProperties.Name="Clear all filters"/>
+                    </DockPanel>
+                    </Grid>
                 </Border>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                     <TextBlock Text="Create workspace" FontWeight="SemiBold"/>
