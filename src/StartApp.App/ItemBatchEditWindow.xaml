@@ -5,7 +5,7 @@
   <DockPanel><Button DockPanel.Dock="Left" Content="×" Click="Cancel_Click" Background="Transparent" BorderThickness="0" FontSize="16" Foreground="#626B79" AutomationProperties.Name="Close selected item edit"/><TextBlock x:Name="CaptionLabel" Text="אייטמים · עריכה" HorizontalAlignment="Right" FontSize="12" Foreground="#636E7D"/></DockPanel>
   <TextBlock x:Name="TitleLabel" Text="עריכת אייטם" HorizontalAlignment="Right" FontSize="24" FontWeight="SemiBold" Foreground="#222833" Margin="0,16,0,10"/>
   <TextBlock x:Name="Scope" FontSize="13" Foreground="#626B79" FlowDirection="RightToLeft" TextAlignment="Left" TextWrapping="Wrap"/>
-  <TextBlock Text="רק שדות ששונו יוחלו על הסביבות שנבחרו. שדה שלא נערך יישאר כפי שהיה בכל סביבה." FontSize="12" Foreground="#667388" FlowDirection="RightToLeft" TextAlignment="Left" TextWrapping="Wrap" Margin="0,6,0,18"/>
+  <TextBlock x:Name="ScopeHelp" Text="רק שדות ששונו יוחלו על הסביבות שנבחרו. שדה שלא נערך יישאר כפי שהיה בכל סביבה." FontSize="12" Foreground="#667388" FlowDirection="RightToLeft" TextAlignment="Left" TextWrapping="Wrap" Margin="0,6,0,18"/>
   <Border Background="#F4F6FD" BorderBrush="#C8D5F5" BorderThickness="0,1,0,0" Padding="10">
    <StackPanel>
     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>

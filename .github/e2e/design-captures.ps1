@@ -88,6 +88,7 @@ try {
       $visible = New-Object System.Windows.Automation.AndCondition($visible, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))
     }
     $button = $win.FindFirst($ts, $visible)
+    if (!$button -and $name -in @('Save item edit', 'Cancel item edit')) { $button = RootNamed $name }
     if (!$button) { throw "Missing visible app control: $name" }
     if ($name -in @('Options menu', 'Toggle default workspace')) {
       $point = [System.Windows.Point]::new(0.0, 0.0)
@@ -264,9 +265,12 @@ try {
   InvokeNamed 'Save workspace details'
   InvokeNamed 'Edit item'
   Capture 'details-item-editor' 1280 880
-  $editInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Edit item name')))
+  $editInput = RootNamed 'Edit item name'
   $editInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיעוד הפרויקט מעודכן')
   Capture 'details-item-editor-dirty' 1280 880
+  InvokeNamed 'Cancel item edit'
+  Capture 'details-item-unsaved-dialog' 1280 880
+  (RootNamed 'Keep item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   InvokeNamed 'Save item edit'
   InvokeNamed 'Edit item'
   InvokeNamed 'Cancel item edit'

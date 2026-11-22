@@ -42,12 +42,18 @@ public partial class ItemBatchEditWindow : Window
             Scope.Inlines.Add(new System.Windows.Documents.Run(workspace.Name + " · "));
         }
         Scope.Inlines.Add(new System.Windows.Documents.Run(targets.Count == 1 ? "מופע אחד" : targets.Count + " מופעים"));
+        if (targets.Select(t => t.WorkspaceId).Distinct().Count() < 2) Scope.Visibility = ScopeHelp.Visibility = Visibility.Collapsed;
         if (row.Type == "Link") OpenWithPicker.SetWebsiteTarget(OpenWithInput, row.Target);
         NameInput.Text = _name; DescriptionInput.Text = _description; TargetInput.Text = _target; _ready = true;
     }
     private bool Dirty => _ready && (NameInput.Text != _name || DescriptionInput.Text != _description || TargetInput.Text != _target || ClearDescription.IsChecked == true || OpenWithPicker.SelectedPath(OpenWithInput) != _program || ClearLaunch.IsChecked == true);
     private void Launch_Changed(object sender, SelectionChangedEventArgs e) { if (_ready) SaveButton.IsEnabled = Dirty; }
-    private void Input_Changed(object sender, TextChangedEventArgs e) { if (_ready) SaveButton.IsEnabled = Dirty; }
+    private void Input_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (!_ready) return;
+        if (_row.Type == "Link" && ReferenceEquals(sender, TargetInput)) OpenWithPicker.SetWebsiteTarget(OpenWithInput, TargetInput.Text);
+        SaveButton.IsEnabled = Dirty;
+    }
     private void ClearDescription_Changed(object sender, RoutedEventArgs e) { if (!_ready) return; DescriptionInput.IsEnabled = ClearDescription.IsChecked != true; SaveButton.IsEnabled = Dirty; }
     private void ClearLaunch_Changed(object sender, RoutedEventArgs e) { if (!_ready) return; OpenWithInput.IsEnabled = ClearLaunch.IsChecked != true && _row.Type != "Program"; SaveButton.IsEnabled = Dirty; }
     private void Save_Click(object sender, RoutedEventArgs e)

@@ -232,7 +232,7 @@
                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="לחיצה ימנית לפעולות נוספות · Shift+F10 מקלדת"/><Style.Triggers>
                         <DataTrigger Binding="{Binding InDetails}" Value="True"><Setter Property="Text" Value="המסך מציג טיוטת שינוי בשם הסביבה · שמור פרטים שומר את השינוי"/></DataTrigger>
                         <DataTrigger Binding="{Binding InAllItems}" Value="True"><Setter Property="Text" Value="רשימת אייטמים כללית · לחיצה על שם משגרת · לחיצה ימנית לפעולות"/></DataTrigger>
-<DataTrigger Binding="{Binding CaptureOpen}" Value="True"><Setter Property="Text" Value="סגירת הלכידה מאפסת את רשימת הסריקה בלבד. שינויים שטרם נשמרו דורשים החלטה."/></DataTrigger>
+<DataTrigger Binding="{Binding CaptureOpen}" Value="True"><Setter Property="Text" Value="סגירת הלכידה מאפסת את רשימת הסריקה בלבד. שינויים שלא נשמרו דורשים החלטה."/></DataTrigger>
                     </Style.Triggers></Style></TextBlock.Style>
                 </TextBlock>
                 <Button DockPanel.Dock="Left" Content="פתח הורדה רשמית" Command="{Binding Updates.DownloadCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2"
@@ -457,27 +457,8 @@
                                     </StackPanel>
                                 </Button>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" FontFamily="Arial" FontSize="12" Foreground="#606D80" Margin="12,0" VerticalAlignment="Center" FlowDirection="LeftToRight"/>
-                                <Button Grid.Column="3" Content="ערוך" Click="EditItem_Click" AutomationProperties.Name="Edit item" Style="{StaticResource HomeToolbarButton}" Height="38" VerticalAlignment="Center" ToolTip="עריכת האייטם, ללא פתיחה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                <Border Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,12" BorderBrush="#DCE1E9" BorderThickness="1" Background="#F7F8FB" CornerRadius="4" Padding="14">
-                    <Border.Visibility><MultiBinding Converter="{StaticResource ItemEditorVisibility}"><Binding Path="InstanceId"/><Binding Path="DataContext.EditingItemInstanceId" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></Border.Visibility>
-                    <StackPanel DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" FlowDirection="RightToLeft">
-                        <TextBlock Text="עריכת אייטם" FontSize="15" Foreground="#222833" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <Border Background="#F4F6FD" BorderBrush="#C8D5F5" BorderThickness="0,1,0,0" Padding="10" Margin="0,4,0,0"><StackPanel FlowDirection="LeftToRight">
- <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
- <StackPanel Grid.Column="2"><TextBlock Text="שם האייטם" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,10" AutomationProperties.Name="Edit item name"/></StackPanel>
- <StackPanel Grid.Column="0"><TextBlock Text="פתח באמצעות" TextAlignment="Right" FontSize="12" Foreground="#667388"/><ComboBox Style="{StaticResource OpenWithDropdown}" local:OpenWithPicker.WebsiteTarget="{Binding EditItemTarget}" local:OpenWithPicker.DefaultLabel="{Binding EditItemOpenWithDefaultLabel}" local:OpenWithPicker.Path="{Binding EditItemOpenWith, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FlowDirection="RightToLeft" Height="34" Margin="0,4,0,10" Background="White" BorderBrush="#C5CDDB" Padding="8,4" AutomationProperties.Name="Edit item open with" IsEnabled="{Binding EditItemOpenWithApplicable}"/></StackPanel>
- </Grid>
- <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" Height="34" MinHeight="34" FontSize="14" Padding="10,6" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Edit item description"/>
- <TextBlock Text="{Binding EditItemTargetLabel}" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" Height="34" MinHeight="34" FontSize="14" Padding="10,6" Margin="0,4,0,0" AutomationProperties.Name="Edit item target"/>
- </StackPanel></Border>
-<TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Style="{StaticResource PrimaryActionButton}" MinWidth="74" MinHeight="38" Padding="16,8" Margin="0,0,6,0"
-                                    IsEnabled="{Binding ItemEditDirty}"/>
-                            <Button Content="ביטול" AutomationProperties.Name="Cancel item edit" Command="{Binding CancelItemEditCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="74" MinHeight="38" Padding="16,8"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                                <Button Grid.Column="3" Content="ערוך" AutomationProperties.Name="Edit item" Style="{StaticResource HomeToolbarButton}" Height="38" VerticalAlignment="Center" ToolTip="עריכת האייטם, ללא פתיחה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>

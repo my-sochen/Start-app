@@ -1214,7 +1214,14 @@ public sealed partial class MainViewModel : ObservableBase
     private int _openScans;
     private const int MaxOpenScans = 1;
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
-    public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
+    public string CaptureAddLabel
+    {
+        get
+        {
+            var count = CaptureRows.Count(r => r.IsChecked);
+            return count == 0 ? "הוסף הכל ←" : count == 1 ? "הוסף נבחר אחד ←" : $"הוסף {count} נבחרים ←";
+        }
+    }
     public string CaptureSelectionText => CaptureRows.Count(r => r.IsChecked) + " נבחרו";
     public string CaptureTargetHeader => IsCaptureSide ? "היעד: " + CaptureWorkspaceName : IsCaptureNew ? "סביבה חדשה" : "בחירת סביבה";
     public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";

@@ -159,19 +159,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
-    private void EditItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: ItemRow row }) return;
-        // Command execution follows Click. Bring the newly opened, identity-bound local editor
-        // into view after binding/layout; a refused dirty-editor switch must not steal focus.
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
-        {
-            if (DataContext is not MainViewModel vm || vm.EditingItemInstanceId != row.InstanceId) return;
-            var input = FindEditInput(this);
-            if (input is null) return;
-            input.BringIntoView(); input.Focus();
-        }));
-    }
     private void EditStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: true);
     private void DoneStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: false);
     private void RevealStagedRow(object sender, bool editing)
@@ -202,16 +189,6 @@ public partial class MainWindow : Window
                 if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Edit added " + row.OriginalName) return edit;
             }
             var found = FindStagedRevealTarget(child, row, editing); if (found is not null) return found;
-        }
-        return null;
-    }
-    private static TextBox? FindEditInput(DependencyObject root)
-    {
-        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
-            if (child is TextBox box && box.IsVisible && System.Windows.Automation.AutomationProperties.GetName(box) == "Edit item name") return box;
-            var found = FindEditInput(child); if (found is not null) return found;
         }
         return null;
     }

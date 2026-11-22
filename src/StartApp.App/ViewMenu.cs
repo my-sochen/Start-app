@@ -150,8 +150,17 @@ public partial class MainWindow
     }
 
     /// <summary>Template and size changes re-template the already-generated cards.</summary>
+    private ItemEditWindow? _itemEditWindow;
     private void OnViewOptionChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.ItemEditOpen) && _hooked?.ItemEditOpen == true)
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_itemEditWindow is not null || _hooked?.ItemEditOpen != true) return;
+                _itemEditWindow = new ItemEditWindow(_hooked);
+                try { ShowItemDialog(_itemEditWindow); }
+                finally { _itemEditWindow = null; }
+            }));
         if (e.PropertyName == nameof(MainViewModel.DefaultConfirmOpen))
             Dispatcher.BeginInvoke(new Action(UpdateDefaultDialogFocus));
         if (e.PropertyName == nameof(MainViewModel.UnsavedOpen) && _hooked?.UnsavedOpen == true)
