@@ -2881,7 +2881,7 @@ public static class WinCap {
   Assert 'create form fully reset after a successful create' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Workspace description')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
   # 31. תצוגה menu captures (approved 22.11 design): menu rows, active filter chip, list template, restore to cards.
   $c = ClickBtn 'תצוגה ▾' 1200; Assert 'view menu button clicked' ($c -eq 'ok') $c
-  Assert 'view menu shows the four approved rows' ($null -ne (MenuItemByName 'גודל כרטיסים') -and $null -ne (MenuItemByName 'מיון') -and $null -ne (MenuItemByName 'סינון') -and $null -ne (MenuItemByName 'תבנית תצוגה'))) ''
+  Assert 'view menu shows the four approved rows' ($null -ne (MenuItemByName 'גודל כרטיסים') -and $null -ne (MenuItemByName 'מיון') -and $null -ne (MenuItemByName 'סינון') -and $null -ne (MenuItemByName 'תבנית תצוגה')) ''
   Shot 'view-menu-open'
   $mi = MenuItemByName 'סינון'; Assert 'filter submenu parent present' ($null -ne $mi) ''; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'filter submenu') }; Start-Sleep -Milliseconds 700
   $cats = MenuItemByName 'לפי קטגוריה'; Assert 'category submenu parent present' ($null -ne $cats) ''; try { $cats.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $cats 'category submenu') }; Start-Sleep -Milliseconds 700
