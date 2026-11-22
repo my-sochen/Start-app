@@ -1966,7 +1966,7 @@ public static class WinCap {
     $bw = $bmp.Width; $bh = $bmp.Height
     if (-not ($pRel.L -ge 1 -and $pRel.T -ge 1 -and $pRel.R -le ($bw - 1) -and $pRel.B -le ($bh - 1) -and ($pRel.R - $pRel.L) -ge 20 -and ($pRel.B - $pRel.T) -ge 10)) { $res.reason = "painted rect invalid/outside bitmap/touching edge - halo not verifiable (L$($pRel.L),T$($pRel.T),R$($pRel.R),B$($pRel.B) bmp ${bw}x${bh})"; return $res }
     if ($null -eq $contentRects -or $contentRects.Count -eq 0) { $res.reason = 'no content-exclusion rects (unknown coverage)'; return $res }
-    $corner = 6; $guard = 1
+    $corner = 10; $guard = 1   # approved card corner radius is 8; inset past the antialiased arc +2 safety
     $noFrame = ($frameExp.l -eq 0 -and $frameExp.t -eq 0 -and $frameExp.r -eq 0 -and $frameExp.b -eq 0)
     # STRUCTURAL MASK HELPERS - computed from member rects ALONE, before/independent of any pixel read.
     # Frame bands are measured UNMASKED: the approved card's frame ring is an overlay Border declared
