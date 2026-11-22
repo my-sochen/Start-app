@@ -112,21 +112,55 @@
                             </Border>
                         </DataTemplate>
         <DataTemplate x:Key="WorkspaceListTemplate">
-            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,1" Padding="6,2" CornerRadius="3"
-                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}" BorderThickness="4,0,0,0" Background="White">
+            <!-- approved 22.11 list mock (pixel-exact): white row, 1px #D6DCE5 border, radius 5, 5px color stripe at
+                 the RIGHT edge (RTL start; the mock's explicit correction over the feat-33 left stripe), padding
+                 12,9,14,9, 10px row gap; the whole row (minus שגר) opens details, no visible details link. -->
+            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions"
+                    Margin="0,0,0,10" Background="White" BorderBrush="#D6DCE5" BorderThickness="1" CornerRadius="5">
                 <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
-                            Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                    <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
-                            Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                            <TextBlock Foreground="Gray" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"><Run Text="Last opened: "/><Run Text="{Binding LastOpenedAt, ConverterCulture=en-US, StringFormat='{}{0:yyyy-MM-dd HH:mm}', TargetNullValue=never, FallbackValue=never}"/></TextBlock>
-                        </StackPanel>
-                    </Button>
-                </DockPanel>
+                <Grid>
+                    <DockPanel Margin="12,9,14,9" LastChildFill="True">
+                        <Button DockPanel.Dock="Left" Content="שגר" Style="{StaticResource PrimaryActionButton}" MinHeight="32" Padding="20,5" VerticalAlignment="Center"
+                                Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                        <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#626B79" FontSize="12" Margin="14,0,0,0">
+                            <TextBlock.Text>
+                                <MultiBinding Converter="{StaticResource FooterLine1List}">
+                                    <Binding Path="."/>
+                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                        <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
+                                Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Right" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Name}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="#222833" MinWidth="150" TextAlignment="Right"/>
+                                <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,8,0" VerticalAlignment="Center"
+                                         AutomationProperties.Name="Default workspace badge"
+                                         ToolTip="סביבת ברירת מחדל · נפתחת אוטומטית עם הפעלת המחשב">
+                                    <Ellipse.Visibility>
+                                        <MultiBinding Converter="{StaticResource DefaultBadgeVisibility}">
+                                            <Binding Path="."/>
+                                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                        </MultiBinding>
+                                    </Ellipse.Visibility>
+                                </Ellipse>
+                                <Border Background="#F3F4F6" CornerRadius="9" Padding="8,2" Margin="4,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding EffectiveCategory}" Foreground="#4B5563" FontSize="11"/>
+                                </Border>
+                                <TextBlock VerticalAlignment="Center" Foreground="#586473" FontSize="13" MinWidth="210" TextAlignment="Right">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource StatsText}">
+                                            <Binding Path="."/>
+                                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                        </Button>
+                    </DockPanel>
+                    <Border HorizontalAlignment="Right" Width="5" CornerRadius="0,4,4,0" IsHitTestVisible="False"
+                            Background="{Binding Color, Converter={StaticResource TopBarBrush}}"/>
+                </Grid>
             </Border>
         </DataTemplate>
         <DataTemplate x:Key="WorkspaceIconsTemplate">
