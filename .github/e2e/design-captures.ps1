@@ -168,8 +168,10 @@ try {
   $originalBatchName = $batchName.Current.Value
   $batchName.SetValue($originalBatchName + ' updated')
   ClickRootNamed 'Cancel selected item edit'
-  Capture 'all-items-unsaved-dialog' 1280 880
+  Capture 'all-items-unsaved-dialog' 1280 880 $true
   [System.Windows.Forms.SendKeys]::SendWait('{TAB}+{TAB}')
+  $focus = $a::FocusedElement
+  if ($focus.Current.Name -ne 'Keep selected item editing') { throw ('Batch guard keyboard focus escaped: ' + $focus.Current.Name) }
   Capture 'all-items-unsaved-keyboard-focus' 1280 880 $true
   (RootNamed 'Keep selected item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $batchName.SetValue($originalBatchName)
@@ -287,8 +289,10 @@ try {
   $editInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיעוד הפרויקט מעודכן')
   Capture 'details-item-editor-dirty' 1280 880
   ClickRootNamed 'Cancel item edit'
-  Capture 'details-item-unsaved-dialog' 1280 880
+  Capture 'details-item-unsaved-dialog' 1280 880 $true
   [System.Windows.Forms.SendKeys]::SendWait('{TAB}+{TAB}')
+  $focus = $a::FocusedElement
+  if ($focus.Current.Name -ne 'Keep item editing') { throw ('Details guard keyboard focus escaped: ' + $focus.Current.Name) }
   Capture 'details-item-unsaved-keyboard-focus' 1280 880 $true
   (RootNamed 'Keep item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   InvokeNamed 'Save item edit'
