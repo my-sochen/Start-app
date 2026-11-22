@@ -251,7 +251,7 @@ internal static class Program
         host.Show(); host.UpdateLayout();
         var buttons = Descendants(host).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
         if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
-        var topBar = ((Grid)((Border)owner.Content).Child).Children.OfType<Border>().Single(b => Grid.GetRow(b) == 0);
+        var topBar = ((Grid)((Border)owner.Content).Child).Children.OfType<Border>().Single(b => Grid.GetRow(b) == 0 && Grid.GetRowSpan(b) == 1);
         if (Descendants(topBar).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
             throw new Exception("Manual check must not remain in main top bar");
         if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == "עדכונים"))
