@@ -42,6 +42,7 @@ public partial class MainWindow : Window
         vm.AppCloseApproved += OnAppCloseApproved;
         vm.PickImageRequested += OnPickImageRequested;
         vm.PickCreateImageRequested += OnPickCreateImageRequested;
+        vm.PropertyChanged += OnViewOptionChanged;
         _hooked = vm;
     }
     private void Detach()
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         _hooked.AppCloseApproved -= OnAppCloseApproved;
         _hooked.PickImageRequested -= OnPickImageRequested;
         _hooked.PickCreateImageRequested -= OnPickCreateImageRequested;
+        _hooked.PropertyChanged -= OnViewOptionChanged;
         _hooked = null;
     }
     private void OnFocusAddRequested() => TargetBox.Focus();
