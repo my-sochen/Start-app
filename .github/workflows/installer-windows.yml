@@ -47,7 +47,7 @@ jobs:
         if (-not $exe) { 'installer exe missing'; exit 1 }
         $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
         "$hash  $($exe.Name)" | Out-File -Encoding ascii "$($exe.FullName).sha256"
-    - name: Smoke: installer is a valid Inno package
+    - name: 'Smoke: installer is a valid Inno package'
       shell: pwsh
       run: |
         $exe = (Get-ChildItem out/StartApp-Setup-*.exe).FullName
