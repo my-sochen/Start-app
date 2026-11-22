@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StartApp.App"
         Title="בחירת סביבת ברירת מחדל" Width="560" SizeToContent="Height" ResizeMode="NoResize"
-        WindowStyle="None" WindowStartupLocation="CenterOwner" FlowDirection="RightToLeft"
-        ShowInTaskbar="False" Background="Transparent" AllowsTransparency="True">
+        WindowStyle="None" WindowStartupLocation="CenterOwner" FlowDirection="LeftToRight"
+        FontFamily="./Assets/Fonts/#Noto Sans Hebrew, Arial" ShowInTaskbar="False" Background="Transparent" AllowsTransparency="True">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
     </Window.Resources>
@@ -55,10 +55,10 @@
                     <DataTemplate>
                         <DockPanel Margin="2,13">
                             <!-- radio circle on the left edge: empty ring; when the row is selected it fills blue with a ✓ -->
-                            <Border DockPanel.Dock="Left" Width="18" Height="18" CornerRadius="9" VerticalAlignment="Top" Margin="0,1,0,0"
-                                    BorderBrush="#C5CAD4" BorderThickness="1.5" Background="White">
+                            <Border DockPanel.Dock="Right" Width="18" Height="18" CornerRadius="9" VerticalAlignment="Top" Margin="0,1,0,0"
+                                    BorderThickness="1.5">
                                 <Border.Style>
-                                    <Style TargetType="Border">
+                                    <Style TargetType="Border"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#C5CAD4"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                                                 <Setter Property="Background" Value="#315CC5"/>
@@ -81,7 +81,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                             </Border>
-                            <StackPanel>
+                            <StackPanel HorizontalAlignment="Right" Margin="0,0,12,0">
                                 <DockPanel HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#222833" VerticalAlignment="Center"/>
                                     <Ellipse Width="11" Height="11" Margin="0,0,7,0" VerticalAlignment="Center"

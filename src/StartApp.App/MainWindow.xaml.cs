@@ -226,6 +226,8 @@ public partial class MainWindow : Window
             source = source is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
                 ? System.Windows.Media.VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
         }
+        if (host.DataContext is ItemRow detail && DataContext is MainViewModel viewModel && viewModel.AllItemFromDetail(detail) is { } allRow && FindItemActionButton(host) is { } anchor)
+        { e.Handled = true; ShowItemActions(anchor, allRow, detail); return; }
         // Keep row identity separate from window commands across the popup boundary.
         menu.PlacementTarget = host;
         menu.DataContext = host.DataContext;

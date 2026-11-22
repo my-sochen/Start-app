@@ -40,6 +40,7 @@ $detailMembers = @()
 foreach ($item in $detailItems) { $catalogue[$item.id] = $item; $detailMembers += @{ itemId=$item.id; id=('member-'+$item.id) } }
 $workspaces[0].items = @($detailMembers)
 $workspaces[0].category = 'תכנות'
+$workspaces[0].items += @{ itemId='detail-editor'; id='duplicate-editor-dev'; name='עורך טקסט נוסף' }
 $workspaces[1].items += @{ itemId='detail-editor'; id='shared-editor-home' }
 $globalItems = @(
   @{ id='global-demo-docs'; type='link'; name='תיעוד'; target='https://example.com/docs'; addedAt='2026-11-20T12:00:00Z' },
@@ -123,7 +124,22 @@ try {
   (RootNamed 'ערוך').SetFocus()
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Capture 'all-items-shared-env-picker' 1280 880
-  (RootNamed 'Cancel item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  foreach ($envName in @('פיתוח','אולפן ביתי')) {
+    $choice = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, $envName)), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
+    $choice.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).AddToSelection()
+  }
+  Capture 'all-items-multi-env-selected' 1280 880
+  (RootNamed 'Confirm item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'all-items-multi-env-edit' 1280 880
+  (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  foreach ($action in @(@('מחק','all-items-delete-env-picker'), @('הוסף לסביבה','all-items-add-env-picker'))) {
+    $sharedName.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    (RootNamed $action[0]).SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Capture $action[1] 1280 880
+    (RootNamed 'Cancel item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  }
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('')
   $allViewport = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'All items viewport')))
   $allScroll = $allViewport.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
@@ -180,6 +196,12 @@ try {
   $win = $a::FromHandle($p.MainWindowHandle)
   InvokeNamed 'פיתוח'
   Capture 'details-default-mock-size' 1280 880
+  $detailName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'תיעוד הפרויקט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
+  $detailName.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  Capture 'details-item-actions' 1280 880
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+
   InvokeNamed 'Toggle default workspace'
   InvokeNamed 'Dismiss notification'
   Capture 'details-nondefault-mock-size' 1280 880

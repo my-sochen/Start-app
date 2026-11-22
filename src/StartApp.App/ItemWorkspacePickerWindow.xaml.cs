@@ -6,18 +6,28 @@ using StartApp.Core;
 namespace StartApp.App;
 public partial class ItemWorkspacePickerWindow : Window
 {
-    private sealed record Row(string WorkspaceId, string Name, string Category, string? ColorHex) { public bool HasColor => !string.IsNullOrEmpty(ColorHex); }
-    public string? ChosenWorkspaceId { get; private set; }
-    public ItemWorkspacePickerWindow(IReadOnlyList<Workspace> workspaces, string itemName, bool delete)
+    private readonly bool _plainDelete;
+    private sealed record Choice(string Id, string Name, string EffectiveCategory, string? Color, int Count) { public string DisplayCategory => EffectiveCategory + " · " + (Count == 1 ? "מופע אחד" : Count + " מופעים"); }
+    private readonly string _action;
+    public IReadOnlyList<string> ChosenWorkspaceIds { get; private set; } = System.Array.Empty<string>();
+    public ItemWorkspacePickerWindow(IReadOnlyList<Workspace> workspaces, string itemName, string action, IReadOnlyDictionary<string, int>? counts = null)
     {
+        _action = action;
         InitializeComponent();
-        Heading.Text = delete ? "מאיזו סביבה למחוק?" : "באיזו סביבה לערוך?";
-        Explanation.Text = itemName + (delete ? ": המחיקה מסירה את האייטם מהסביבה הנבחרת בלבד." : ": בחרו את הסביבה שאת האייטם שלה תרצו לערוך.");
-        ConfirmButton.Content = delete ? "מחק מהסביבה הנבחרת" : "המשך לעריכה";
-        Rows.ItemsSource = workspaces.Select(w => new Row(w.Id, w.Name, w.EffectiveCategory, w.Color)).ToArray();
+        _plainDelete = action == "delete" && workspaces.Count == 1;
+        Heading.Text = action switch { "delete" => _plainDelete ? "למחוק את האייטם?" : "מאילו סביבות למחוק?", "share" => "לאילו סביבות להוסיף?", "openwith" => "באיזו סביבה לפתוח באמצעות?", _ => "באילו סביבות לערוך?" };
+        Explanation.Text = itemName + (action switch { "delete" => _plainDelete ? ": מחיקה מהסביבה " + workspaces[0].Name + " · " + (counts?.GetValueOrDefault(workspaces[0].Id) ?? 1) + " מופעים." : ": סמנו את הסביבות שמהן יימחק האייטם. סביבות שלא סומנו לא ישתנו.", "share" => ": סמנו את הסביבות שאליהן יתווסף האייטם.", "openwith" => ": בחרו סביבה אחת לשימוש באפשרויות הפתיחה שלה.", _ => ": סמנו את הסביבות שאת האייטם שלהן תרצו לערוך." });
+        ConfirmButton.Content = action switch { "delete" => "מחק", "share" => "הוסף לסביבות שסומנו", "openwith" => "המשך", _ => "המשך לעריכה" };
+        if (action == "openwith") Rows.SelectionMode = SelectionMode.Single;
+        Rows.ItemsSource = workspaces.Select(w => new Choice(w.Id, w.Name, w.EffectiveCategory, w.Color, counts?.GetValueOrDefault(w.Id) ?? 1)).ToArray();
         Rows.SelectedIndex = -1;
+        if (_plainDelete) { Rows.Visibility = Visibility.Collapsed; SelectionSummary.Visibility = Visibility.Collapsed; ConfirmButton.IsEnabled = true; ChosenWorkspaceIds = workspaces.Select(w => w.Id).ToArray(); }
     }
-    private void Rows_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (ConfirmButton is not null) ConfirmButton.IsEnabled = Rows.SelectedItem is Row; }
-    private void Confirm_Click(object sender, RoutedEventArgs e) { if (Rows.SelectedItem is not Row row) return; ChosenWorkspaceId = row.WorkspaceId; DialogResult = true; }
+    private void Rows_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (ConfirmButton is not null) { ConfirmButton.IsEnabled = _plainDelete || Rows.SelectedItems.Count > 0; if (SelectionSummary is not null) SelectionSummary.Text = _action == "share" ? $"{Rows.SelectedItems.Count} סביבות נבחרו" : $"{Rows.SelectedItems.Count} סביבות · {Rows.SelectedItems.Cast<Choice>().Sum(r => r.Count)} מופעים נבחרו"; } }
+    private void Confirm_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_plainDelete) ChosenWorkspaceIds = Rows.SelectedItems.Cast<Choice>().Select(w => w.Id).ToArray();
+        if (ChosenWorkspaceIds.Count > 0) DialogResult = true;
+    }
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
 }
