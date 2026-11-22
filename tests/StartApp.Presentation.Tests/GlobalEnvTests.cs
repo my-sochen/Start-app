@@ -145,4 +145,45 @@ public class GlobalEnvTests
         var row = Assert.Single(vm.CaptureRows);
         Assert.Equal("Notepad", row.Item.Name);
     }
+
+    private sealed class RecordingLauncher : IItemLauncher
+    {
+        public readonly List<Item> Calls = new();
+        public LaunchResult Next = new(LaunchStatus.Started);
+        public LaunchResult Launch(Item item, LaunchConfig? launch) { Calls.Add(item); return Next; }
+    }
+
+    [Fact] public void Autostart_opens_every_global_item_and_reports()
+    {
+        using var repo = new JsonStore(Tmp());
+        repo.Mutate(c => { c.AddGlobalEntry(GlobalListKind.GlobalItems, ItemType.Link, "Gmail", "https://mail.google.com/"); c.AddGlobalEntry(GlobalListKind.GlobalItems, ItemType.Link, "WhatsApp", "https://web.whatsapp.com/"); });
+        var launcher = new RecordingLauncher();
+        var vm = new MainViewModel(repo, launcher);
+        vm.OpenGlobalItemsOnStart();
+        Assert.Equal(2, launcher.Calls.Count);
+        Assert.Contains("Gmail", launcher.Calls.Select(i => i.Name));
+        Assert.Equal("נפתחו 2 פריטי סביבה גלובלית", vm.Status);
+    }
+
+    [Fact] public void Autostart_names_items_the_launcher_could_not_open()
+    {
+        using var repo = new JsonStore(Tmp());
+        repo.Mutate(c => { c.AddGlobalEntry(GlobalListKind.GlobalItems, ItemType.Link, "Gmail", "https://mail.google.com/"); c.AddGlobalEntry(GlobalListKind.GlobalItems, ItemType.Link, "WhatsApp", "https://web.whatsapp.com/"); });
+        var launcher = new RecordingLauncher();
+        var vm = new MainViewModel(repo, launcher);
+        launcher.Next = new LaunchResult(LaunchStatus.Failed);
+        vm.OpenGlobalItemsOnStart();
+        Assert.Equal(2, launcher.Calls.Count); // every item was attempted
+        Assert.Equal("נפתחו 0; לא ניתן לפתוח: Gmail, WhatsApp", vm.Status); // nothing claims success it did not get
+    }
+
+    [Fact] public void Autostart_with_no_global_items_says_so()
+    {
+        using var repo = new JsonStore(Tmp());
+        var launcher = new RecordingLauncher();
+        var vm = new MainViewModel(repo, launcher);
+        vm.OpenGlobalItemsOnStart();
+        Assert.Empty(launcher.Calls);
+        Assert.Equal("אין פריטי סביבה גלובלית לפתיחה", vm.Status);
+    }
 }
