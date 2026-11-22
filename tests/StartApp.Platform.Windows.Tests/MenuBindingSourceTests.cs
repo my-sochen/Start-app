@@ -66,7 +66,9 @@ public class MenuBindingSourceTests
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
         Assert.Contains("if (source is TextBox) return;",code);
         Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
-        Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
+        // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
+        Assert.Contains("popupSize.Height + 18",code);
+        Assert.Contains("Math.Max(8, anchorY - safeH)",code);
         // Context menus are re-placed on the next dispatcher tick after any open: ContextMenuService
         // overrides the placement for keyboard/mouse opens, so the anchored/clamped Custom placement is
         // re-applied post-open (reopen) where it always wins.
