@@ -14,7 +14,7 @@ public partial class MainWindow
     private void OptionsMenu_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not MainViewModel vm) return;
-        var menu = new ContextMenu { PlacementTarget = (Button)sender };
+        var menu = NewAnchoredMenu((Button)sender);
 
         menu.Items.Add(ActionItem("סביבה חדשה", () => vm.CreateWorkspaceCommand.Execute(null)));
 
