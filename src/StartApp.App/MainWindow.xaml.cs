@@ -77,7 +77,7 @@ public partial class MainWindow : Window
         base.OnStateChanged(e);
         if (MaximizeWindowButton is not null)
         {
-            MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+            MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
             System.Windows.Automation.AutomationProperties.SetName(MaximizeWindowButton,
                 WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
         }
@@ -105,8 +105,7 @@ public partial class MainWindow : Window
         {
             if (sender is Button b && b.ContextMenu is { } m)
             {
-                m.PlacementTarget = b;
-                m.IsOpen = true;
+                NewAnchoredMenu(b, m).IsOpen = true;
             }
         }
 
@@ -124,9 +123,7 @@ public partial class MainWindow : Window
     {
         if (sender is Button { ContextMenu: { } menu } button)
         {
-            menu.PlacementTarget = button;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            menu.IsOpen = true;
+            NewAnchoredMenu(button, menu).IsOpen = true;
         }
     }
     // Drag from the capture list onto the workspace side. Each drop is one item and goes through the per-drag duplicate warning in the view model.

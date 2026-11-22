@@ -17,9 +17,13 @@ public partial class MainWindow
     /// bottom-left like the approved menu mocks, flipping above the button or clamping inside the window when
     /// it would otherwise overflow. Programmatic IsOpen opens used the MousePoint default before, so a
     /// keyboard/UIA open detached the menu to the cursor instead of the button.</summary>
-    private ContextMenu NewAnchoredMenu(Button target)
+    private ContextMenu NewAnchoredMenu(Button target, ContextMenu? existing = null)
     {
-        var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Custom };
+        var menu = existing ?? new ContextMenu();
+        menu.PlacementTarget = target;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
+        menu.RemoveHandler(MenuItem.SubmenuOpenedEvent, new RoutedEventHandler(OnAnchoredSubmenuOpened));
+        menu.AddHandler(MenuItem.SubmenuOpenedEvent, new RoutedEventHandler(OnAnchoredSubmenuOpened));
         menu.MaxHeight = Math.Max(120, ActualHeight - 16);
         menu.MaxWidth = Math.Max(120, ActualWidth - 16);
         menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
@@ -32,6 +36,24 @@ public partial class MainWindow
             return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
         };
         return menu;
+    }
+
+    private void OnAnchoredSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not MenuItem item || item.Template.FindName("PART_Popup", item) is not System.Windows.Controls.Primitives.Popup popup) return;
+        popup.MaxWidth = Math.Max(120, ActualWidth - 16);
+        popup.MaxHeight = Math.Max(120, ActualHeight - 16);
+        popup.PlacementTarget = item;
+        popup.CustomPopupPlacementCallback = (size, targetSize, _) =>
+        {
+            var origin = PointFromScreen(item.PointToScreen(new Point(0, 0)));
+            var x = origin.X + targetSize.Width - 2;
+            if (x + size.Width > ActualWidth - 8) x = origin.X - size.Width + 2;
+            x = Math.Clamp(x, 8, Math.Max(8, ActualWidth - size.Width - 8));
+            var y = Math.Clamp(origin.Y - 5, 8, Math.Max(8, ActualHeight - size.Height - 8));
+            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
+        };
+        popup.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
     }
 
     private void ViewMenu_Click(object sender, RoutedEventArgs e)

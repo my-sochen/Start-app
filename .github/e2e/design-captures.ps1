@@ -58,13 +58,23 @@ try {
   }
   Start-Sleep -Seconds 2
   Capture 'home-mock-size' 1224 786
+  InvokeNamed 'Maximize window'
+  InvokeNamed 'Restore window'
+  Capture 'home-caption-restored' 1224 786
   InvokeNamed 'Options menu'
   Capture 'options-mock-size' 1224 786
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   Capture 'home-900x560' 900 560
   InvokeNamed 'View menu'
   Capture 'view-menu-900x560' 900 560
-  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  $filter = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'סינון')))
+  $filter.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+  Start-Sleep -Milliseconds 350
+  $colorMenu = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'לפי צבע')))
+  $colorMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+  Start-Sleep -Milliseconds 350
+  Capture 'view-color-flyouts-900x560' 900 560
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}{ESC}{ESC}')
   InvokeNamed 'New workspace button'
   Capture 'create-empty-mock-size' 1224 786
   $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))

@@ -194,15 +194,15 @@
         <!-- App identity and tabs at left; caption controls at right. -->
         <Border Grid.Row="0" Background="#E9ECF2" BorderBrush="#E2E6EC" BorderThickness="0,0,0,1">
             <Grid>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button Content="&#xE921;" FontFamily="Segoe MDL2 Assets" Width="46" Style="{StaticResource TitleBarTab}" Click="MinimizeWindow_Click" AutomationProperties.Name="Minimize window"/>
-                <Button x:Name="MaximizeWindowButton" Content="&#xE922;" FontFamily="Segoe MDL2 Assets" Width="46" Style="{StaticResource TitleBarTab}" Click="ToggleMaximizeWindow_Click" AutomationProperties.Name="Maximize window"/>
-                <Button Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" Width="46" Style="{StaticResource TitleBarTab}" Click="CloseWindow_Click" AutomationProperties.Name="Close window"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,14,0" WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button Content="−" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" Click="MinimizeWindow_Click" AutomationProperties.Name="Minimize window"/>
+                <Button x:Name="MaximizeWindowButton" Content="□" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" Click="ToggleMaximizeWindow_Click" AutomationProperties.Name="Maximize window"/>
+                <Button Content="×" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" Click="CloseWindow_Click" AutomationProperties.Name="Close window"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left" Margin="0,0,138,0">
+            <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left" Margin="0,0,170,0">
                 <Image Source="Assets/start-app-ufo.png" Width="25" Height="25" Margin="14,0,9,0" VerticalAlignment="Center"/>
                 <TextBlock Text="Start-app" FontWeight="Normal" FontSize="13" VerticalAlignment="Center"/>
-                <Border Width="1" Height="18" Background="#C6CCD8" Margin="20,0,22,0" VerticalAlignment="Center"/>
+                <Border Width="1" Height="18" Background="#C6CCD8" Margin="20,0,12,0" VerticalAlignment="Center"/>
                 <Button Content="אופציות" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Options menu"/>
@@ -260,11 +260,12 @@
                     </StackPanel>
                     <Border HorizontalAlignment="Right" Width="340" Background="White" BorderBrush="#C5CDDB" BorderThickness="1" CornerRadius="4" Padding="14,10">
                         <Grid>
-                            <TextBlock Text="חיפוש סביבות עבודה" Foreground="#8A94A3" FontSize="13" IsHitTestVisible="False"
+                            <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#626B79" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                            <TextBlock Text="חיפוש סביבות עבודה" Foreground="#626B79" FontSize="13" IsHitTestVisible="False" Margin="0,0,20,0"
                                        HorizontalAlignment="Right" VerticalAlignment="Center"
                                        Visibility="{Binding Text, ElementName=WorkspaceSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
                             <TextBox x:Name="WorkspaceSearchBox" Text="{Binding FilterContainsText, UpdateSourceTrigger=PropertyChanged}"
-                                     BorderThickness="0" Background="Transparent" FontSize="13" FlowDirection="RightToLeft"
+                                     BorderThickness="0" Background="Transparent" FontSize="13" FlowDirection="RightToLeft" Margin="0,0,20,0"
                                      AutomationProperties.Name="Workspace search"/>
                         </Grid>
                     </Border>
