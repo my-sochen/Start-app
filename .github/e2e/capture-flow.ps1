@@ -710,8 +710,10 @@ try {
   Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
   $btns = @(StagedActionBtns)
   [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
-  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
-  Assert 'העתק כתובת on a staged row reports the copy' ([System.Windows.Forms.Clipboard]::GetText().Length -gt 0) ((Texts) -join ' | ')
+  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address')
+  # clipboard read races on a loaded runner: poll up to 5s, and GetText itself can throw while the clipboard is held
+  $clipLen = 0; for ($ci = 0; $ci -lt 10 -and $clipLen -le 0; $ci++) { Start-Sleep -Milliseconds 500; try { $clipLen = [System.Windows.Forms.Clipboard]::GetText().Length } catch { $clipLen = 0 } }
+  Assert 'העתק כתובת on a staged row reports the copy' ($clipLen -gt 0) ((Texts) -join ' | ')
   $btns = @(StagedActionBtns)
   [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
