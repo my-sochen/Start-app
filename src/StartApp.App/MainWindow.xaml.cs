@@ -82,7 +82,14 @@ public partial class MainWindow : Window
                 WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
         }
     }
-    private void OnFocusAddRequested() => TargetBox.Focus();
+    private void OnFocusAddRequested()
+    {
+        DetailsAddForm.Visibility = Visibility.Visible;
+        DetailsAddForm.UpdateLayout();
+        TargetBox.BringIntoView();
+        TargetBox.Focus();
+    }
+    private void ShowDetailsAddForm_Click(object sender, RoutedEventArgs e) => OnFocusAddRequested();
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
     private void OnAppCloseApproved() { _closeApproved = true; Close(); }
     private void OnPickImageRequested()

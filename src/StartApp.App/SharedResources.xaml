@@ -186,4 +186,35 @@
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Padding" Value="0"/>
     </Style>
+
+<Style x:Key="DetailsInput" TargetType="TextBox">
+   <Setter Property="FontSize" Value="15"/><Setter Property="Foreground" Value="#263243"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CBD2DF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="38"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox">
+    <Border x:Name="FieldBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="0">
+     <ScrollViewer x:Name="PART_ContentHost"/>
+    </Border>
+    <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FieldBorder" Property="BorderBrush" Value="#315CC5"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+<Style x:Key="DetailsCombo" TargetType="ComboBox">
+   <Setter Property="MinHeight" Value="38"/><Setter Property="FontSize" Value="15"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
+    <Grid>
+     <ToggleButton Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+      <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="White" BorderBrush="#CBD2DF" BorderThickness="1" CornerRadius="4"/></ControlTemplate></ToggleButton.Template>
+     </ToggleButton>
+     <Grid IsHitTestVisible="False" FlowDirection="LeftToRight">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="⌄" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#263243"/>
+      <ContentPresenter Grid.Column="1" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,8" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+     </Grid>
+     <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+      <Border Background="White" BorderBrush="#CBD2DF" BorderThickness="1" CornerRadius="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+       <ScrollViewer MaxHeight="220"><ItemsPresenter/></ScrollViewer>
+      </Border>
+     </Popup>
+    </Grid>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+<Style x:Key="DetailsLabel" TargetType="TextBlock"><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#505C6D"/><Setter Property="Margin" Value="0,0,0,6"/></Style>
 </ResourceDictionary>

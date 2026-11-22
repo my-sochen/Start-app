@@ -105,9 +105,13 @@ public partial class MainWindow
             types.Items.Add(typeItem);
         }
         filter.Items.Add(types);
-        var containsBox = new TextBox { MinWidth = 140, Text = vm.FilterContainsText };
+        var containsBox = new TextBox { Width = 104, Height = 28, Text = vm.FilterContainsText, Padding = new Thickness(8, 3, 8, 3), BorderBrush = System.Windows.Media.Brushes.LightSteelBlue, BorderThickness = new Thickness(1), FlowDirection = FlowDirection.LeftToRight, VerticalContentAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(containsBox, "מכיל...");
         containsBox.TextChanged += (_, _) => vm.FilterContainsText = containsBox.Text;
-        filter.Items.Add(new MenuItem { Header = containsBox, StaysOpenOnClick = true, ToolTip = "מכיל..." });
+        var containsRow = new StackPanel { Orientation = Orientation.Horizontal };
+        containsRow.Children.Add(new TextBlock { Text = "מכיל...", Width = 54, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+        containsRow.Children.Add(containsBox);
+        filter.Items.Add(new MenuItem { Header = containsRow, StaysOpenOnClick = true, ToolTip = "מכיל..." });
         menu.Items.Add(filter);
 
         var template = new MenuItem { Header = "תבנית תצוגה" };

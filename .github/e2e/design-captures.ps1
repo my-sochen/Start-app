@@ -26,7 +26,20 @@ for ($i = 0; $i -lt 6; $i++) {
   $members = if ($i -eq 5) { @() } else { @(@{ itemId = 'demo-link'; id = "demo-member-$i" }) }
   $workspaces += @{ id = "demo-$i"; name = $names[$i]; category = 'כללי'; color = $colors[$i]; createdAt = '2026-11-17T12:00:00Z'; items = @($members) }
 }
-@{ schemaVersion = 5; items = @{ 'demo-link' = @{ id = 'demo-link'; type = 'link'; name = 'אתר לדוגמה'; target = 'https://example.com/' } }; workspaces = @($workspaces); defaultWorkspaceId = 'demo-0' } | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $storeDir 'store.json') -Encoding utf8
+$catalogue = @{ 'demo-link' = @{ id = 'demo-link'; type = 'link'; name = 'אתר לדוגמה'; target = 'https://example.com/' } }
+$detailItems = @(
+  @{ id='detail-docs'; type='link'; name='תיעוד הפרויקט'; target='https://example.com/docs' },
+  @{ id='detail-code'; type='link'; name='מאגר קוד לדוגמה'; target='https://example.com/repository' },
+  @{ id='detail-board'; type='link'; name='לוח משימות'; target='https://example.com/board' },
+  @{ id='detail-editor'; type='program'; name='עורך טקסט'; target='C:\Windows\notepad.exe' },
+  @{ id='detail-terminal'; type='program'; name='Terminal'; target='C:\Windows\System32\cmd.exe' },
+  @{ id='detail-folder'; type='folder'; name='תיקיית הפרויקט'; target='C:\Projects\Sample' }
+)
+$detailMembers = @()
+foreach ($item in $detailItems) { $catalogue[$item.id] = $item; $detailMembers += @{ itemId=$item.id; id=('member-'+$item.id) } }
+$workspaces[0].items = @($detailMembers)
+$workspaces[0].category = 'תכנות'
+@{ schemaVersion = 5; items = $catalogue; workspaces = @($workspaces); customCategories = @('תכנות'); defaultWorkspaceId = 'demo-0' } | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $storeDir 'store.json') -Encoding utf8
 $exe = Get-ChildItem src/StartApp.App/bin/Release -Recurse -Filter StartApp.App.exe | Select-Object -First 1
 $p = Start-Process $exe.FullName -PassThru
 try {
@@ -79,6 +92,21 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   Start-Sleep -Milliseconds 500
   $win = $a::FromHandle($p.MainWindowHandle)
+  InvokeNamed 'פיתוח'
+  Capture 'details-default-mock-size' 1224 786
+  $nameInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
+  $nameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פיתוח לפרויקט')
+  $descriptionInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace description')))
+  $descriptionInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('כל מה שצריך כדי לחזור לפרויקט')
+  Capture 'details-dirty-mock-size' 1224 786
+  InvokeNamed 'Back to workspaces'
+  Capture 'details-unsaved-dialog' 1224 786
+  InvokeNamed 'Back to editing'
+  InvokeNamed 'Save workspace details'
+  InvokeNamed 'Edit item'
+  Capture 'details-item-editor' 1224 786
+  InvokeNamed 'Cancel item edit'
+  InvokeNamed 'Back to workspaces'
   InvokeNamed 'New workspace button'
   Capture 'create-empty-mock-size' 1224 786
   $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
