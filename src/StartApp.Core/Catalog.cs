@@ -282,6 +282,7 @@ public sealed class Catalog
     public void DeleteWorkspace(string workspaceId)
     {
         _s.Workspaces.Remove(Ws(workspaceId));
+        if (_s.DefaultWorkspaceId == workspaceId) _s.DefaultWorkspaceId = null; // no dangling סביבת ברירת מחדל
         RemoveOrphans();
     }
 
