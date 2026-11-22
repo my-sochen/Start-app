@@ -21,8 +21,8 @@ public class MenuBindingSourceTests
     [Fact] public void ContextMenu_bindings_reach_the_view_model_through_the_button_Tag()
     {
         var xaml = Xaml();
-        var menus = Regex.Matches(xaml, "<ContextMenu>.*?</ContextMenu>", RegexOptions.Singleline);
-        Assert.Equal(4, menus.Count); // workspace card menu + item actions menu + staged capture item menu + capture dropdown
+        var menus = Regex.Matches(xaml, "<ContextMenu(?:\\s[^>]*)?>.*?</ContextMenu>", RegexOptions.Singleline);
+        Assert.Equal(4, menus.Count); // shared workspace actions menu resource (card/list/icons templates) + item actions menu + staged capture item menu + capture dropdown
         foreach (Match m in menus)
         {
             Assert.DoesNotContain("AncestorType=Window", m.Value);
@@ -48,7 +48,7 @@ public class MenuBindingSourceTests
     [Fact] public void Contextual_actions_replace_ellipsis_and_item_editor_is_row_local()
     {
         var xaml=Xaml(); Assert.DoesNotContain("Content=\"⋯\"",xaml);
-        Assert.Equal(3,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count);
+        Assert.Equal(5,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count); // card + list + icons workspace templates + item row + staged item row
         var start=xaml.IndexOf("<ListView.ItemTemplate>",StringComparison.Ordinal);
         var end=xaml.IndexOf("</ListView.ItemTemplate>",start,StringComparison.Ordinal);
         var row=xaml.Substring(start,end-start);
