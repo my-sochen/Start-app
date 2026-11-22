@@ -300,11 +300,11 @@ try {
   InvokeNamed 'Cancel item edit'
   $programName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
   if (!$programName) { throw 'Software details name was not found' }
-  $programBounds = $programName.Current.BoundingRectangle
-  $programCenterY = $programBounds.Y + $programBounds.Height / 2
-  $programEdit = $win.FindAll($ts, (New-Object $pc($a::NameProperty, 'Edit item'))) | Where-Object { $b = $_.Current.BoundingRectangle; !$_.Current.IsOffscreen -and [Math]::Abs(($b.Y + $b.Height / 2) - $programCenterY) -lt 24 } | Select-Object -First 1
-  if (!$programEdit) { throw 'Software details edit action was not found' }
-  $programEdit.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  # Use the environment row's context menu too: its edit must stay local even for a shared item.
+  $programName.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  (RootNamed 'ערוך').SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Capture 'details-program-item-editor' 1280 880
   InvokeNamed 'Cancel item edit'
   InvokeNamed 'שגר'

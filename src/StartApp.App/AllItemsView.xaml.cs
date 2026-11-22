@@ -46,6 +46,11 @@ public partial class MainWindow
         menu.Items.Add(ActionItem("העתק כתובת", () => Clipboard.SetText(row.Target)));
         void Act(string action)
         {
+            if (action == "edit" && detail is not null)
+            {
+                if (vm.EditItemCommand.CanExecute(detail)) vm.EditItemCommand.Execute(detail);
+                return;
+            }
             var workspaces = vm.ItemActionWorkspaces(row, action == "share");
             if (workspaces.Count == 0) return;
             IReadOnlyList<string> ids = workspaces.Select(w => w.Id).ToArray();
