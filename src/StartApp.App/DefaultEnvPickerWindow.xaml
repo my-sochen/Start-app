@@ -8,8 +8,8 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
     </Window.Resources>
-    <!-- Immediate row selection with current-choice circles; the close button leaves the default unchanged. -->
-    <Border Background="White" CornerRadius="10" Padding="26,18,26,20" BorderBrush="#C9D0DC" BorderThickness="1">
+    <!-- Immediate row selection; the close button leaves the default unchanged. -->
+    <Border Background="White" CornerRadius="10" Padding="26,28,26,40" BorderBrush="#C9D0DC" BorderThickness="1">
         <Border.Effect><DropShadowEffect BlurRadius="34" ShadowDepth="12" Direction="270" Opacity="0.18" Color="#1A2436"/></Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
@@ -17,15 +17,17 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <DockPanel Grid.Row="0" Margin="0,0,0,16">
                 <Button DockPanel.Dock="Left" Content="✕" Click="Cancel_Click" Background="Transparent" BorderThickness="0"
                         Foreground="#626B79" FontSize="13" Padding="4,1" Cursor="Hand" AutomationProperties.Name="Close default workspace picker"/>
                 <TextBlock Text="אופציות · הגדר סביבה כברירת מחדל" FontSize="12" Foreground="#636E7D" HorizontalAlignment="Right"/>
             </DockPanel>
 
             <TextBlock Grid.Row="1" Text="בחירת סביבת ברירת מחדל" FontSize="22" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right"/>
-            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#626B79"
-                       Text="הסביבה שנבחרה תסומן בתג הירוק במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/>
+            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#626B79" LineHeight="24">
+                <Run Text="הסביבה שנבחרה תסומן בנקודה הירוקה במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/><LineBreak/>
+                <Run Text="לחיצה על שורה בוחרת וסוגרת את החלון."/>
+            </TextBlock>
 
             <ListBox Grid.Row="3" x:Name="Rows" BorderThickness="0" Background="Transparent"
                      SelectionMode="Single" PreviewMouseLeftButtonUp="Rows_MouseLeftButtonUp" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="458">
@@ -42,6 +44,7 @@
                                         <ContentPresenter/>
                                     </Border>
                                     <ControlTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsLast}" Value="True"><Setter TargetName="Row" Property="BorderThickness" Value="0"/></DataTrigger>
                                         <Trigger Property="IsMouseOver" Value="True">
                                             <Setter TargetName="Row" Property="Background" Value="#F6F9FF"/>
                                         </Trigger>
@@ -54,34 +57,7 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <DockPanel VerticalAlignment="Center"><DockPanel.Style><Style TargetType="DockPanel"><Setter Property="Margin" Value="2,13"/><Style.Triggers><DataTrigger Binding="{Binding WorkspaceId}" Value="{x:Null}"><Setter Property="Height" Value="46"/><Setter Property="Margin" Value="2,0"/></DataTrigger></Style.Triggers></Style></DockPanel.Style>
-                            <!-- radio circle on the left edge: empty ring; when the row is selected it fills blue with a ✓ -->
-                            <Border DockPanel.Dock="Right" Width="18" Height="18" CornerRadius="9" VerticalAlignment="Center" Margin="0,0,0,0"
-                                    BorderThickness="1.5">
-                                <Border.Style>
-                                    <Style TargetType="Border"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#C5CAD4"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                                <Setter Property="Background" Value="#315CC5"/>
-                                                <Setter Property="BorderBrush" Value="#315CC5"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Text="✓" Foreground="White" FontSize="11" FontWeight="Bold"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Border>
-                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <DockPanel HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#222833" VerticalAlignment="Center"/>
                                     <Ellipse Width="11" Height="11" Margin="8,0,0,0" VerticalAlignment="Center"

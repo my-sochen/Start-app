@@ -228,7 +228,7 @@
      <Grid IsHitTestVisible="False" FlowDirection="LeftToRight">
       <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <TextBlock Text="⌄" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#263243"/>
-      <ContentPresenter Grid.Column="1" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+      <ContentPresenter Grid.Column="1" FlowDirection="{TemplateBinding FlowDirection}" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
      </Grid>
      <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
       <Border Background="White" BorderBrush="#CBD2DF" BorderThickness="1" CornerRadius="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">

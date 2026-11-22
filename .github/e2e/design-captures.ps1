@@ -90,8 +90,18 @@ try {
     $button = $win.FindFirst($ts, $visible)
     if (!$button) { throw "Missing visible app control: $name" }
     if ($name -in @('Options menu', 'Toggle default workspace')) {
-      try { $point = $button.GetClickablePoint() }
-      catch { throw "Cannot mouse-click visible app control '$name': $_" }
+      $point = [System.Windows.Point]::new()
+      $clickable = $false
+      for ($attempt = 0; $attempt -lt 20 -and !$clickable; $attempt++) {
+        $clickable = $button.TryGetClickablePoint([ref]$point)
+        if (!$clickable) { Start-Sleep -Milliseconds 100 }
+      }
+      if (!$clickable) {
+        $bounds = $button.Current.BoundingRectangle
+        if ($bounds.Width -le 0 -or $bounds.Height -le 0) { throw "Visible app control has empty bounds: $name" }
+        $point = [System.Windows.Point]::new($bounds.X + $bounds.Width / 2, $bounds.Y + $bounds.Height / 2)
+        Write-Host "Using visible control bounds for mouse click: $name ($bounds)"
+      }
       [void][DesignWindow]::SetCursorPos([int]$point.X, [int]$point.Y)
       [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
       [DesignWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
