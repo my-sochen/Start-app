@@ -199,12 +199,13 @@ public partial class MainWindow : Window
         var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight > 0 ? host.ActualHeight : 32), 8, Math.Max(8, ActualHeight - 8));
         menu.MaxHeight = Math.Max(0, ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, ActualWidth - 16);
-        // ContextMenuService overrides PlacementTarget/Placement AFTER this event for keyboard and mouse
-        // opens, so nothing set here alone sticks. Handle the event and open the menu ourselves (approved
-        // 22.11: anchored at the source, never overflowing the window) - same pattern as the dropdowns.
-        e.Handled = true;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-        menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+        // ContextMenuService overrides PlacementTarget/Placement for keyboard and mouse opens, and for the
+        // keyboard route e.Handled here does not cancel its open (measured 22.11: identical placement with
+        // and without handling). So let whoever opened it finish, then re-place on the next dispatcher tick:
+        // reopening with our anchored clamped Custom placement wins regardless of the open path (approved
+        // 22.11: anchored at the source, never overflowing the window).
+        var capturedMenu = menu;
+        var capturedCallback = (System.Windows.Controls.Primitives.CustomPopupPlacementCallback)((popupSize, targetSize, _) =>
         {
             var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
             var y = anchorY + popupSize.Height <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - popupSize.Height);
@@ -214,7 +215,15 @@ public partial class MainWindow : Window
             if (y > maxY) y = maxY;
             return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
                 System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-        };
-        menu.IsOpen = true;
+        });
+        capturedMenu.Dispatcher.BeginInvoke(new System.Action(() =>
+        {
+            if (!capturedMenu.IsOpen) return;
+            capturedMenu.PlacementTarget = host;
+            capturedMenu.CustomPopupPlacementCallback = capturedCallback;
+            capturedMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
+            capturedMenu.IsOpen = false;
+            capturedMenu.IsOpen = true;
+        }), System.Windows.Threading.DispatcherPriority.Input);
     }
 }
