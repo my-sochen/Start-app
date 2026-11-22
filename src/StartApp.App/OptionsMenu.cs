@@ -5,10 +5,7 @@ using StartApp.Presentation;
 
 namespace StartApp.App;
 
-/// <summary>The אופציות menu (approved 21.11 19:11:13, eight rows in the owner's exact order): סביבה חדשה,
-/// לכידה ▸ (סביבה קיימת / סביבה חדשה), הגדר סביבה כברירת מחדל (opens the approved radio picker), רשימה לבנה,
-/// רשימה שחורה, רשימת אייטמים כללית (all three land on the סביבה גלובלית tab, pending the noted merge decision),
-/// תוצאות פתיחה אחרונה (design-only until its screen exists) and יציאה.</summary>
+/// <summary>Workspace creation, capture, default selection, global environment and exit.</summary>
 public partial class MainWindow
 {
     private void OptionsMenu_Click(object sender, RoutedEventArgs e)
@@ -24,11 +21,10 @@ public partial class MainWindow
         menu.Items.Add(capture);
 
         menu.Items.Add(ActionItem("הגדר סביבה כברירת מחדל", () => OpenDefaultEnvPicker(vm)));
-        menu.Items.Add(CommandItem("רשימה לבנה", vm.OpenGlobalEnvCommand));
-        menu.Items.Add(CommandItem("רשימה שחורה", vm.OpenGlobalEnvCommand));
-        menu.Items.Add(CommandItem("רשימת אייטמים כללית", vm.OpenGlobalEnvCommand));
+        menu.Items.Add(CommandItem("סביבה גלובלית", vm.OpenGlobalEnvCommand));
         // Design-only until the results screen exists (designer note 21.11 19:14: the new-feature rows are placeholders).
         menu.Items.Add(new MenuItem { Header = "תוצאות פתיחה אחרונה", IsEnabled = false });
+        menu.Items.Add(new Separator());
         menu.Items.Add(ActionItem("יציאה", Close));
 
         menu.IsOpen = true;

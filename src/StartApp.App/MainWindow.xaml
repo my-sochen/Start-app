@@ -180,7 +180,7 @@
         <local:DetailsGroupConverter x:Key="DetailsGroup"/>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
             <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="Group"/>
+                <PropertyGroupDescription PropertyName="Group"><PropertyGroupDescription.CustomSort><local:DetailsGroupComparer/></PropertyGroupDescription.CustomSort></PropertyGroupDescription>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
     </Window.Resources>
@@ -228,7 +228,12 @@
         <Border Grid.Row="3" Height="37" Padding="18,8" Background="#EEF1F6" BorderBrush="#DCE0E7" BorderThickness="0,1,0,0"
                 Visibility="{Binding InCreate, Converter={StaticResource NotB2V}}">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Text="לחיצה ימנית לפעולות נוספות · Shift+F10 מקלדת" FontSize="11" Foreground="#566173" VerticalAlignment="Center"/>
+                <TextBlock DockPanel.Dock="Right" FontSize="11" Foreground="#566173" VerticalAlignment="Center" FlowDirection="RightToLeft">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="לחיצה ימנית לפעולות נוספות · Shift+F10 מקלדת"/><Style.Triggers>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבת ברירת מחדל: נקודה ירוקה ליד השם + כפתור ביטול · כשאין ברירת מחדל הכפתור הוא &quot;הגדר כברירת מחדל&quot;"/></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבה שאינה ברירת מחדל: בלי נקודה ירוקה · הכפתור מגדיר אותה כברירת מחדל ומחליף את הקיימת"/></MultiDataTrigger>
+                    </Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
                 <Button DockPanel.Dock="Left" Content="פתח הורדה רשמית" Command="{Binding Updates.DownloadCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2"
                         Visibility="{Binding Updates.UpdateAvailable, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource B2V}}" AutomationProperties.Name="Open official download"/>
                 <TextBlock Text="הצעת עיצוב לבטא" FontSize="11" Foreground="#566173" VerticalAlignment="Center"
@@ -336,7 +341,7 @@
                             <Button Content="שגר" Command="{Binding OpenWorkspaceCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="57" Height="38"/>
                             <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinWidth="112" Height="38" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                             <Button Content="חזרה לסביבות" Command="{Binding BackCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="123" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Back to workspaces"/>
-                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace"/>
+                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace"/>
                         </StackPanel>
                         <StackPanel HorizontalAlignment="Right" FlowDirection="RightToLeft">
                             <StackPanel Orientation="Horizontal">
@@ -365,7 +370,8 @@
                         </Grid>
                     </Border>
                 </StackPanel>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" AutomationProperties.Name="Workspace details viewport" FlowDirection="RightToLeft">
+                <ScrollViewer VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" AutomationProperties.Name="Workspace details viewport" FlowDirection="RightToLeft" Margin="0,5,0,0">
+                    <ScrollViewer.Resources><Style TargetType="ScrollBar"><Setter Property="Width" Value="8"/><Setter Property="Background" Value="#EEF1F6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton><Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="2" Background="#ABB8CE"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter></Style></ScrollViewer.Resources>
                 <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
                     <DockPanel>
@@ -454,28 +460,27 @@
                                 </Button>
                                 <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" FontFamily="Arial" FontSize="12" Foreground="#606D80" Margin="12,0" VerticalAlignment="Center" FlowDirection="LeftToRight"/>
                                 <Button Grid.Column="3" Content="ערוך" Click="EditItem_Click" AutomationProperties.Name="Edit item" Style="{StaticResource HomeToolbarButton}" Height="38" VerticalAlignment="Center" ToolTip="עריכת האייטם, ללא פתיחה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                <Border Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,0" BorderBrush="Gray" BorderThickness="1" Padding="6"
-                        >
+                <Border Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,12" BorderBrush="#DCE1E9" BorderThickness="1" Background="#F7F8FB" CornerRadius="4" Padding="14">
                     <Border.Visibility><MultiBinding Converter="{StaticResource ItemEditorVisibility}"><Binding Path="InstanceId"/><Binding Path="DataContext.EditingItemInstanceId" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></Border.Visibility>
                     <StackPanel DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" FlowDirection="RightToLeft">
-                        <TextBlock Text="עריכת אייטם" FontWeight="SemiBold"/>
+                        <TextBlock Text="עריכת אייטם" FontSize="15" Foreground="#222833" FontWeight="SemiBold" Margin="0,0,0,8"/>
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="שם" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item name"/>
+                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Edit item name"/>
                         </DockPanel>
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="תיאור" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
+                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
                         </DockPanel>
                         <DockPanel Margin="0,4,0,0">
                             <TextBlock DockPanel.Dock="Left" Text="כתובת" Width="80" VerticalAlignment="Center"/>
-                            <TextBox FlowDirection="LeftToRight" Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Edit item target"/>
+                            <TextBox FlowDirection="LeftToRight" Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Edit item target"/>
                         </DockPanel>
                     <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Padding="12,2" Margin="0,0,6,0"
+                            <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Style="{StaticResource PrimaryActionButton}" MinHeight="38" Padding="16,8" Margin="0,0,6,0"
                                     Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
-                            <Button Content="ביטול" AutomationProperties.Name="Cancel item edit" Command="{Binding CancelItemEditCommand}" Padding="12,2"/>
+                            <Button Content="ביטול" AutomationProperties.Name="Cancel item edit" Command="{Binding CancelItemEditCommand}" Style="{StaticResource HomeToolbarButton}" MinHeight="38" Padding="16,8"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

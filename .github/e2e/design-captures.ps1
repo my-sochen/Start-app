@@ -99,6 +99,9 @@ try {
   $win = $a::FromHandle($p.MainWindowHandle)
   InvokeNamed 'פיתוח'
   Capture 'details-default-mock-size' 1224 786
+  InvokeNamed 'Toggle default workspace'
+  Capture 'details-nondefault-mock-size' 1224 786
+  InvokeNamed 'Toggle default workspace'
   $nameInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
   $nameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פיתוח לפרויקט')
   $descriptionInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace description')))
