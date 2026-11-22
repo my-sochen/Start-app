@@ -96,3 +96,37 @@ public sealed class UpdateTests
     }
 
 }
+
+public sealed class UpdateSettingsDisplayTests
+{
+    private const string Commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string Hash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    private sealed class Source(Func<CancellationToken, Task<ApprovedUpdate?>> read) : IApprovedUpdateSource
+    { public Task<ApprovedUpdate?> ReadAsync(CancellationToken token) => read(token); }
+    private static Source Candidate(string version) => new(_ => Task.FromResult<ApprovedUpdate?>(new(version, Commit, Hash)));
+
+    [Fact] public async Task Settings_values_track_completed_checks()
+    {
+        var now = new DateTime(2026, 11, 22, 9, 12, 0);
+        using var vm = new UpdateViewModel(Candidate("1.0.1"), "1.0.0", _ => { }, clock: () => now);
+        Assert.Equal("טרם נבדק בהפעלה זו", vm.LastCheckedDisplay);
+        Assert.Equal("1.0.0", vm.VersionValueDisplay);
+        Assert.Equal("", vm.OfferedVersionDisplay);
+        await vm.CheckAsync();
+        Assert.True(vm.UpdateAvailable);
+        Assert.Equal("נבדק לאחרונה: היום, 09:12", vm.LastCheckedDisplay);
+        Assert.Equal("קיימת גרסה חדשה: 1.0.1", vm.OfferedVersionDisplay);
+    }
+
+    [Fact] public async Task Beta_values_carry_the_beta_tag_and_failed_checks_keep_the_clock()
+    {
+        var now = new DateTime(2026, 11, 22, 9, 12, 0);
+        using var vm = new UpdateViewModel(Candidate("0.9.1-beta.1"), "0.9.0-beta.2", _ => { }, clock: () => now);
+        Assert.Equal("0.9.0-beta.2 (בטא)", vm.VersionValueDisplay);
+        await vm.CheckAsync();
+        Assert.Equal("קיימת גרסה חדשה: 0.9.1-beta.1 (בטא)", vm.OfferedVersionDisplay);
+        using var failing = new UpdateViewModel(new Source(_ => throw new System.Net.Http.HttpRequestException("synthetic")), "1.0.0", _ => { }, clock: () => now);
+        await failing.CheckAsync();
+        Assert.Equal("טרם נבדק בהפעלה זו", failing.LastCheckedDisplay);
+    }
+}
