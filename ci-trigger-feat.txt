@@ -1,2 +1,1 @@
-v47 locale-resilience+chrome-check 2026-11-13 14:52 IST
-v48 ui-capture rerun for Run.Text OneWay head 2026-11-22 12:05 IST
+2026-11-22T14:18 popup-anchor + oracle-convergence run
