@@ -278,10 +278,12 @@ try {
   }
   Info 'details viewport scroll before the first-row menu' $scrollDiag
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-  $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
-  Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
+  $ifound = @('פתח','מחק','ערוך','הוסף לסביבה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  Assert 'item menu offers the current nine actions' (@($ifound).Count -eq 9) ("found: $($ifound -join ', ')")
   MenuInsideWindow 'first-row item menu'
-  Assert 'full edit action is offered directly on the item row' ($null -ne (Btn 'Edit item')) ''
+  Assert 'full edit action is offered directly and in the item menu' ($null -ne (Btn 'Edit item') -and $null -ne (MenuItemByName 'ערוך')) ''
+  $shareMi = MenuItemByName 'הוסף לסביבה'
+  Assert 'share cannot target a nonexistent other workspace' ($null -ne $shareMi -and -not $shareMi.Current.IsEnabled) ''
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
   $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
   $eName = $null; for ($t=0; $t -lt 40 -and -not $eName; $t++) { $eName = NamedEdit 'Edit item name'; if (-not $eName) { Start-Sleep -Milliseconds 100 } }; Assert 'item edit form opened' ($null -ne $eName) ''
@@ -319,8 +321,8 @@ try {
   # icon + name display (settled Nov 14): the row shows the program icon and a short name; the full path stays in the
   # tooltip. A plain StackPanel has no UIA peer, so the accessible contract is the exposed TextBlock: content = UIA
   # name, AutomationProperties.HelpText = full path; the icon is the Image sibling under the same parent panel.
-  Assert 'opens-with shows the short name, not the path' (WaitText 'Notepad' 10) ((Texts) -join ' | ')
-  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Notepad')))
+  Assert 'opens-with shows the short name, not the path' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: Notepad')))
   Assert 'opens-with tooltip keeps the full path' ($null -ne $owTb -and $owTb.Current.HelpText -like '*notepad.exe*') ("help=$(if ($owTb) { $owTb.Current.HelpText } else { 'no-element' })")
   $owImg = $null; if ($owTb) { $owP = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($owTb); if ($owP) { $owImg = $owP.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) } }
   Assert 'opens-with icon element present next to the name' ($null -ne $owImg) ''
@@ -349,7 +351,7 @@ try {
   Start-Sleep -Milliseconds 500
   try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
   Start-Sleep -Milliseconds 300
-  Assert 'icon + name back after the restore' (WaitText 'Notepad' 10) ((Texts) -join ' | ')
+  Assert 'icon + name back after the restore' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
   Shot 'open-with-restored'
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'
@@ -2728,7 +2730,7 @@ public static class WinCap {
   $miBtns = @($win.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item'))))))
   Assert 'item rows present for the menu placement check' ($miBtns.Count -gt 0) "count=$($miBtns.Count)"
   if ($miBtns.Count -gt 0) { [void](OpenContextEl $miBtns[$miBtns.Count - 1]); Start-Sleep -Milliseconds 900
-    Assert 'last-row item menu opened' ($null -ne (MenuItemByName 'מחיקה')) ''
+    Assert 'last-row item menu opened' ($null -ne (MenuItemByName 'מחק')) ''
     MenuInsideWindow 'last-row item menu'
     $mEl = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu)))
     $wrM = $win.Current.BoundingRectangle
@@ -2782,8 +2784,13 @@ public static class WinCap {
   }
   Assert 'Item actions button resolved inside the ok.txt row' ($null -ne $rowBtn) ''
   [void](OpenContextEl $rowBtn); Start-Sleep -Milliseconds 900
-  $delMi = MenuItemByName 'מחיקה'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
-  [void](InvokeEl $delMi 'מחיקה')
+  $delMi = MenuItemByName 'מחק'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
+  [void](InvokeEl $delMi 'delete entry'); Start-Sleep -Milliseconds 600
+  Assert 'delete opens an environment confirmation before mutating' ($null -ne (Btn 'Confirm item workspace choice') -and (StoreObj | ConvertTo-Json -Depth 30 -Compress) -ceq ($o | ConvertTo-Json -Depth 30 -Compress)) ''
+  $envChoices = @(UiaAll $CT::ListItem | Where-Object { $_.Current.Name -eq 'E2E four groups' })
+  Assert 'delete picker identifies exactly the intended environment' ($envChoices.Count -eq 1) ("count=$($envChoices.Count)")
+  $envChoices[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+  $c = ClickBtn 'Confirm item workspace choice' 900; Assert 'delete confirmed for the selected environment only' ($c -eq 'ok') $c
   $gone = $false; $swD = [Diagnostics.Stopwatch]::StartNew(); while ($swD.Elapsed.TotalSeconds -lt 10) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like '*ok.txt*' })) { $gone = $true; break }; Start-Sleep -Milliseconds 300 }
   Assert 'deleted row gone from the list (bounded local disappear check)' $gone ((Texts) -join ' | ')
   Shot 'saved-item-deleted'
