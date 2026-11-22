@@ -207,11 +207,14 @@ public partial class MainWindow : Window
         var capturedMenu = menu;
         var capturedCallback = (System.Windows.Controls.Primitives.CustomPopupPlacementCallback)((popupSize, targetSize, _) =>
         {
+            // popupSize at callback time can under-measure the final rendered height (measured 22.11: 173 vs
+            // a final 187 UIA rect), so flip/clamp against an 18px-padded height - under-flipping overflows.
+            var safeH = popupSize.Height + 18;
             var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
-            var y = anchorY + popupSize.Height <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - popupSize.Height);
+            var y = anchorY + safeH <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - safeH);
             // Never overflow the window bottom (approved 22.11): even a popup taller than the space below
             // AND above the anchor clamps back inside the window.
-            var maxY = Math.Max(8, ActualHeight - 8 - popupSize.Height);
+            var maxY = Math.Max(8, ActualHeight - 8 - safeH);
             if (y > maxY) y = maxY;
             return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
                 System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
