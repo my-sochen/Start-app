@@ -155,6 +155,13 @@ try {
   Capture 'all-items-multi-env-selected' 1280 880
   (RootNamed 'Confirm item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Capture 'all-items-multi-env-edit' 1280 880
+  $batchName = (RootNamed 'Selected item name').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+  $originalBatchName = $batchName.Current.Value
+  $batchName.SetValue($originalBatchName + ' updated')
+  (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'all-items-unsaved-dialog' 1280 880
+  (RootNamed 'Keep selected item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $batchName.SetValue($originalBatchName)
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('אתר לדוגמה')
   $linkName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'אתר לדוגמה')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))

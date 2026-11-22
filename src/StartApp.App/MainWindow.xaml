@@ -870,7 +870,7 @@
             <Border Background="White" Padding="28" CornerRadius="7" Width="560" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}}" HorizontalAlignment="Center" VerticalAlignment="Center" FlowDirection="RightToLeft" KeyboardNavigation.TabNavigation="Cycle">
                 <StackPanel>
                     <DockPanel FlowDirection="LeftToRight" Height="16" Margin="0,0,0,18">
-                        <Button DockPanel.Dock="Left" Content="×" Command="{Binding CloseUnsavedCommand}" Style="{StaticResource QuietTextButton}" FontSize="14" Width="12" AutomationProperties.Name="Back to editing" ToolTip="חזרה לעריכה"/>
+                        <Button x:Name="UnsavedCancelButton" DockPanel.Dock="Left" Content="×" Command="{Binding CloseUnsavedCommand}" Style="{StaticResource QuietTextButton}" FontSize="14" Width="12" AutomationProperties.Name="Back to editing" ToolTip="חזרה לעריכה"/>
                         <TextBlock Text="{Binding UnsavedContextLabel}" FontSize="12" Foreground="#667388" TextAlignment="Right"/>
                     </DockPanel>
                     <TextBlock Text="יש שינויים שלא נשמרו" FontWeight="SemiBold" FontSize="23" Margin="0,0,0,12"/>
@@ -880,7 +880,6 @@
                         <StackPanel Orientation="Horizontal">
                             <Button Content="שמור וצא" Command="{Binding SaveAndExitCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinHeight="38"/>
                             <Button Content="צא בלי לשמור" Command="{Binding ExitWithoutSavingCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="122" MinHeight="38" Margin="8,0,0,0"/>
-                            <Button x:Name="UnsavedCancelButton" Content="ביטול" Command="{Binding CloseUnsavedCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="69" MinHeight="38" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

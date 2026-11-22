@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using StartApp.Presentation;
 namespace StartApp.App;
 public partial class ItemBatchEditWindow : Window
@@ -45,6 +46,14 @@ public partial class ItemBatchEditWindow : Window
         if (targets.Select(t => t.WorkspaceId).Distinct().Count() < 2) Scope.Visibility = ScopeHelp.Visibility = Visibility.Collapsed;
         if (row.Type == "Link") OpenWithPicker.SetWebsiteTarget(OpenWithInput, row.Target);
         NameInput.Text = _name; DescriptionInput.Text = _description; TargetInput.Text = _target; _ready = true;
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            if (OpenWithInput.IsDropDownOpen) { OpenWithInput.IsDropDownOpen = false; return; }
+            if (UnsavedShade.Visibility == Visibility.Visible) { UnsavedShade.Visibility = Visibility.Collapsed; NameInput.Focus(); return; }
+            Close();
+        };
     }
     private bool Dirty => _ready && (NameInput.Text != _name || DescriptionInput.Text != _description || TargetInput.Text != _target || ClearDescription.IsChecked == true || OpenWithPicker.SelectedPath(OpenWithInput) != _program || ClearLaunch.IsChecked == true);
     private void Launch_Changed(object sender, SelectionChangedEventArgs e) { if (_ready) SaveButton.IsEnabled = Dirty; }
@@ -63,7 +72,7 @@ public partial class ItemBatchEditWindow : Window
         _allowClose = true; DialogResult = true;
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
-    private void Window_Closing(object? sender, CancelEventArgs e) { if (!_allowClose && Dirty) { e.Cancel = true; UnsavedShade.Visibility = Visibility.Visible; } }
-    private void KeepEditing_Click(object sender, RoutedEventArgs e) => UnsavedShade.Visibility = Visibility.Collapsed;
+    private void Window_Closing(object? sender, CancelEventArgs e) { if (!_allowClose && Dirty) { e.Cancel = true; UnsavedShade.Visibility = Visibility.Visible; KeepEditingButton.Focus(); } }
+    private void KeepEditing_Click(object sender, RoutedEventArgs e) { UnsavedShade.Visibility = Visibility.Collapsed; NameInput.Focus(); }
     private void Discard_Click(object sender, RoutedEventArgs e) { _allowClose = true; Close(); }
 }
