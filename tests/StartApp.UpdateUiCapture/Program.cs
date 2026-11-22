@@ -55,8 +55,8 @@ internal static class Program
         {
             try
             {
-                // Find the real production update row via its existing view-model type.
-                var row = ((Grid)((Border)window.Content).Child).Children.OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
+                // Update state now lives in SettingsView, not in a home header row.
+                // Keep home captures, and verify each injected state in the actual settings view below.
                 foreach (var width in new[] { 900, 720 })
                 {
                     window.Width = width;
@@ -65,7 +65,7 @@ internal static class Program
                     CaptureSettings(window, window.Updates, output, $"{width}-settings-inactive", width);
                     var opened = new List<string>();
                     using var available = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(Patch)), "1.0.0", uri => opened.Add(uri.AbsoluteUri));
-                    row.DataContext = available;
+
                     await available.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-available");
@@ -85,18 +85,18 @@ internal static class Program
                     beta.DownloadCommand.Execute(null); await beta.CurrentCheck;
                     if (betaOpened.Count != 1 || betaOpened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Beta handoff mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
-                    row.DataContext = failure; await failure.CheckAsync();
+                    await failure.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-failure");
                     CaptureSettings(window, failure, output, $"{width}-settings-failure", width);
                     var gate = new TaskCompletionSource<ApprovedUpdate?>();
                     using var busy = new UpdateViewModel(new SyntheticSource(_ => gate.Task), "1.0.0", _ => throw new Exception("Unexpected browser call"));
-                    row.DataContext = busy; var pending = busy.CheckAsync();
+                    var pending = busy.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-busy");
                     CaptureSettings(window, busy, output, $"{width}-settings-busy", width);
                     gate.SetResult(null); await pending;
-                    row.DataContext = window.Updates;
+
                 }
                 await CaptureCaptureHoverFrames(window, output);
                 await CaptureProductionEventPath(window, output);
@@ -104,7 +104,7 @@ internal static class Program
                 File.WriteAllText(Path.Combine(output, "capture-evidence.json"), JsonSerializer.Serialize(Evidence, new JsonSerializerOptions { WriteIndented = true }));
                 app.Shutdown(0);
             }
-            catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
+            catch (Exception ex) { Console.Error.WriteLine(ex); File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
     }
@@ -251,7 +251,7 @@ internal static class Program
         host.Show(); host.UpdateLayout();
         var buttons = Descendants(host).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
         if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
-        var topBar = ((Grid)((Border)owner.Content).Child).Children.OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
+        var topBar = ((Grid)((Border)owner.Content).Child).Children.OfType<Border>().Single(b => Grid.GetRow(b) == 0);
         if (Descendants(topBar).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
             throw new Exception("Manual check must not remain in main top bar");
         if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == "עדכונים"))

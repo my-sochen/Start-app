@@ -34,7 +34,7 @@ class OverlayRows(unittest.TestCase):
         self.assertIsNotNone(grid)
         rows = grid.find(NS + 'Grid.RowDefinitions')
         self.assertIsNotNone(rows)
-        # approved 22.11 title-bar tabs: 36px tab strip + update strip + content
+        # Title strip, warning strip, content and footer in the redesigned window
         self.assertEqual(['38', 'Auto', '*', 'Auto'], [r.get('Height') for r in rows])
         # Exact identities catch missing, duplicate and unclassified root layers.
         layers = [e for e in grid if e.get('Visibility', '').startswith('{Binding') and e.get('Grid.Row') != '3']
