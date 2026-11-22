@@ -98,7 +98,7 @@ internal static partial class Program
         foreach(var outside in new[]{new Rect(-1,20,10,10),new Rect(91,20,10,10),new Rect(20,-1,10,10),new Rect(20,91,10,10)})Check("geometry rejects real overflow "+outside,!new Rect(0,0,100,100).Contains(outside));
         Check("geometry rejects clipped viewport",!new Rect(-1,-1,102,52).Contains(new Rect(20,40,30,20)));
         Check("geometry rejects nonfinite",NormalizedBounds([new(double.NaN,0),new(10,10)]).IsEmpty);
-        var app=new Application();using var store=new JsonStore(Path.Combine(output,"synthetic","store.json"));
+        var app=new StartApp.App.App();using var store=new JsonStore(Path.Combine(output,"synthetic","store.json"));
         store.Mutate(c=>{
             var ws=c.CreateWorkspace("סביבת בדיקה בעברית עם שם ארוך מאוד שממחיש את פריסת הפעולות");
             foreach(var t in new[]{ItemType.Link,ItemType.Folder,ItemType.File,ItemType.Program}){
