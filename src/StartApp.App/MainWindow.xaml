@@ -39,8 +39,13 @@
 
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
             <DockPanel Margin="8" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
-                <Button DockPanel.Dock="Top" Content="לכידה ▾" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6" AutomationProperties.Name="Capture"
+                <Button DockPanel.Dock="Top" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6" AutomationProperties.Name="Capture"
                         Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <!-- approved beta hover animation: UFO icon animates while the button is hovered, static ship at rest -->
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="20" Height="20" Margin="0,0,6,0"><local:CaptureHoverIcon/></Viewbox>
+                        <TextBlock Text="לכידה ▾" VerticalAlignment="Center"/>
+                    </StackPanel>
                     <Button.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>

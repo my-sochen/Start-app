@@ -96,6 +96,7 @@ internal static class Program
                     gate.SetResult(null); await pending;
                     row.DataContext = window.Updates;
                 }
+                await CaptureCaptureHoverFrames(window, output);
                 await CaptureProductionEventPath(window, output);
                 await CaptureMainNoticeEventPath(window, output);
                 File.WriteAllText(Path.Combine(output, "capture-evidence.json"), JsonSerializer.Serialize(Evidence, new JsonSerializerOptions { WriteIndented = true }));
@@ -104,6 +105,41 @@ internal static class Program
             catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
+    }
+    private static async Task CaptureCaptureHoverFrames(MainWindow window, string output)
+    {
+        // Capture-button hover animation (approved beta design): rest frame plus three loop
+        // points as real WPF pixels; t=1.8 must render identical to t=0 (seamless loop) and
+        // mid-loop frames must differ from rest. No real mouse: the icon's exact-frame hook.
+        window.Width = 900;
+        await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        var icon = Descendants(window).OfType<CaptureHoverIcon>().Single();
+        var hashes = new Dictionary<string, string>();
+        foreach (var t in new[] { 0.0, 0.45, 0.9, 1.35 })
+        {
+            icon.RenderFrameAt(t);
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            var name = $"900-capture-hover-t{(int)Math.Round(t * 1000):0000}";
+            Capture(window, output, name);
+            hashes[name] = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(output, name + ".png"))));
+        }
+        icon.RenderFrameAt(1.8);
+        await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        var looped = RenderHash(window);
+        icon.RenderFrameAt(0);
+        if (hashes.Values.Distinct().Count() != 4) throw new Exception("Hover animation frames do not move");
+        if (looped != RenderHash(window)) throw new Exception("Hover animation frame changed after loop wrap");
+        Evidence.Add(new { state = "900-capture-hover-frames", frames = hashes, seamless = "t=1.8 renders identical pixels to t=0", driving = "CaptureHoverIcon.RenderFrameAt exact-time hook; no mouse or real hover" });
+    }
+    private static string RenderHash(Window window)
+    {
+        window.UpdateLayout();
+        var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var pixels = new byte[checked(width * height * 4)];
+        bitmap.CopyPixels(pixels, checked(width * 4), 0);
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(pixels));
     }
     private sealed class CatalogHandler(byte[] body) : HttpMessageHandler
     {

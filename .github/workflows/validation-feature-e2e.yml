@@ -14,7 +14,7 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, feat/capture-hover-animation, dev, test/validation]
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
