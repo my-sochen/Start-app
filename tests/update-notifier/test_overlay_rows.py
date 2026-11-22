@@ -29,7 +29,8 @@ class OverlayRows(unittest.TestCase):
         self.assertIsNotNone(grid)
         rows = grid.find(NS + 'Grid.RowDefinitions')
         self.assertIsNotNone(rows)
-        self.assertEqual(['Auto', '*'], [r.get('Height') for r in rows])
+        # approved 22.11 title-bar tabs: 36px tab strip + update strip + content
+        self.assertEqual(['36', 'Auto', '*'], [r.get('Height') for r in rows])
         # Exact identities catch missing, duplicate and unclassified root layers.
         layers = [e for e in grid if 'Visibility' in e.attrib]
         expected = MODALS | {'CaptureOpen', 'SaveBlocked', 'ToastVisible'}
@@ -39,12 +40,12 @@ class OverlayRows(unittest.TestCase):
             binding = layer.get('Visibility')
             if binding in (visibility('CaptureOpen'), visibility('SaveBlocked')):
                 # Capture is content, not a full-window modal: leave header visible.
-                self.assertEqual('1' if binding == visibility('CaptureOpen') else '0',
+                self.assertEqual('2' if binding == visibility('CaptureOpen') else '1',
                                  layer.get('Grid.Row'), binding)
                 self.assertEqual('1', layer.get('Grid.RowSpan', '1'), binding)
             else:
                 self.assertEqual('0', layer.get('Grid.Row', '0'), binding)
-                self.assertEqual('2', layer.get('Grid.RowSpan'), binding)
+                self.assertEqual('3', layer.get('Grid.RowSpan'), binding)
             self.assertEqual(NS + ('Border' if binding in
                              (visibility('SaveBlocked'), visibility('ToastVisible'))
                              else 'Grid'), layer.tag, binding)
@@ -64,7 +65,7 @@ class OverlayRows(unittest.TestCase):
             'modal no longer spans header': lambda r: layer(r, 'LastResultsOpen').set('Grid.RowSpan', '1'),
             'capture hides header': lambda r: layer(r, 'CaptureOpen').set('Grid.RowSpan', '2'),
             'toast no longer spans header': lambda r: layer(r, 'ToastVisible').set('Grid.RowSpan', '1'),
-            'save warning moved to content': lambda r: layer(r, 'SaveBlocked').set('Grid.Row', '1'),
+            'save warning moved to content': lambda r: layer(r, 'SaveBlocked').set('Grid.Row', '2'),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):
