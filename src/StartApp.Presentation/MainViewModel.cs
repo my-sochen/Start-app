@@ -190,6 +190,7 @@ public sealed partial class MainViewModel : ObservableBase
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
         InitCaptureCommands();
         InitGlobalEnvCommands();
+        InitAllItemsCommands();
         InitOpeningCommands();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && !string.IsNullOrWhiteSpace(NewName));
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
@@ -273,7 +274,7 @@ public sealed partial class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel)); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
     // unsaved item/address edit (PR19 review: edits disappeared on unrelated mutations). A dirty form stays
     // open with its fields. Safety does not rest on the selection staying put: saves validate the
@@ -587,7 +588,7 @@ public sealed partial class MainViewModel : ObservableBase
     public ItemType PickerType { get => _pickerType; private set => Set(ref _pickerType, value); }
     private ItemType _pickerType = ItemType.Link;
     /// <summary>The four type buttons in the settled order: תוכנות, אתרים, קבצים, תיקיות.</summary>
-    public IReadOnlyList<ItemType> PickerTypes { get; } = new[] { ItemType.Program, ItemType.Link, ItemType.File, ItemType.Folder };
+    public IReadOnlyList<ItemType> PickerTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
     /// <summary>Search filter, applied inside each type list (name and address, case-insensitive).</summary>
     public string PickerSearch { get => _pickerSearch; set { Set(ref _pickerSearch, value ?? ""); RefreshPicker(); } }
     private string _pickerSearch = "";
@@ -689,7 +690,7 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
     public bool InDetails { get => _inDetails; private set { Set(ref _inDetails, value); Raise(nameof(InOverview)); Raise(nameof(ShowEmptyItemsMessage)); RaiseCommands(); } }
     private bool _inDetails;
-    public bool InOverview => !_inDetails && !InCreate;
+    public bool InOverview => !_inDetails && !InCreate && !InAllItems;
     private bool _inCreate;
     public bool InCreate
     {
@@ -706,7 +707,7 @@ public sealed partial class MainViewModel : ObservableBase
     public void ShowCreateScreen()
     {
         if (ReadOnly || CaptureOpen || InSettings || InGlobalEnv || IsChecking || IsLaunching || UnsavedOpen || InCreate) return;
-        void Show() { ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; InDetails = false; InCreate = true; }
+        void Show() { InAllItems = false; ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; InDetails = false; InCreate = true; }
         if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty)
         {
             MarkUnsavedHost(false, ItemEditDirty, AddressEditDirty, DesignDirty);
@@ -1235,7 +1236,7 @@ public sealed partial class MainViewModel : ObservableBase
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        OpenSettingsCommand = Cmd(_ => { InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
+        OpenSettingsCommand = Cmd(_ => { InAllItems = false; InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
         CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);

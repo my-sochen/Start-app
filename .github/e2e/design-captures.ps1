@@ -33,12 +33,14 @@ $detailItems = @(
   @{ id='detail-board'; type='link'; name='לוח משימות'; target='https://example.com/board' },
   @{ id='detail-editor'; type='program'; name='עורך טקסט'; target='C:\Windows\notepad.exe' },
   @{ id='detail-terminal'; type='program'; name='Terminal'; target='C:\Windows\System32\cmd.exe' },
+  @{ id='detail-file'; type='file'; name='מצגת לדוגמה'; target='C:\Projects\Sample\demo.pptx' },
   @{ id='detail-folder'; type='folder'; name='תיקיית הפרויקט'; target='C:\Projects\Sample' }
 )
 $detailMembers = @()
 foreach ($item in $detailItems) { $catalogue[$item.id] = $item; $detailMembers += @{ itemId=$item.id; id=('member-'+$item.id) } }
 $workspaces[0].items = @($detailMembers)
 $workspaces[0].category = 'תכנות'
+$workspaces[1].items += @{ itemId='detail-editor'; id='shared-editor-home' }
 $globalItems = @(
   @{ id='global-demo-docs'; type='link'; name='תיעוד'; target='https://example.com/docs'; addedAt='2026-11-20T12:00:00Z' },
   @{ id='global-demo-editor'; type='program'; name='עורך טקסט'; target='C:\Windows\notepad.exe'; addedAt='2026-11-20T12:00:00Z' }
@@ -108,6 +110,26 @@ try {
   $captureMenu = ExpandNamed 'לכידה'
   Capture 'home-menu-capture-flyout' 1280 880
   $captureMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  (RootNamed 'אייטמים').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 350
+  Capture 'all-items-top' 1280 880
+  $allSearch = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Search all items')))
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
+  Capture 'all-items-search' 1280 880
+  $sharedName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
+  $sharedName.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  Capture 'all-items-actions' 1280 880
+  (RootNamed 'ערוך').SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Capture 'all-items-shared-env-picker' 1280 880
+  (RootNamed 'Cancel item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('')
+  $allViewport = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'All items viewport')))
+  $allViewport.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).SetScrollPercent(-1,100)
+  Capture 'all-items-bottom' 1280 880
+  InvokeNamed 'Back to workspaces'
+  InvokeNamed 'Options menu'
   $globalMenu = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'סביבה גלובלית')))
   $globalMenu.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Start-Sleep -Milliseconds 350
@@ -116,6 +138,9 @@ try {
   Capture 'global-env-add-dialog' 1280 880
   InvokeNamed 'Cancel global add'
   InvokeNamed 'Back to workspaces'
+  InvokeNamed 'Help menu'
+  Capture 'home-menu-help' 1280 880
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   InvokeNamed 'Settings'
   Capture 'settings' 1280 880
   InvokeNamed 'Back to workspaces'
@@ -190,6 +215,22 @@ try {
   Capture 'create-live-preview-900x560' 900 560
   InvokeNamed 'Close window'
   Capture 'create-unsaved-close-guard' 1280 880
+  InvokeNamed 'Back to editing'
+  InvokeNamed 'ביטול וחזרה'
+  InvokeNamed 'צא בלי לשמור'
+  InvokeNamed 'Options menu'
+  $pickerMenu = RootNamed 'הגדר סביבה כברירת מחדל'
+  $pickerMenu.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Milliseconds 500
+  Capture 'default-workspace-picker' 1280 880
+  $pickerCancel = RootNamed 'Cancel default workspace choice'
+  $pickerCancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Start-Sleep -Milliseconds 350
+  InvokeNamed 'אולפן ביתי'
+  InvokeNamed 'Toggle default workspace'
+  Capture 'default-replace-dialog' 1280 880
+  InvokeNamed 'Cancel default-env replace'
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
 } finally {
   if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }

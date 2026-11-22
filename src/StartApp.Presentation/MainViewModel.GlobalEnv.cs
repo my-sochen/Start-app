@@ -63,7 +63,7 @@ public sealed partial class MainViewModel
 
     private void InitGlobalEnvCommands()
     {
-        OpenGlobalEnvCommand = Cmd(_ => { InSettings = false; RefreshGlobalEnvRows(); InGlobalEnv = true; }, _ => !_inGlobalEnv);
+        OpenGlobalEnvCommand = Cmd(_ => { InAllItems = false; InSettings = false; RefreshGlobalEnvRows(); InGlobalEnv = true; }, _ => !_inGlobalEnv);
         CloseGlobalEnvCommand = Cmd(_ => { InGlobalEnv = false; AddingKind = null; GlobalEnvError = ""; }, _ => _inGlobalEnv);
         StartGlobalAddCommand = Cmd(p => { if (p is GlobalListKind k) { AddingKind = k; NewEntryName = ""; NewEntryTarget = ""; NewEntryTypeIndex = k == GlobalListKind.Blacklist ? 1 : 0; GlobalEnvError = ""; } }, _ => _inGlobalEnv);
         ConfirmGlobalAddCommand = Cmd(_ => ConfirmGlobalAdd(), _ => _addingKind != null && !string.IsNullOrWhiteSpace(_newEntryName) && !string.IsNullOrWhiteSpace(_newEntryTarget));

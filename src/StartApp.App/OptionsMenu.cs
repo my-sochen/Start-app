@@ -27,6 +27,7 @@ public partial class MainWindow
         menu.Items.Add(ActionItem("סביבה חדשה", () => NewWorkspaceFocus_Click(sender, e)));
 
         menu.Items.Add(ActionItem("הגדר סביבה כברירת מחדל", () => OpenDefaultEnvPicker(vm)));
+        menu.Items.Add(CommandItem("אייטמים", vm.OpenAllItemsCommand));
         menu.Items.Add(CommandItem("סביבה גלובלית", vm.OpenGlobalEnvCommand));
         // Design-only until the results screen exists (designer note 21.11 19:14: the new-feature rows are placeholders).
         menu.Items.Add(new MenuItem { Header = "תוצאות פתיחה אחרונה", IsEnabled = false });

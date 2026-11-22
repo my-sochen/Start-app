@@ -43,7 +43,7 @@ public sealed partial class MainViewModel
     /// <summary>Short counter for the single-filter form, e.g. "2 מתוך 6".</summary>
     public string SingleFilterCountText => $"{DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
 
-    /// <summary>Card stats line (approved mocks 22.11): per-type counts in the fixed order אתרים · תוכנות · תיקיות · קבצים,
+    /// <summary>Card stats line (approved mocks 22.11): per-type counts in the fixed order אתרים · תוכנות · קבצים · תיקיות,
     /// e.g. "3 אתרים · 2 תוכנות · תיקייה"; zero-count types are omitted, a count of 1 shows the singular without a number
     /// ("תוכנה", "תיקייה"); empty: "עדיין אין אייטמים".</summary>
     public string StatsText(Workspace w)
@@ -59,7 +59,7 @@ public sealed partial class MainViewModel
         void Add(ItemType t, string singular, string plural)
         { if (counts.TryGetValue(t, out var n)) parts.Add(n == 1 ? singular : $"{n} {plural}"); }
         Add(ItemType.Link, "אתר", "אתרים"); Add(ItemType.Program, "תוכנה", "תוכנות");
-        Add(ItemType.Folder, "תיקייה", "תיקיות"); Add(ItemType.File, "קובץ", "קבצים");
+        Add(ItemType.File, "קובץ", "קבצים"); Add(ItemType.Folder, "תיקייה", "תיקיות");
         return string.Join(" · ", parts);
     }
 

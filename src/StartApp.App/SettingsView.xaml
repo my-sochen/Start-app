@@ -9,6 +9,7 @@
          hosting window's MainViewModel. Pixel tokens come from the handoff spec. -->
     <UserControl.Resources>
         <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="38"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Padding" Value="14,6"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -28,6 +29,7 @@
             </Setter>
         </Style>
         <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="38"/>
             <Setter Property="Background" Value="White"/>
             <Setter Property="Padding" Value="14,6"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -53,7 +55,7 @@
         <Style x:Key="HintText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="#667388"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FlowDirection" Value="RightToLeft"/><Setter Property="TextAlignment" Value="Right"/>
         </Style>
     </UserControl.Resources>
     <Grid>
@@ -71,7 +73,7 @@
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="סביבות העבודה / הגדרות" FontSize="12" Foreground="#636e7d" HorizontalAlignment="Right"/>
             <DockPanel Grid.Row="1" Margin="0,17,0,0">
-                <Button DockPanel.Dock="Left" Content="חזרה לסביבות" Style="{StaticResource SecondaryButton}" MinHeight="38"
+                <Button DockPanel.Dock="Left" Content="חזרה לסביבות" Style="{StaticResource SecondaryButton}" Height="38" MinWidth="123" VerticalAlignment="Top"
                         Command="{Binding DataContext.CloseSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         AutomationProperties.Name="Back to workspaces"/>
                 <StackPanel>
@@ -101,11 +103,12 @@
                         <DockPanel Margin="14,10">
                             <TextBlock Text="{Binding VersionValueDisplay}" FontSize="13" Foreground="#222833" DockPanel.Dock="Left"
                                        FlowDirection="LeftToRight" AutomationProperties.Name="Installed version value"/>
-                            <TextBlock Text="גרסה נוכחית" FontSize="13" Foreground="#222833"/>
+                            <TextBlock Text="גרסה נוכחית" HorizontalAlignment="Right" FontSize="13" Foreground="#222833"/>
                         </DockPanel>
+                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="14,8" MinHeight="46" x:Name="UncheckedNotice" Background="#F4F6F9" BorderBrush="#D3DBEA" AutomationProperties.Name="Updates not verified notice"><TextBlock x:Name="UncheckedText" FlowDirection="RightToLeft" TextAlignment="Right" VerticalAlignment="Center" FontSize="12" Foreground="#626B79" TextWrapping="Wrap"/></Border>
                         <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpToDateNotice"
                                 Background="#eef7f3" BorderBrush="#cbded6" AutomationProperties.Name="Up to date notice">
-                            <TextBlock Text="המערכת מעודכנת. אין עדכון זמין כרגע." FontSize="12" Foreground="#2e6556" TextWrapping="Wrap"/>
+                            <TextBlock Text="המערכת מעודכנת. אין עדכון זמין כרגע." FlowDirection="RightToLeft" TextAlignment="Right" FontSize="12" Foreground="#2e6556" TextWrapping="Wrap"/>
                         </Border>
                         <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpdateNotice"
                                 Background="#eef3fd" BorderBrush="#b9cae8" Visibility="Collapsed"
@@ -129,7 +132,7 @@
                             <TextBlock Style="{StaticResource HintText}" Text="בדיקה ידנית מלבד הבדיקה האוטומטית בכל הפעלה"
                                        VerticalAlignment="Center" HorizontalAlignment="Left"/>
                         </DockPanel>
-                        <TextBlock Style="{StaticResource HintText}" Margin="14,0,14,4" Text="{Binding Status}"
+                        <TextBlock x:Name="StatusLine" Style="{StaticResource HintText}" Margin="14,0,14,4" Text="{Binding Status}"
                                    AutomationProperties.Name="Update status line"/>
                         <Border BorderBrush="#e8ecf2" BorderThickness="0,1,0,0" Margin="0,4,0,0">
                             <TextBlock Style="{StaticResource HintText}" Margin="14,8" LineHeight="20" TextAlignment="Right"
@@ -147,7 +150,7 @@
                                 <Border Style="{StaticResource FutureTag}" DockPanel.Dock="Left">
                                     <TextBlock Text="ימומשו בהמשך" FontSize="11" Foreground="#566173"/>
                                 </Border>
-                                <TextBlock Text="שפה ומראה" FontSize="12" FontWeight="SemiBold" Foreground="#222833"
+                                <TextBlock Text="שפה ומראה" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="#222833"
                                            AutomationProperties.Name="Language and appearance group"/>
                             </DockPanel>
                         </Border>
@@ -211,7 +214,7 @@
         </ScrollViewer>
 
         <!-- footer -->
-        <Border Grid.Row="2" Height="37" Background="#eef1f6" BorderBrush="#dde2ea" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Height="0" Background="#eef1f6" BorderBrush="#dde2ea" BorderThickness="0,1,0,0">
             <TextBlock Text="הגדרות" FontSize="11" Foreground="#566173" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="14,0,0,0"/>
         </Border>
     </Grid>

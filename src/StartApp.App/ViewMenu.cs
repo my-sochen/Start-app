@@ -94,7 +94,7 @@ public partial class MainWindow
             cats.Items.Add(Choice(cat, vm.IsCategoryFiltered(cat), () => vm.ToggleCategoryFilter(cat), staysOpen: true));
         filter.Items.Add(cats);
         var types = new MenuItem { Header = "לפי סוג תוכן" };
-        foreach (var t in new[] { ItemType.Program, ItemType.Link, ItemType.Folder, ItemType.File })
+        foreach (var t in new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder })
         {
             var typeItem = new MenuItem { Header = MainViewModel.ContentTypeLabel(t) };
             var items = vm.ContentItemsOfType(t);

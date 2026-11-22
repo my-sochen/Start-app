@@ -233,6 +233,7 @@
                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="לחיצה ימנית לפעולות נוספות · Shift+F10 מקלדת"/><Style.Triggers>
                         <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבת ברירת מחדל: נקודה ירוקה ליד השם + כפתור ביטול · כשאין ברירת מחדל הכפתור הוא &quot;הגדר כברירת מחדל&quot;"/></MultiDataTrigger>
                         <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding InDetails}" Value="True"/><Condition Binding="{Binding SelectedIsDefault}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Text" Value="סביבה שאינה ברירת מחדל: בלי נקודה ירוקה · הכפתור מגדיר אותה כברירת מחדל ומחליף את הקיימת"/></MultiDataTrigger>
+                        <DataTrigger Binding="{Binding InAllItems}" Value="True"><Setter Property="Text" Value="רשימת אייטמים כללית · לחיצה על שם משגרת · לחיצה ימנית לפעולות"/></DataTrigger>
                     </Style.Triggers></Style></TextBlock.Style>
                 </TextBlock>
                 <Button DockPanel.Dock="Left" Content="פתח הורדה רשמית" Command="{Binding Updates.DownloadCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2"
@@ -375,10 +376,10 @@
                     <ScrollViewer.Resources><sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double><Style TargetType="ScrollBar"><Setter Property="Width" Value="8"/><Setter Property="Background" Value="#EEF1F6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton><Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="2" Background="#ABB8CE"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter></Style></ScrollViewer.Resources>
                 <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Left" Text="עדיין אין אייטמים בסביבה" VerticalAlignment="Center" FontStyle="Italic"/>
-                        <Button Content="הוסף אייטם" Command="{Binding FocusAddCommand}" Padding="10,2" Margin="8,0,0,0"/>
-                    </DockPanel>
+                    <StackPanel FlowDirection="RightToLeft" HorizontalAlignment="Right">
+                        <TextBlock Text="עדיין אין אייטמים בסביבה" FontSize="14" Foreground="#626B79"/>
+                        <Button Content="הוסף אייטם" Command="{Binding FocusAddCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="126" Height="38" HorizontalAlignment="Right" Margin="0,12,0,0"/>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel x:Name="DetailsAddForm" Visibility="Collapsed" DockPanel.Dock="Top" Margin="0,8,0,0">
                     <DockPanel>
@@ -963,6 +964,7 @@
         <Border Grid.RowSpan="3" Panel.ZIndex="20" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" Padding="12" Width="480" MaxHeight="250" Background="#FFF9EB" BorderBrush="#B48629" BorderThickness="1" Visibility="{Binding ToastVisible, Converter={StaticResource B2V}}" FlowDirection="RightToLeft" AutomationProperties.Name="Notification">
             <StackPanel><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding DismissToastCommand}" AutomationProperties.Name="Dismiss notification"/><TextBlock Text="{Binding ToastMessage}" TextWrapping="Wrap" Margin="0,0,8,0"/></DockPanel><Button Content="תוצאות הפתיחה" Command="{Binding ToastDetailsCommand}" HorizontalAlignment="Right" Margin="0,5,0,0" Visibility="{Binding ToastHasOpeningResults, Converter={StaticResource B2V}}"/><Expander Header="פרטים טכניים"><StackPanel><TextBox Text="{Binding ToastTechnicalDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding CopyTechnicalDetailsCommand}" CommandParameter="{Binding ToastTechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel>
         </Border>
+            <Grid Grid.Row="2" Panel.ZIndex="20" Visibility="{Binding InAllItems, Converter={StaticResource B2V}}"><local:AllItemsView/></Grid>
             <Grid Grid.Row="2" Panel.ZIndex="20"
                   Visibility="{Binding InSettings, Converter={StaticResource B2V}}">
                 <local:SettingsView DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}"/>

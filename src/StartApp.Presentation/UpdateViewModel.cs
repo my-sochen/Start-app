@@ -65,8 +65,9 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private bool _lastCheckVerified;
     private bool _available;
     private string _status;
-    public bool IsBusy { get => _busy; private set { Set(ref _busy, value); CheckCommand.Raise(); DownloadCommand.Raise(); } }
-    public bool UpdateAvailable { get => _available; private set { Set(ref _available, value); DownloadCommand.Raise(); } }
+    public bool IsBusy { get => _busy; private set { Set(ref _busy, value); Raise(nameof(IsUpToDate)); CheckCommand.Raise(); DownloadCommand.Raise(); } }
+    public bool UpdateAvailable { get => _available; private set { Set(ref _available, value); Raise(nameof(IsUpToDate)); DownloadCommand.Raise(); } }
+    public bool IsUpToDate => _lastCheckVerified && !UpdateAvailable && !IsBusy;
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string InstalledVersionDisplay { get; }
     public string DistributionDisplay => _current?.Prototype is not null ? "אב טיפוס - גרסת ניסוי, לא גרסת בטא" : _current?.Beta is not null ? "גרסת בטא" : _current is null ? "בנייה לא מזוהה - אינה גרסת הפצה מאומתת" : "גרסה יציבה";
@@ -74,7 +75,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     // last completed check time and the offered-version notice line.
     public string VersionValueDisplay { get; }
     public string OfferedVersionDisplay { get => _offeredDisplay; private set => Set(ref _offeredDisplay, value); }
-    public string LastCheckedDisplay => _lastChecked is not DateTime checkedAt ? "טרם נבדק בהפעלה זו"
+    public string LastCheckedDisplay => _lastChecked is not DateTime checkedAt ? "טרם נבדק"
         : checkedAt.Date == _clock().Date ? $"נבדק לאחרונה: היום, {checkedAt:HH:mm}"
         : $"נבדק לאחרונה: {checkedAt:dd.MM.yyyy, HH:mm}";
     public RelayCommand CheckCommand { get; }
