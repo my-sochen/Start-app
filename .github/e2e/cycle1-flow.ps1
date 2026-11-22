@@ -1700,16 +1700,24 @@ public static class WinCap {
       $P.rootReader = { Read-ValidatedRoot $win $appPid $mainHwndForOracle $fnIsWindow $fnTryPid $fnGetRect $fnGetDpi }.GetNewClosure()
       # landed source constants: Border Padding=4; FrameThicknessConverter (1,8,1,1) with image else 0.
       $pad = 4
-      $isFrameP = { param($px) ([math]::Abs([int]$px.R - 191) -le 12 -and [math]::Abs([int]$px.G - 219) -le 12 -and [math]::Abs([int]$px.B - 254) -le 12) }
-      $isWhite  = { param($px) ([int]$px.R -ge 247 -and [int]$px.G -ge 247 -and [int]$px.B -ge 247) }
+      # APPROVED card rendering (owner decision 14:04:27 via main): no-image = white interior + 4px
+      # colored top bar + 1px neutral #C9D0DC hairline; with-image = image surface + color frame (top 8,
+      # other sides 1). The painted edges are pixel-resolved (Resolve-PaintedEdges) because the UIA
+      # union includes the drop shadow on the left/top and stops short of the bottom hairline; the 1px
+      # halo outside the card therefore crosses the shadow and accepts its gray-white gradient.
+      $isDesign = { param($px) ([math]::Abs([int]$px.R - 191) -le 12 -and [math]::Abs([int]$px.G - 219) -le 12 -and [math]::Abs([int]$px.B - 254) -le 12) }
+      $isHairline = { param($px) ([math]::Abs([int]$px.R - 201) -le 12 -and [math]::Abs([int]$px.G - 208) -le 12 -and [math]::Abs([int]$px.B - 220) -le 12) }
+      $isShadowOrPage = { param($px) $mn = [math]::Min([int]$px.R, [math]::Min([int]$px.G, [int]$px.B)); $mx = [math]::Max([int]$px.R, [math]::Max([int]$px.G, [int]$px.B)); ($mn -ge 220 -and ($mx - $mn) -le 14) }
       if ($tag -eq 'with-image') {
         $frameExp = [ordered]@{ l = 1; t = 8; r = 1; b = 1 }
+        $isFrameP = $isDesign
         $isInterior = { param($px) ([math]::Abs([int]$px.R - 30) -le 25 -and [math]::Abs([int]$px.G - 60) -le 25 -and [math]::Abs([int]$px.B - 220) -le 25) }  # same acceptance set as landed $isImg2
       } else {
-        $frameExp = [ordered]@{ l = 0; t = 0; r = 0; b = 0 }
-        $isInterior = { param($px) ([math]::Abs([int]$px.R - 191) -le 8 -and [math]::Abs([int]$px.G - 219) -le 8 -and [math]::Abs([int]$px.B - 254) -le 8) }  # same acceptance set as landed no-image center predicate
+        $frameExp = [ordered]@{ l = 1; t = 4; r = 1; b = 1 }
+        $isFrameP = { param($px) ((& $isDesign $px) -or (& $isHairline $px)) }.GetNewClosure()
+        $isInterior = { param($px) ([int]$px.R -ge 250 -and [int]$px.G -ge 250 -and [int]$px.B -ge 250) }  # approved white face
       }
-      $pred = @{ isFrame = $isFrameP; isInterior = $isInterior; isBackground = $isWhite }
+      $pred = @{ isFrame = $isFrameP; isInterior = $isInterior; isBackground = $isShadowOrPage }
       # VERIFIED artifact sink (reviewer 04:10:41): PER-STATE distinct paths (no with-image/no-image
       # overwrite) and read-back SHA256 compared to the expected hash, $true only on equality.
       $sink = { param($name, [byte[]]$bytes)
@@ -1839,6 +1847,32 @@ public static class WinCap {
   function Get-PaintedRect($union, $frameExp, $pad) {
     if ($null -eq $union) { return $null }
     return [ordered]@{ L = ($union.L - $pad - $frameExp.l); T = ($union.T - $pad - $frameExp.t); R = ($union.R + $pad + $frameExp.r); B = ($union.B + $pad + $frameExp.b) }
+  }
+  # Resolve-PaintedEdges: the UIA content union is NOT the painted edge - the approved card's drop
+  # shadow renders inside the union-derived rect on the left/top, and the union stops short of the
+  # bottom hairline. Pixel-resolve each TRUE painted edge near the estimate: an edge column/row is one
+  # whose mid-band is >=50% frame-colored (the frame/top bar ring is the one full-extent painted band).
+  # Bounded scan windows; any edge not found keeps the estimate and the measure stage refuses loudly.
+  function Resolve-PaintedEdges($bmp, $pRel, $isFrame) {
+    if ($null -eq $bmp -or $null -eq $pRel) { return $pRel }
+    $w = $bmp.Width; $h = $bmp.Height
+    $colDom = { param($x, $y0, $y1) $tot = 0; $hit = 0; for ($y = $y0; $y -lt $y1; $y += 2) { $tot++; if (& $isFrame ($bmp.GetPixel($x, $y))) { $hit++ } }; return ($tot -gt 0 -and ($hit * 2) -ge $tot) }.GetNewClosure()
+    $rowDom = { param($y, $x0, $x1) $tot = 0; $hit = 0; for ($x = $x0; $x -lt $x1; $x += 2) { $tot++; if (& $isFrame ($bmp.GetPixel($x, $y))) { $hit++ } }; return ($tot -gt 0 -and ($hit * 2) -ge $tot) }.GetNewClosure()
+    $span = $pRel.R - $pRel.L
+    $cx0 = $pRel.L + [int]($span / 3); $cx1 = $pRel.R - [int]($span / 3)
+    $t = $null
+    for ($y = [math]::Max(1, $pRel.T - 4); $y -le [math]::Min($h - 2, $pRel.T + 18); $y++) { if (& $rowDom $y $cx0 $cx1) { $t = $y; break } }
+    $b = $null
+    for ($y = [math]::Min($h - 2, $pRel.B + 16); $y -ge [math]::Max(1, $pRel.B - 8); $y--) { if (& $rowDom $y $cx0 $cx1) { $b = $y + 1; break } }
+    if ($null -eq $t -or $null -eq $b) { return $pRel }
+    $ry0 = $t + 14; $ry1 = $b - 8
+    if ($ry1 -le $ry0) { return $pRel }
+    $l = $null
+    for ($x = [math]::Max(1, $pRel.L - 4); $x -le [math]::Min($w - 2, $pRel.L + 14); $x++) { if (& $colDom $x $ry0 $ry1) { $l = $x; break } }
+    $r = $null
+    for ($x = [math]::Min($w - 2, $pRel.R + 4); $x -ge [math]::Max(1, $pRel.R - 14); $x--) { if (& $colDom $x $ry0 $ry1) { $r = $x + 1; break } }
+    if ($null -eq $l -or $null -eq $r) { return $pRel }
+    return [ordered]@{ L = $l; T = $t; R = $r; B = $b }
   }
   function Test-RectContains($r, $x, $y, $guard) {
     return ($x -ge ($r.L - $guard) -and $x -le ($r.R + $guard) -and $y -ge ($r.T - $guard) -and $y -le ($r.B + $guard))
@@ -2451,6 +2485,7 @@ public static class WinCap {
       # painted rect verifiability inside the canonical surface
       $uRel = [ordered]@{ L = ($st.union.L - $ox); T = ($st.union.T - $oy); R = ($st.union.R - $ox); B = ($st.union.B - $oy) }
       $pRel = Get-PaintedRect $uRel $frameExp $pad
+      $pRel = Resolve-PaintedEdges $cb $pRel $pred.isFrame
       $prov.union = $st.union; $prov.paintedRel = $pRel; $prov.winRect = $st.winRect
       if (-not ($pRel.L -ge 1 -and $pRel.T -ge 1 -and $pRel.R -le ($w - 1) -and $pRel.B -le ($h - 1) -and ($pRel.R - $pRel.L) -ge 20 -and ($pRel.B - $pRel.T) -ge 10)) { $prov.verification = 'gate-failed: painted rect not verifiable'; $res.reason = "capture gate: painted rect not verifiable inside the captured bitmap (L$($pRel.L),T$($pRel.T),R$($pRel.R),B$($pRel.B) bmp $($w)x$($h))"; return $res }
       # measurement on the canonical bytes ONLY, with exception safety
