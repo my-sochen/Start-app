@@ -21,6 +21,8 @@ on:
   #   producers; the hard capture-flow, checker evaluation, package and profile result are
   #   skipped, cycle1-flow.ps1 hard-fails the job on its own assertions.
   # ui_scope=full: identical to a push full run (used for TEST promotion evidence).
+  # While main lacks the dispatch trigger (registration gate), an opt-in commit message token
+  # [ui] on feat/settings-tab runs the same cycle1-only scope on that push.
   workflow_dispatch:
     inputs:
       ui_scope:
@@ -94,7 +96,7 @@ jobs:
   ui-gate:          # DEV subset is NOT QA or a candidate. Full profile HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
     name: UI checks (${{ needs.resolve.outputs.profile }}, not human QA)
     needs: [resolve, tests]
-    if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' }}   # feat/settings-tab pushes: resolve+tests only (targeted cadence); UI via dispatch
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' || contains(github.event.head_commit.message, '[ui]') }}   # feat/settings-tab pushes: resolve+tests only (targeted cadence); UI via dispatch, or an opt-in [ui] commit while dispatch is unregistered on main
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -146,14 +148,14 @@ jobs:
           pwsh -NoProfile -File tests/capture-policy/test_capture_readiness.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Capture flow UI run (hard)
-        if: needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only'
+        if: needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only' && !contains(github.event.head_commit.message, '[ui]')
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA
           pwsh -NoProfile -File .github/e2e/capture-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
-        if: ${{ always() && needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only' }}
+        if: ${{ always() && needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only' && !contains(github.event.head_commit.message, '[ui]') }}
         shell: pwsh
         run: |
           python trusted/.github/release/ui_gate_check.py --diag diag --sha $env:SHA
