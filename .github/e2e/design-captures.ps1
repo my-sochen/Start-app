@@ -66,9 +66,11 @@ try {
   $ts = [System.Windows.Automation.TreeScope]::Descendants
   $pc = [System.Windows.Automation.PropertyCondition]
   $win = $a::FromHandle($p.MainWindowHandle)
-  function Capture($name, $width, $height) {
-    [void][DesignWindow]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, $width, $height, 0x40)
-    [void][DesignWindow]::SetForegroundWindow($p.MainWindowHandle)
+  function Capture($name, $width, $height, $preserveFocus = $false) {
+    if (!$preserveFocus) {
+      [void][DesignWindow]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, $width, $height, 0x40)
+      [void][DesignWindow]::SetForegroundWindow($p.MainWindowHandle)
+    }
     [void][DesignWindow]::SetCursorPos(1, 1)
     Start-Sleep -Milliseconds 900
     $r = New-Object DesignWindow+Rect
@@ -142,7 +144,7 @@ try {
   Capture 'all-items-link-full-editor' 1280 880
   $launchChoices = RootNamed 'Selected item open with'
   $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-  Capture 'all-items-open-with-options' 1280 880
+  Capture 'all-items-open-with-options' 1280 880 $true
   $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
