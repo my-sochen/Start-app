@@ -195,7 +195,8 @@ public sealed partial class MainViewModel : ObservableBase
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
         // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
-        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        // owner decision 22.11 17:15: deploy is never enabled for an empty workspace, in any view.
+        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace w && w.Items.Count > 0 && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
@@ -264,7 +265,7 @@ public sealed partial class MainViewModel : ObservableBase
         CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
-        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
         CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _pendingOpen != null || IsChecking || IsLaunching);
         Reload();
