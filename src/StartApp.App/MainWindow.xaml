@@ -8,6 +8,78 @@
         <local:ColorBrushConverter x:Key="ColorBrush"/>
         <local:CardBrushConverter x:Key="CardBrush"/>
         <local:FrameThicknessConverter x:Key="FrameThickness"/>
+        <local:NullToVisibilityConverter x:Key="NullToVisibility"/>
+        <local:CardSizeFontConverter x:Key="CardSizeFont"/>
+        <local:CardSizePaddingConverter x:Key="CardSizePadding"/>
+        <ContextMenu x:Key="WorkspaceActionsMenu" x:Shared="false">
+            <MenuItem Header="הצג" Command="{Binding PlacementTarget.Tag.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+            <MenuItem Header="שגר" Command="{Binding PlacementTarget.Tag.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+            <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.Tag.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+            <Separator/><MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+            <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+        </ContextMenu>
+        <!-- תצוגה templates (approved 22.11): כרטיסים ברירת מחדל, רשימה, אייקונים (שם וצבע בלבד) -->
+        <DataTemplate x:Key="WorkspaceCardTemplate">
+                            <!-- card design: without an image the color is the background; with one it is the frame (thick top,
+                                 thin other sides, settled Nov 11; exact frame measurements are provisional). The readability
+                                 layer behind the text was explicitly left undecided, so there is none. -->
+                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,2" CornerRadius="4"
+                                    Padding="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizePadding}}"
+                                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}">
+                                <Border.BorderThickness>
+                                    <Binding Path="ImagePath" Converter="{StaticResource FrameThickness}"/>
+                                </Border.BorderThickness>
+                                <Border.Background>
+                                    <MultiBinding Converter="{StaticResource CardBrush}">
+                                        <Binding Path="Color"/>
+                                        <Binding Path="ImagePath"/>
+                                    </MultiBinding>
+                                </Border.Background>
+                            <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
+                                        Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
+                                        Background="Transparent" BorderThickness="0"
+                                        HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
+                                        <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/>
+                                        <TextBlock Foreground="Gray" FontSize="11"><Run Text="Last opened: "/><Run Text="{Binding LastOpenedAt, ConverterCulture=en-US, StringFormat='{}{0:yyyy-MM-dd HH:mm}', TargetNullValue=never, FallbackValue=never}"/></TextBlock>
+                                    </StackPanel>
+                                </Button>
+                            </DockPanel>
+                            </Border>
+                        </DataTemplate>
+        <DataTemplate x:Key="WorkspaceListTemplate">
+            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,1" Padding="6,2" CornerRadius="3"
+                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}" BorderThickness="4,0,0,0" Background="White">
+                <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
+                            Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+                    <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
+                            Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Foreground="Gray" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"><Run Text="Last opened: "/><Run Text="{Binding LastOpenedAt, ConverterCulture=en-US, StringFormat='{}{0:yyyy-MM-dd HH:mm}', TargetNullValue=never, FallbackValue=never}"/></TextBlock>
+                        </StackPanel>
+                    </Button>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="WorkspaceIconsTemplate">
+            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="2" Padding="6,3" CornerRadius="3"
+                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}" BorderThickness="1" Background="{Binding Color, Converter={StaticResource ColorBrush}}">
+                <Border.ContextMenu><StaticResource ResourceKey="WorkspaceActionsMenu"/></Border.ContextMenu>
+                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
+                        Background="Transparent" BorderThickness="0" Padding="2" AutomationProperties.Name="{Binding Name}">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                </Button>
+            </Border>
+        </DataTemplate>
+        
         <local:ItemEditorVisibilityConverter x:Key="ItemEditorVisibility"/>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
             <CollectionViewSource.GroupDescriptions>
@@ -23,6 +95,8 @@
         <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
                 DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
             <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="תצוגה ▾" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
+                        AutomationProperties.Name="View menu"/>
                 <Button DockPanel.Dock="Right" Content="הגדרות" Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
                         AutomationProperties.Name="Settings"/>
                 <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
@@ -48,6 +122,31 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <Border DockPanel.Dock="Top" Background="#EFF8F3" BorderBrush="#CADFD5" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="0,0,0,6"
+                        Visibility="{Binding HasActiveFilters, Converter={StaticResource B2V}}" AutomationProperties.Name="Filter bar">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="מסונן:" VerticalAlignment="Center" Foreground="#2B6250" Margin="4,0,6,0"/>
+                        <Button DockPanel.Dock="Left" Content="✕ ניקוי הכל" Background="Transparent" BorderThickness="0" Foreground="#2B6250" Padding="4,0"
+                                Command="{Binding ClearFiltersCommand}" AutomationProperties.Name="Clear all filters"/>
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding FilteredCountText}" VerticalAlignment="Center" Foreground="#2B6250" Margin="8,0,0,0" AutomationProperties.Name="Filter count"/>
+                        <ItemsControl ItemsSource="{Binding FilterChips}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Border Background="White" BorderBrush="#B9D4C6" BorderThickness="1" CornerRadius="12" Padding="8,1" Margin="0,0,4,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="13" Height="13" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                 Fill="{Binding ColorHex, Converter={StaticResource ColorBrush}}"
+                                                 Visibility="{Binding ColorHex, Converter={StaticResource NullToVisibility}}"/>
+                                        <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center"/>
+                                        <Button Content="✕" FontSize="10" Background="Transparent" BorderThickness="0" Padding="4,0" VerticalAlignment="Center"
+                                                Command="{Binding DataContext.RemoveFilterChipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding Key}"
+                                                AutomationProperties.Name="Remove filter"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+                </Border>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                     <TextBlock Text="Create workspace" FontWeight="SemiBold"/>
                     <DockPanel Margin="0,4,0,0">
@@ -85,49 +184,8 @@
                     </DockPanel>
                     <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2"/>
                 </StackPanel>
-                <ListBox ItemsSource="{Binding Workspaces}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <!-- card design: without an image the color is the background; with one it is the frame (thick top,
-                                 thin other sides, settled Nov 11; exact frame measurements are provisional). The readability
-                                 layer behind the text was explicitly left undecided, so there is none. -->
-                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,2" Padding="4" CornerRadius="4"
-                                    BorderBrush="{Binding Color, Converter={StaticResource ColorBrush}}">
-                                <Border.BorderThickness>
-                                    <Binding Path="ImagePath" Converter="{StaticResource FrameThickness}"/>
-                                </Border.BorderThickness>
-                                <Border.Background>
-                                    <MultiBinding Converter="{StaticResource CardBrush}">
-                                        <Binding Path="Color"/>
-                                        <Binding Path="ImagePath"/>
-                                    </MultiBinding>
-                                </Border.Background>
-                            <Border.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="הצג" Command="{Binding PlacementTarget.Tag.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="שגר" Command="{Binding PlacementTarget.Tag.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.Tag.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                            <Separator/><MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                            <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                        </ContextMenu>
-                                    </Border.ContextMenu>
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="שגר" Padding="8,2" Margin="4,0,0,0" Background="Transparent"
-                                        Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
-                                        Background="Transparent" BorderThickness="0"
-                                        HorizontalContentAlignment="Left" Padding="6,2" AutomationProperties.Name="{Binding Name}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding EffectiveCategory}" Foreground="Gray" FontSize="11"/>
-                                        <TextBlock Foreground="Gray" FontSize="11"><Run Text="Last opened: "/><Run Text="{Binding LastOpenedAt, ConverterCulture=en-US, StringFormat='{}{0:yyyy-MM-dd HH:mm}', TargetNullValue=never, FallbackValue=never}"/></TextBlock>
-                                    </StackPanel>
-                                </Button>
-                            </DockPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ListBox x:Name="WorkspaceList" ItemsSource="{Binding DisplayWorkspaces}" ItemTemplate="{StaticResource WorkspaceCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        AutomationProperties.Name="Workspace list"/>
             </DockPanel>
 
             <!-- ============ DETAILS: פרטי סביבה ============ -->
