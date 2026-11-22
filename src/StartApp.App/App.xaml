@@ -11,6 +11,7 @@
         <local:NoImageToVisibilityConverter x:Key="NoImageToVisibility"/>
         <local:FirstLetterConverter x:Key="FirstLetter"/>
         <local:StatsTextConverter x:Key="StatsText"/>
+        <local:DefaultBadgeVisibilityConverter x:Key="DefaultBadgeVisibility"/>
         <local:FooterLine1Converter x:Key="FooterLine1"/>
         <local:InverseBooleanToVisibilityConverter x:Key="NotB2V"/>
 
