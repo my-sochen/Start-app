@@ -2614,7 +2614,7 @@ public static class WinCap {
   Shot 'card-with-picker-image'
   Log-SavedCardDiag 'with-image'
   Invoke-PrintWindowDiag 'with-image'
-  Assert-PwGate 'with-image'
+  # SKIPPED per owner 22.11 17:45 (design phase, dropped Nov 11 frame design): Assert-PwGate 'with-image'
   # remove image (הסר תמונה) + explicit NO-IMAGE background on the saved card (image property cleared, not a
   # missing file): the audit gap was that only the missing-path fallback was ever exercised.
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for remove image' ($c -eq 'ok') $c
@@ -2668,7 +2668,7 @@ public static class WinCap {
   Shot 'card-no-image-background'
   Log-SavedCardDiag 'no-image'
   Invoke-PrintWindowDiag 'no-image'
-  Assert-PwGate 'no-image'
+  # SKIPPED per owner 22.11 17:45 (design phase, dropped Nov 11 frame design): Assert-PwGate 'no-image'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
   Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
