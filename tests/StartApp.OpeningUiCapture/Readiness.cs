@@ -63,9 +63,9 @@ internal static partial class Program
         var output = Path.GetFullPath(directory);
         if (Directory.Exists(output) || File.Exists(output)) return 3;
         Directory.CreateDirectory(output);
-        var app = new StartApp.App.App();
-        // Load App.xaml resources into Application.Current (the parameterless ctor does not; generated Main normally does this). Startup never fires without Run().
-        app.InitializeComponent();
+        var app = new Application();
+        // Harness: bare Application + the shared resource dictionary. Do NOT construct StartApp.App.App: its Startup wiring (OnStartup, real adapters, real store) fires on Run().
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new System.Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml") });
         using var store = new JsonStore(Path.Combine(output, "isolated-store", "store.json"));
         store.Mutate(c =>
         {
