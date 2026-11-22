@@ -228,6 +228,7 @@
      <Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#ADB8CA" CornerRadius="2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
     </Track></Grid></ControlTemplate></Setter.Value></Setter>
   </Style>
+  <Style x:Key="CaptureTargetViewport" TargetType="ScrollViewer"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollViewer"><Grid FlowDirection="RightToLeft"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/></Grid.ColumnDefinitions><ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" CanContentScroll="{TemplateBinding CanContentScroll}" Margin="{TemplateBinding Padding}"/><ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Style="{StaticResource CapturePaneScrollBar}" Orientation="Vertical" Minimum="0" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/></Grid></ControlTemplate></Setter.Value></Setter></Style>
   <Style x:Key="CaptureItemChoice" TargetType="CheckBox">
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><Grid FlowDirection="LeftToRight">
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
@@ -236,6 +237,8 @@
     </Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="#315CC5"/><Setter TargetName="Box" Property="BorderBrush" Value="#315CC5"/><Setter TargetName="Tick" Property="Visibility" Value="Visible"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="#315CC5"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="OpenWithDropdown" TargetType="ComboBox">
+   <Setter Property="FocusVisualStyle" Value="{StaticResource SolidDialogFocus}"/>
+   <Setter Property="ItemContainerStyle"><Setter.Value><Style TargetType="ComboBoxItem"><Setter Property="FocusVisualStyle" Value="{StaticResource SolidDialogFocus}"/></Style></Setter.Value></Setter>
    <Setter Property="MinHeight" Value="34"/><Setter Property="FontSize" Value="14"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
     <Grid>

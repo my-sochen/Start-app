@@ -34,7 +34,15 @@ public partial class ItemBatchEditWindow : Window
         TitleLabel.Text = "עריכת " + row.Name; CaptionLabel.Text = "אייטמים · " + row.Name + " · עריכה";
         NameLabel.Text = names.Length > 1 ? "שם האייטם (ערכים שונים)" : "שם האייטם";
         DescriptionLabel.Text = descriptions.Length > 1 ? "תיאור (ערכים שונים)" : "תיאור";
-        Scope.Text = "סביבות שנבחרו: " + string.Join(" · ", targets.Select(t => t.WorkspaceName).Distinct()) + " · " + targets.Count + " מופעים";
+        Scope.Inlines.Add(new System.Windows.Documents.Run("טופס אחד לכל הסביבות שנבחרו: "));
+        foreach (var workspace in row.Workspaces.Where(w => targets.Any(t => t.WorkspaceId == w.Id)))
+        {
+            var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = ColorBrushConverter.BrushFrom(workspace.Color ?? "#A4ADBD"), Margin = new Thickness(5, 0, 3, 0) };
+            Scope.Inlines.Add(new System.Windows.Documents.InlineUIContainer(dot) { BaselineAlignment = BaselineAlignment.Center });
+            Scope.Inlines.Add(new System.Windows.Documents.Run(workspace.Name + " · "));
+        }
+        Scope.Inlines.Add(new System.Windows.Documents.Run(targets.Count == 1 ? "מופע אחד" : targets.Count + " מופעים"));
+        if (row.Type == "Link") OpenWithPicker.SetWebsiteTarget(OpenWithInput, row.Target);
         NameInput.Text = _name; DescriptionInput.Text = _description; TargetInput.Text = _target; _ready = true;
     }
     private bool Dirty => _ready && (NameInput.Text != _name || DescriptionInput.Text != _description || TargetInput.Text != _target || ClearDescription.IsChecked == true || OpenWithPicker.SelectedPath(OpenWithInput) != _program || ClearLaunch.IsChecked == true);

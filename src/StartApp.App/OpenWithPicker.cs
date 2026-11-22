@@ -14,6 +14,52 @@ public static class OpenWithPicker
     public static string GetDefaultLabel(DependencyObject o) => (string)o.GetValue(DefaultLabelProperty);
     public static void SetDefaultLabel(DependencyObject o, string value) => o.SetValue(DefaultLabelProperty, value);
     public static readonly DependencyProperty PathProperty = DependencyProperty.RegisterAttached("Path", typeof(string), typeof(OpenWithPicker), new PropertyMetadata(null, Changed));
+    public static readonly DependencyProperty WebsiteTargetProperty = DependencyProperty.RegisterAttached("WebsiteTarget", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("", Changed));
+    public static string GetWebsiteTarget(DependencyObject o) => (string?)o.GetValue(WebsiteTargetProperty) ?? "";
+    public static void SetWebsiteTarget(DependencyObject o, string value) => o.SetValue(WebsiteTargetProperty, value);
+    [System.Runtime.InteropServices.DllImport("Shlwapi.dll", EntryPoint = "AssocQueryStringW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int AssocQueryString(uint flags, uint kind, string association, string? extra, System.Text.StringBuilder output, ref uint characters);
+    private static bool IsWebsite(ComboBox combo) => Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https");
+    private static string AssociationString(uint flags, uint kind, string association)
+    {
+        uint characters = 512;
+        var text = new System.Text.StringBuilder((int)characters);
+        return AssocQueryString(flags, kind, association, null, text, ref characters) == 0 ? text.ToString().Trim() : "";
+    }
+    private static IReadOnlyList<Choice> RegisteredSitePrograms(string scheme)
+    {
+        var choices = new List<Choice>();
+        foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+        foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(hive, view);
+                using var registered = root.OpenSubKey(@"SOFTWARE\RegisteredApplications");
+                if (registered is null) continue;
+                foreach (var entry in registered.GetValueNames())
+                {
+                    if (registered.GetValue(entry) is not string capabilityPath) continue;
+                    using var protocols = root.OpenSubKey(capabilityPath + @"\URLAssociations");
+                    if (protocols?.GetValue(scheme) is not string progId || string.IsNullOrWhiteSpace(progId)) continue;
+                    var path = AssociationString(0x800 /* ASSOCF_INIT_FIXED_PROGID */, 2 /* ASSOCSTR_EXECUTABLE */, progId);
+                    if (!Path.IsPathFullyQualified(path) || !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) continue;
+                    var label = AssociationString(0x800, 4, progId);
+                    choices.Add(new(string.IsNullOrWhiteSpace(label) ? entry : label, path));
+                }
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+        }
+        return choices;
+    }
+    private static string DisplayDefault(ComboBox combo)
+    {
+        var fallback = GetDefaultLabel(combo);
+        if (!Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https")) return fallback;
+        // Read only the user's protocol association. Never change the stored launch path or system defaults.
+        var name = AssociationString(0x1000 /* ASSOCF_IS_PROTOCOL */, 4 /* ASSOCSTR_FRIENDLYAPPNAME */, uri.Scheme);
+        return string.IsNullOrWhiteSpace(name) ? fallback : name + " (ברירת מחדל)";
+    }
     private static readonly DependencyProperty UpdatingProperty = DependencyProperty.RegisterAttached("Updating", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     private static readonly DependencyProperty HookedProperty = DependencyProperty.RegisterAttached("Hooked", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     public static string GetPath(DependencyObject o) => (string?)o.GetValue(PathProperty) ?? "";
@@ -33,7 +79,7 @@ public static class OpenWithPicker
         try
         {
             var current = GetPath(combo);
-            var choices = new List<Choice> { new(GetDefaultLabel(combo), "") };
+            var choices = new List<Choice> { new(DisplayDefault(combo), "") };
             void Add(string label, string path) { if (File.Exists(path) && !choices.Any(c => c.Value.Equals(path, StringComparison.OrdinalIgnoreCase))) choices.Add(new(label, path)); }
             foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) }.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct())
             {
@@ -41,7 +87,11 @@ public static class OpenWithPicker
                 Add("Microsoft Edge", System.IO.Path.Combine(root, "Microsoft", "Edge", "Application", "msedge.exe"));
                 Add("Mozilla Firefox", System.IO.Path.Combine(root, "Mozilla Firefox", "firefox.exe"));
             }
-            Add("Notepad", System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "notepad.exe"));
+            if (IsWebsite(combo))
+            {
+                foreach (var program in RegisteredSitePrograms(new Uri(GetWebsiteTarget(combo)).Scheme)) Add(program.Label, program.Value);
+            }
+            else Add("Notepad", System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "notepad.exe"));
             if (current.Length > 0 && !choices.Any(c => c.Value.Equals(current, StringComparison.OrdinalIgnoreCase))) choices.Add(new(current, current));
             choices.Add(new("בחירת תוכנה אחרת...", Browse));
             combo.DisplayMemberPath = nameof(Choice.Label); combo.SelectedValuePath = nameof(Choice.Value); combo.ItemsSource = choices; combo.SelectedValue = current;
@@ -55,7 +105,8 @@ public static class OpenWithPicker
         var path = choice.Value;
         if (path == Browse)
         {
-            var picker = new OpenFileDialog { Title = "בחירת תוכנה לפתיחת האייטם", Filter = "Programs (*.exe)|*.exe|All files (*.*)|*.*", CheckFileExists = true };
+            var website = IsWebsite(combo);
+            var picker = new OpenFileDialog { Title = website ? "בחירת תוכנה לפתיחת אתרים (http/https)" : "בחירת תוכנה לפתיחת האייטם", Filter = website ? "Programs (*.exe)|*.exe" : "Programs (*.exe)|*.exe|All files (*.*)|*.*", CheckFileExists = true };
             if (picker.ShowDialog(Window.GetWindow(combo)) != true) { Populate(combo); return; }
             path = picker.FileName;
         }

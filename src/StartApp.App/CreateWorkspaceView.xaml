@@ -45,7 +45,7 @@
  </UserControl.Resources>
  <DockPanel>
   <Border DockPanel.Dock="Bottom" Height="37" Background="#EEF1F6" BorderBrush="#DCE0E7" BorderThickness="0,1,0,0" Padding="18,8">
-   <TextBlock Text="יצירת סביבה היא מסך נפרד. יציאה עם שינויים מבקשת לשמור או לוותר." Foreground="#566173" FontSize="11"/>
+   <TextBlock Text="ביציאה עם שינויים שלא נשמרו, אפשר לשמור או לוותר עליהם." Foreground="#566173" FontSize="11"/>
   </Border>
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <StackPanel Margin="32,22,32,32">
