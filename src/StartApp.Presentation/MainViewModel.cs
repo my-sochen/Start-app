@@ -682,6 +682,12 @@ public sealed partial class MainViewModel : ObservableBase
     public bool InDetails { get => _inDetails; private set { Set(ref _inDetails, value); Raise(nameof(InOverview)); Raise(nameof(ShowEmptyItemsMessage)); RaiseCommands(); } }
     private bool _inDetails;
     public bool InOverview => !_inDetails;
+    /// <summary>True while the in-window settings screen (הגדרות) covers the content. Independent of
+    /// overview/details: חזרה לסביבות returns to whatever screen was open below.</summary>
+    public bool InSettings { get => _inSettings; private set { Set(ref _inSettings, value); RaiseCommands(); } }
+    private bool _inSettings;
+    public RelayCommand OpenSettingsCommand { get; private set; } = null!;
+    public RelayCommand CloseSettingsCommand { get; private set; } = null!;
     /// <summary>Spec strings quoted in Hebrew on the cards, kept verbatim.</summary>
     public const string EmptyWorkspaceTitle = "סביבת עבודה ריקה";
     public const string EmptyItemsMessage = "עדיין אין אייטמים בסביבה";
@@ -1184,6 +1190,8 @@ public sealed partial class MainViewModel : ObservableBase
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        OpenSettingsCommand = Cmd(_ => InSettings = true, _ => !_inSettings);
+        CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
         CaptureAddCommand = Cmd(_ => AddCaptured(), _ => IsCaptureSide && CaptureRows.Count > 0 && CaptureIdle && !ReadOnly);
