@@ -3021,7 +3021,10 @@ public static class WinCap {
   Assert 'a category filter option is offered' ($null -ne $catAll) ''
   [void](InvokeEl (MenuItemByName $catAll) 'category filter choice'); Start-Sleep -Milliseconds 900
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 600
-  Assert 'filtered counter appears in the chips bar' (WaitText "מתוך" 5) ((Texts) -join ' | ')
+  $filterCount = AnyByName 'Filter count'
+  Assert 'filtered counter is visible in the chips bar' ($null -ne $filterCount -and -not $filterCount.Current.IsOffscreen) ''
+  $filterText = $filterCount.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern).DocumentRange.GetText(-1)
+  Assert 'filtered counter reports the current shown and total workspace counts' ($filterText -match '^מוצגת \d+ מתוך \d+$') $filterText
   Shot 'view-chips-filter'
   $c = ClickBtn 'View menu' 1200; Assert 'view menu reopened for template' ($c -eq 'ok') $c
   $mi = MenuItemByName 'תבנית תצוגה'; Assert 'template submenu parent present' ($null -ne $mi) ''; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'template submenu') }; Start-Sleep -Milliseconds 700
