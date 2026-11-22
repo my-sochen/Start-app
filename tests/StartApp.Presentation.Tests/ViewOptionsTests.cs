@@ -192,7 +192,7 @@ public class ViewOptionsTests
         vm.ToggleDefaultForCommand.Execute(bet); // setting replaces the existing default
         Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
         Assert.False(vm.IsDefaultWorkspace(alpha));
-        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it ("בטל הגדרה כברירת מחדל")
+        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it ("הסר הגדרה כברירת מחדל")
         Assert.Null(repo.Load().DefaultWorkspaceId);
         Assert.Equal("בוטלה סביבת ברירת המחדל", vm.ToastMessage);
     }
@@ -203,10 +203,10 @@ public class ViewOptionsTests
         var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
         vm.OpenDetailsCommand.Execute(alpha);
         Assert.False(vm.SelectedIsDefault);
-        Assert.Equal("הגדר כסביבת ברירת מחדל", vm.DefaultToggleLabel);
+        Assert.Equal("הגדר כברירת מחדל", vm.DefaultToggleLabel);
         vm.ToggleDefaultForCommand.Execute(vm.Selected);
         Assert.True(vm.SelectedIsDefault);
-        Assert.Equal("בטל הגדרה כברירת מחדל", vm.DefaultToggleLabel);
+        Assert.Equal("הסר הגדרה כברירת מחדל", vm.DefaultToggleLabel);
     }
 
     [Fact] public void Default_workspace_badge_marks_exactly_one_card()
