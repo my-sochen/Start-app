@@ -40,7 +40,7 @@
                                  #A7AEB9 when unset), category chip, stats line, styled שגר + "הצגת פרטים ←" footer.
                                  With a background image the Nov 11 design still applies: image surface + thick-top
                                  color frame, and the top bar hides. -->
-                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="0,4" CornerRadius="8">
+                            <Border ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Workspace actions" Margin="12,8" CornerRadius="8">
                                 <Border.Background>
                                     <MultiBinding Converter="{StaticResource CardSurface}">
                                         <Binding Path="Color"/>
@@ -61,7 +61,7 @@
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Right" Padding="14,10,14,0" AutomationProperties.Name="{Binding Name}">
                                     <!-- סביבת ברירת מחדל badge (approved 22.11 handoff): 11px green dot #3F9D63 directly left of the
                                          name (RTL: second child in the horizontal stack), only on the one default workspace's card. -->
-                                    <StackPanel Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
                                         <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#222833" TextAlignment="Right"
                                                    FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
                                         <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,6,0" VerticalAlignment="Center"
@@ -182,6 +182,10 @@
         </DataTemplate>
         
         <local:ItemEditorVisibilityConverter x:Key="ItemEditorVisibility"/>
+        <!-- view-template panels (approved 22.11 mock set): cards = 3-column grid, list = vertical rows, icons = wrapping tiles -->
+        <ItemsPanelTemplate x:Key="CardGridPanel"><UniformGrid Columns="3"/></ItemsPanelTemplate>
+        <ItemsPanelTemplate x:Key="ListRowsPanel"><StackPanel Orientation="Vertical"/></ItemsPanelTemplate>
+        <ItemsPanelTemplate x:Key="IconTilesPanel"><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
         <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
             <CollectionViewSource.GroupDescriptions>
                 <PropertyGroupDescription PropertyName="Group"/>
@@ -200,13 +204,16 @@
             <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight">
                 <Image Source="Assets/start-app-ufo.png" Width="18" Height="18" Margin="10,0,6,0" VerticalAlignment="Center"/>
                 <TextBlock Text="Start-app" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                <Button Content="אופציות ▾" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
+                <Button Content="אופציות" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Options menu"/>
-                <Button Content="תצוגה ▾" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
+                <Button Content="תצוגה" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="View menu"/>
-                <Button Content="עזרה ▾" Click="HelpMenu_Click" Padding="12,0"
+                <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Settings"/>
+                <Button Content="עזרה" Click="HelpMenu_Click" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Help menu">
                     <Button.ContextMenu>
@@ -215,9 +222,6 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-                <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
-                        AutomationProperties.Name="Settings"/>
             </StackPanel>
         </Border>
         <!-- update status strip (kept from the old menu row; סביבה גלובלית stays here until its approved home lands) -->
@@ -339,7 +343,12 @@
                     <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="Create workspace" Command="{Binding CreateWorkspaceCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2"/>
                 </StackPanel>
                 <ListBox x:Name="WorkspaceList" ItemsSource="{Binding DisplayWorkspaces}" ItemTemplate="{StaticResource WorkspaceCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        AutomationProperties.Name="Workspace list"/>
+                        AutomationProperties.Name="Workspace list">
+                    <!-- approved 22.11 mock: the card view is a 3-column grid (ViewMenu swaps this panel per template) -->
+                    <ListBox.ItemsPanel>
+                        <StaticResource ResourceKey="CardGridPanel"/>
+                    </ListBox.ItemsPanel>
+                </ListBox>
             </DockPanel>
 
             <!-- ============ DETAILS: פרטי סביבה ============ -->

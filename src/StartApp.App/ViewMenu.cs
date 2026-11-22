@@ -130,6 +130,12 @@ public partial class MainWindow
         {
             WorkspaceList.ItemTemplate = (DataTemplate)Resources[_hooked!.CurrentTemplate switch
             { ViewTemplate.List => "WorkspaceListTemplate", ViewTemplate.Icons => "WorkspaceIconsTemplate", _ => "WorkspaceCardTemplate" }];
+            WorkspaceList.ItemsPanel = _hooked!.CurrentTemplate switch
+            {
+                ViewTemplate.List => FindResource("ListRowsPanel") as ItemsPanelTemplate,
+                ViewTemplate.Icons => FindResource("IconTilesPanel") as ItemsPanelTemplate,
+                _ => FindResource("CardGridPanel") as ItemsPanelTemplate
+            };
         }
     }
 }
