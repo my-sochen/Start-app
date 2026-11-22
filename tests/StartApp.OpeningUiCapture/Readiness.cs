@@ -64,6 +64,8 @@ internal static partial class Program
         if (Directory.Exists(output) || File.Exists(output)) return 3;
         Directory.CreateDirectory(output);
         var app = new StartApp.App.App();
+        // Load App.xaml resources into Application.Current (the parameterless ctor does not; generated Main normally does this). Startup never fires without Run().
+        app.InitializeComponent();
         using var store = new JsonStore(Path.Combine(output, "isolated-store", "store.json"));
         store.Mutate(c =>
         {
