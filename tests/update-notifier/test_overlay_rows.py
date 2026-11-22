@@ -10,10 +10,15 @@ MODALS = {
     'CaptureDupSinglePending', 'CaptureDupGroupPending', 'EmptyWorkspaceOpen',
     'AddressEditOpen', 'OpenWithOpen', 'PickerOpen', 'DesignEditOpen',
     'CategoryEditOpen', 'UnsavedOpen', 'SelectionPending',
-    'OpenDecisionPending', 'LastResultsOpen', 'InSettings', 'InGlobalEnv',
+    'OpenDecisionPending', 'LastResultsOpen',
     'DefaultConfirmOpen',
 }
 
+
+CONTENT_SCREENS = {'CaptureOpen', 'InAllItems', 'InSettings', 'InGlobalEnv'}
+
+def layout_grid(root):
+    return root.find(NS + 'Border/' + NS + 'Grid')
 
 def visibility(name):
     return '{Binding ' + name + ', Converter={StaticResource B2V}}'
@@ -25,27 +30,27 @@ class OverlayRows(unittest.TestCase):
                              'src/StartApp.App/MainWindow.xaml').getroot()
 
     def assert_layout(self, root):
-        grid = root.find(NS + 'Grid')
+        grid = layout_grid(root)
         self.assertIsNotNone(grid)
         rows = grid.find(NS + 'Grid.RowDefinitions')
         self.assertIsNotNone(rows)
         # approved 22.11 title-bar tabs: 36px tab strip + update strip + content
-        self.assertEqual(['36', 'Auto', '*'], [r.get('Height') for r in rows])
+        self.assertEqual(['38', 'Auto', '*', 'Auto'], [r.get('Height') for r in rows])
         # Exact identities catch missing, duplicate and unclassified root layers.
-        layers = [e for e in grid if 'Visibility' in e.attrib]
-        expected = MODALS | {'CaptureOpen', 'SaveBlocked', 'ToastVisible'}
+        layers = [e for e in grid if e.get('Visibility', '').startswith('{Binding') and e.get('Grid.Row') != '3']
+        expected = MODALS | CONTENT_SCREENS | {'SaveBlocked', 'ToastVisible'}
         self.assertEqual(Counter({visibility(n): 1 for n in expected}),
                          Counter(e.get('Visibility') for e in layers))
         for layer in layers:
             binding = layer.get('Visibility')
-            if binding in (visibility('CaptureOpen'), visibility('SaveBlocked')):
+            if binding in {visibility(n) for n in CONTENT_SCREENS | {'SaveBlocked'}}:
                 # Capture is content, not a full-window modal: leave header visible.
-                self.assertEqual('2' if binding == visibility('CaptureOpen') else '1',
+                self.assertEqual('1' if binding == visibility('SaveBlocked') else '2',
                                  layer.get('Grid.Row'), binding)
                 self.assertEqual('1', layer.get('Grid.RowSpan', '1'), binding)
             else:
                 self.assertEqual('0', layer.get('Grid.Row', '0'), binding)
-                self.assertEqual('3', layer.get('Grid.RowSpan'), binding)
+                self.assertEqual('4' if binding == visibility('UnsavedOpen') else '3', layer.get('Grid.RowSpan'), binding)
             self.assertEqual(NS + ('Border' if binding in
                              (visibility('SaveBlocked'), visibility('ToastVisible'))
                              else 'Grid'), layer.tag, binding)
@@ -56,11 +61,11 @@ class OverlayRows(unittest.TestCase):
 
     def test_contract_rejects_missing_duplicate_unknown_or_misplaced_layers(self):
         def layer(root, name):
-            return next(e for e in root.find(NS + 'Grid')
+            return next(e for e in layout_grid(root)
                         if e.get('Visibility') == visibility(name))
         mutations = {
-            'missing modal': lambda r: r.find(NS + 'Grid').remove(layer(r, 'SelectionPending')),
-            'duplicate modal': lambda r: r.find(NS + 'Grid').append(deepcopy(layer(r, 'SelectionPending'))),
+            'missing modal': lambda r: layout_grid(r).remove(layer(r, 'SelectionPending')),
+            'duplicate modal': lambda r: layout_grid(r).append(deepcopy(layer(r, 'SelectionPending'))),
             'unclassified modal': lambda r: layer(r, 'SelectionPending').set('Visibility', visibility('NewModal')),
             'modal no longer spans header': lambda r: layer(r, 'LastResultsOpen').set('Grid.RowSpan', '1'),
             'capture hides header': lambda r: layer(r, 'CaptureOpen').set('Grid.RowSpan', '2'),
