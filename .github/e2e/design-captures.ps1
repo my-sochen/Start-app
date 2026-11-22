@@ -341,12 +341,20 @@ try {
     }
     if (!$candidate) { throw 'No desktop fixture candidate detected' }
     $candidate.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    $second = $openItems.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox))) | Where-Object { $_.Current.Name -like '*תיקיית מסמכים*' } | Select-Object -First 1
+    if (!$second) { throw 'No second capture fixture candidate detected' }
+    $second.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    Capture 'capture-two-items-selected' 1280 880
     InvokeNamed 'Add selected capture items'
     $added = RootNamed 'Added items not saved yet'
-    $edit = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' } | Select-Object -First 1
+    $edit = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *לוח משימות*' } | Select-Object -First 1
     if (!$edit) { throw 'No staged fixture editor available' }
     $edit.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Capture 'capture-embedded-full-editor' 1280 880
+    $other = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *תיקיית מסמכים*' } | Select-Object -First 1
+    if (!$other) { throw 'No second staged accordion arrow detected' }
+    $other.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Capture 'capture-switched-item-editor' 1280 880
   } catch { $_.Exception.Message | Set-Content design-captures/capture-fixture-gap.txt }
   finally { $fixture.Close(); $fixture.Dispose() }
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt

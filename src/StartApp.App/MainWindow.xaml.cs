@@ -159,8 +159,10 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
         e.Handled = true;
     }
-    private void EditStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: true);
-    private void DoneStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: false);
+    private void ToggleStaged_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: MainViewModel.StagedRow row }) RevealStagedRow(sender, editing: !row.IsEditing);
+    }
     private void RevealStagedRow(object sender, bool editing)
     {
         if (sender is not Button { DataContext: MainViewModel.StagedRow row } button) return;
@@ -186,7 +188,7 @@ public partial class MainWindow : Window
             if (child is FrameworkElement element && element.IsVisible && ReferenceEquals(element.DataContext, row))
             {
                 if (editing && element is TextBox input && System.Windows.Automation.AutomationProperties.GetName(input) == "Added item name") return input;
-                if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Edit added " + row.OriginalName) return edit;
+                if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Toggle added " + row.OriginalName) return edit;
             }
             var found = FindStagedRevealTarget(child, row, editing); if (found is not null) return found;
         }

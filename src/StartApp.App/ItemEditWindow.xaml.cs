@@ -24,7 +24,14 @@ public partial class ItemEditWindow : Window
         CaptionLabel.Text = "פרטי הסביבה · " + _name + " · עריכה";
         TitleLabel.Text = "עריכת " + _name;
         ContentRendered += (_, _) => NameInput.Focus();
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            if (OpenWithInput.IsDropDownOpen) { OpenWithInput.IsDropDownOpen = false; return; }
+            if (UnsavedShade.Visibility == Visibility.Visible) { UnsavedShade.Visibility = Visibility.Collapsed; NameInput.Focus(); return; }
+            Close();
+        };
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
@@ -44,12 +51,13 @@ public partial class ItemEditWindow : Window
         {
             e.Cancel = true;
             UnsavedShade.Visibility = Visibility.Visible;
+            KeepEditingButton.Focus();
             return;
         }
         if (_vm.CancelItemEditCommand.CanExecute(null)) _vm.CancelItemEditCommand.Execute(null);
     }
 
-    private void KeepEditing_Click(object sender, RoutedEventArgs e) => UnsavedShade.Visibility = Visibility.Collapsed;
+    private void KeepEditing_Click(object sender, RoutedEventArgs e) { UnsavedShade.Visibility = Visibility.Collapsed; NameInput.Focus(); }
 
     private void Discard_Click(object sender, RoutedEventArgs e)
     {
