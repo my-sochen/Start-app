@@ -13,6 +13,7 @@ public static class DesignWindow {
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+ [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
 }
 '@
 New-Item -ItemType Directory -Force design-captures | Out-Null
@@ -84,7 +85,12 @@ try {
   function InvokeNamed($name) {
     $button = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, $name)))
     if (!$button) { throw "Missing app control: $name" }
-    $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    if ($name -eq 'Options menu') {
+      $point = $button.GetClickablePoint()
+      [void][DesignWindow]::SetCursorPos([int]$point.X, [int]$point.Y)
+      [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+      [DesignWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+    } else { $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
     Start-Sleep -Milliseconds 350
   }
   function RootNamed($name) {

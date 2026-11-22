@@ -215,6 +215,10 @@ public partial class MainWindow : Window
         }
         return null;
     }
+    private void CaptionTab_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    { if (sender is Control tab) tab.FocusVisualStyle = null; }
+    private void CaptionTab_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
     private void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
     {
         if (sender is not FrameworkElement { ContextMenu: { } menu } host) return;
