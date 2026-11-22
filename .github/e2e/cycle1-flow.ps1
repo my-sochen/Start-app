@@ -2794,10 +2794,11 @@ public static class WinCap {
   $delMi = MenuItemByName 'מחק'; Assert 'delete entry present in the ok.txt row menu' ($null -ne $delMi) ''
   [void](InvokeEl $delMi 'delete entry'); Start-Sleep -Milliseconds 600
   Assert 'delete opens an environment confirmation before mutating' ($null -ne (Btn 'Confirm item workspace choice') -and (StoreObj | ConvertTo-Json -Depth 30 -Compress) -ceq ($o | ConvertTo-Json -Depth 30 -Compress)) ''
-  $envChoices = @(UiaAll $CT::ListItem | Where-Object { $_.Current.Name -eq 'E2E four groups' })
-  Assert 'delete picker identifies exactly the intended environment' ($envChoices.Count -eq 1) ("count=$($envChoices.Count)")
-  $envChoices[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  $c = ClickBtn 'Confirm item workspace choice' 900; Assert 'delete confirmed for the selected environment only' ($c -eq 'ok') $c
+  # The shared catalog item has different effective names in the two environments (ok.txt / Four file),
+  # so only this environment matches the full effective identity. The plain confirmation hides the list.
+  Assert 'single-identity delete confirmation names only the intended environment' ((WaitText 'למחוק את האייטם?' 5) -and (WaitText 'E2E four groups' 5) -and -not (WaitText 'מאילו סביבות למחוק?' 1)) ((Texts) -join ' | ')
+  Assert 'single-environment delete confirmation is enabled without selecting hidden rows' ((Btn 'Confirm item workspace choice').Current.IsEnabled) ''
+  $c = ClickBtn 'Confirm item workspace choice' 900; Assert 'delete confirmed for the intended environment only' ($c -eq 'ok') $c
   $gone = $false; $swD = [Diagnostics.Stopwatch]::StartNew(); while ($swD.Elapsed.TotalSeconds -lt 10) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like '*ok.txt*' })) { $gone = $true; break }; Start-Sleep -Milliseconds 300 }
   Assert 'deleted row gone from the list (bounded local disappear check)' $gone ((Texts) -join ' | ')
   Shot 'saved-item-deleted'
