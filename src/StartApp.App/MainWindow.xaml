@@ -211,9 +211,6 @@
                 <Button Content="תצוגה" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="View menu"/>
-                <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
-                        AutomationProperties.Name="Settings"/>
                 <Button Content="עזרה" Click="HelpMenu_Click" Padding="12,0"
                         Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Help menu">
@@ -223,6 +220,9 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Settings"/>
             </StackPanel>
             </Grid>
         </Border>
@@ -441,8 +441,6 @@
                                                 </MenuItem>
                                                 <Separator/><MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                <!-- settled display condition: shown only when another workspace exists; the share popup itself is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled -->
-                                                <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
                                                 <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
                                             </ContextMenu>
                                         </Grid.ContextMenu>
@@ -466,23 +464,18 @@
                     <Border.Visibility><MultiBinding Converter="{StaticResource ItemEditorVisibility}"><Binding Path="InstanceId"/><Binding Path="DataContext.EditingItemInstanceId" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></Border.Visibility>
                     <StackPanel DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" FlowDirection="RightToLeft">
                         <TextBlock Text="עריכת אייטם" FontSize="15" Foreground="#222833" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="שם" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Edit item name"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="תיאור" Width="80" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" MaxLength="500" AutomationProperties.Name="Edit item description"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock DockPanel.Dock="Left" Text="כתובת" Width="80" VerticalAlignment="Center"/>
-                            <TextBox FlowDirection="LeftToRight" Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Edit item target"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="פתח באמצעות" Width="80" VerticalAlignment="Center"/><TextBox FlowDirection="LeftToRight" Text="{Binding EditItemOpenWith, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding EditItemOpenWithApplicable}" Style="{StaticResource DetailsInput}" ToolTip="נתיב מלא לתוכנה או לדפדפן; ריק: ברירת המחדל של Windows. לא חל על אייטם תוכנה." AutomationProperties.Name="Edit item open with"/></DockPanel>
-                    <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
+                        <Border Background="#F4F6FD" BorderBrush="#C8D5F5" BorderThickness="0,1,0,0" Padding="10" Margin="0,4,0,0"><StackPanel FlowDirection="LeftToRight">
+ <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+ <StackPanel Grid.Column="2"><TextBlock Text="שם האייטם" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" MinHeight="34" Margin="0,4,0,10" AutomationProperties.Name="Edit item name"/></StackPanel>
+ <StackPanel Grid.Column="0"><TextBlock Text="פתח באמצעות" TextAlignment="Right" FontSize="12" Foreground="#667388"/><ComboBox local:OpenWithPicker.Path="{Binding EditItemOpenWith, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FlowDirection="RightToLeft" Height="34" Margin="0,4,0,10" Background="White" BorderBrush="#C5CDDB" Padding="8,4" AutomationProperties.Name="Edit item open with" IsEnabled="{Binding EditItemOpenWithApplicable}"/></StackPanel>
+ </Grid>
+ <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" MinHeight="34" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Edit item description"/>
+ <TextBlock Text="כתובת / נתיב" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" MinHeight="34" Margin="0,4,0,0" AutomationProperties.Name="Edit item target"/>
+ </StackPanel></Border>
+<TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Style="{StaticResource PrimaryActionButton}" MinWidth="74" MinHeight="38" Padding="16,8" Margin="0,0,6,0"
-                                    Visibility="{Binding ItemEditDirty, Converter={StaticResource B2V}}"/>
+                                    IsEnabled="{Binding ItemEditDirty}"/>
                             <Button Content="ביטול" AutomationProperties.Name="Cancel item edit" Command="{Binding CancelItemEditCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="74" MinHeight="38" Padding="16,8"/>
                         </StackPanel>
                     </StackPanel>
@@ -599,7 +592,6 @@
                                                             </MenuItem>
                                                             <Separator/><MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.StagedMoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.StagedMoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-                                                            <MenuItem Header="שיתוף לסביבה אחרת" IsEnabled="False" Visibility="Collapsed"/>
                                                         </ContextMenu>
                                                     </StackPanel.ContextMenu>
                                             <DockPanel>
@@ -612,15 +604,17 @@
                                                     <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="StagedItemAddress"/>
                                                 </StackPanel>
                                             </DockPanel>
-                                            <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor">
-                                                <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="6,0" AutomationProperties.Name="Done editing added item"
-                                                        Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                                <TextBlock Text="Name"/><TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item name"/>
-                                                <TextBlock Text="Description" Margin="0,2,0,0"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Added item description"/>
-                                                <TextBlock Text="Address" Margin="0,2,0,0"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item address"/>
-                                                <TextBlock Text="Open with" Margin="0,2,0,0"/><TextBox Text="{Binding OpenWith, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Added item open with" ToolTip="Optional: full path to the program/browser to open this item with"/>
-                                                <TextBlock Text="Changes stay here until workspace Save." Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                            </StackPanel>
+                                            <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource B2V}}" Margin="0,4,0,0" AutomationProperties.Name="Staged item editor"><Border Background="#F4F6FD" BorderBrush="#C8D5F5" BorderThickness="0,1,0,0" Padding="10" Margin="0,4,0,0"><StackPanel FlowDirection="LeftToRight">
+ <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+ <StackPanel Grid.Column="2"><TextBlock Text="שם האייטם" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" MinHeight="34" Margin="0,4,0,10" AutomationProperties.Name="Added item name"/></StackPanel>
+ <StackPanel Grid.Column="0"><TextBlock Text="פתח באמצעות" TextAlignment="Right" FontSize="12" Foreground="#667388"/><ComboBox local:OpenWithPicker.Path="{Binding OpenWith, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FlowDirection="RightToLeft" Height="34" Margin="0,4,0,10" Background="White" BorderBrush="#C5CDDB" Padding="8,4" AutomationProperties.Name="Added item open with" IsEnabled="{Binding OpenWithApplicable}"/></StackPanel>
+ </Grid>
+ <TextBlock Text="תיאור" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" TextAlignment="Right" MinHeight="34" MaxLength="500" Margin="0,4,0,10" AutomationProperties.Name="Added item description"/>
+ <TextBlock Text="כתובת / נתיב" TextAlignment="Right" FontSize="12" Foreground="#667388"/><TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" MinHeight="34" Margin="0,4,0,0" AutomationProperties.Name="Added item address"/>
+ </StackPanel></Border>
+ <Button Content="סיום עריכה" Click="DoneStaged_Click" HorizontalAlignment="Right" Padding="12,7" Margin="0,12,0,0" AutomationProperties.Name="Done editing added item" Command="{Binding DataContext.CloseStagedEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+ <TextBlock Text="השינויים עדיין לא נשמרו בסביבה" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" HorizontalAlignment="Right"/>
+ </StackPanel>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -707,14 +701,14 @@
                         <Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelDefaultReplaceCommand}" Style="{StaticResource QuietTextButton}" FontSize="13" AutomationProperties.Name="Cancel default-env replace"/>
                         <TextBlock DockPanel.Dock="Right" Text="הגדרת סביבת ברירת מחדל" FontSize="11" Foreground="#626B79" HorizontalAlignment="Right"/>
                     </DockPanel>
-                    <TextBlock Text="כבר מוגדרת סביבת ברירת מחדל" FontSize="20" FontWeight="SemiBold" Foreground="#222833" Margin="0,14,0,0"/>
-                    <TextBlock Text="{Binding DefaultConfirmBody}" FontSize="13" Foreground="#5B6576" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <TextBlock Text="{Binding DefaultConfirmTitle}" FontSize="24" TextAlignment="Right" FontWeight="SemiBold" Foreground="#222833" Margin="0,14,0,0"/>
+                    <TextBlock Text="{Binding DefaultConfirmBody}" TextAlignment="Right" FontSize="13" Foreground="#5B6576" TextWrapping="Wrap" Margin="0,10,0,0"/>
                     <Border Background="#EEF3FB" BorderBrush="#CED8E9" BorderThickness="1" CornerRadius="5" Padding="12,8" Margin="0,14,0,0">
-                        <TextBlock Text="{Binding DefaultConfirmNotice}" FontSize="12" Foreground="#3F526D" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding DefaultConfirmNotice}" TextAlignment="Right" FontSize="12" Foreground="#3F526D" TextWrapping="Wrap"/>
                     </Border>
                     <Border Height="1" Background="#E4E8EF" Margin="0,16"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="כן, הגדר כברירת מחדל" Style="{StaticResource PrimaryActionButton}" Command="{Binding ConfirmDefaultReplaceCommand}" AutomationProperties.Name="Confirm default-env replace"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" FlowDirection="RightToLeft">
+                        <Button Content="{Binding DefaultConfirmAcceptLabel}" Style="{StaticResource PrimaryActionButton}" Command="{Binding ConfirmDefaultReplaceCommand}" AutomationProperties.Name="Confirm default-env replace"/>
                         <Button Content="ביטול" Command="{Binding CancelDefaultReplaceCommand}" Margin="10,0,0,0" Padding="16,7" FontSize="13"
                                 Background="White" BorderBrush="#C5CAD4" BorderThickness="1" Cursor="Hand" AutomationProperties.Name="Cancel default-env replace button"/>
                     </StackPanel>

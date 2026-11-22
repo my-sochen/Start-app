@@ -140,6 +140,10 @@ try {
   $choice.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).AddToSelection()
   (RootNamed 'Confirm item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Capture 'all-items-link-full-editor' 1280 880
+  $launchChoices = RootNamed 'Selected item open with'
+  $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+  Capture 'all-items-open-with-options' 1280 880
+  $launchChoices.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
   $sharedName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
@@ -258,13 +262,47 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
   Start-Sleep -Milliseconds 500
   Capture 'default-workspace-picker' 1280 880
-  $pickerCancel = RootNamed 'Cancel default workspace choice'
-  $pickerCancel.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-  Start-Sleep -Milliseconds 350
-  InvokeNamed 'אולפן ביתי'
-  InvokeNamed 'Toggle default workspace'
-  Capture 'default-replace-dialog' 1280 880
+  $choice = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'אולפן ביתי')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
+  $choice.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+  (RootNamed 'Confirm default workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'default-picker-replace-confirmation' 1280 880
   InvokeNamed 'Cancel default-env replace'
+  InvokeNamed 'Options menu'
+  (RootNamed 'הגדר סביבה כברירת מחדל').SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Start-Sleep -Milliseconds 350
+  $none = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'ללא ברירת מחדל')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
+  $none.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+  Capture 'default-picker-none-selected' 1280 880
+  (RootNamed 'Confirm default workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'default-picker-remove-confirmation' 1280 880
+  InvokeNamed 'Confirm default-env replace'
+  Capture 'home-no-default' 1280 880
+  # A disposable CI-only desktop window supplies a real capture candidate; nothing is launched by the app.
+  $fixture = New-Object System.Windows.Forms.Form
+  try {
+    $fixture.Text = 'StartApp design capture fixture'
+    $fixture.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+    InvokeNamed 'פיתוח לפרויקט'
+    InvokeNamed 'Add from open items'
+    $candidate = $null
+    for ($i = 0; $i -lt 40 -and !$candidate; $i++) {
+      [System.Windows.Forms.Application]::DoEvents()
+      Start-Sleep -Milliseconds 250
+      $openItems = RootNamed 'Open now list'
+      $candidate = $openItems.FindFirst($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox)))
+    }
+    if (!$candidate) { throw 'No desktop fixture candidate detected' }
+    $candidate.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    InvokeNamed 'הוסף נבחרים'
+    $added = RootNamed 'Added items not saved yet'
+    $edit = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' } | Select-Object -First 1
+    if (!$edit) { throw 'No staged fixture editor available' }
+    $edit.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Capture 'capture-embedded-full-editor' 1280 880
+  } catch { $_.Exception.Message | Set-Content design-captures/capture-fixture-gap.txt }
+  finally { $fixture.Close(); $fixture.Dispose() }
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
 } finally {
   if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }

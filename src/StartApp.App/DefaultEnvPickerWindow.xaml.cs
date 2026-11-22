@@ -6,7 +6,7 @@ using StartApp.Presentation;
 namespace StartApp.App;
 
 /// <summary>אופציות > הגדר סביבה כברירת מחדל picker (options-default-env-f1, approved 22.11 03:03): one radio row per
-/// workspace (color dot, name, category) plus "ללא סביבת ברירת מחדל" last. The current default starts selected;
+/// workspace (color dot, name, category) plus "ללא סביבת ברירת מחדל" first. The current default starts selected;
 /// choosing another row only stages it — אישור commits (the caller persists), ביטול / ✕ close without saving.</summary>
 public partial class DefaultEnvPickerWindow : Window
 {
@@ -25,12 +25,11 @@ public partial class DefaultEnvPickerWindow : Window
     public DefaultEnvPickerWindow(MainViewModel vm)
     {
         InitializeComponent();
-        var rows = vm.Workspaces
-            .Select(w => new Row { WorkspaceId = w.Id, Name = w.Name, Category = w.EffectiveCategory, ColorHex = w.Color })
-            .Concat(new[] { new Row { WorkspaceId = null, Name = "ללא סביבת ברירת מחדל" } })
+        var rows = new[] { new Row { WorkspaceId = null, Name = "ללא ברירת מחדל" } }
+            .Concat(vm.Workspaces.Select(w => new Row { WorkspaceId = w.Id, Name = w.Name, Category = w.EffectiveCategory, ColorHex = w.Color }))
             .ToList();
         Rows.ItemsSource = rows;
-        Rows.SelectedItem = rows.FirstOrDefault(r => r.WorkspaceId == vm.DefaultWorkspaceId) ?? rows[^1];
+        Rows.SelectedItem = rows.FirstOrDefault(r => r.WorkspaceId == vm.DefaultWorkspaceId) ?? rows[0];
     }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)

@@ -231,9 +231,6 @@ public partial class MainWindow : Window
         // Keep row identity separate from window commands across the popup boundary.
         menu.PlacementTarget = host;
         menu.DataContext = host.DataContext;
-        foreach (var item in menu.Items.OfType<MenuItem>())
-            if (item.Header as string == "שיתוף לסביבה אחרת")
-                item.Visibility = (host.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
         // Do not anchor below the whole expanded editor or a partly scrolled-out row.
         // Compute the final popup origin inside the owner, then express it relative to the host.
         var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));

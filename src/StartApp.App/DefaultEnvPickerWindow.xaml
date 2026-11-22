@@ -9,7 +9,7 @@
         <BooleanToVisibilityConverter x:Key="B2V"/>
     </Window.Resources>
     <!-- options-default-env-f1 (approved 22.11 03:03): borderless white card, breadcrumb + ✕, h1, subtitle,
-         one radio row per workspace (color dot + name + category), "ללא סביבת ברירת מחדל" last, אישור + ביטול. -->
+         one radio row per workspace (color dot + name + category), "ללא ברירת מחדל" first, אישור + ביטול. -->
     <Border Background="White" CornerRadius="10" Padding="26,18,26,20" BorderBrush="#C9D0DC" BorderThickness="1">
         <Border.Effect><DropShadowEffect BlurRadius="34" ShadowDepth="12" Direction="270" Opacity="0.18" Color="#1A2436"/></Border.Effect>
         <Grid>
@@ -32,6 +32,7 @@
                      SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto" MaxHeight="330">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
                         <Setter Property="Padding" Value="0"/>
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                         <Setter Property="Cursor" Value="Hand"/>

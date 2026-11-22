@@ -1161,6 +1161,7 @@ public sealed partial class MainViewModel : ObservableBase
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
+        public bool OpenWithApplicable => !IsProgram;
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
     public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File");

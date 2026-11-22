@@ -74,7 +74,7 @@ public sealed partial class MainViewModel
 
     /// <summary>Paths 2+3 (approved 22.11): one command from the card context menu and the details button; the parameter is
     /// the workspace. Setting with no existing default is immediate; replacing one opens the confirmation dialog first
-    /// (owner decision 22.11 11:16). Removal is always immediate. The menu row label comes from DefaultMenuHeaderConverter.</summary>
+    /// (owner decision 22.11 11:16). Direct removal is immediate; the picker can request confirmation. The menu row label comes from DefaultMenuHeaderConverter.</summary>
     public ICommand ToggleDefaultForCommand => _toggleDefaultFor ??= Cmd(p =>
     { if (p is Workspace w) SetDefaultWorkspace(IsDefaultWorkspace(w) ? null : w.Id); }, _ => !ReadOnly);
     private ICommand? _toggleDefaultFor;
@@ -82,14 +82,14 @@ public sealed partial class MainViewModel
     /// <summary>Set or clear the סביבת ברירת מחדל (null = "ללא סביבת ברירת מחדל"). Owner behavior matrix 22.11:
     /// setting with NO existing default is immediate; setting while another workspace holds it first opens the
     /// confirmation dialog (ConfirmDefaultReplaceCommand applies, CancelDefaultReplaceCommand / ✕ / outside change
-    /// nothing); removal is always immediate (reversible, no data loss).</summary>
-    public void SetDefaultWorkspace(string? workspaceId)
+    /// nothing); the picker confirms removal when requested; direct removal stays immediate.</summary>
+    public void SetDefaultWorkspace(string? workspaceId, bool confirmRemoval = false)
     {
-        if (workspaceId is { Length: > 0 } && _current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
+        if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId && (workspaceId is { Length: > 0 } || confirmRemoval))
         {
             _pendingDefaultId = workspaceId;
             DefaultConfirmOpen = true;
-            Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice));
+            Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice)); Raise(nameof(DefaultConfirmTitle)); Raise(nameof(DefaultConfirmAcceptLabel));
             return;
         }
         ApplyDefaultWorkspace(workspaceId);
@@ -101,8 +101,14 @@ public sealed partial class MainViewModel
     /// <summary>Replace-confirm dialog state (approved dialog 22.11): open flag, dynamic body naming the current and
     /// candidate workspaces, and the blue notice naming the candidate.</summary>
     public bool DefaultConfirmOpen { get; private set; }
-    public string DefaultConfirmBody => $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_pendingDefaultId)}'?";
-    public string DefaultConfirmNotice => $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_pendingDefaultId)}', והיא זו שתיפתח עם הפעלת המחשב.";
+    public string DefaultConfirmTitle => _pendingDefaultId is null ? "להסיר את ברירת המחדל?" : "כבר מוגדרת סביבת ברירת מחדל";
+    public string DefaultConfirmAcceptLabel => _pendingDefaultId is null ? "כן, הסר ברירת מחדל" : "כן, הגדר כברירת מחדל";
+    public string DefaultConfirmBody => _pendingDefaultId is null
+        ? $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר ללא ברירת מחדל?"
+        : $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_pendingDefaultId)}'?";
+    public string DefaultConfirmNotice => _pendingDefaultId is null
+        ? "אחרי האישור הנקודה הירוקה תוסר ולא תיפתח אף סביבה עם הפעלת המחשב. אפשר להגדיר ברירת מחדל שוב בכל עת."
+        : $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_pendingDefaultId)}', והיא זו שתיפתח עם הפעלת המחשב.";
 
     /// <summary>Dialog confirm: move the green badge and fire the existing ~3s toast.</summary>
     public ICommand ConfirmDefaultReplaceCommand => _confirmDefaultReplace ??= Cmd(_ =>
