@@ -41,11 +41,16 @@ $workspaces[0].items = @($detailMembers)
 $workspaces[0].category = 'תכנות'
 @{ schemaVersion = 5; items = $catalogue; workspaces = @($workspaces); customCategories = @('תכנות'); defaultWorkspaceId = 'demo-0' } | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $storeDir 'store.json') -Encoding utf8
 $exe = Get-ChildItem src/StartApp.App/bin/Release -Recurse -Filter StartApp.App.exe | Select-Object -First 1
+$env:STARTAPP_CRASHLOG = '1'
 $p = Start-Process $exe.FullName -PassThru
 try {
   $clock = [Diagnostics.Stopwatch]::StartNew()
   do { Start-Sleep -Milliseconds 250; $p.Refresh() } while (!$p.HasExited -and $p.MainWindowHandle -eq 0 -and $clock.Elapsed.TotalSeconds -lt 45)
-  if ($p.HasExited -or $p.MainWindowHandle -eq 0) { throw 'App did not open' }
+  if ($p.HasExited -or $p.MainWindowHandle -eq 0) {
+    $crash = Join-Path $storeDir 'crash.log'
+    if (Test-Path $crash) { Copy-Item $crash design-captures/crash.log; Get-Content $crash }
+    throw 'App did not open'
+  }
   $a = [System.Windows.Automation.AutomationElement]
   $ts = [System.Windows.Automation.TreeScope]::Descendants
   $pc = [System.Windows.Automation.PropertyCondition]
