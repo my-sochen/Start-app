@@ -72,3 +72,93 @@ public sealed class CardSizePaddingConverter : IValueConverter
             : new Thickness(4);
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Card top bar brush (approved mocks 22.11): the workspace color, or the neutral #A7AEB9 when unset.</summary>
+public sealed class TopBarBrushConverter : IValueConverter
+{
+    private static readonly SolidColorBrush Fallback = Frozen("#A7AEB9");
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        ColorBrushConverter.BrushFrom(value as string) ?? Fallback;
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+    internal static SolidColorBrush Frozen(string hex)
+    { var b = new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)); b.Freeze(); return b; }
+}
+
+/// <summary>Card surface (approved mocks): the uploaded image when readable, otherwise plain white.</summary>
+public sealed class CardSurfaceConverter : IMultiValueConverter
+{
+    private static readonly SolidColorBrush White = TopBarBrushConverter.Frozen("#FFFFFF");
+    public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var image = values.Length > 1 ? values[1] as string : null;
+        if (!string.IsNullOrEmpty(image))
+        {
+            try { var b = new ImageBrush(new BitmapImage(new Uri(image, UriKind.Absolute))) { Stretch = Stretch.UniformToFill }; b.Freeze(); return b; }
+            catch (Exception e) when (e is UriFormatException or System.IO.IOException or NotSupportedException or ArgumentException) { }
+        }
+        return White;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Card frame: with an image the frame is the workspace color (Nov 11 design); without one the mock's neutral border.</summary>
+public sealed class CardFrameBrushConverter : IMultiValueConverter
+{
+    private static readonly SolidColorBrush Neutral = TopBarBrushConverter.Frozen("#C9D0DC");
+    public object? Convert(object[] values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var image = values.Length > 1 ? values[1] as string : null;
+        if (!string.IsNullOrEmpty(image) && System.IO.File.Exists(image))
+            return ColorBrushConverter.BrushFrom(values.Length > 0 ? values[0] as string : null) ?? Neutral;
+        return Neutral;
+    }
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Card frame thickness: the Nov 11 thick-top frame only with a readable image; a uniform 1px hairline otherwise.</summary>
+public sealed class CardFrameThicknessConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && s.Length > 0 && System.IO.File.Exists(s) ? new Thickness(1, 8, 1, 1) : new Thickness(1);
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Visible when the card has no readable image (the colored top bar shows only then).</summary>
+public sealed class NoImageToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && s.Length > 0 && System.IO.File.Exists(s) ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>First letter of a name for the סביבה גלובלית row tile (G/W/ת/ל...); Latin letters uppercased.</summary>
+public sealed class FirstLetterConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && s.Length > 0 ? char.ToUpperInvariant(s[0]).ToString() : "";
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Card stats line via the window view-model (needs the item store for types): values[0] Workspace, values[1] MainViewModel.</summary>
+public sealed class StatsTextConverter : IMultiValueConverter
+{
+    public object? Convert(object[] values, Type targetType, object? parameter, CultureInfo culture) =>
+        values.Length > 1 && values[0] is StartApp.Core.Workspace w && values[1] is StartApp.Presentation.MainViewModel vm ? vm.StatsText(w) : "";
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Card footer first line via the window view-model (relative Hebrew date): values[0] Workspace, values[1] MainViewModel.</summary>
+public sealed class FooterLine1Converter : IMultiValueConverter
+{
+    public object? Convert(object[] values, Type targetType, object? parameter, CultureInfo culture) =>
+        values.Length > 1 && values[0] is StartApp.Core.Workspace w && values[1] is StartApp.Presentation.MainViewModel vm ? vm.FooterLine1(w) : "";
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>false → Visible, true → Collapsed (the chips bar swaps chip row and single-filter short form).</summary>
+public sealed class InverseBooleanToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
