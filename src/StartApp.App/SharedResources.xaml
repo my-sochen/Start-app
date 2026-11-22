@@ -11,6 +11,7 @@
     <local:DefaultBadgeVisibilityConverter x:Key="DefaultBadgeVisibility"/>
     <local:DefaultMenuHeaderConverter x:Key="DefaultMenuHeader"/>
     <local:FooterLine1Converter x:Key="FooterLine1"/>
+    <local:FooterLine1ListConverter x:Key="FooterLine1List"/>
     <local:InverseBooleanToVisibilityConverter x:Key="NotB2V"/>
 
     <!-- Approved 22.11 menu look (pixel-exact mocks): white surface, #C9D0DC border, 5px radius, shadow -->
