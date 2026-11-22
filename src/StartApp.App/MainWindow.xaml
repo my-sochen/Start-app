@@ -23,7 +23,6 @@
             <MenuItem Header="הוסף אייטם" Command="{Binding PlacementTarget.Tag.AddItemToCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <Separator/><MenuItem Header="עצב כרטיס" Command="{Binding PlacementTarget.Tag.DesignCardCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
-            <!-- path 2 (approved 22.11): separator + final row; sets/clears סביבת ברירת המחדל immediately, no confirm dialog. -->
             <Separator/>
             <MenuItem Command="{Binding PlacementTarget.Tag.ToggleDefaultForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
                       AutomationProperties.Name="Toggle default workspace">

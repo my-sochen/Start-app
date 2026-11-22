@@ -218,6 +218,8 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
 
   InvokeNamed 'Toggle default workspace'
+  Capture 'details-remove-default-confirmation' 1280 880
+  InvokeNamed 'Confirm default-env replace'
   InvokeNamed 'Dismiss notification'
   Capture 'details-nondefault-mock-size' 1280 880
   InvokeNamed 'Toggle default workspace'

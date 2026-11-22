@@ -74,7 +74,7 @@ public sealed partial class MainViewModel
 
     /// <summary>Paths 2+3 (approved 22.11): one command from the card context menu and the details button; the parameter is
     /// the workspace. Setting with no existing default is immediate; replacing one opens the confirmation dialog first
-    /// (owner decision 22.11 11:16). Direct removal is immediate; the picker can request confirmation. The menu row label comes from DefaultMenuHeaderConverter.</summary>
+    /// (owner decision 22.11 11:16). Every removal route asks for confirmation. The menu row label comes from DefaultMenuHeaderConverter.</summary>
     public ICommand ToggleDefaultForCommand => _toggleDefaultFor ??= Cmd(p =>
     { if (p is Workspace w) SetDefaultWorkspace(IsDefaultWorkspace(w) ? null : w.Id); }, _ => !ReadOnly);
     private ICommand? _toggleDefaultFor;
@@ -82,14 +82,14 @@ public sealed partial class MainViewModel
     /// <summary>Set or clear the סביבת ברירת מחדל (null = "ללא סביבת ברירת מחדל"). Owner behavior matrix 22.11:
     /// setting with NO existing default is immediate; setting while another workspace holds it first opens the
     /// confirmation dialog (ConfirmDefaultReplaceCommand applies, CancelDefaultReplaceCommand / ✕ / outside change
-    /// nothing); the picker confirms removal when requested; direct removal stays immediate.</summary>
-    public void SetDefaultWorkspace(string? workspaceId, bool confirmRemoval = false)
+    /// nothing); every removal route asks for confirmation.</summary>
+    public void SetDefaultWorkspace(string? workspaceId)
     {
-        if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId && (workspaceId is { Length: > 0 } || confirmRemoval))
+        if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
         {
             _pendingDefaultId = workspaceId;
             DefaultConfirmOpen = true;
-            Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice)); Raise(nameof(DefaultConfirmTitle)); Raise(nameof(DefaultConfirmAcceptLabel));
+            Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice)); Raise(nameof(DefaultConfirmTitle)); Raise(nameof(DefaultConfirmAcceptLabel)); RaiseCommands();
             return;
         }
         ApplyDefaultWorkspace(workspaceId);
@@ -113,6 +113,7 @@ public sealed partial class MainViewModel
     /// <summary>Dialog confirm: move the green badge and fire the existing ~3s toast.</summary>
     public ICommand ConfirmDefaultReplaceCommand => _confirmDefaultReplace ??= Cmd(_ =>
     {
+        if (!DefaultConfirmOpen || ReadOnly) return;
         var id = _pendingDefaultId;
         CloseDefaultConfirm();
         ApplyDefaultWorkspace(id);
@@ -127,7 +128,7 @@ public sealed partial class MainViewModel
     {
         _pendingDefaultId = null;
         DefaultConfirmOpen = false;
-        Raise(nameof(DefaultConfirmOpen));
+        Raise(nameof(DefaultConfirmOpen)); RaiseCommands();
     }
 
     /// <summary>Persist the choice and refresh the cards so the green badge moves immediately. Exactly one workspace can

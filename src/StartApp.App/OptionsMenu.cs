@@ -43,7 +43,7 @@ public partial class MainWindow
     {
         var picker = new DefaultEnvPickerWindow(vm) { Owner = this };
         if (picker.ShowDialog() == true)
-            vm.SetDefaultWorkspace(picker.ChosenWorkspaceId, confirmRemoval: true);
+            vm.SetDefaultWorkspace(picker.ChosenWorkspaceId);
     }
 
     private static MenuItem CommandItem(string header, System.Windows.Input.ICommand command) =>
