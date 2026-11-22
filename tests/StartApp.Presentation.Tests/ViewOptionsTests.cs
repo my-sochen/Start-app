@@ -159,6 +159,56 @@ public class ViewOptionsTests
         Assert.Equal("עדיין אין אייטמים", vm2.StatsText(repo2.Load().Workspaces.Single(w => w.Name == "ריקה")));
     }
 
+    [Fact] public void SetDefaultWorkspace_persists_and_clears_through_the_vm()
+    {
+        var vm = Seed(out var repo);
+        var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
+        Assert.Null(vm.DefaultWorkspaceId);
+        vm.SetDefaultWorkspace(alpha.Id);
+        Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
+        Assert.Equal(alpha.Id, vm.DefaultWorkspaceId);
+        vm.SetDefaultWorkspace(null); // "ללא סביבת ברירת מחדל"
+        Assert.Null(repo.Load().DefaultWorkspaceId);
+    }
+
+    [Fact] public void Deleting_the_default_workspace_clears_the_default()
+    {
+        var vm = Seed(out var repo);
+        var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
+        vm.SetDefaultWorkspace(alpha.Id);
+        repo.Mutate(c => c.DeleteWorkspace(alpha.Id));
+        Assert.Null(repo.Load().DefaultWorkspaceId);
+    }
+
+    [Fact] public void ToggleDefaultForCommand_sets_clears_and_confirms_with_the_approved_toast()
+    {
+        var vm = Seed(out var repo);
+        var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
+        var bet = repo.Load().Workspaces.Single(w => w.Name == "bet");
+        vm.ToggleDefaultForCommand.Execute(alpha); // path 2/3: set immediately, no dialog
+        Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
+        Assert.Equal($"הסביבה 'אלף' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", vm.ToastMessage);
+        Assert.False(vm.ToastPersistent); // ~3s toast
+        vm.ToggleDefaultForCommand.Execute(bet); // setting replaces the existing default
+        Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
+        Assert.False(vm.IsDefaultWorkspace(alpha));
+        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it ("בטל הגדרה כברירת מחדל")
+        Assert.Null(repo.Load().DefaultWorkspaceId);
+        Assert.Equal("בוטלה סביבת ברירת המחדל", vm.ToastMessage);
+    }
+
+    [Fact] public void Details_button_label_tracks_the_default_state()
+    {
+        var vm = Seed(out var repo);
+        var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
+        vm.OpenDetailsCommand.Execute(alpha);
+        Assert.False(vm.SelectedIsDefault);
+        Assert.Equal("הגדר כסביבת ברירת מחדל", vm.DefaultToggleLabel);
+        vm.ToggleDefaultForCommand.Execute(vm.Selected);
+        Assert.True(vm.SelectedIsDefault);
+        Assert.Equal("בטל הגדרה כברירת מחדל", vm.DefaultToggleLabel);
+    }
+
     [Fact] public void Default_workspace_badge_marks_exactly_one_card()
     {
         var vm = Seed(out var repo);
