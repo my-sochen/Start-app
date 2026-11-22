@@ -43,8 +43,22 @@
                                 <Button Grid.Row="1" Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
                                         Background="Transparent" BorderThickness="0"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Right" Padding="14,10,14,0" AutomationProperties.Name="{Binding Name}">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#222833" TextAlignment="Right"
-                                               FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
+                                    <!-- סביבת ברירת מחדל badge (approved 22.11 handoff): 11px green dot #3F9D63 directly left of the
+                                         name (RTL: second child in the horizontal stack), only on the one default workspace's card. -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#222833" TextAlignment="Right"
+                                                   FontSize="{Binding DataContext.CurrentCardSize, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource CardSizeFont}}"/>
+                                        <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                 AutomationProperties.Name="Default workspace badge"
+                                                 ToolTip="סביבת ברירת מחדל · נפתחת אוטומטית עם הפעלת המחשב">
+                                            <Ellipse.Visibility>
+                                                <MultiBinding Converter="{StaticResource DefaultBadgeVisibility}">
+                                                    <Binding Path="."/>
+                                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                </MultiBinding>
+                                            </Ellipse.Visibility>
+                                        </Ellipse>
+                                    </StackPanel>
                                 </Button>
                                 <Border Grid.Row="2" Background="#F3F4F6" CornerRadius="9" Padding="8,2" Margin="14,4,14,0" HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding EffectiveCategory}" Foreground="#4B5563" FontSize="11"/>
