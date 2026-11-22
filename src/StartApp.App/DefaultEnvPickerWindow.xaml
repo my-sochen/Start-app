@@ -25,7 +25,7 @@
             </DockPanel>
 
             <TextBlock Grid.Row="1" Text="בחירת סביבת ברירת מחדל" FontSize="22" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right"/>
-            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" TextAlignment="Right" FontSize="13" Foreground="#626B79"
+            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#626B79"
                        Text="הסביבה שנבחרה תסומן בתג הירוק במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/>
 
             <ListBox Grid.Row="3" x:Name="Rows" BorderThickness="0" Background="Transparent"

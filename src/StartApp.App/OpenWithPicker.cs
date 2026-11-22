@@ -7,7 +7,7 @@ namespace StartApp.App;
 /// <summary>Launch selection with real installed paths, the system default, and a file chooser.</summary>
 public static class OpenWithPicker
 {
-    public sealed record Choice(string Label, string Value);
+    public sealed record Choice(string Label, string Value) { public override string ToString() => Label; }
     private const string Browse = "\u0001browse";
     public static readonly DependencyProperty PathProperty = DependencyProperty.RegisterAttached("Path", typeof(string), typeof(OpenWithPicker), new PropertyMetadata(null, Changed));
     private static readonly DependencyProperty UpdatingProperty = DependencyProperty.RegisterAttached("Updating", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));

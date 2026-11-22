@@ -219,6 +219,37 @@ public partial class MainWindow : Window
     { if (sender is Control tab) tab.FocusVisualStyle = null; }
     private void CaptionTab_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
+    private void CaptionTab_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
+    private System.Windows.IInputElement? _defaultReturnFocus;
+    private bool _defaultDialogActive, _defaultKeyboardEntry;
+    private void UpdateDefaultDialogFocus()
+    {
+        if (_hooked?.DefaultConfirmOpen == true)
+        {
+            if (_defaultDialogActive) return;
+            _defaultDialogActive = true;
+            _defaultReturnFocus = System.Windows.Input.Keyboard.FocusedElement;
+            _defaultKeyboardEntry = System.Windows.Input.InputManager.Current.MostRecentInputDevice is System.Windows.Input.KeyboardDevice;
+            if (_defaultKeyboardEntry) DefaultConfirmPrimaryButton.Focus();
+            else DefaultConfirmOverlay.Focus();
+        }
+        else if (_defaultDialogActive)
+        {
+            _defaultDialogActive = false;
+            if (_defaultReturnFocus is UIElement { IsVisible: true, IsEnabled: true } target)
+            {
+                if (!_defaultKeyboardEntry && target is Control control) control.FocusVisualStyle = null;
+                target.Focus();
+            }
+            _defaultReturnFocus = null;
+        }
+    }
+    private void DefaultConfirm_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Escape || _hooked?.DefaultConfirmOpen != true) return;
+        _hooked.CancelDefaultReplaceCommand.Execute(null); e.Handled = true;
+    }
     private void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
     {
         if (sender is not FrameworkElement { ContextMenu: { } menu } host) return;

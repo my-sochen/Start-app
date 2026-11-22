@@ -25,7 +25,7 @@
             <MenuItem Header="ערוך קטגוריה" Command="{Binding PlacementTarget.Tag.EditCategoryPopupCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
             <Separator/>
             <MenuItem Command="{Binding PlacementTarget.Tag.ToggleDefaultForCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
-                      AutomationProperties.Name="Toggle default workspace">
+                      AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown">
                 <MenuItem.Header>
                     <MultiBinding Converter="{StaticResource DefaultMenuHeader}">
                         <Binding Path="."/>
@@ -196,22 +196,22 @@
         <Border Grid.Row="0" Background="#E9ECF2" BorderBrush="#E2E6EC" BorderThickness="0,0,0,1">
             <Grid>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,14,0" WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button Content="−" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" Click="MinimizeWindow_Click" AutomationProperties.Name="Minimize window"/>
-                <Button x:Name="MaximizeWindowButton" Content="□" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" Click="ToggleMaximizeWindow_Click" AutomationProperties.Name="Maximize window"/>
-                <Button Content="×" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" Click="CloseWindow_Click" AutomationProperties.Name="Close window"/>
+                <Button Content="−" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" Click="MinimizeWindow_Click" AutomationProperties.Name="Minimize window"/>
+                <Button x:Name="MaximizeWindowButton" Content="□" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" Click="ToggleMaximizeWindow_Click" AutomationProperties.Name="Maximize window"/>
+                <Button Content="×" FontFamily="Arial" FontSize="16" Foreground="#646E7D" Width="52" Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" Click="CloseWindow_Click" AutomationProperties.Name="Close window"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left" Margin="0,0,170,0">
                 <Image Source="Assets/start-app-ufo.png" Width="25" Height="25" Margin="14,0,9,0" VerticalAlignment="Center"/>
                 <TextBlock Text="Start-app" FontWeight="Normal" FontSize="13" VerticalAlignment="Center"/>
                 <Border Width="1" Height="18" Background="#C6CCD8" Margin="20,0,12,0" VerticalAlignment="Center"/>
                 <Button Content="אופציות" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" WindowChrome.IsHitTestVisibleInChrome="True"
+                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Options menu"/>
                 <Button Content="תצוגה" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" WindowChrome.IsHitTestVisibleInChrome="True"
+                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="View menu"/>
                 <Button Content="עזרה" Click="HelpMenu_Click" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" WindowChrome.IsHitTestVisibleInChrome="True"
+                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Help menu">
                     <Button.ContextMenu>
                         <ContextMenu>
@@ -220,7 +220,7 @@
                     </Button.ContextMenu>
                 </Button>
                 <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
-                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" WindowChrome.IsHitTestVisibleInChrome="True"
+                        Style="{StaticResource TitleBarTab}" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus" WindowChrome.IsHitTestVisibleInChrome="True"
                         AutomationProperties.Name="Settings"/>
             </StackPanel>
             </Grid>
@@ -342,7 +342,7 @@
                             <Button Content="שגר" Command="{Binding OpenWorkspaceCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="57" Height="38"/>
                             <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinWidth="112" Height="38" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                             <Button Content="חזרה לסביבות" Command="{Binding BackCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="123" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Back to workspaces"/>
-                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace"/>
+                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown"/>
                         </StackPanel>
                         <StackPanel HorizontalAlignment="Right" FlowDirection="RightToLeft">
                             <StackPanel Orientation="Horizontal">
@@ -372,7 +372,7 @@
                     </Border>
                 </StackPanel>
                 <ScrollViewer VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" AutomationProperties.Name="Workspace details viewport" FlowDirection="RightToLeft" Margin="0,5,0,0">
-                    <ScrollViewer.Resources><sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double><Style TargetType="ScrollBar"><Setter Property="Width" Value="8"/><Setter Property="Background" Value="#EEF1F6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton><Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="2" Background="#ABB8CE"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter></Style></ScrollViewer.Resources>
+                    <ScrollViewer.Resources><sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double><Style TargetType="ScrollBar"><Setter Property="Width" Value="8"/><Setter Property="Background" Value="#EEF1F6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton><Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="2" Background="#ADB8CA"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter></Style></ScrollViewer.Resources>
                 <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
                     <StackPanel FlowDirection="RightToLeft" HorizontalAlignment="Right">
@@ -690,7 +690,7 @@
 
         <!-- ============ default-env replace confirm (דיאלוג אישור החלפת ברירת מחדל, approved mock home-default-confirm 22.11):
              overlay #17243C44, white card radius 7, shadow 0 18px 80px #18243D30, width 560. Cancel/✕/outside change nothing. ============ -->
-        <Grid Grid.RowSpan="3" Visibility="{Binding DefaultConfirmOpen, Converter={StaticResource B2V}}" Background="#4417243C">
+        <Grid x:Name="DefaultConfirmOverlay" Grid.RowSpan="3" Focusable="True" FocusVisualStyle="{x:Null}" KeyboardNavigation.TabNavigation="Cycle" KeyDown="DefaultConfirm_KeyDown" Visibility="{Binding DefaultConfirmOpen, Converter={StaticResource B2V}}" Background="#4417243C">
             <Border Background="White" CornerRadius="7" Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,24">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="80" ShadowDepth="18" Direction="270" Color="#18243D" Opacity="0.19"/>
@@ -701,13 +701,13 @@
                         <TextBlock DockPanel.Dock="Right" Text="הגדרת סביבת ברירת מחדל" FontSize="11" Foreground="#626B79" HorizontalAlignment="Right"/>
                     </DockPanel>
                     <TextBlock Text="{Binding DefaultConfirmTitle}" FontSize="24" FlowDirection="RightToLeft" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833" Margin="0,14,0,0"/>
-                    <TextBlock Text="{Binding DefaultConfirmBody}" TextAlignment="Right" FontSize="13" Foreground="#5B6576" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <TextBlock Text="{Binding DefaultConfirmBody}" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#5B6576" TextWrapping="Wrap" Margin="0,10,0,0"/>
                     <Border Background="#EEF3FB" BorderBrush="#CED8E9" BorderThickness="1" CornerRadius="5" Padding="12,8" Margin="0,14,0,0">
-                        <TextBlock Text="{Binding DefaultConfirmNotice}" TextAlignment="Right" FontSize="12" Foreground="#3F526D" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding DefaultConfirmNotice}" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#3F526D" TextWrapping="Wrap"/>
                     </Border>
                     <Border Height="1" Background="#E4E8EF" Margin="0,16"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" FlowDirection="RightToLeft">
-                        <Button Content="{Binding DefaultConfirmAcceptLabel}" Style="{StaticResource PrimaryActionButton}" Command="{Binding ConfirmDefaultReplaceCommand}" AutomationProperties.Name="Confirm default-env replace"/>
+                        <Button x:Name="DefaultConfirmPrimaryButton" Content="{Binding DefaultConfirmAcceptLabel}" Style="{StaticResource PrimaryActionButton}" Command="{Binding ConfirmDefaultReplaceCommand}" AutomationProperties.Name="Confirm default-env replace"/>
                         <Button Content="ביטול" Command="{Binding CancelDefaultReplaceCommand}" Margin="10,0,0,0" Padding="16,7" FontSize="13"
                                 Background="White" BorderBrush="#C5CAD4" BorderThickness="1" Cursor="Hand" AutomationProperties.Name="Cancel default-env replace button"/>
                     </StackPanel>

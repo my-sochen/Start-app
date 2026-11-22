@@ -85,7 +85,7 @@ try {
   function InvokeNamed($name) {
     $button = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, $name)))
     if (!$button) { throw "Missing app control: $name" }
-    if ($name -eq 'Options menu') {
+    if ($name -in @('Options menu', 'Toggle default workspace')) {
       $point = $button.GetClickablePoint()
       [void][DesignWindow]::SetCursorPos([int]$point.X, [int]$point.Y)
       [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
