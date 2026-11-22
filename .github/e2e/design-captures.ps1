@@ -39,7 +39,15 @@ $detailMembers = @()
 foreach ($item in $detailItems) { $catalogue[$item.id] = $item; $detailMembers += @{ itemId=$item.id; id=('member-'+$item.id) } }
 $workspaces[0].items = @($detailMembers)
 $workspaces[0].category = 'תכנות'
-@{ schemaVersion = 5; items = $catalogue; workspaces = @($workspaces); customCategories = @('תכנות'); defaultWorkspaceId = 'demo-0' } | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $storeDir 'store.json') -Encoding utf8
+$globalItems = @(
+  @{ id='global-demo-docs'; type='link'; name='תיעוד'; target='https://example.com/docs'; addedAt='2026-11-20T12:00:00Z' },
+  @{ id='global-demo-editor'; type='program'; name='עורך טקסט'; target='C:\Windows\notepad.exe'; addedAt='2026-11-20T12:00:00Z' }
+)
+$whiteItems = @(
+  @{ id='white-demo-folder'; type='folder'; name='תיקיית מסמכים'; target='C:\Users\Demo\Documents'; addedAt='2026-11-20T12:00:00Z' },
+  @{ id='white-demo-board'; type='link'; name='לוח משימות'; target='https://example.com/board'; addedAt='2026-11-21T12:00:00Z' }
+)
+@{ schemaVersion = 5; items = $catalogue; workspaces = @($workspaces); customCategories = @('תכנות'); defaultWorkspaceId = 'demo-0'; globalItems=$globalItems; captureWhitelist=$whiteItems } | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $storeDir 'store.json') -Encoding utf8
 $exe = Get-ChildItem src/StartApp.App/bin/Release -Recurse -Filter StartApp.App.exe | Select-Object -First 1
 $env:STARTAPP_CRASHLOG = '1'
 $p = Start-Process $exe.FullName -PassThru
@@ -74,68 +82,114 @@ try {
     $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Milliseconds 350
   }
+  function RootNamed($name) {
+    $element = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, $name)))
+    if (!$element) { throw "Missing app popup control: $name" }
+    return $element
+  }
+  function ExpandNamed($name) {
+    $element = RootNamed $name
+    $element.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+    Start-Sleep -Milliseconds 250
+    return $element
+  }
   Start-Sleep -Seconds 2
-  Capture 'home-mock-size' 1224 786
+  Capture 'home-mock-size' 1280 880
   InvokeNamed 'Maximize window'
   InvokeNamed 'Restore window'
-  Capture 'home-caption-restored' 1224 786
+  Capture 'home-caption-restored' 1280 880
+  $homeTitle = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'פיתוח')))
+  $homeTitle.SetFocus()
+  [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  Capture 'home-right-click-default' 1280 880
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   InvokeNamed 'Options menu'
-  Capture 'options-mock-size' 1224 786
+  Capture 'options-mock-size' 1280 880
+  $captureMenu = ExpandNamed 'לכידה'
+  Capture 'home-menu-capture-flyout' 1280 880
+  $captureMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
   $globalMenu = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'סביבה גלובלית')))
   $globalMenu.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Start-Sleep -Milliseconds 350
-  Capture 'global-env-menu-entry' 1224 786
+  Capture 'global-env-menu-entry' 1280 880
+  InvokeNamed 'Add global item'
+  Capture 'global-env-add-dialog' 1280 880
+  InvokeNamed 'Cancel global add'
+  InvokeNamed 'Back to workspaces'
+  InvokeNamed 'Settings'
+  Capture 'settings' 1280 880
+  InvokeNamed 'Back to workspaces'
+  InvokeNamed 'פרויקט חדש'
+  Capture 'empty-workspace' 1280 880
   InvokeNamed 'Back to workspaces'
   Capture 'home-900x560' 900 560
+  Capture 'home-before-menus' 1280 880
   InvokeNamed 'View menu'
-  Capture 'view-menu-900x560' 900 560
+  Capture 'view-menu-900x560' 1280 880
+  foreach ($entry in @(@('גודל כרטיסים','view-size-flyout'),@('מיון','view-sort-flyout'),@('תבנית תצוגה','view-template-flyout'))) {
+    $sub = ExpandNamed $entry[0]
+    Capture $entry[1] 1280 880
+    $sub.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  }
   $filter = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'סינון')))
   $filter.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
   Start-Sleep -Milliseconds 350
   $colorMenu = $a::RootElement.FindFirst($ts, (New-Object $pc($a::NameProperty, 'לפי צבע')))
   $colorMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
   Start-Sleep -Milliseconds 350
-  Capture 'view-color-flyouts-900x560' 900 560
+  Capture 'view-color-flyouts-900x560' 1280 880
   $colorMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  $categoryMenu = ExpandNamed 'לפי קטגוריה'
+  Capture 'filters-category' 1280 880
+  $categoryMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  $typeMenu = ExpandNamed 'לפי סוג תוכן'
+  Capture 'filters-type' 1280 880
+  $programMenu = ExpandNamed 'תוכנות'
+  Capture 'filters-program-items' 1280 880
+  $programMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  $typeMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
   $filter.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   Start-Sleep -Milliseconds 500
   $win = $a::FromHandle($p.MainWindowHandle)
   InvokeNamed 'פיתוח'
-  Capture 'details-default-mock-size' 1224 786
+  Capture 'details-default-mock-size' 1280 880
   InvokeNamed 'Toggle default workspace'
   InvokeNamed 'Dismiss notification'
-  Capture 'details-nondefault-mock-size' 1224 786
+  Capture 'details-nondefault-mock-size' 1280 880
   InvokeNamed 'Toggle default workspace'
   InvokeNamed 'Dismiss notification'
   $nameInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
   $nameInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פיתוח לפרויקט')
   $descriptionInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace description')))
   $descriptionInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('כל מה שצריך כדי לחזור לפרויקט')
-  Capture 'details-dirty-mock-size' 1224 786
+  Capture 'details-dirty-mock-size' 1280 880
   InvokeNamed 'Back to workspaces'
-  Capture 'details-unsaved-dialog' 1224 786
+  Capture 'details-unsaved-dialog' 1280 880
   InvokeNamed 'Back to editing'
   InvokeNamed 'Save workspace details'
   InvokeNamed 'Edit item'
-  Capture 'details-item-editor' 1224 786
+  Capture 'details-item-editor' 1280 880
   $editInput = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Edit item name')))
   $editInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיעוד הפרויקט מעודכן')
-  Capture 'details-item-editor-dirty' 1224 786
+  Capture 'details-item-editor-dirty' 1280 880
   InvokeNamed 'Save item edit'
   InvokeNamed 'Edit item'
   InvokeNamed 'Cancel item edit'
+  InvokeNamed 'שגר'
+  Capture 'launch-selection' 1280 880
+  InvokeNamed 'Close opening selection'
   InvokeNamed 'Back to workspaces'
   InvokeNamed 'New workspace button'
-  Capture 'create-empty-mock-size' 1224 786
+  Capture 'create-empty-mock-size' 1280 880
   $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
   $input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פרויקט חדש')
-  Capture 'create-live-preview-blue' 1224 786
+  Capture 'create-live-preview-blue' 1280 880
   InvokeNamed 'Create color green'
-  Capture 'create-live-preview-green' 1224 786
+  Capture 'create-live-preview-green' 1280 880
   Capture 'create-live-preview-900x560' 900 560
   InvokeNamed 'Close window'
-  Capture 'create-unsaved-close-guard' 900 560
+  Capture 'create-unsaved-close-guard' 1280 880
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
 } finally {
   if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }
