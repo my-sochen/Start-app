@@ -41,8 +41,16 @@ public partial class MainWindow
     private void OpenDefaultEnvPicker(MainViewModel vm)
     {
         var picker = new DefaultEnvPickerWindow(vm) { Owner = this };
-        if (picker.ShowDialog() == true)
-            vm.SetDefaultWorkspace(picker.ChosenWorkspaceId);
+        picker.ContentRendered += (_, _) => OptionsCaptionButton.FocusVisualStyle = null;
+        bool? chosen;
+        DefaultPickerShade.Visibility = Visibility.Visible;
+        try { chosen = picker.ShowDialog(); }
+        finally
+        {
+            DefaultPickerShade.Visibility = Visibility.Collapsed;
+            OptionsCaptionButton.ClearValue(Control.FocusVisualStyleProperty);
+        }
+        if (chosen == true) vm.SetDefaultWorkspace(picker.ChosenWorkspaceId);
     }
 
     private static MenuItem CommandItem(string header, System.Windows.Input.ICommand command) =>
