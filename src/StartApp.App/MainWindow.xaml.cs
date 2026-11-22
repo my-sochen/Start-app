@@ -115,8 +115,9 @@ public partial class MainWindow : Window
 
         private void NewWorkspaceFocus_Click(object sender, RoutedEventArgs e)
         {
-            NewWorkspaceNameBox.BringIntoView();
-            NewWorkspaceNameBox.Focus();
+            if (DataContext is not MainViewModel vm) return;
+            vm.ShowCreateScreen();
+            if (vm.InCreate) Dispatcher.BeginInvoke(new Action(() => CreateView.FocusName()));
         }
 
         private void CaptureMenu_Click(object sender, RoutedEventArgs e)

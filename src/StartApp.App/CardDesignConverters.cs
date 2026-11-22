@@ -59,7 +59,7 @@ public sealed class CardSizeFontConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is StartApp.Presentation.CardSizeOption s ? s switch
-        { StartApp.Presentation.CardSizeOption.Small => 11.0, StartApp.Presentation.CardSizeOption.Large => 16.0, _ => 13.0 } : 13.0;
+        { StartApp.Presentation.CardSizeOption.Small => 16.0, StartApp.Presentation.CardSizeOption.Large => 23.0, _ => 19.0 } : 19.0;
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 

@@ -1,0 +1,94 @@
+<UserControl x:Class="StartApp.App.CreateWorkspaceView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Background="#F7F8FB" Foreground="#222833" FlowDirection="RightToLeft">
+ <UserControl.Resources>
+  <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#505C6D"/><Setter Property="Margin" Value="0,0,0,6"/></Style>
+  <Style x:Key="FieldInput" TargetType="TextBox"><Setter Property="FontSize" Value="15"/><Setter Property="Foreground" Value="#263243"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CBD2DF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="38"/></Style>
+ </UserControl.Resources>
+ <DockPanel>
+  <Border DockPanel.Dock="Bottom" Height="37" Background="#EEF1F6" BorderBrush="#DCE0E7" BorderThickness="0,1,0,0" Padding="18,8">
+   <TextBlock Text="יצירת סביבה היא מסך נפרד. יציאה עם שינויים מבקשת לשמור או לוותר." Foreground="#566173" FontSize="11"/>
+  </Border>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+   <StackPanel Margin="32,22,32,32">
+    <TextBlock FontSize="12" Foreground="#636E7D" Margin="0,0,0,17"><Run Text="סביבות העבודה"/><Run Text="   /   "/><Run Text="סביבה חדשה" Foreground="#222833"/></TextBlock>
+    <DockPanel>
+     <Button DockPanel.Dock="Left" Content="ביטול וחזרה" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" Padding="16,8" MinWidth="109" Height="38"/>
+     <StackPanel>
+      <TextBlock Text="יצירת סביבת עבודה" FontSize="22" FontWeight="SemiBold"/>
+      <TextBlock Text="אפשר להתחיל גם מסביבה ריקה ולהוסיף אייטמים בהמשך." Foreground="#626B79" FontSize="13" Margin="0,5,0,0"/>
+     </StackPanel>
+    </DockPanel>
+    <Grid Margin="0,24,0,0">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <StackPanel Grid.Column="0">
+      <TextBlock Text="שם הסביבה · חובה" Style="{StaticResource FieldLabel}"/>
+      <TextBox x:Name="NameInput" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInput}" AutomationProperties.Name="Workspace name"/>
+      <Grid Margin="0,18,0,0">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="קטגוריה" Style="{StaticResource FieldLabel}"/><ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinHeight="38" Padding="10,8" FontSize="15" Background="White" BorderBrush="#CBD2DF" AutomationProperties.Name="Workspace category"/></StackPanel>
+       <StackPanel Grid.Column="2"><TextBlock Text="תיאור · לא חובה" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInput}" MaxLength="500" ToolTip="למה מיועדת הסביבה?" AutomationProperties.Name="Workspace description"/></StackPanel>
+      </Grid>
+      <Border BorderBrush="#DCE1E9" BorderThickness="1" CornerRadius="4" Background="White" Margin="0,22,0,0">
+       <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#F0F3F8" BorderBrush="#DFE4EC" BorderThickness="0,0,0,1" Padding="14,6"><TextBlock Text="עיצוב הכרטיס · לא חובה" FontSize="12"/></Border>
+        <StackPanel Margin="18">
+         <TextBlock Text="צבע הכרטיס" FontSize="12" Foreground="#586678"/>
+         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#7189BB" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#7189BB" AutomationProperties.Name="Create color blue"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#8BAA9D" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#8BAA9D" AutomationProperties.Name="Create color green"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#B4A0C5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#B4A0C5" AutomationProperties.Name="Create color purple"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#E6CE9A" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#E6CE9A" AutomationProperties.Name="Create color gold"/>
+          <Button Width="28" Height="28" Margin="0,0,10,0" Background="#D6AEB5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D6AEB5" AutomationProperties.Name="Create color pink"/>
+          <Button Width="28" Height="28" Background="#D9DEE6" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D9DEE6" AutomationProperties.Name="Create color gray"/>
+         </StackPanel>
+         <DockPanel Margin="0,22,0,0">
+          <Button DockPanel.Dock="Left" Content="בחר תמונה" Command="{Binding PickCreateImageCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="104" Height="38" AutomationProperties.Name="Upload create image"/>
+          <TextBlock Text="תמונת רקע" FontSize="12" Foreground="#586678" VerticalAlignment="Center"/>
+         </DockPanel>
+         <TextBlock Text="{Binding NewWorkspaceImagePath}" FontSize="11" Foreground="#626B79" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewWorkspaceImagePath}"/>
+        </StackPanel>
+       </DockPanel>
+      </Border>
+      <Border BorderBrush="#CED8E9" Background="#EEF3FB" BorderThickness="1" CornerRadius="4" Padding="14,11" Margin="0,22,0,22">
+       <TextBlock Text="לא נבחרו אייטמים. זו סביבה ריקה תקינה. לאחר היצירה תוכל להוסיף אייטם ידנית או ממה שפתוח." TextWrapping="Wrap" FontSize="12" Foreground="#3F526D"/>
+      </Border>
+      <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap"/>
+      <StackPanel Orientation="Horizontal">
+       <Button Content="צור סביבה" Command="{Binding CreateWorkspaceCommand}" Style="{StaticResource PrimaryActionButton}" MinHeight="38" Padding="16,8" AutomationProperties.Name="Create workspace"/>
+       <Button Content="ביטול" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" MinHeight="38" MinWidth="68" Margin="8,0,0,0"/>
+      </StackPanel>
+     </StackPanel>
+     <Grid Grid.Column="2" Background="#F0F3F8">
+      <Rectangle Stroke="#B9C3D3" StrokeThickness="1" StrokeDashArray="3,2" RadiusX="5" RadiusY="5"/>
+      <StackPanel Margin="22">
+       <TextBlock Text="תצוגה מקדימה בלבד · לא לחיץ" FontSize="12" Foreground="#626B79" Margin="0,0,0,18"/>
+       <Border DataContext="{Binding CreatePreview}" Background="White" BorderBrush="#D6DCE5" BorderThickness="1" CornerRadius="5" MinHeight="174" IsHitTestVisible="False" Focusable="False">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="5"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <Border Background="{Binding Color, Converter={StaticResource TopBarBrush}}" CornerRadius="4,4,0,0"/>
+         <Border Grid.Row="1">
+          <Border.Background><MultiBinding Converter="{StaticResource CardSurface}"><Binding Path="Color"/><Binding Path="ImagePath"/></MultiBinding></Border.Background>
+          <StackPanel Margin="16,15,16,11">
+           <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,7"/>
+           <Border HorizontalAlignment="Left" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="8,3"><TextBlock Text="{Binding EffectiveCategory}" FontSize="11" Foreground="#596473"/></Border>
+           <TextBlock Text="עדיין אין אייטמים" FontSize="13" Foreground="#586473" Margin="0,12,0,0"/>
+          </StackPanel>
+         </Border>
+         <Border Grid.Row="2" BorderBrush="#EDF0F5" BorderThickness="0,1,0,0" Padding="16,10">
+          <DockPanel>
+           <Border DockPanel.Dock="Left" Background="#F4F6F9" BorderBrush="#DBE0E8" BorderThickness="1" CornerRadius="3" Padding="20,8"><TextBlock Text="שגר" FontSize="11" Foreground="#596473"/></Border>
+           <StackPanel><TextBlock Text="סביבה ריקה" FontSize="12" Foreground="#626B79"/><TextBlock Text="הצגת פרטים ←" FontSize="13" Foreground="#626B79"/></StackPanel>
+          </DockPanel>
+         </Border>
+        </Grid>
+       </Border>
+       <TextBlock Text="בחירת תמונה או צבע לא משפיעה על הפריטים בסביבה." TextWrapping="Wrap" FontSize="11" Foreground="#667388" Margin="0,18,0,0"/>
+      </StackPanel>
+     </Grid>
+    </Grid>
+   </StackPanel>
+  </ScrollViewer>
+ </DockPanel>
+</UserControl>

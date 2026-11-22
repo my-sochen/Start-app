@@ -22,6 +22,7 @@
   <ItemGroup>
     <Resource Include="Assets/start-app-ufo.ico" />
     <Resource Include="Assets/start-app-ufo.png" />
+    <Resource Include="Assets/Fonts/*.ttf" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\StartApp.Presentation\StartApp.Presentation.csproj" />

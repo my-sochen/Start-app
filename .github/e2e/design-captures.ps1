@@ -1,4 +1,8 @@
 $ErrorActionPreference = 'Stop'
+if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
+  try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop }
+  catch { Write-Warning 'Desktop resolution change was unavailable; actual capture dimensions are recorded.' }
+}
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing, System.Windows.Forms
 Add-Type @'
 using System;
@@ -40,6 +44,7 @@ try {
     Start-Sleep -Milliseconds 900
     $r = New-Object DesignWindow+Rect
     [void][DesignWindow]::GetWindowRect($p.MainWindowHandle, [ref]$r)
+    "$name actual=$($r.Right-$r.Left)x$($r.Bottom-$r.Top) requested=${width}x${height}" | Add-Content design-captures/dimensions.txt
     $image = New-Object Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
     $g = [Drawing.Graphics]::FromImage($image)
     try { $g.CopyFromScreen($r.Left, $r.Top, 0, 0, $image.Size); $image.Save((Join-Path $PWD "design-captures/$name.png")) }
@@ -52,14 +57,22 @@ try {
     Start-Sleep -Milliseconds 350
   }
   Start-Sleep -Seconds 2
-  Capture 'home-1280x880' 1280 880
+  Capture 'home-mock-size' 1224 786
   InvokeNamed 'Options menu'
-  Capture 'options-1280x880' 1280 880
+  Capture 'options-mock-size' 1224 786
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   Capture 'home-900x560' 900 560
   InvokeNamed 'View menu'
   Capture 'view-menu-900x560' 900 560
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  InvokeNamed 'New workspace button'
+  Capture 'create-empty-mock-size' 1224 786
+  $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
+  $input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פרויקט חדש')
+  Capture 'create-live-preview-blue' 1224 786
+  InvokeNamed 'Create color green'
+  Capture 'create-live-preview-green' 1224 786
+  Capture 'create-live-preview-900x560' 900 560
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
 } finally {
   if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }

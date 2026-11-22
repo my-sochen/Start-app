@@ -191,7 +191,7 @@ public sealed partial class MainViewModel : ObservableBase
         InitCaptureCommands();
         InitGlobalEnvCommands();
         InitOpeningCommands();
-        CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
+        CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && !string.IsNullOrWhiteSpace(NewName));
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
         // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
@@ -292,19 +292,19 @@ public sealed partial class MainViewModel : ObservableBase
     private string _newDescription = "";
 
     private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
-    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     /// <summary>Optional workspace description in the create form.</summary>
     public string NewWorkspaceDescription { get => _newWsDesc; set { Set(ref _newWsDesc, value ?? ""); Raise(nameof(CreateDirty)); } }
     private string _newWsDesc = "";
     /// <summary>Category chosen in the create form from the managed list (קטגוריה: כללי מסומנת כברירת מחדל, ואפשר לבחור אחרת).</summary>
-    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); } }
+    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); } }
     private string _newWsCat = Workspace.DefaultCategory;
     /// <summary>Optional card color chosen at creation (#RRGGBB, palette or typed; empty = the app's default look). The same
     /// design rule as עצב כרטיס applies from the first save: with an image the color is the frame, without one the background.</summary>
-    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     private string _newWsColor = "";
     /// <summary>Optional card background image path chosen at creation; empty = none.</summary>
-    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     private string _newWsImage = "";
     /// <summary>Clears every create-form field after a successful create or a discard (יציאה בלי לשמור).</summary>
     private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
@@ -683,7 +683,41 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
     public bool InDetails { get => _inDetails; private set { Set(ref _inDetails, value); Raise(nameof(InOverview)); Raise(nameof(ShowEmptyItemsMessage)); RaiseCommands(); } }
     private bool _inDetails;
-    public bool InOverview => !_inDetails;
+    public bool InOverview => !_inDetails && !InCreate;
+    private bool _inCreate;
+    public bool InCreate
+    {
+        get => _inCreate;
+        private set { Set(ref _inCreate, value); Raise(nameof(InOverview)); RaiseCommands(); }
+    }
+    public Workspace CreatePreview => new()
+    {
+        Name = string.IsNullOrWhiteSpace(NewName) ? "פרויקט חדש" : NewName,
+        Category = NewWorkspaceCategory,
+        Color = string.IsNullOrWhiteSpace(NewWorkspaceColor) ? "#7189BB" : NewWorkspaceColor,
+        ImagePath = NewWorkspaceImagePath
+    };
+    public void ShowCreateScreen()
+    {
+        if (ReadOnly || CaptureOpen || InSettings || InGlobalEnv || IsChecking || IsLaunching || UnsavedOpen || InCreate) return;
+        void Show() { ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; InDetails = false; InCreate = true; }
+        if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty)
+        {
+            MarkUnsavedHost(false, ItemEditDirty, AddressEditDirty, DesignDirty);
+            _exitAction = Show; UnsavedOpen = true; return;
+        }
+        Show();
+    }
+    public void LeaveCreateScreen()
+    {
+        if (!InCreate) return;
+        if (CreateDirty)
+        {
+            MarkUnsavedHost(true, false, false);
+            _exitAction = () => InCreate = false; UnsavedOpen = true; return;
+        }
+        InCreate = false;
+    }
     /// <summary>True while the in-window settings screen (הגדרות) covers the content. Independent of
     /// overview/details: חזרה לסביבות returns to whatever screen was open below.</summary>
     public bool InSettings { get => _inSettings; private set { Set(ref _inSettings, value); RaiseCommands(); } }
@@ -817,6 +851,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
         {
             ResetCreateForm();
+            InCreate = false;
             Selected = Workspaces.FirstOrDefault(w => w.Id == id);
             LoadDetails(); InDetails = true;
         }
