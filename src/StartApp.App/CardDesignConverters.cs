@@ -183,6 +183,15 @@ public sealed class DefaultMenuHeaderConverter : IMultiValueConverter
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>List-row deploy button (approved 22.11 list mock): Visible only when the workspace has items to
+/// deploy; an empty workspace shows the plain "סביבה ריקה" text in place of the button.</summary>
+public sealed class HasItemsToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is StartApp.Core.Workspace w && w.Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 /// <summary>false → Visible, true → Collapsed (the chips bar swaps chip row and single-filter short form).</summary>
 public sealed class InverseBooleanToVisibilityConverter : IValueConverter
 {

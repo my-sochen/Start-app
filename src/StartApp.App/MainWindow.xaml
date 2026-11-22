@@ -121,6 +121,7 @@
                 <Grid>
                     <DockPanel Margin="12,9,14,9" LastChildFill="True">
                         <Button DockPanel.Dock="Left" Content="שגר" Style="{StaticResource PrimaryActionButton}" MinHeight="32" Padding="20,5" VerticalAlignment="Center"
+                                Visibility="{Binding Converter={StaticResource HasItemsToVisibility}}"
                                 Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                         <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#626B79" FontSize="12" Margin="14,0,0,0">
                             <TextBlock.Text>
@@ -132,7 +133,7 @@
                         </TextBlock>
                         <Button Command="{Binding DataContext.OpenDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" AutomationProperties.AutomationId="WorkspaceTitle"
                                 Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Right" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Name}">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" FlowDirection="RightToLeft">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" Foreground="#222833" MinWidth="150" TextAlignment="Right"/>
                                 <Ellipse Width="11" Height="11" Fill="#3F9D63" Margin="0,0,8,0" VerticalAlignment="Center"
                                          AutomationProperties.Name="Default workspace badge"
