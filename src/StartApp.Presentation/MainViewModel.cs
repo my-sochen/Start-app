@@ -189,6 +189,7 @@ public sealed partial class MainViewModel : ObservableBase
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
         InitCaptureCommands();
+        InitGlobalEnvCommands();
         InitOpeningCommands();
         CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
@@ -1191,7 +1192,7 @@ public sealed partial class MainViewModel : ObservableBase
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        OpenSettingsCommand = Cmd(_ => InSettings = true, _ => !_inSettings);
+        OpenSettingsCommand = Cmd(_ => { InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
         CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
@@ -1270,7 +1271,8 @@ public sealed partial class MainViewModel : ObservableBase
             try { await Task.Delay(floor, cts.Token); } catch (OperationCanceledException) { return; }
             if (gen != _scanGen) return;
         }
-        foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
+        var surviving = scan.Items.Where(i => !GlobalEnvRules.IsBlacklisted(_current.CaptureBlacklist, i)).ToList();
+        foreach (var i in GlobalEnvRules.WhitelistPins(_current.CaptureWhitelist, surviving).Concat(surviving)) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
         foreach (var n in scan.Notes)
         {
             // This adapter emits one fixed capabilities paragraph. It belongs in help, not a routine warning list.
