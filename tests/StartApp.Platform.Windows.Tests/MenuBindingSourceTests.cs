@@ -22,7 +22,7 @@ public class MenuBindingSourceTests
     {
         var xaml = Xaml();
         var menus = Regex.Matches(xaml, "<ContextMenu(?:\\s[^>]*)?>.*?</ContextMenu>", RegexOptions.Singleline);
-        Assert.Equal(4, menus.Count); // shared workspace actions menu resource (card/list/icons templates) + item actions menu + staged capture item menu + capture dropdown
+        Assert.Equal(5, menus.Count); // shared workspace actions menu resource (card/list/icons templates) + item actions menu + staged capture item menu + capture dropdown + עזרה tab menu (approved 22.11 title-bar tabs)
         foreach (Match m in menus)
         {
             Assert.DoesNotContain("AncestorType=Window", m.Value);
