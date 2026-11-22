@@ -3020,7 +3020,8 @@ public static class WinCap {
   $catAll = @('כללי','עבודה','לימודים','בית') | Where-Object { $null -ne (MenuItemByName $_) } | Select-Object -First 1
   Assert 'a category filter option is offered' ($null -ne $catAll) ''
   [void](InvokeEl (MenuItemByName $catAll) 'category filter choice'); Start-Sleep -Milliseconds 900
-  [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 600
+  # Three nested submenu levels can remain open after a checkable filter choice.
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}{ESC}{ESC}'); Start-Sleep -Milliseconds 600
   $filterCount = AnyByName 'Filter count'
   Assert 'filtered counter is visible in the chips bar' ($null -ne $filterCount -and -not $filterCount.Current.IsOffscreen) ''
   # WPF TextBlock overrides its UIA Name and does not expose TextPattern. The visible counter
