@@ -135,4 +135,42 @@ public class ViewOptionsTests
         vm.NewName = "חדש"; vm.CreateWorkspaceCommand.Execute(null);
         Assert.Equal("מוצגת 4 מתוך 4", vm.FilteredCountText);
     }
+
+    [Fact] public void Stats_line_uses_the_fixed_order_and_omits_zero_types()
+    {
+        var vm = Seed(out var repo);
+        repo.Mutate(c =>
+        {
+            var w = c.CreateWorkspace("סטטיסטיקה");
+            var site = c.GetOrAddItem(ItemType.Link, "site", "https://a.example.com");
+            var site2 = c.GetOrAddItem(ItemType.Link, "site2", "https://b.example.com");
+            var prog = c.GetOrAddItem(ItemType.Program, "prog", "C:\\Apps\\p.exe");
+            var folder = c.GetOrAddItem(ItemType.Folder, "docs", "C:\\Docs");
+            var file = c.GetOrAddItem(ItemType.File, "f", "C:\\Docs\\f.txt");
+            var file2 = c.GetOrAddItem(ItemType.File, "f2", "C:\\Docs\\f2.txt");
+            foreach (var it in new[] { site, site2, prog, folder, file, file2 }) c.AddToWorkspace(w.Id, it.Id);
+        });
+        var stats = repo.Load().Workspaces.Single(w => w.Name == "סטטיסטיקה");
+        var vmFresh = new MainViewModel(repo, new NotImplementedLauncher()); // constructed after the items exist
+        // approved order 22.11: אתרים · תוכנות · תיקיות · קבצים; 1 = singular without a number.
+        Assert.Equal("2 אתרים · תוכנה · תיקייה · 2 קבצים", vmFresh.StatsText(stats));
+        var vm2 = Seed(out var repo2);
+        repo2.Mutate(c => c.CreateWorkspace("ריקה"));
+        Assert.Equal("עדיין אין אייטמים", vm2.StatsText(repo2.Load().Workspaces.Single(w => w.Name == "ריקה")));
+    }
+
+    [Fact] public void Default_workspace_badge_marks_exactly_one_card()
+    {
+        var vm = Seed(out var repo);
+        var all = repo.Load().Workspaces;
+        Assert.All(all, w => Assert.False(vm.IsDefaultWorkspace(w))); // no default set: no badge anywhere
+        var alpha = all.Single(w => w.Name == "אלף");
+        repo.Mutate(c => c.Store.DefaultWorkspaceId = alpha.Id);
+        var vm2 = new MainViewModel(repo, new NotImplementedLauncher());
+        Assert.True(vm2.IsDefaultWorkspace(alpha));
+        Assert.All(all.Where(w => w.Id != alpha.Id), w => Assert.False(vm2.IsDefaultWorkspace(w)));
+        repo.Mutate(c => c.Store.DefaultWorkspaceId = null); // "ללא סביבת ברירת מחדל"
+        var vm3 = new MainViewModel(repo, new NotImplementedLauncher());
+        Assert.All(all, w => Assert.False(vm3.IsDefaultWorkspace(w)));
+    }
 }
