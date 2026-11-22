@@ -112,9 +112,16 @@
                                                 Command="{Binding DataContext.RemoveGlobalEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                 AutomationProperties.Name="Remove global entry"/>
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding Target}" FlowDirection="LeftToRight" Foreground="#667388" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"/>
-                                        <StackPanel DockPanel.Dock="Right">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
-                                            <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <!-- letter tile per row (approved global-env mock): first letter, #EEF2F9 tile, #4766A5 glyph -->
+                                            <Border Width="26" Height="26" CornerRadius="6" Background="#EEF2F9" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name, Converter={StaticResource FirstLetter}}" Foreground="#4766A5" FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                                <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -143,9 +150,16 @@
                                                 Command="{Binding DataContext.RemoveGlobalEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                 AutomationProperties.Name="Remove whitelist entry"/>
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding Target}" FlowDirection="LeftToRight" Foreground="#667388" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"/>
-                                        <StackPanel DockPanel.Dock="Right">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
-                                            <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <!-- letter tile per row (approved global-env mock): first letter, #EEF2F9 tile, #4766A5 glyph -->
+                                            <Border Width="26" Height="26" CornerRadius="6" Background="#EEF2F9" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name, Converter={StaticResource FirstLetter}}" Foreground="#4766A5" FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                                <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -174,9 +188,16 @@
                                                 Command="{Binding DataContext.RemoveGlobalEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                 AutomationProperties.Name="Remove blacklist entry"/>
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding Target}" FlowDirection="LeftToRight" Foreground="#667388" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"/>
-                                        <StackPanel DockPanel.Dock="Right">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
-                                            <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <!-- letter tile per row (approved global-env mock): first letter, #EEF2F9 tile, #4766A5 glyph -->
+                                            <Border Width="26" Height="26" CornerRadius="6" Background="#EEF2F9" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name, Converter={StaticResource FirstLetter}}" Foreground="#4766A5" FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                                <TextBlock Text="{Binding DescriptionLine}" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
