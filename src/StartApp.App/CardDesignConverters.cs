@@ -45,3 +45,30 @@ public sealed class CardBrushConverter : IMultiValueConverter
     }
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Null → Collapsed, anything else → Visible (chip swatches hide when the chip has no color).</summary>
+public sealed class NullToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is null ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>גודל כרטיסים → title font size: קטן 11, בינוני 13 (default), גדול 16.</summary>
+public sealed class CardSizeFontConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is StartApp.Presentation.CardSizeOption s ? s switch
+        { StartApp.Presentation.CardSizeOption.Small => 11.0, StartApp.Presentation.CardSizeOption.Large => 16.0, _ => 13.0 } : 13.0;
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>גודל כרטיסים → card padding: קטן 2, בינוני 4 (default), גדול 8.</summary>
+public sealed class CardSizePaddingConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is StartApp.Presentation.CardSizeOption s
+            ? new Thickness(s switch { StartApp.Presentation.CardSizeOption.Small => 2.0, StartApp.Presentation.CardSizeOption.Large => 8.0, _ => 4.0 })
+            : new Thickness(4);
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
