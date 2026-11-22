@@ -11,6 +11,7 @@ MODALS = {
     'AddressEditOpen', 'OpenWithOpen', 'PickerOpen', 'DesignEditOpen',
     'CategoryEditOpen', 'UnsavedOpen', 'SelectionPending',
     'OpenDecisionPending', 'LastResultsOpen', 'InSettings', 'InGlobalEnv',
+    'DefaultConfirmOpen',
 }
 
 
