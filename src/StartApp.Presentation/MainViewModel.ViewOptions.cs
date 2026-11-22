@@ -152,6 +152,10 @@ public sealed partial class MainViewModel
         return $"פתיחה אחרונה: {day}, {l:HH:mm}";
     }
 
+    /// <summary>List-row last-opened text (approved 22.11 list mock): like FooterLine1 but an empty workspace shows
+    /// plain "סביבה ריקה" - the card's " · הוסף אייטם בפרטים" hint is card-specific.</summary>
+    public string FooterLine1List(Workspace w) => w.Items.Count == 0 ? "סביבה ריקה" : FooterLine1(w);
+
     /// <summary>Category choices for "לפי קטגוריה" (multi-select, OR): the built-ins and the user's custom categories.</summary>
     public IReadOnlyList<string> FilterCategoryOptions => Catalog.BuiltInCategories.Concat(_current.CustomCategories).ToList();
 
