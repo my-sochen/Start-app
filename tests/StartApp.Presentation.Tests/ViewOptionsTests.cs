@@ -185,16 +185,42 @@ public class ViewOptionsTests
         var vm = Seed(out var repo);
         var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
         var bet = repo.Load().Workspaces.Single(w => w.Name == "bet");
-        vm.ToggleDefaultForCommand.Execute(alpha); // path 2/3: set immediately, no dialog
+        vm.ToggleDefaultForCommand.Execute(alpha); // no existing default: immediate, no dialog
         Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
+        Assert.False(vm.DefaultConfirmOpen);
         Assert.Equal($"הסביבה 'אלף' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", vm.ToastMessage);
         Assert.False(vm.ToastPersistent); // ~3s toast
-        vm.ToggleDefaultForCommand.Execute(bet); // setting replaces the existing default
+        vm.ToggleDefaultForCommand.Execute(bet); // replacing an existing default opens the confirm dialog (owner 22.11)
+        Assert.True(vm.DefaultConfirmOpen);
+        Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId); // nothing changes until confirmed
+        vm.ConfirmDefaultReplaceCommand.Execute(null);
+        Assert.False(vm.DefaultConfirmOpen);
         Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
         Assert.False(vm.IsDefaultWorkspace(alpha));
-        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it ("הסר הגדרה כברירת מחדל")
+        vm.ToggleDefaultForCommand.Execute(bet); // same row on the default clears it immediately ("הסר הגדרה כברירת מחדל")
         Assert.Null(repo.Load().DefaultWorkspaceId);
-        Assert.Equal("בוטלה סביבת ברירת המחדל", vm.ToastMessage);
+        Assert.False(vm.DefaultConfirmOpen); // removal never opens the dialog
+        Assert.Equal("הוסרה ההגדרה כברירת מחדל", vm.ToastMessage);
+    }
+
+    [Fact] public void Replace_confirm_dialog_names_both_workspaces_and_cancel_changes_nothing()
+    {
+        var vm = Seed(out var repo);
+        var alpha = repo.Load().Workspaces.Single(w => w.Name == "אלף");
+        var bet = repo.Load().Workspaces.Single(w => w.Name == "bet");
+        vm.SetDefaultWorkspace(alpha.Id);
+        vm.SetDefaultWorkspace(bet.Id);
+        Assert.True(vm.DefaultConfirmOpen);
+        Assert.Contains("'אלף'", vm.DefaultConfirmBody); // current
+        Assert.Contains("'bet'", vm.DefaultConfirmBody); // candidate
+        Assert.Contains("'bet'", vm.DefaultConfirmNotice);
+        vm.CancelDefaultReplaceCommand.Execute(null); // cancel/✕/outside: nothing changes
+        Assert.False(vm.DefaultConfirmOpen);
+        Assert.Equal(alpha.Id, repo.Load().DefaultWorkspaceId);
+        vm.SetDefaultWorkspace(bet.Id); // again, then confirm
+        vm.ConfirmDefaultReplaceCommand.Execute(null);
+        Assert.Equal(bet.Id, repo.Load().DefaultWorkspaceId);
+        Assert.Equal($"הסביבה 'bet' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", vm.ToastMessage);
     }
 
     [Fact] public void Details_button_label_tracks_the_default_state()
