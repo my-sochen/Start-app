@@ -2096,6 +2096,10 @@ public static class WinCap {
     $iL = $pRel.L + $inL; $iR = $pRel.R - $inR; $iT = $pRel.T + $inT; $iB = $pRel.B - $inB
     if (($iR - $iL) -lt 5 -or ($iB - $iT) -lt 5) { $res.reason = "no interior region after frame inset (x $iL..$iR y $iT..$iB)"; return $res }
     $maskContent = $true   # interior phase: content rects mask real text/controls again
+    # content mask rects are UIA leaf rects; the visual containers around them (pills, buttons) are larger
+    # by their padding, and their rounded-corner AA leaks past a 1px guard (measured 22.11: pill-edge AA at
+    # 4px below the leaf rect). The interior phase masks with an inflated 12px guard.
+    $pxMasked = { param($x, $y) if (-not $maskContent) { return $false }; foreach ($cr3 in $contentRects) { if (Test-RectContains $cr3 $x $y 12) { return $true } } return $false }
     $free = 0; $match = 0; $mm = @(); $maskTop = 0; $maskBot = 0; $maskLeft = 0; $maskRight = 0; $maskMid = 0
     for ($y = $iT; $y -lt $iB; $y++) {
       for ($x = $iL; $x -lt $iR; $x++) {
