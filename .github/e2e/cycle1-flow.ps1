@@ -209,7 +209,7 @@ try {
   $catCombo = NamedCombo 'Workspace category'
   Assert 'category defaults to כללי' ($null -ne $catCombo -and (ComboValue $catCombo) -eq 'כללי') ($catCombo ? (ComboValue $catCombo) : 'combo not found')
   $o0 = StoreObj; $ws0 = @($o0.workspaces | Where-Object { $_.name -eq 'E2E ws' })[0]
-  Assert 'create without design leaves color and image empty (defaults)' ($null -ne $ws0 -and [string]::IsNullOrEmpty($ws0.color) -and [string]::IsNullOrEmpty($ws0.imagePath)) ("color='$($ws0.color)' image='$($ws0.imagePath)'")
+  Assert 'create uses its displayed default blue and no image' ($null -ne $ws0 -and $ws0.color -eq '#7189BB' -and [string]::IsNullOrEmpty($ws0.imagePath)) ("color='$($ws0.color)' image='$($ws0.imagePath)'")
   Shot 'details-after-create-empty'
   # 2. manual adds in the details screen: https link (with instance name), existing file, missing file
   EnsureDetailsAddForm
