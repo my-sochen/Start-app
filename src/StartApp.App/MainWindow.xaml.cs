@@ -195,16 +195,23 @@ public partial class MainWindow : Window
         // Do not anchor below the whole expanded editor or a partly scrolled-out row.
         // Compute the final popup origin inside the owner, then express it relative to the host.
         var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));
-        var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight), 8, Math.Max(8, ActualHeight - 8));
+        // A just-materialized (virtualized) row can report ActualHeight 0 here; fall back to the 32 dip offset.
+        var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight > 0 ? host.ActualHeight : 32), 8, Math.Max(8, ActualHeight - 8));
         menu.MaxHeight = Math.Max(0, ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, ActualWidth - 16);
-        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening.
+        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening; the placement
+        // mode itself is pinned in XAML (ContextMenuService.Placement="Custom") because the service reads
+        // it when DECIDING the placement, before this Opening handler runs.
         ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom);
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
         menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
         {
             var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
             var y = anchorY + popupSize.Height <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - popupSize.Height);
+            // Never overflow the window bottom (approved 22.11): even a popup taller than the space below
+            // AND above the anchor clamps back inside the window.
+            var maxY = Math.Max(8, ActualHeight - 8 - popupSize.Height);
+            if (y > maxY) y = maxY;
             return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
                 System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
         };
