@@ -1969,9 +1969,14 @@ public static class WinCap {
     $corner = 6; $guard = 1
     $noFrame = ($frameExp.l -eq 0 -and $frameExp.t -eq 0 -and $frameExp.r -eq 0 -and $frameExp.b -eq 0)
     # STRUCTURAL MASK HELPERS - computed from member rects ALONE, before/independent of any pixel read.
-    $colMasked = { param($cx, $y0, $y1) foreach ($cr2 in $contentRects) { if (($cx -ge ($cr2.L - $guard)) -and ($cx -lt ($cr2.R + $guard)) -and (($cr2.B + $guard) -gt $y0) -and (($cr2.T - $guard) -lt $y1)) { return $true } } return $false }
-    $rowMasked = { param($ry, $x0, $x1) foreach ($cr2 in $contentRects) { if (($ry -ge ($cr2.T - $guard)) -and ($ry -lt ($cr2.B + $guard)) -and (($cr2.R + $guard) -gt $x0) -and (($cr2.L - $guard) -lt $x1)) { return $true } } return $false }
-    $pxMasked = { param($x, $y) foreach ($cr3 in $contentRects) { if (Test-RectContains $cr3 $x $y $guard) { return $true } } return $false }
+    # Frame bands are measured UNMASKED: the approved card's frame ring is an overlay Border declared
+    # LAST inside the card Grid (RowSpan=5), so it paints over every content element - transparent
+    # content rects (the full-width title button) can never occlude the ring itself. Content masking
+    # still applies to the interior-purity phase, gated by $maskContent.
+    $maskContent = $false
+    $colMasked = { param($cx, $y0, $y1) return $false }
+    $rowMasked = { param($ry, $x0, $x1) return $false }
+    $pxMasked = { param($x, $y) if (-not $maskContent) { return $false }; foreach ($cr3 in $contentRects) { if (Test-RectContains $cr3 $x $y $guard) { return $true } } return $false }
     if (-not $noFrame) {
       $maxTop = 12; $maxSide = 6   # bounded 96-DPI measurement caps (model 8/1/1/1; scale refusal above)
       # TOP EDGE: predicted band [T, T+t). A column is COVERING iff its predicted band is mask-free
@@ -2086,8 +2091,7 @@ public static class WinCap {
     $inT = $(if ($noFrame) { 0 } else { $res.top + $guard }); $inB = $(if ($noFrame) { 0 } else { $res.bot + $guard })
     $iL = $pRel.L + $inL; $iR = $pRel.R - $inR; $iT = $pRel.T + $inT; $iB = $pRel.B - $inB
     if (($iR - $iL) -lt 5 -or ($iB - $iT) -lt 5) { $res.reason = "no interior region after frame inset (x $iL..$iR y $iT..$iB)"; return $res }
-    $cL = 2147483647; $cT = 2147483647; $cR = -1; $cB = -1
-    foreach ($cr4 in $contentRects) { if ($cr4.L -lt $cL) { $cL = $cr4.L }; if ($cr4.T -lt $cT) { $cT = $cr4.T }; if ($cr4.R -gt $cR) { $cR = $cr4.R }; if ($cr4.B -gt $cB) { $cB = $cr4.B } }
+    $maskContent = $true   # interior phase: content rects mask real text/controls again
     $free = 0; $match = 0; $mm = @()
     for ($y = $iT; $y -lt $iB; $y++) {
       for ($x = $iL; $x -lt $iR; $x++) {
@@ -2097,7 +2101,9 @@ public static class WinCap {
         $free++
         $hit = (& $isInterior ($bmp.GetPixel($x, $y)))
         if ($hit) { $match++ } else { if ($mm.Count -lt 3) { $px2 = $bmp.GetPixel($x, $y); $mm += "($x,$y)=rgb($($px2.R),$($px2.G),$($px2.B))" } }
-        if ($y -lt $cT) { $res.regionTop++ } elseif ($y -ge $cB) { $res.regionBottom++ } elseif ($x -lt $cL) { $res.regionLeft++ } elseif ($x -ge $cR) { $res.regionRight++ } else { $res.regionMid++ }
+        # spread sample = the interior's own 6px edge strips (content can legitimately touch the
+        # interior edge - the title band is flush with the top frame on the approved narrow cards).
+        if ($y -lt ($iT + 6)) { $res.regionTop++ } elseif ($y -ge ($iB - 6)) { $res.regionBottom++ } elseif ($x -lt ($iL + 6)) { $res.regionLeft++ } elseif ($x -ge ($iR - 6)) { $res.regionRight++ } else { $res.regionMid++ }
       }
     }
     $res.freePx = $free; $res.matchPx = $match; $res.mismatch = ($mm -join ' ')
