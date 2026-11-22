@@ -23,7 +23,7 @@
         <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
                 DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
             <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" Content="הגדרות" Click="Settings_Click" Padding="8,2" Margin="8,0,0,0"
+                <Button DockPanel.Dock="Right" Content="הגדרות" Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
                         AutomationProperties.Name="Settings"/>
                 <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
                         Visibility="{Binding UpdateAvailable, Converter={StaticResource B2V}}" AutomationProperties.Name="Open official download"/>
@@ -714,5 +714,8 @@
         <Border Grid.RowSpan="2" Panel.ZIndex="20" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" Padding="12" Width="480" MaxHeight="250" Background="#FFF9EB" BorderBrush="#B48629" BorderThickness="1" Visibility="{Binding ToastVisible, Converter={StaticResource B2V}}" FlowDirection="RightToLeft" AutomationProperties.Name="Notification">
             <StackPanel><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding DismissToastCommand}" AutomationProperties.Name="Dismiss notification"/><TextBlock Text="{Binding ToastMessage}" TextWrapping="Wrap" Margin="0,0,8,0"/></DockPanel><Button Content="תוצאות הפתיחה" Command="{Binding ToastDetailsCommand}" HorizontalAlignment="Right" Margin="0,5,0,0" Visibility="{Binding ToastHasOpeningResults, Converter={StaticResource B2V}}"/><Expander Header="פרטים טכניים"><StackPanel><TextBox Text="{Binding ToastTechnicalDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding CopyTechnicalDetailsCommand}" CommandParameter="{Binding ToastTechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel>
         </Border>
+            <local:SettingsView Grid.RowSpan="2" Panel.ZIndex="20"
+                            DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Visibility="{Binding DataContext.InSettings, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource B2V}}"/>
     </Grid>
 </Window>
