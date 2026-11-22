@@ -2880,7 +2880,7 @@ public static class WinCap {
   Shot 'created-with-design-card'
   Assert 'create form fully reset after a successful create' ((ValOf (NamedEdit 'Workspace name')) -eq '' -and (ValOf (NamedEdit 'Workspace description')) -eq '' -and (ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
   # 31. תצוגה menu captures (approved 22.11 design): menu rows, active filter chip, list template, restore to cards.
-  $c = ClickBtn 'תצוגה ▾' 1200; Assert 'view menu button clicked' ($c -eq 'ok') $c
+  $c = ClickBtn 'View menu' 1200; Assert 'view menu button clicked' ($c -eq 'ok') $c
   Assert 'view menu shows the four approved rows' ($null -ne (MenuItemByName 'גודל כרטיסים') -and $null -ne (MenuItemByName 'מיון') -and $null -ne (MenuItemByName 'סינון') -and $null -ne (MenuItemByName 'תבנית תצוגה')) ''
   Shot 'view-menu-open'
   $mi = MenuItemByName 'סינון'; Assert 'filter submenu parent present' ($null -ne $mi) ''; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'filter submenu') }; Start-Sleep -Milliseconds 700
@@ -2891,11 +2891,11 @@ public static class WinCap {
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 600
   Assert 'filtered counter appears in the chips bar' (WaitText "מתוך" 5) ((Texts) -join ' | ')
   Shot 'view-chips-filter'
-  $c = ClickBtn 'תצוגה ▾' 1200; Assert 'view menu reopened for template' ($c -eq 'ok') $c
+  $c = ClickBtn 'View menu' 1200; Assert 'view menu reopened for template' ($c -eq 'ok') $c
   $mi = MenuItemByName 'תבנית תצוגה'; Assert 'template submenu parent present' ($null -ne $mi) ''; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'template submenu') }; Start-Sleep -Milliseconds 700
   $list = MenuItemByName 'רשימה'; [void](InvokeEl $list 'list template choice'); Start-Sleep -Milliseconds 900
   Shot 'view-template-list'
-  $c = ClickBtn 'תצוגה ▾' 1200; Assert 'view menu reopened for restore' ($c -eq 'ok') $c
+  $c = ClickBtn 'View menu' 1200; Assert 'view menu reopened for restore' ($c -eq 'ok') $c
   $mi = MenuItemByName 'תבנית תצוגה'; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'template submenu restore') }; Start-Sleep -Milliseconds 700
   $cards = MenuItemByName 'כרטיסים'; [void](InvokeEl $cards 'cards template restore'); Start-Sleep -Milliseconds 900
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
