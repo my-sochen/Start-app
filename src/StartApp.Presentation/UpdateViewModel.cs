@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 
 namespace StartApp.Presentation;
@@ -52,28 +53,50 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private readonly TimeSpan _timeout;
     private readonly bool _revalidateBeforeDownload;
     private readonly bool _discoveryEnabled;
+    private readonly IUpdatePackageTransport? _packageTransport;
+    private readonly string? _updateWorkRoot;
     private ApprovedUpdate? _offered;
+    private readonly Func<DateTime> _clock;
+    private DateTime? _lastChecked;
+    private string _offeredDisplay = "";
     private bool _disposed;
     private bool _busy;
     private bool _startupCheckStarted;
     private bool _lastCheckVerified;
     private bool _available;
     private string _status;
-    public bool IsBusy { get => _busy; private set { Set(ref _busy, value); CheckCommand.Raise(); DownloadCommand.Raise(); } }
-    public bool UpdateAvailable { get => _available; private set { Set(ref _available, value); DownloadCommand.Raise(); } }
+    public bool IsBusy { get => _busy; private set { Set(ref _busy, value); Raise(nameof(IsUpToDate)); CheckCommand.Raise(); DownloadCommand.Raise(); } }
+    public bool UpdateAvailable { get => _available; private set { Set(ref _available, value); Raise(nameof(IsUpToDate)); DownloadCommand.Raise(); } }
+    public bool IsUpToDate => _lastCheckVerified && !UpdateAvailable && !IsBusy;
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string InstalledVersionDisplay { get; }
     public string DistributionDisplay => _current?.Prototype is not null ? "אב טיפוס - גרסת ניסוי, לא גרסת בטא" : _current?.Beta is not null ? "גרסת בטא" : _current is null ? "בנייה לא מזוהה - אינה גרסת הפצה מאומתת" : "גרסה יציבה";
+    // Settings screen values (approved הגדרות handoff): plain installed-version value,
+    // last completed check time and the offered-version notice line.
+    public string VersionValueDisplay { get; }
+    public string OfferedVersionDisplay { get => _offeredDisplay; private set => Set(ref _offeredDisplay, value); }
+    public string LastCheckedDisplay => _lastChecked is not DateTime checkedAt ? "טרם נבדק"
+        : checkedAt.Date == _clock().Date ? $"נבדק לאחרונה: היום, {checkedAt:HH:mm}"
+        : $"נבדק לאחרונה: {checkedAt:dd.MM.yyyy, HH:mm}";
     public RelayCommand CheckCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public Task CurrentCheck { get; private set; } = Task.CompletedTask;
     public event Action? StartupUpdateAvailable;
+    /// <summary>Phase 2: a verified package is staged; the app launches the apply helper and closes.</summary>
+    public event Action<StagedUpdate>? StagedUpdateReady;
+    private bool InAppInstallEnabled => _packageTransport is not null && _updateWorkRoot is not null;
 
-    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false)
+    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false, Func<DateTime>? clock = null,
+        IUpdatePackageTransport? packageTransport = null, string? updateWorkRoot = null)
     {
+        _packageTransport = packageTransport; _updateWorkRoot = updateWorkRoot;
+        _clock = clock ?? (() => DateTime.Now);
         _revalidateBeforeDownload = revalidateBeforeDownload; _discoveryEnabled = source is not InactiveUpdateSource;
         _source = source; _current = UpdateVersion.Parse(installedVersion); _openBrowser = openBrowser;
         InstalledVersionDisplay = _current is null ? "גרסה מותקנת: זהות הבנייה טרם אומתה" : $"גרסה מותקנת: {installedVersion}";
+        VersionValueDisplay = _current is null ? "לא זוהתה"
+            : _current.Prototype is not null ? $"{installedVersion} (אב טיפוס)"
+            : _current.Beta is not null ? $"{installedVersion} (בטא)" : $"{installedVersion}";
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
         if (_timeout <= TimeSpan.Zero || _timeout > TimeSpan.FromSeconds(30)) throw new ArgumentOutOfRangeException(nameof(timeout));
         _status = _current is null || !_discoveryEnabled ? "בדיקת עדכונים תופעל לאחר אישור מקור הגרסאות וזהות הבנייה." : "בדיקת עדכונים זמינה לפי בקשה.";
@@ -104,7 +127,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         if (_disposed || IsBusy || _current is null || !_discoveryEnabled) return;
         var previousOffer=_offered;
         _lastCheckVerified=false;
-        IsBusy = true; UpdateAvailable = false; _offered = null; Status = "בודק עדכונים...";
+        IsBusy = true; UpdateAvailable = false; _offered = null; OfferedVersionDisplay = ""; Status = "בודק עדכונים...";
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         timeout.CancelAfter(_timeout);
         try
@@ -112,6 +135,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             var candidate = await (click && _source is IClickRevalidatingUpdateSource revalidating
                 ? revalidating.ReadForClickAsync(timeout.Token) : _source.ReadAsync(timeout.Token)).WaitAsync(timeout.Token);
             if (_disposed) return;
+            _lastChecked = _clock(); Raise(nameof(LastCheckedDisplay));
             if (candidate is null) { Status = _source is MainBetaNoticeSource ? "לא מוצעת כרגע גרסת בטא מאושרת חדשה יותר להתקנה זו." : "אין כרגע גרסה מאושרת במקור העדכונים."; return; }
             var version = UpdateVersion.Parse(candidate.Version);
             if (version is null || !Regex.IsMatch(candidate.Commit ?? "", "\\A[0-9a-f]{40}\\z") ||
@@ -122,8 +146,14 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             { Status = "אין עדכון מתאים לערוץ הגרסה המותקנת."; return; }
             _lastCheckVerified=true;
             UpdateAvailable = version.CompareTo(_current) > 0;
-            if (UpdateAvailable) _offered = candidate;
-            Status = UpdateAvailable ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
+            if (UpdateAvailable)
+            {
+                _offered = candidate;
+                OfferedVersionDisplay = version.Beta is not null ? $"קיימת גרסה חדשה: {candidate.Version} (בטא)" : $"קיימת גרסה חדשה: {candidate.Version}";
+            }
+            Status = UpdateAvailable ? (InAppInstallEnabled
+                ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. לחיצה על \"עדכן עכשיו\" מורידה ומתקינה אותה בתוך האפליקציה, בלי אתר ובלי התקנה ידנית."
+                : $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית.") : "לא נמצאה גרסה מאושרת חדשה יותר.";
         }
         catch (NoticeCheckDeferredException ex)
         {
@@ -154,21 +184,50 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         var previous = _offered;
         await CheckCoreAsync(true);
         if (_disposed || !UpdateAvailable || !_lastCheckVerified) return;
-        if (previous != _offered) { Status = "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לפתיחת האתר."; return; }
+        if (previous != _offered) { Status = InAppInstallEnabled ? "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לעדכון." : "פרטי הגרסה השתנו. בדקו את הגרסה החדשה ולחצו שוב לפתיחת האתר."; return; }
         OpenDownloadCore();
     }
     private void OpenDownloadCore()
     {
         if (_disposed || !UpdateAvailable) return;
+        // Phase 2: the approved package is downloaded, verified and staged in-app; the browser
+        // route remains only for compositions without the package transport (dev/test seams).
+        if (InAppInstallEnabled && StagedUpdateReady is not null) { CurrentCheck = StageAndApplyAsync(); return; }
         try { _openBrowser(new Uri(OfficialWebsite)); }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         { Status = "לא ניתן לפתוח דפדפן. כתובת האתר הרשמי: " + OfficialWebsite; }
     }
+    private async Task StageAndApplyAsync()
+    {
+        var offer = _offered;
+        if (offer is null) return;
+        IsBusy = true;
+        var progress = new Progress<int>(p => { if (!_disposed) Status = $"מוריד את הגרסה החדשה… {p}%"; });
+        Status = "מוריד את הגרסה החדשה…";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromMinutes(5));
+        try
+        {
+            var staged = await UpdatePackageStager.StageAsync(offer, _packageTransport!, _updateWorkRoot!, progress, timeout.Token).ConfigureAwait(false);
+            if (_disposed) return;
+            Status = $"ההורדה הושלמה. האפליקציה נסגרת כעת, מתעדכנת לגרסה {offer.Version} ונפתחת מחדש.";
+            StagedUpdateReady?.Invoke(staged);
+        }
+        catch (OperationCanceledException) { if (!_disposed) Status = "הורדת העדכון לא הושלמה בזמן. אפשר לנסות שוב."; }
+        catch (UpdatePackageVerificationException) { if (!_disposed) Status = "לא ניתן לאמת את חבילת העדכון. ההתקנה בוטלה והגרסה הנוכחית ממשיכה לעבוד."; }
+        catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidDataException or UnauthorizedAccessException)
+        { if (!_disposed) Status = "הורדת העדכון לא הושלמה. אפשר לנסות שוב. להורדה ידנית: " + OfficialWebsite; }
+        finally { if (!_disposed) IsBusy = false; }
+    }
+    /// <summary>The apply helper could not start; the staged files are unused and the app stays open.</summary>
+    public void NotifyApplyFailed()
+    { if (!_disposed) { IsBusy = false; Status = "לא ניתן להתחיל את התקנת העדכון. אפשר לנסות שוב."; } }
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true; _lifetime.Cancel(); _lifetime.Dispose();
         if (_source is IDisposable owned) owned.Dispose();
+        if (_packageTransport is IDisposable transport) transport.Dispose();
         CheckCommand.Raise(); DownloadCommand.Raise();
     }
 }

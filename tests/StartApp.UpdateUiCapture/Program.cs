@@ -44,6 +44,8 @@ internal static class Program
             Evidence.Add(new { state="default-factory-source-selection", factory="UpdateComposition.Create", selectedSource="MainBetaNoticeSource", installedVersion=defaultUpdates.InstalledVersionDisplay, scope="construction and source type only; no commands, startup, HTTP or browser execution" });
         }
         var app = new Application();
+        // Harness: bare Application + the shared resource dictionary. Do NOT construct StartApp.App.App: its Startup wiring (OnStartup, real adapters, real store) fires on Run().
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new System.Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml") });
         // Explicitly isolated root for fixtures. Production default composition is
         // now live-read capable and must not run against public APIs in this test.
         var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected fixture browser"))) { Width = 900, Height = 560 };
@@ -242,19 +244,21 @@ internal static class Program
     }
     private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
-        // Actual settings XAML, shared synthetic VM. Closing this owned window
-        // must not dispose the shared updater or make a second network call.
-        var settings = new UpdateSettingsWindow(updates) { Owner = owner, Width = width, Height = 400 };
-        settings.Show(); settings.UpdateLayout();
-        var buttons = Descendants(settings).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
+        // Actual settings screen XAML (the in-window הגדרות view), shared synthetic VM,
+        // hosted standalone for the capture. Production embeds the same view as an overlay.
+        var host = new Window { Owner = owner, Width = width, Height = 560, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        host.Content = new SettingsView { DataContext = updates };
+        host.Show(); host.UpdateLayout();
+        var buttons = Descendants(host).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
         if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
-        if (Descendants(owner).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
+        var topBar = ((Grid)owner.Content).Children.OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
+        if (Descendants(topBar).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
             throw new Exception("Manual check must not remain in main top bar");
-        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
-            throw new Exception("Exact versions/settings section missing");
-        if (!Descendants(settings).OfType<TextBlock>().Any(t => (t is VersionDisplayText versionDisplay ? versionDisplay.DisplayText : t.Text) == updates.InstalledVersionDisplay))
-            throw new Exception("Installed version display missing");
-        CheckVersionInlines(settings);Capture(settings, output, name); settings.Close();
+        if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == "עדכונים"))
+            throw new Exception("Updates group header missing");
+        if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == updates.VersionValueDisplay))
+            throw new Exception("Installed version value missing");
+        Capture(host, output, name); host.Close();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

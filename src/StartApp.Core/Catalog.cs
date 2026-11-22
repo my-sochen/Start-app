@@ -135,7 +135,12 @@ public sealed class Catalog
     }
 
     /// <summary>Records a real open (שגר) of the workspace for the card's "last opened" display.</summary>
-    public void TouchLastOpened(string workspaceId) => Ws(workspaceId).LastOpenedAt = DateTime.UtcNow;
+    public void TouchLastOpened(string workspaceId)
+    {
+        var w = Ws(workspaceId);
+        w.LastOpenedAt = DateTime.UtcNow;
+        w.LaunchCount++;
+    }
 
     // ---- managed categories (פופאפ עריכת קטגוריה, settled Nov 11): built-ins are defined in code and can never be edited or
     // deleted; the user creates, renames and deletes custom ones. כללי is the default and the one guaranteed built-in; the exact
@@ -255,7 +260,7 @@ public sealed class Catalog
 
     /// <summary>Edits one instance's per-workspace name and description (טופס עריכת אייטם). Only this instance changes:
     /// other instances of the same item, here or in other workspaces, and the shared catalog record keep their own values.
-    /// Null name falls back to the catalog item's original name; null or blank description means no description.</summary>
+    /// Null name/description fall back to the catalog item; an explicit blank description clears the local description.</summary>
     public void UpdateInstance(string workspaceId, string membershipId, string? name, string? description)
     {
         var w = Ws(workspaceId);
@@ -263,7 +268,7 @@ public sealed class Catalog
         if (i < 0) throw new KeyNotFoundException(membershipId);
         var ne = ValidateInstanceName(name); if (ne != null) throw new ArgumentException(ne);
         var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
-        if (string.IsNullOrWhiteSpace(description)) description = null;
+        if (description is not null && string.IsNullOrWhiteSpace(description)) description = "";
         w.Items[i] = w.Items[i] with { Name = name, Description = description };
     }
 
@@ -277,6 +282,7 @@ public sealed class Catalog
     public void DeleteWorkspace(string workspaceId)
     {
         _s.Workspaces.Remove(Ws(workspaceId));
+        if (_s.DefaultWorkspaceId == workspaceId) _s.DefaultWorkspaceId = null; // no dangling סביבת ברירת מחדל
         RemoveOrphans();
     }
 
@@ -308,8 +314,8 @@ public sealed class Catalog
         w.Items[i] = w.Items[i] with { Launch = launch };
     }
 
-    /// <summary>The display grouping the user settled on (Nov 12, superseding the Nov 11 combined files+programs group): Sites, Folders, Files, Programs.</summary>
-    public static int DisplayGroup(ItemType t) => t switch { ItemType.Link => 0, ItemType.Folder => 1, ItemType.File => 2, _ => 3 };
+    /// <summary>The display grouping the user settled on (Nov 12, superseding the Nov 11 combined files+programs group): Sites, Programs, Files, Folders.</summary>
+    public static int DisplayGroup(ItemType t) => t switch { ItemType.Link => 0, ItemType.Program => 1, ItemType.File => 2, _ => 3 };
 
     /// <summary>הזז למעלה / הזז למטה: moves one instance within its display group, swapping with the nearest group neighbor.
     /// At the group's edge there is nothing to swap with and the call is a no-op. The new order is persisted in the workspace's item list.</summary>
@@ -336,6 +342,45 @@ public sealed class Catalog
 
     /// <summary>Reverse lookup by scan (no persisted counter/index, per decision).</summary>
     public IEnumerable<Workspace> WorkspacesContaining(string itemId) => _s.Workspaces.Where(w => w.Items.Any(m => m.ItemId == itemId));
+
+    // ---- סביבה גלובלית (approved 22.11 03:08): one tab with three lists — global items (open with the computer start),
+    // capture whitelist (display priority only) and capture blacklist (never shown). Shared by all workspaces. ----
+
+    /// <summary>The rows of one סביבה גלובלית list, in the order they are shown.</summary>
+    public IReadOnlyList<GlobalListEntry> GlobalEntries(GlobalListKind kind) => GlobalList(kind);
+
+    private List<GlobalListEntry> GlobalList(GlobalListKind kind) => kind switch
+    {
+        GlobalListKind.GlobalItems => _s.GlobalItems,
+        GlobalListKind.Whitelist => _s.CaptureWhitelist,
+        _ => _s.CaptureBlacklist,
+    };
+
+    /// <summary>Adds one row to a סביבה גלובלית list. Same validation as catalog targets; a row with the same type+target
+    /// already in the list is returned as-is (never duplicated).</summary>
+    public GlobalListEntry AddGlobalEntry(GlobalListKind kind, ItemType type, string name, string target)
+    {
+        var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required");
+        var list = GlobalList(kind);
+        var key = Key(type, target);
+        var existing = list.FirstOrDefault(e => Key(e.Type, e.Target) == key);
+        if (existing != null) return existing;
+        var entry = new GlobalListEntry
+        {
+            Id = NewId("ge_", id => _s.GlobalItems.Any(x => x.Id == id) || _s.CaptureWhitelist.Any(x => x.Id == id) || _s.CaptureBlacklist.Any(x => x.Id == id)),
+            Type = type,
+            Name = name.Trim(),
+            Target = target.Trim(),
+            AddedAt = DateTime.UtcNow,
+        };
+        list.Add(entry);
+        return entry;
+    }
+
+    /// <summary>Removes one row from a סביבה גלובלית list (הסרה). Removing a blacklist default returns it to captures — the
+    /// row is simply gone. Returns false when the id is not in the list.</summary>
+    public bool RemoveGlobalEntry(GlobalListKind kind, string entryId) => GlobalList(kind).RemoveAll(e => e.Id == entryId) > 0;
 
     public IReadOnlyList<string> Validate()
     {

@@ -10,12 +10,17 @@ internal static class UpdateComposition
     // MAIN candidate:null yields no offer; missing/unknown source is unavailable.
     // Rolling catalog endpoint remains dormant and is never a fallback.
     private static Uri? ApprovedBetaNoticeEndpoint => null;
+    // Phase 2: the production composition wires the package transport and the updates work
+    // root, so עדכן עכשיו downloads, verifies and installs in-app (never silent, never a browser).
     internal static UpdateViewModel Create() => CreateWithMainNoticeTransport(MainBetaNoticeSource.CreateTransport(),
         uri => { using var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri){UseShellExecute=true}); },
-        () => DateTimeOffset.UtcNow);
+        () => DateTimeOffset.UtcNow,
+        new GitHubReleasePackageTransport(GitHubReleasePackageTransport.CreateTransport()),
+        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp", "updates"));
     // Internal exact-product native-test seam; production uses this same factory.
     // No environment/CLI endpoint or descriptor override is exposed.
-    internal static UpdateViewModel CreateWithMainNoticeTransport(HttpMessageHandler handler, Action<Uri> browser, Func<DateTimeOffset> clock)
+    internal static UpdateViewModel CreateWithMainNoticeTransport(HttpMessageHandler handler, Action<Uri> browser, Func<DateTimeOffset> clock,
+        IUpdatePackageTransport? packageTransport = null, string? updateWorkRoot = null)
     {
         var assembly=typeof(App).Assembly;
         var metadata=assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Where(a=>a.Key=="StartAppSourceCommit").ToArray();
@@ -23,11 +28,11 @@ internal static class UpdateComposition
             metadata.Length==1?metadata[0].Value:null);
         IApprovedUpdateSource source=identity is null ? new InactiveUpdateSource() : new MainBetaNoticeSource(identity.Version,handler,clock);
         if(identity is null)handler.Dispose();
-        return new(source,identity?.Version,browser,revalidateBeforeDownload:true);
+        return new(source,identity?.Version,browser,revalidateBeforeDownload:true,packageTransport:packageTransport,updateWorkRoot:updateWorkRoot);
     }
     // Internal test seam only. No environment/argument/config override is exposed by the product.
     internal static UpdateViewModel CreateWithTransport(Uri? endpoint, HttpMessageHandler? handler,
-        Action<Uri>? browser, Func<DateTimeOffset>? clock)
+        Action<Uri>? browser, Func<DateTimeOffset>? clock, IUpdatePackageTransport? packageTransport = null, string? updateWorkRoot = null)
     {
         var assembly = typeof(App).Assembly; // Actual executable, not Presentation/test assembly.
         var metadata = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
@@ -40,6 +45,7 @@ internal static class UpdateComposition
         // Identity alone must not make inactive publication look like a working check.
         return new(source, identity?.Version,
             browser ?? (uri => { using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }),
-            revalidateBeforeDownload: true);
+            revalidateBeforeDownload: true,
+            packageTransport: packageTransport, updateWorkRoot: updateWorkRoot);
     }
 }

@@ -18,7 +18,7 @@ public class OpeningNotificationTests
     [Fact] public void InvalidAddressUsesAddressFieldAndPreservesDraft()
     {
         using var repo=Repo();var vm=new MainViewModel(repo,new NotImplementedLauncher());vm.NewName="w";vm.CreateWorkspaceCommand.Execute(null);vm.NewTarget="C:\\a.txt";vm.AddItemCommand.Execute(null);
-        vm.EditAddressCommand.Execute(vm.Items.Single());vm.EditAddress=" bad ";vm.SaveAddressCommand.Execute(null);Assert.NotEmpty(vm.AddressError);Assert.Equal(" bad ",vm.EditAddress);Assert.True(vm.AddressEditOpen);Assert.False(vm.ToastVisible);
+        vm.EditAddressCommand.Execute(vm.Items.Single());vm.EditItemTarget=" bad ";vm.SaveItemEditCommand.Execute(null);Assert.NotEmpty(vm.ItemEditError);Assert.Equal(" bad ",vm.EditItemTarget);Assert.True(vm.ItemEditOpen);Assert.False(vm.ToastVisible);
     }
     [Fact] public void InvalidStoreShowsPersistentSaveBlockedState()
     {

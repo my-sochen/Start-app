@@ -48,7 +48,7 @@ public class ResourcePickerTests
         Assert.Empty(vm.PickerRows);
         vm.PickTypeCommand.Execute(ItemType.Folder);
         Assert.Empty(vm.PickerRows);
-        Assert.Equal(new[] { ItemType.Program, ItemType.Link, ItemType.File, ItemType.Folder }, vm.PickerTypes); // settled order
+        Assert.Equal(new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder }, vm.PickerTypes); // settled order
     }
 
     [Fact] public void Sort_is_by_workspace_count_of_the_exact_address_descending()
@@ -187,7 +187,7 @@ public class CaptureViewModelTests
         Assert.True(vm.IsCapturePick); Assert.All(vm.CaptureRows, r => Assert.False(r.IsChecked));
         vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
         Assert.True(vm.IsCaptureSide);
-        Assert.Equal("הוסף הכל", vm.CaptureAddLabel);
+        Assert.Equal("הוסף הכל ←", vm.CaptureAddLabel);
         vm.CaptureAddCommand.Execute(null);
         Assert.Equal(3, vm.StagedRows.Count); Assert.Equal(0, Saved(repo, "A")); Assert.True(vm.CaptureDirty);
         vm.CaptureSaveCommand.Execute(null);
@@ -201,11 +201,11 @@ public class CaptureViewModelTests
         var (vm, _, repo) = Make(v => Ws(v, "A")); using var _ = repo;
         vm.CaptureExistingCommand.Execute(null); ScanDone(vm); vm.CapturePickWorkspaceCommand.Execute(Find(vm, "A"));
         vm.CaptureRows[0].IsChecked = true; vm.CaptureRows[2].IsChecked = true;
-        Assert.Equal("הוסף נבחרים", vm.CaptureAddLabel);
+        Assert.Equal("הוסף 2 נבחרים ←", vm.CaptureAddLabel);
         vm.CaptureAddCommand.Execute(null);
         Assert.Equal(new[] { "Notepad", "example.com" }, vm.StagedRows.Select(s => s.OriginalName).ToArray());
         vm.CaptureRows[0].IsChecked = false; vm.CaptureRows[2].IsChecked = false;
-        Assert.Equal("הוסף הכל", vm.CaptureAddLabel);
+        Assert.Equal("הוסף הכל ←", vm.CaptureAddLabel);
     }
 
     [Fact] public void Dragging_a_duplicate_warns_for_that_drag_and_confirm_adds_a_second_instance()

@@ -183,18 +183,21 @@ public sealed partial class MainViewModel : ObservableBase
     public string ConfirmLabel => "המשך לפתיחה";
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
     public bool ShowOpenPanel => _isChecking || _isLaunching;
-    public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
+    public IReadOnlyList<ItemType> ItemTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
 
     public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
         InitCaptureCommands();
+        InitGlobalEnvCommands();
+        InitAllItemsCommands();
         InitOpeningCommands();
-        CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && NewName.Length > 0);
+        CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && !string.IsNullOrWhiteSpace(NewName));
         // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
         // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
-        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        // owner decision 22.11 17:15: deploy is never enabled for an empty workspace, in any view.
+        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace w && w.Items.Count > 0 && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
@@ -207,7 +210,7 @@ public sealed partial class MainViewModel : ObservableBase
         EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
         CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
-        EditAddressCommand = Cmd(p => BeginAddressEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
+        EditAddressCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
         CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
         CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
@@ -263,7 +266,7 @@ public sealed partial class MainViewModel : ObservableBase
         CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
-        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
         CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _pendingOpen != null || IsChecking || IsLaunching);
         Reload();
@@ -271,7 +274,7 @@ public sealed partial class MainViewModel : ObservableBase
 
     private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
-    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
+    public Workspace? Selected { get => _selected; set { ClearPending(); ClearDup(); EmptyWorkspaceOpen = false; if (!ItemEditDirty) ItemEditOpen = false; if (!AddressEditDirty) AddressEditOpen = false; OpenWithOpen = false; Set(ref _selected, value); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel)); Raise(nameof(EditingItemInstanceId)); if (InDetails && !DetailsDirty) LoadDetails(); RefreshItems(); Raise(nameof(ShowEmptyItemsMessage)); Raise(nameof(CreatedAtText)); RaiseCommands(); } }
     // An ordinary refresh (Apply -> Show re-selects the same workspace) must not silently drop an open
     // unsaved item/address edit (PR19 review: edits disappeared on unrelated mutations). A dirty form stays
     // open with its fields. Safety does not rest on the selection staying put: saves validate the
@@ -290,19 +293,19 @@ public sealed partial class MainViewModel : ObservableBase
     private string _newDescription = "";
 
     private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
-    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     /// <summary>Optional workspace description in the create form.</summary>
     public string NewWorkspaceDescription { get => _newWsDesc; set { Set(ref _newWsDesc, value ?? ""); Raise(nameof(CreateDirty)); } }
     private string _newWsDesc = "";
     /// <summary>Category chosen in the create form from the managed list (קטגוריה: כללי מסומנת כברירת מחדל, ואפשר לבחור אחרת).</summary>
-    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); } }
+    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); } }
     private string _newWsCat = Workspace.DefaultCategory;
     /// <summary>Optional card color chosen at creation (#RRGGBB, palette or typed; empty = the app's default look). The same
     /// design rule as עצב כרטיס applies from the first save: with an image the color is the frame, without one the background.</summary>
-    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     private string _newWsColor = "";
     /// <summary>Optional card background image path chosen at creation; empty = none.</summary>
-    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); RaiseCommands(); } }
+    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     private string _newWsImage = "";
     /// <summary>Clears every create-form field after a successful create or a discard (יציאה בלי לשמור).</summary>
     private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
@@ -321,7 +324,13 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>True while the open unsaved-exit dialog guards the card design popup (פופאפ עיצוב כרטיס).</summary>
     public bool UnsavedForDesign { get => _unsavedForDesign; private set => Set(ref _unsavedForDesign, value); }
     private bool _unsavedForDesign;
-    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false) { UnsavedForCapture = forCapture; UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign; }
+    public string UnsavedContextLabel => UnsavedForCreate ? "יצירת סביבה · יציאה" : UnsavedForItemEdit || UnsavedForAddress ? "עריכת אייטם · יציאה" : UnsavedForDesign ? "עיצוב כרטיס · יציאה" : UnsavedForCapture ? "לכידה · יציאה" : "פרטי הסביבה · יציאה";
+    public string UnsavedContextMessage => UnsavedForCreate ? "בוצעו שינויים בסביבה החדשה שעדיין לא נשמרו." : UnsavedForItemEdit || UnsavedForAddress ? "בוצעו שינויים באייטם שעדיין לא נשמרו." : UnsavedForDesign ? "בוצעו שינויים בעיצוב הכרטיס שעדיין לא נשמרו." : UnsavedForCapture ? "בוצעו שינויים בלכידה שעדיין לא נשמרו." : "בוצעו שינויים בפרטי הסביבה שעדיין לא נשמרו.";
+    private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false)
+    {
+        UnsavedForCapture = forCapture; UnsavedForCreate = forCreate; UnsavedForItemEdit = forItemEdit; UnsavedForAddress = forAddress; UnsavedForDesign = forDesign;
+        Raise(nameof(UnsavedContextLabel)); Raise(nameof(UnsavedContextMessage));
+    }
 
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
     public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); if (!value) { _addressStaged = null; _addressInstId = ""; _addressWsId = ""; } RaiseCommands(); } }
@@ -579,7 +588,7 @@ public sealed partial class MainViewModel : ObservableBase
     public ItemType PickerType { get => _pickerType; private set => Set(ref _pickerType, value); }
     private ItemType _pickerType = ItemType.Link;
     /// <summary>The four type buttons in the settled order: תוכנות, אתרים, קבצים, תיקיות.</summary>
-    public IReadOnlyList<ItemType> PickerTypes { get; } = new[] { ItemType.Program, ItemType.Link, ItemType.File, ItemType.Folder };
+    public IReadOnlyList<ItemType> PickerTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
     /// <summary>Search filter, applied inside each type list (name and address, case-insensitive).</summary>
     public string PickerSearch { get => _pickerSearch; set { Set(ref _pickerSearch, value ?? ""); RefreshPicker(); } }
     private string _pickerSearch = "";
@@ -616,12 +625,21 @@ public sealed partial class MainViewModel : ObservableBase
     private string _editItemTarget = "";
     private string _origItemName = "", _origItemDesc = "", _origItemTarget = "";
     /// <summary>Any change in the item edit form shows its Save button (same rule as the details screen).</summary>
-    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget);
+    private string _editItemOpenWith = "", _origItemOpenWith = "";
+    private ItemType _editItemType;
+    public string EditItemOpenWithDefaultLabel => _editItemType == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
+    public bool EditItemOpenWithApplicable => _editItemType != ItemType.Program;
+    public string EditItemTargetLabel => _editItemType == ItemType.Link ? "כתובת האתר" : "נתיב";
+    public string EditItemOpenWith { get => _editItemOpenWith; set { Set(ref _editItemOpenWith, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget || EditItemOpenWith != _origItemOpenWith);
     private void BeginItemEdit(ItemRow row)
     {
         if (!TryOpenEditorForm()) return;
         ClearFieldErrors();
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
+        _editItemType = Enum.Parse<ItemType>(row.Type);
+        var membership = Selected?.Items.FirstOrDefault(m => (m.Id ?? m.ItemId) == row.InstanceId);
+        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemOpenWithDefaultLabel)); Raise(nameof(EditItemTargetLabel));
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
@@ -639,6 +657,8 @@ public sealed partial class MainViewModel : ObservableBase
         if (editedItem is not null && (Catalog.ValidateTarget(editedItem.Type, EditItemTarget) ?? Catalog.ValidateDescription(EditItemDescription)) is { } itemError)
         { FieldError("item", "בדקו את כתובת הפריט ואת התיאור לפני השמירה.", "Not saved: " + itemError); return false; }
         var targetChanged = EditItemTarget != _origItemTarget;
+        LaunchConfig? editedLaunch = string.IsNullOrWhiteSpace(EditItemOpenWith) ? null : _editItemType == ItemType.Link ? new LaunchConfig(Browser: EditItemOpenWith.Trim()) : new LaunchConfig(OpenWith: EditItemOpenWith.Trim());
+        if (EditItemOpenWith != _origItemOpenWith && Catalog.ValidateLaunch(_editItemType, editedLaunch) is { } launchError) { FieldError("item", "יש להזין נתיב מלא לתוכנה או לדפדפן.", launchError); return false; }
         var ok = Apply(c =>
         {
             // Validate again inside the mutation: Mutate reloads the current disk state, so the snapshot
@@ -652,6 +672,7 @@ public sealed partial class MainViewModel : ObservableBase
             // the same item in other workspaces keeps its address, and the instance id stays stable.
             if (targetChanged) c.ReplaceTargetLocal(_editItemWsId, _editItemId, EditItemTarget);
             c.UpdateInstance(_editItemWsId, _editItemId, EditItemName, EditItemDescription);
+            if (EditItemOpenWith != _origItemOpenWith) c.SetLaunch(_editItemWsId, _editItemId, editedLaunch);
         });
         if (ok) { Status = "Item saved"; ItemEditOpen = false; }
         return ok;
@@ -681,7 +702,47 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>False = overview (workspace cards + create form); true = the details screen of <see cref="Selected"/>.</summary>
     public bool InDetails { get => _inDetails; private set { Set(ref _inDetails, value); Raise(nameof(InOverview)); Raise(nameof(ShowEmptyItemsMessage)); RaiseCommands(); } }
     private bool _inDetails;
-    public bool InOverview => !_inDetails;
+    public bool InOverview => !_inDetails && !InCreate && !InAllItems;
+    private bool _inCreate;
+    public bool InCreate
+    {
+        get => _inCreate;
+        private set { Set(ref _inCreate, value); Raise(nameof(InOverview)); RaiseCommands(); }
+    }
+    public Workspace CreatePreview => new()
+    {
+        Name = string.IsNullOrWhiteSpace(NewName) ? "פרויקט חדש" : NewName,
+        Category = NewWorkspaceCategory,
+        Color = string.IsNullOrWhiteSpace(NewWorkspaceColor) ? "#7189BB" : NewWorkspaceColor,
+        ImagePath = NewWorkspaceImagePath
+    };
+    public void ShowCreateScreen()
+    {
+        if (ReadOnly || CaptureOpen || InSettings || InGlobalEnv || IsChecking || IsLaunching || UnsavedOpen || InCreate) return;
+        void Show() { InAllItems = false; ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; InDetails = false; InCreate = true; }
+        if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty)
+        {
+            MarkUnsavedHost(false, ItemEditDirty, AddressEditDirty, DesignDirty);
+            _exitAction = Show; UnsavedOpen = true; return;
+        }
+        Show();
+    }
+    public void LeaveCreateScreen()
+    {
+        if (!InCreate) return;
+        if (CreateDirty)
+        {
+            MarkUnsavedHost(true, false, false);
+            _exitAction = () => InCreate = false; UnsavedOpen = true; return;
+        }
+        InCreate = false;
+    }
+    /// <summary>True while the in-window settings screen (הגדרות) covers the content. Independent of
+    /// overview/details: חזרה לסביבות returns to whatever screen was open below.</summary>
+    public bool InSettings { get => _inSettings; private set { Set(ref _inSettings, value); RaiseCommands(); } }
+    private bool _inSettings;
+    public RelayCommand OpenSettingsCommand { get; private set; } = null!;
+    public RelayCommand CloseSettingsCommand { get; private set; } = null!;
     /// <summary>Spec strings quoted in Hebrew on the cards, kept verbatim.</summary>
     public const string EmptyWorkspaceTitle = "סביבת עבודה ריקה";
     public const string EmptyItemsMessage = "עדיין אין אייטמים בסביבה";
@@ -753,6 +814,7 @@ public sealed partial class MainViewModel : ObservableBase
         _current = s; var keep = Selected?.Id;
         RefreshCategories();
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
+        ApplyView();
         Raise(nameof(HasOtherWorkspaces));
         Selected = Workspaces.FirstOrDefault(w => w.Id == keep) ?? Workspaces.FirstOrDefault();
     }
@@ -803,11 +865,13 @@ public sealed partial class MainViewModel : ObservableBase
         var n = NewName; var d = NewWorkspaceDescription; var cat = NewWorkspaceCategory;
         if (string.IsNullOrWhiteSpace(n) || Catalog.ValidateDescription(d) is not null) { FieldError("create", "הזינו שם לסביבה ותיאור באורך עד 500 תווים.", "Not created: invalid workspace fields"); return; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
+        if (InCreate && color.Length == 0) color = "#7189BB";
         if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return; }
         string? id = null;
         if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
         {
             ResetCreateForm();
+            InCreate = false;
             Selected = Workspaces.FirstOrDefault(w => w.Id == id);
             LoadDetails(); InDetails = true;
         }
@@ -1060,6 +1124,7 @@ public sealed partial class MainViewModel : ObservableBase
     // ---- capture (לכידה, settled Nov 12 07:14-07:45): scan what is open now, show it read-only (checkbox, original name, address under it),
     // add to a NEW workspace (create form, items checked by default) or to an EXISTING one side by side. Staged additions are NOT saved until
     // שמור; the snapshot survives workspace changes and saves; X resets it. Duplicates: one warning per drag, one grouped dialog for add-all/selected. ----
+    public static string TypeName(ItemType type) => type switch { ItemType.Link => "אתר", ItemType.Program => "תוכנה", ItemType.File => "קובץ", _ => "תיקייה" };
     public enum CaptureStage { None, NewForm, PickWorkspace, SideBySide }
     /// <summary>One line of the capture list. Shows default details only: no actions menu, no editing (settled).</summary>
     public sealed class CaptureRow : ObservableBase
@@ -1071,6 +1136,7 @@ public sealed partial class MainViewModel : ObservableBase
         public string Name => Item.Name;
         public string Target => Item.Target;
         public string Group => GroupOf(Item.Type);
+        public string DetailsLabel => TypeName(Type) + (BrowserName is null ? "" : " · " + BrowserName);
         /// <summary>The captured browser's display name (Edge, Chrome, ...), null when no browser was identified. The same
         /// site open in two browsers stays one row per browser (owner decision Nov 14), and this name is how the user tells
         /// them apart before choosing.</summary>
@@ -1091,6 +1157,7 @@ public sealed partial class MainViewModel : ObservableBase
         public StagedRow(CapturedItem i) { Type = i.Type; OriginalName = i.Name; _name = i.Name; _target = i.Target; _openWith = i.Type == ItemType.Link && !string.IsNullOrEmpty(i.Browser) ? i.Browser! : ""; }
         public ItemType Type { get; }
         public string OriginalName { get; }
+        public string TypeLabel => TypeName(Type);
         public string Group => GroupOf(Type);
         public string Label => "Added: " + OriginalName;
         public string Name { get => _name; set => Set(ref _name, value ?? ""); }
@@ -1099,6 +1166,9 @@ public sealed partial class MainViewModel : ObservableBase
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
+        public string OpenWithDefaultLabel => Type == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
+        public bool OpenWithApplicable => !IsProgram;
+        public string TargetLabel => Type == ItemType.Link ? "כתובת האתר" : "נתיב";
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
     public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File");
@@ -1122,7 +1192,7 @@ public sealed partial class MainViewModel : ObservableBase
     public ObservableCollection<StagedRow> StagedRows { get; } = new();
     public ObservableCollection<DupChoice> CaptureDupChoices { get; } = new();
     private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
-    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); RaiseCommands(); } }
+    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); Raise(nameof(CaptureTargetHeader)); RaiseCommands(); } }
     public bool CaptureOpen => _captureStage != CaptureStage.None;
     public bool IsCaptureNew => _captureStage == CaptureStage.NewForm;
     public bool IsCapturePick => _captureStage == CaptureStage.PickWorkspace;
@@ -1144,7 +1214,16 @@ public sealed partial class MainViewModel : ObservableBase
     private int _openScans;
     private const int MaxOpenScans = 1;
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
-    public string CaptureAddLabel => CaptureRows.Any(r => r.IsChecked) ? "הוסף נבחרים" : "הוסף הכל";
+    public string CaptureAddLabel
+    {
+        get
+        {
+            var count = CaptureRows.Count(r => r.IsChecked);
+            return count == 0 ? "הוסף הכל ←" : count == 1 ? "הוסף נבחר אחד ←" : $"הוסף {count} נבחרים ←";
+        }
+    }
+    public string CaptureSelectionText => CaptureRows.Count(r => r.IsChecked) + " נבחרו";
+    public string CaptureTargetHeader => IsCaptureSide ? "היעד: " + CaptureWorkspaceName : IsCaptureNew ? "סביבה חדשה" : "בחירת סביבה";
     public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
     public string CaptureSearch { get => _captureSearch; set { Set(ref _captureSearch, value ?? ""); RefreshCaptureResults(); } }
     private string _captureSearch = "";
@@ -1184,6 +1263,8 @@ public sealed partial class MainViewModel : ObservableBase
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        OpenSettingsCommand = Cmd(_ => { InAllItems = false; InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
+        CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
         CaptureAddCommand = Cmd(_ => AddCaptured(), _ => IsCaptureSide && CaptureRows.Count > 0 && CaptureIdle && !ReadOnly);
@@ -1215,12 +1296,12 @@ public sealed partial class MainViewModel : ObservableBase
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
         CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _dupGroup);
     }
-    private void OnCaptureCheckChanged() => Raise(nameof(CaptureAddLabel));
+    private void OnCaptureCheckChanged() { Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); }
     private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
     {
         CaptureRows.Clear(); CaptureNotes.Clear();
         StagedRows.Clear(); CaptureDupChoices.Clear(); _dupSingle = null; CaptureDupGroupPending = false; CaptureSearch = "";
-        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
+        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
         // The screen opens right away; the scan itself runs off the UI thread, so a stuck COM/UIA call can never freeze the window.
         if (wsId != null) EnterSideBySide(wsId);
         else { RefreshCaptureResults(); CaptureStageNow = stage; }
@@ -1261,7 +1342,8 @@ public sealed partial class MainViewModel : ObservableBase
             try { await Task.Delay(floor, cts.Token); } catch (OperationCanceledException) { return; }
             if (gen != _scanGen) return;
         }
-        foreach (var i in scan.Items) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
+        var surviving = scan.Items.Where(i => !GlobalEnvRules.IsBlacklisted(_current.CaptureBlacklist, i)).ToList();
+        foreach (var i in GlobalEnvRules.WhitelistPins(_current.CaptureWhitelist, surviving).Concat(surviving)) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
         foreach (var n in scan.Notes)
         {
             // This adapter emits one fixed capabilities paragraph. It belongs in help, not a routine warning list.
@@ -1270,7 +1352,7 @@ public sealed partial class MainViewModel : ObservableBase
         }
         if (CaptureNotes.Count > 0) ShowToast("הלכידה הושלמה עם מגבלה או תקלה. ייתכן שחסרים פריטים; אפשר להוסיף ידנית או לנסות שוב.", true, string.Join(Environment.NewLine, CaptureNotes));
         IsScanning = false;
-        Raise(nameof(CaptureAddLabel)); RaiseCommands();
+        Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); RaiseCommands();
         Status = scan.Items.Count == 0 ? "Nothing open was detected" : $"{scan.Items.Count} open {(scan.Items.Count == 1 ? "item" : "items")} detected";
     }
     private void RefreshCaptureResults()

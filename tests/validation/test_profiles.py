@@ -36,7 +36,10 @@ class Profiles(unittest.TestCase):
     def test_trigger_inventory_exactly_matches_reviewed_routes(self):
         branches = re.search(r'branches: \[([^]]+)\]', self.workflow).group(1).split(',')
         self.assertEqual(profiles.FULL_REFS | {'dev'}, {s.strip() for s in branches})
-        self.assertNotIn('workflow_dispatch:', self.workflow)
+        # reviewed route (owner 22.11 targeted cadence): exactly one manual dispatch,
+        # offering only the two reviewed UI scopes
+        self.assertEqual(1, self.workflow.count('workflow_dispatch:'))
+        self.assertIn("options: ['cycle1-only', 'full']", self.workflow)
         self.assertNotIn('pull_request:', self.workflow)
 
     def test_no_failed_or_skipped_required_stage_can_be_ready(self):
@@ -62,7 +65,10 @@ class Profiles(unittest.TestCase):
         self.assertEqual(1, self.workflow.count('& ./.github/e2e/synthetic-update-capture.ps1'))
         self.assertIn('python .github/e2e/validation-profile.py --status', self.workflow)
         self.assertIn('needs: [resolve, tests, ui-gate, package]', self.workflow)
-        self.assertIn('if: always()\n    needs: [resolve, tests, ui-gate, package]', self.workflow)
+        self.assertIn("if: ${{ always() && github.event.inputs.ui_scope != 'cycle1-only' && !(github.event_name == 'push' && github.ref_name == 'feat/settings-tab') }}", self.workflow)
+        # feat/settings-tab pushes run resolve+tests only; UI/package/status via dispatch
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' || contains(github.event.head_commit.message, '[ui]') }}", self.workflow)
+        self.assertEqual(4, self.workflow.count("github.event.inputs.ui_scope != 'cycle1-only'"))
         self.assertNotIn('retention-days: 1', self.workflow)
 
     def test_synthetic_capture_guard_contracts_preserved(self):
@@ -76,7 +82,7 @@ class Profiles(unittest.TestCase):
 
     def test_synthetic_body_is_exact_previous_qualified_definition(self):
         text = (ROOT / '.github/e2e/synthetic-update-capture.ps1').read_text().split('}\n', 1)[1]
-        self.assertEqual('7d8ded64fac6069f38673588b5f40f59f20a76bfea2e01c6a4b6f4370d14fd4e',
+        self.assertEqual('33bc7e32028dd916d5d7b898c3669492256e99286ab83c76ea21272707790dd5',
                          hashlib.sha256(text.encode()).hexdigest())
 
     def test_evidence_rejects_wrong_sha_and_dirty_checkout(self):

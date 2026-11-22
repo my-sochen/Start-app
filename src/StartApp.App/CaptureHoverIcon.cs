@@ -53,6 +53,12 @@ public sealed class CaptureHoverIcon : Canvas
         Width = 64;
         Height = 64;
         ClipToBounds = true;
+        IsHitTestVisible = false;
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible) { StopTicking(); _phase = 0; RenderFrameAt(0); }
+            else if (_hoverSource?.IsMouseOver == true) StartTicking();
+        };
 
         _beams.Children.Add(_beamLeftGlow);
         _beams.Children.Add(_beamRightGlow);
@@ -70,15 +76,15 @@ public sealed class CaptureHoverIcon : Canvas
         {
             // translate(x y) scale(s): scale around the box origin first, then move it.
             var transforms = new TransformGroup();
-            transforms.Children.Add(_boxOffsets[i]);
             transforms.Children.Add(_boxScales[i]);
+            transforms.Children.Add(_boxOffsets[i]);
             _boxes[i].RenderTransform = transforms;
             _boxes[i].Opacity = 0;
         }
 
         BuildShip();
 
-        _animatedRoot.RenderTransform = new TransformGroup { Children = { _bob, _tilt } };
+        _animatedRoot.RenderTransform = new TransformGroup { Children = { _tilt, _bob } };
         _animatedRoot.Children.Add(_beams);
         foreach (var box in _boxes) _animatedRoot.Children.Add(box);
         _animatedRoot.Children.Add(_ship);
@@ -131,8 +137,8 @@ public sealed class CaptureHoverIcon : Canvas
         foreach (var dot in _dots) _ship.Children.Add(dot);
 
         var place = new TransformGroup();
-        place.Children.Add(new TranslateTransform(CaptureHoverMotion.ShipLeftX, CaptureHoverMotion.ShipTopY));
         place.Children.Add(new ScaleTransform(CaptureHoverMotion.ShipScale, CaptureHoverMotion.ShipScale));
+        place.Children.Add(new TranslateTransform(CaptureHoverMotion.ShipLeftX, CaptureHoverMotion.ShipTopY));
         _ship.RenderTransform = place;
     }
 
@@ -168,7 +174,7 @@ public sealed class CaptureHoverIcon : Canvas
     }
 
     // Reuses one PathGeometry per beam and rewrites the bezier points in place each
-    // frame; the segment count is fixed, so hovered animation allocates nothing.
+    // frame; the segment count is fixed, so the rendered geometries keep a stable identity.
     private sealed class StreamGeometryCache
     {
         public readonly PathGeometry Geometry = new();
@@ -247,7 +253,7 @@ public sealed class CaptureHoverIcon : Canvas
 
     private void StartTicking()
     {
-        if (_ticking) return;
+        if (_ticking || !IsVisible) return;
         _ticking = true;
         _clock = Stopwatch.StartNew();
         _lastTickMs = 0;
