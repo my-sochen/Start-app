@@ -8,19 +8,10 @@ namespace StartApp.App;
 public partial class AllItemsView : UserControl
 {
     public AllItemsView() { InitializeComponent(); }
-    private void RowActions(object sender, MouseButtonEventArgs e)
+    private void ItemContextOpening(object sender, ContextMenuEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: MainViewModel.AllItemRow row } element && Window.GetWindow(this) is MainWindow window)
-        {
-            var button = FindButton(element);
-            if (button is not null) { window.ShowAllItemActions(button, row); e.Handled = true; }
-        }
-    }
-    private void RowKeys(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Apps && !(e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))) return;
         if (sender is FrameworkElement { DataContext: MainViewModel.AllItemRow row } element && Window.GetWindow(this) is MainWindow window && FindButton(element) is { } button)
-        { window.ShowAllItemActions(button, row); e.Handled = true; }
+        { e.Handled = true; window.ShowAllItemActions(button, row); }
     }
     private static Button? FindButton(DependencyObject root)
     {

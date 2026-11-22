@@ -126,7 +126,8 @@ try {
   (RootNamed 'Cancel item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('')
   $allViewport = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'All items viewport')))
-  $allViewport.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).SetScrollPercent(-1,100)
+  $allScroll = $allViewport.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+  if ($allScroll.Current.VerticallyScrollable) { $allScroll.SetScrollPercent(-1,100) }
   Capture 'all-items-bottom' 1280 880
   InvokeNamed 'Back to workspaces'
   InvokeNamed 'Options menu'

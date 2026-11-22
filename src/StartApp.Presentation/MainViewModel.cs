@@ -183,7 +183,7 @@ public sealed partial class MainViewModel : ObservableBase
     public string ConfirmLabel => "המשך לפתיחה";
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
     public bool ShowOpenPanel => _isChecking || _isLaunching;
-    public IReadOnlyList<ItemType> ItemTypes { get; } = Enum.GetValues<ItemType>();
+    public IReadOnlyList<ItemType> ItemTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
 
     public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
     {

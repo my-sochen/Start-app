@@ -48,7 +48,8 @@ public sealed partial class MainViewModel
         var instanceId = member.Id ?? member.ItemId;
         if (delete)
         {
-            if (Apply(c => c.RemoveInstance(fresh.Id, instanceId))) RefreshAllItems();
+            if (Apply(c => c.RemoveInstance(fresh.Id, instanceId))) { RefreshAllItems(); ShowToast("האייטם הוסר מהסביבה " + fresh.Name, false); }
+            else ShowToast("האייטם לא הוסר. הנתונים לא השתנו.", true, Status);
             return;
         }
         InAllItems = false; OpenDetails(fresh);
