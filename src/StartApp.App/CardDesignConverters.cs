@@ -192,12 +192,12 @@ public sealed class StringEmptyToVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
-/// <summary>List-row deploy button (approved 22.11 list mock): Visible only when the workspace has items to
-/// deploy; an empty workspace shows the plain "סביבה ריקה" text in place of the button.</summary>
-public sealed class HasItemsToVisibilityConverter : IValueConverter
+/// <summary>List-row deploy button (owner correction 22.11 17:11): the button stays VISIBLE on an empty workspace
+/// but is disabled; this converter supplies IsEnabled = Items.Count &gt; 0.</summary>
+public sealed class HasItemsToBoolConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is StartApp.Core.Workspace w && w.Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        value is StartApp.Core.Workspace w && w.Items.Count > 0;
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 

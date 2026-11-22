@@ -121,7 +121,7 @@
                 <Grid>
                     <DockPanel Margin="12,9,14,9" LastChildFill="True">
                         <Button DockPanel.Dock="Left" Content="שגר" Style="{StaticResource PrimaryActionButton}" MinHeight="32" Padding="20,5" VerticalAlignment="Center"
-                                Visibility="{Binding Converter={StaticResource HasItemsToVisibility}}"
+                                IsEnabled="{Binding Converter={StaticResource HasItemsToBool}}"
                                 Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                         <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#626B79" FontSize="12" Margin="14,0,0,0">
                             <TextBlock.Text>

@@ -13,7 +13,7 @@
     <local:FooterLine1Converter x:Key="FooterLine1"/>
     <local:FooterLine1ListConverter x:Key="FooterLine1List"/>
     <local:InverseBooleanToVisibilityConverter x:Key="NotB2V"/>
-    <local:HasItemsToVisibilityConverter x:Key="HasItemsToVisibility"/>
+    <local:HasItemsToBoolConverter x:Key="HasItemsToBool"/>
     <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
 
     <!-- Approved 22.11 menu look (pixel-exact mocks): white surface, #C9D0DC border, 5px radius, shadow -->
@@ -122,7 +122,7 @@
                             <Setter TargetName="Bg" Property="Background" Value="#2A4FAA"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Bg" Property="Opacity" Value="0.55"/>
+                            <Setter TargetName="Bg" Property="Background" Value="#A7AEB9"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
