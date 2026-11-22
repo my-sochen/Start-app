@@ -2898,6 +2898,19 @@ public static class WinCap {
   $c = ClickBtn 'View menu' 1200; Assert 'view menu reopened for restore' ($c -eq 'ok') $c
   $mi = MenuItemByName 'תבנית תצוגה'; try { $mi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { [void](InvokeEl $mi 'template submenu restore') }; Start-Sleep -Milliseconds 700
   $cards = MenuItemByName 'כרטיסים'; [void](InvokeEl $cards 'cards template restore'); Start-Sleep -Milliseconds 900
+  # 32. סביבה גלובלית tab captures: the three groups, whitelist add flow, row present, removed again.
+  $c = ClickBtn 'Global environment' 1200; Assert 'global environment tab clicked' ($c -eq 'ok') $c
+  Assert 'global environment page shows the three groups' ((WaitText 'פריטי הסביבה הגלובלית' 5) -and (WaitText 'רשימה לבנה ללכידה' 2) -and (WaitText 'רשימה שחורה ללכידה' 2)) ((Texts) -join ' | ')
+  Shot 'global-env-page'
+  $c = ClickBtn 'Add whitelist item' 900; Assert 'whitelist add form opened' ($c -eq 'ok' -and ($null -ne (NamedEdit 'Global entry name'))) $c
+  SetText (NamedEdit 'Global entry name') 'E2E whitelist'
+  SetText (NamedEdit 'Global entry target') 'https://example.com/wl'
+  $c = ClickBtn 'Confirm global add' 900; Assert 'whitelist add confirmed' ($c -eq 'ok') $c
+  Assert 'whitelist row shows the new entry' (WaitText 'E2E whitelist' 5) ((Texts) -join ' | ')
+  Shot 'global-env-whitelist-row'
+  $c = ClickBtn 'Remove whitelist entry' 900; Assert 'whitelist entry removed' ($c -eq 'ok' -and -not (WaitText 'E2E whitelist' 3)) $c
+  Shot 'global-env-removed'
+  $c = ClickBtn 'Back to workspaces' 900; Assert 'back from global environment' ($c -eq 'ok') $c
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
 }
 catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }) }
