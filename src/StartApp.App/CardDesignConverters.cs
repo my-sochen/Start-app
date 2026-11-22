@@ -155,6 +155,15 @@ public sealed class FooterLine1Converter : IMultiValueConverter
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>List-row last-opened text (approved 22.11 list mock): same as FooterLine1 but an empty workspace shows
+/// plain "סביבה ריקה" (the card's " · הוסף אייטם בפרטים" suffix is card-specific). values[0] Workspace, values[1] MainViewModel.</summary>
+public sealed class FooterLine1ListConverter : IMultiValueConverter
+{
+    public object? Convert(object[] values, Type targetType, object? parameter, CultureInfo culture) =>
+        values.Length > 1 && values[0] is StartApp.Core.Workspace w && values[1] is StartApp.Presentation.MainViewModel vm ? vm.FooterLine1List(w) : "";
+    public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 /// <summary>סביבת ברירת מחדל green-dot badge on the card title (approved 22.11 handoff): values[0] Workspace,
 /// values[1] MainViewModel → Visible only on the one default workspace's card, Collapsed everywhere else.</summary>
 public sealed class DefaultBadgeVisibilityConverter : IMultiValueConverter
