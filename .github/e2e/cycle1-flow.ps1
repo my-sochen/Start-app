@@ -257,7 +257,13 @@ try {
   Assert 'store.json: workspace description and creation date persisted' ($json -match 'first workspace' -and $json -match 'createdAt') $json
   # 3b. item row: clicking the name opens that one item only (spec שורה של אייטם: לחיצה על השם פותחת)
   $npB = NotepadCount
-  $c = ClickBtn 'ok.txt' 2500; Assert 'item name click sent its open request' ($c -eq 'ok' -and (WaitText 'נשלחו 1 בקשות פתיחה' 15)) ((Texts) -join ' | ')
+  $c = ClickBtn 'ok.txt' 300; Assert 'item name click invoked' ($c -eq 'ok') $c
+  # Success toast expires after 3s. Read the durable result panel instead of racing UIA enumeration.
+  $c = ClickBtn 'Last opening results' 300; Assert 'single-item result panel opened' ($c -eq 'ok') $c
+  $singleResults = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opening results')))
+  $singleRows = if ($singleResults) { @($singleResults.FindAll($TS::Children, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem)))) } else { @() }
+  Assert 'item name click sent exactly its own open request' ($singleRows.Count -eq 1 -and (WaitText 'ok.txt' 10) -and (WaitText 'בקשת הפתיחה נשלחה' 10)) ((Texts) -join ' | ')
+  $c = ClickBtn 'Close last opening results' 300; Assert 'single-item result panel closed' ($c -eq 'ok') $c
   $sw3 = [Diagnostics.Stopwatch]::StartNew(); $npC = $npB; while ($sw3.Elapsed.TotalSeconds -lt 15) { $npC = NotepadCount; if ($npC -gt $npB) { break }; Start-Sleep -Milliseconds 400 }
   Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
