@@ -28,6 +28,8 @@ for ($i = 0; $i -lt 6; $i++) {
   $workspaces += @{ id = "demo-$i"; name = $names[$i]; category = 'כללי'; color = $colors[$i]; createdAt = '2026-11-17T12:00:00Z'; items = @($members) }
 }
 $catalogue = @{ 'demo-link' = @{ id = 'demo-link'; type = 'link'; name = 'אתר לדוגמה'; target = 'https://example.com/' } }
+$catalogue['icon-demo-github'] = @{ id='icon-demo-github'; type='link'; name='GitHub'; target='https://github.com/' }
+$workspaces[4].items += @{ itemId='icon-demo-github'; id='icon-demo-github-member' }
 $detailItems = @(
   @{ id='detail-docs'; type='link'; name='תיעוד הפרויקט'; target='https://example.com/docs' },
   @{ id='detail-code'; type='link'; name='מאגר קוד לדוגמה'; target='https://example.com/repository' },
@@ -148,6 +150,9 @@ try {
   Start-Sleep -Milliseconds 350
   Capture 'all-items-top' 1280 880
   $allSearch = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Search all items')))
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('GitHub')
+  Start-Sleep -Seconds 4
+  Capture 'all-items-live-site-icon' 1280 880
   $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
   Capture 'all-items-search' 1280 880
   $sharedName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
