@@ -227,8 +227,24 @@ try {
   # low enough that its menu would overflow the window bottom. Scroll the details viewport down a little
   # first (a normal user action at this height); the containment assertion below is unchanged and still
   # requires the menu fully inside the window.
+  # The scroll is OBSERVABLE: an Info record reports whether the viewport was found, the pattern
+  # obtained, and VerticalScrollPercent before/after. The previous silent version no-op'd in CI and the
+  # containment assert failed with identical menu bounds and no evidence of why.
+  $scrollDiag = 'viewport=not-found (FindFirst by Name returned null)'
   $dvp = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Workspace details viewport')))
-  if ($null -ne $dvp) { try { $dsp = $dvp.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern); for ($i = 0; $i -lt 4; $i++) { $dsp.ScrollVertical([System.Windows.Automation.ScrollAmount]::SmallIncrement) }; Start-Sleep -Milliseconds 500 } catch { } }
+  if ($null -ne $dvp) {
+    try {
+      $dsp = $dvp.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+      if ($null -eq $dsp) { $scrollDiag = 'viewport=found scrollPattern=null' }
+      else {
+        $pct0 = $dsp.Current.VerticalScrollPercent; $vsize = $dsp.Current.VerticalViewSize; $canScroll = $dsp.Current.VerticallyScrollable
+        for ($i = 0; $i -lt 4; $i++) { $dsp.ScrollVertical([System.Windows.Automation.ScrollAmount]::SmallIncrement) }
+        Start-Sleep -Milliseconds 500
+        $scrollDiag = "viewport=found scrollable=$canScroll pct=$pct0->$($dsp.Current.VerticalScrollPercent) viewSize=$vsize"
+      }
+    } catch { $scrollDiag = "viewport=found scroll-threw: $($_.Exception.Message)" }
+  }
+  Info 'details viewport scroll before the first-row menu' $scrollDiag
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
   $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
@@ -1848,7 +1864,8 @@ public static class WinCap {
     # to the item - the named anchor (title), שגר (go) and the הצגת פרטים details link - exactly 3 depth-1
     # Texts parented to the item (category chip, stats line, footer line), and exactly 3 depth-2 Texts
     # bound by parentRid: title (== anchor name) parented to the anchor, go-label (== go button name)
-    # parented to the go button, details-label (== details button name) parented to the details button.
+    # parented to the go button, details-label (the visible details text; the button's own UIA name is
+    # its AutomationProperties.Name, not this text) parented to the details button.
     # Every node is a depth-1 Button or a depth-1/depth-2 Text; anything else refuses (unknown coverage).
     # ALL rect fields finite-positive AND integral (96-DPI straight-edge domain); all RIDs unique and
     # readable; geometric containment kept in ADDITION to parent binding. Masks = ALL node rects
@@ -1885,11 +1902,16 @@ public static class WinCap {
     if ($go.Count -ne 1) { $res.reason = "go button 'שגר' not uniquely identified ($($go.Count))"; return $res }
     $det = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and $_.rid -ne $go[0].rid })
     if ($det.Count -ne 1) { $res.reason = 'details button not uniquely identified'; return $res }
-    if (-not ([string]$det[0].name).StartsWith('הצגת פרטים')) { $res.reason = "unexpected third button name '$($det[0].name)' (expected the הצגת פרטים details link)"; return $res }
+    # The details button's UIA name is its AutomationProperties.Name ('Show details'), NOT its visible
+    # Hebrew content; the visible text lives in the depth-2 label child. Accept either name form.
+    $detName = [string]$det[0].name
+    if (-not ($detName.StartsWith('הצגת פרטים') -or $detName -eq 'Show details')) { $res.reason = "unexpected third button name '$detName' (expected the הצגת פרטים details link)"; return $res }
     $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ','); $dK = ($det[0].rid -join ',')
     $titleT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
     $goT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
-    $detT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$det[0].name, [StringComparison]::Ordinal) }); if ($detT.Count -ne 1) { $res.reason = "details-label text count=$($detT.Count)"; return $res }
+    # The details label is identified by PARENTAGE to the details button, not by name equality:
+    # the button's UIA name ('Show details') differs from the label's text (the visible content).
+    $detT = @($txts2 | Where-Object { [string]::Equals(($_.parentRid -join ','), $dK, [StringComparison]::Ordinal) }); if ($detT.Count -ne 1) { $res.reason = "details-label text count=$($detT.Count) (matched by parentage to the details button)"; return $res }
     # parent bindings: each depth-2 text bound to its GROUNDED parent button (not geometric containment alone)
     if (-not [string]::Equals(($titleT[0].parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "title text parent rid is not the anchor button"; return $res }
     if (-not [string]::Equals(($goT[0].parentRid -join ','), $gK, [StringComparison]::Ordinal)) { $res.reason = 'go-label text parent rid is not the go button'; return $res }
