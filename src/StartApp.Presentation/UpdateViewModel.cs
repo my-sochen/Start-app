@@ -53,6 +53,9 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     private readonly bool _revalidateBeforeDownload;
     private readonly bool _discoveryEnabled;
     private ApprovedUpdate? _offered;
+    private readonly Func<DateTime> _clock;
+    private DateTime? _lastChecked;
+    private string _offeredDisplay = "";
     private bool _disposed;
     private bool _busy;
     private bool _startupCheckStarted;
@@ -64,16 +67,27 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string InstalledVersionDisplay { get; }
     public string DistributionDisplay => _current?.Prototype is not null ? "אב טיפוס - גרסת ניסוי, לא גרסת בטא" : _current?.Beta is not null ? "גרסת בטא" : _current is null ? "בנייה לא מזוהה - אינה גרסת הפצה מאומתת" : "גרסה יציבה";
+    // Settings screen values (approved הגדרות handoff): plain installed-version value,
+    // last completed check time and the offered-version notice line.
+    public string VersionValueDisplay { get; }
+    public string OfferedVersionDisplay { get => _offeredDisplay; private set => Set(ref _offeredDisplay, value); }
+    public string LastCheckedDisplay => _lastChecked is not DateTime checkedAt ? "טרם נבדק בהפעלה זו"
+        : checkedAt.Date == _clock().Date ? $"נבדק לאחרונה: היום, {checkedAt:HH:mm}"
+        : $"נבדק לאחרונה: {checkedAt:dd.MM.yyyy, HH:mm}";
     public RelayCommand CheckCommand { get; }
     public RelayCommand DownloadCommand { get; }
     public Task CurrentCheck { get; private set; } = Task.CompletedTask;
     public event Action? StartupUpdateAvailable;
 
-    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false)
+    public UpdateViewModel(IApprovedUpdateSource source, string? installedVersion, Action<Uri> openBrowser, TimeSpan? timeout = null, bool revalidateBeforeDownload = false, Func<DateTime>? clock = null)
     {
+        _clock = clock ?? (() => DateTime.Now);
         _revalidateBeforeDownload = revalidateBeforeDownload; _discoveryEnabled = source is not InactiveUpdateSource;
         _source = source; _current = UpdateVersion.Parse(installedVersion); _openBrowser = openBrowser;
         InstalledVersionDisplay = _current is null ? "גרסה מותקנת: זהות הבנייה טרם אומתה" : $"גרסה מותקנת: {installedVersion}";
+        VersionValueDisplay = _current is null ? "לא זוהתה"
+            : _current.Prototype is not null ? $"{installedVersion} (אב טיפוס)"
+            : _current.Beta is not null ? $"{installedVersion} (בטא)" : $"{installedVersion}";
         _timeout = timeout ?? TimeSpan.FromSeconds(10);
         if (_timeout <= TimeSpan.Zero || _timeout > TimeSpan.FromSeconds(30)) throw new ArgumentOutOfRangeException(nameof(timeout));
         _status = _current is null || !_discoveryEnabled ? "בדיקת עדכונים תופעל לאחר אישור מקור הגרסאות וזהות הבנייה." : "בדיקת עדכונים זמינה לפי בקשה.";
@@ -104,7 +118,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
         if (_disposed || IsBusy || _current is null || !_discoveryEnabled) return;
         var previousOffer=_offered;
         _lastCheckVerified=false;
-        IsBusy = true; UpdateAvailable = false; _offered = null; Status = "בודק עדכונים...";
+        IsBusy = true; UpdateAvailable = false; _offered = null; OfferedVersionDisplay = ""; Status = "בודק עדכונים...";
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         timeout.CancelAfter(_timeout);
         try
@@ -112,6 +126,7 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             var candidate = await (click && _source is IClickRevalidatingUpdateSource revalidating
                 ? revalidating.ReadForClickAsync(timeout.Token) : _source.ReadAsync(timeout.Token)).WaitAsync(timeout.Token);
             if (_disposed) return;
+            _lastChecked = _clock(); Raise(nameof(LastCheckedDisplay));
             if (candidate is null) { Status = _source is MainBetaNoticeSource ? "לא מוצעת כרגע גרסת בטא מאושרת חדשה יותר להתקנה זו." : "אין כרגע גרסה מאושרת במקור העדכונים."; return; }
             var version = UpdateVersion.Parse(candidate.Version);
             if (version is null || !Regex.IsMatch(candidate.Commit ?? "", "\\A[0-9a-f]{40}\\z") ||
@@ -122,7 +137,11 @@ public sealed class UpdateViewModel : ObservableBase, IDisposable
             { Status = "אין עדכון מתאים לערוץ הגרסה המותקנת."; return; }
             _lastCheckVerified=true;
             UpdateAvailable = version.CompareTo(_current) > 0;
-            if (UpdateAvailable) _offered = candidate;
+            if (UpdateAvailable)
+            {
+                _offered = candidate;
+                OfferedVersionDisplay = version.Beta is not null ? $"קיימת גרסה חדשה: {candidate.Version} (בטא)" : $"קיימת גרסה חדשה: {candidate.Version}";
+            }
             Status = UpdateAvailable ? $"{(version.Beta is not null ? "גרסת בטא זמינה" : "זמין עדכון")} {candidate.Version}. ההורדה תיפתח באתר הרשמי; ההתקנה ידנית." : "לא נמצאה גרסה מאושרת חדשה יותר.";
         }
         catch (NoticeCheckDeferredException ex)
