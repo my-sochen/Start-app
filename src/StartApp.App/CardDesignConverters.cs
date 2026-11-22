@@ -183,6 +183,15 @@ public sealed class DefaultMenuHeaderConverter : IMultiValueConverter
     public object[] ConvertBack(object value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>Search-box placeholder overlay (approved 22.11 home toolbar): Visible while the bound text is
+/// null/empty, Collapsed as soon as the user types.</summary>
+public sealed class StringEmptyToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        string.IsNullOrEmpty(value as string) ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 /// <summary>List-row deploy button (approved 22.11 list mock): Visible only when the workspace has items to
 /// deploy; an empty workspace shows the plain "סביבה ריקה" text in place of the button.</summary>
 public sealed class HasItemsToVisibilityConverter : IValueConverter

@@ -212,15 +212,32 @@
 
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
             <DockPanel Margin="8" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
-                <Button DockPanel.Dock="Top" Content="לכידה ▾" HorizontalAlignment="Left" Padding="12,3" Margin="0,0,0,6" AutomationProperties.Name="Capture"
-                        Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                    <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                            <MenuItem Header="סביבה קיימת" Command="{Binding PlacementTarget.Tag.CaptureExistingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
+                <!-- approved 22.11 home toolbar: capture + new-workspace buttons at the left, workspace search at the right -->
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button Content="לכידה ▾" Padding="12,3" Margin="0,0,6,0" AutomationProperties.Name="Capture"
+                                Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    <MenuItem Header="סביבה קיימת" Command="{Binding PlacementTarget.Tag.CaptureExistingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                        <Button Content="+" Padding="12,3" FontWeight="SemiBold" AutomationProperties.Name="New workspace button"
+                                ToolTip="סביבה חדשה" Click="NewWorkspaceFocus_Click"/>
+                    </StackPanel>
+                    <Border HorizontalAlignment="Right" Width="340" Background="White" BorderBrush="#D6DCE5" BorderThickness="1" CornerRadius="6" Padding="10,4">
+                        <Grid>
+                            <TextBlock Text="חיפוש סביבות עבודה" Foreground="#8A94A3" FontSize="13" IsHitTestVisible="False"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Visibility="{Binding Text, ElementName=WorkspaceSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
+                            <TextBox x:Name="WorkspaceSearchBox" Text="{Binding FilterContainsText, UpdateSourceTrigger=PropertyChanged}"
+                                     BorderThickness="0" Background="Transparent" FontSize="13" FlowDirection="RightToLeft"
+                                     AutomationProperties.Name="Workspace search"/>
+                        </Grid>
+                    </Border>
+                </Grid>
                 <Border DockPanel.Dock="Top" Background="#EFF8F3" BorderBrush="#CADFD5" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="0,0,0,6"
                         Visibility="{Binding HasActiveFilters, Converter={StaticResource B2V}}" AutomationProperties.Name="Filter bar">
                     <Grid>
@@ -260,7 +277,7 @@
                     <TextBlock Text="Create workspace" FontWeight="SemiBold"/>
                     <DockPanel Margin="0,4,0,0">
                         <TextBlock DockPanel.Dock="Left" Text="Name" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Workspace name"/>
+                        <TextBox x:Name="NewWorkspaceNameBox" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Workspace name"/>
                     </DockPanel>
                     <DockPanel Margin="0,4,0,0">
                         <TextBlock DockPanel.Dock="Left" Text="Description (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>

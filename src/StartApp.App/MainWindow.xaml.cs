@@ -84,7 +84,13 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
     // Capture dropdown (לכידה): anchored under its button at the window's left edge, so it opens downward and stays inside the window.
-    private void CaptureMenu_Click(object sender, RoutedEventArgs e)
+    private void NewWorkspaceFocus_Click(object sender, RoutedEventArgs e)
+        {
+            NewWorkspaceNameBox.BringIntoView();
+            NewWorkspaceNameBox.Focus();
+        }
+
+        private void CaptureMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu } button)
         {
