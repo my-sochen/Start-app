@@ -69,8 +69,8 @@ public sealed partial class MainViewModel
 
     /// <summary>Details-screen state (path 3, approved 22.11): the quiet button label and the h1 green dot.</summary>
     public bool SelectedIsDefault => Selected is { } s && IsDefaultWorkspace(s);
-    /// <summary>The quiet details button reads "בטל הגדרה כברירת מחדל" on the default, "הגדר כסביבת ברירת מחדל" otherwise.</summary>
-    public string DefaultToggleLabel => SelectedIsDefault ? "בטל הגדרה כברירת מחדל" : "הגדר כסביבת ברירת מחדל";
+    /// <summary>The quiet details button reads "הסר הגדרה כברירת מחדל" on the default, "הגדר כברירת מחדל" otherwise (owner wording 22.11).</summary>
+    public string DefaultToggleLabel => SelectedIsDefault ? "הסר הגדרה כברירת מחדל" : "הגדר כברירת מחדל";
 
     /// <summary>Paths 2+3 (approved 22.11): one command from the card context menu and the details button; the parameter is
     /// the workspace. Setting replaces any existing default immediately (single reversible selection, no confirm dialog).
