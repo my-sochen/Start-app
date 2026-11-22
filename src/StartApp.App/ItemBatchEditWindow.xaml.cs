@@ -32,7 +32,7 @@ public partial class ItemBatchEditWindow : Window
         ClearLaunch.Visibility = programs.Length > 1 && row.Type != "Program" ? Visibility.Visible : Visibility.Collapsed;
         ClearDescription.Visibility = descriptions.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
         TargetLabel.Text = row.Type == "Link" ? "כתובת האתר" : "נתיב";
-        TitleLabel.Text = "עריכת " + row.Name; CaptionLabel.Text = "אייטמים · " + row.Name + " · עריכה";
+        TitleLabel.Text = "עריכת אייטם: " + row.Name; CaptionLabel.Text = "אייטמים · " + row.Name + " · עריכה";
         NameLabel.Text = names.Length > 1 ? "שם האייטם (ערכים שונים)" : "שם האייטם";
         DescriptionLabel.Text = descriptions.Length > 1 ? "תיאור (ערכים שונים)" : "תיאור";
         Scope.Inlines.Add(new System.Windows.Documents.Run("טופס אחד לכל הסביבות שנבחרו: "));

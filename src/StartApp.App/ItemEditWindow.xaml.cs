@@ -22,7 +22,7 @@ public partial class ItemEditWindow : Window
         DataContext = vm;
         MaxHeight = SystemParameters.WorkArea.Height - 40;
         CaptionLabel.Text = "פרטי הסביבה · " + _name + " · עריכה";
-        TitleLabel.Text = "עריכת " + _name;
+        TitleLabel.Text = "עריכת אייטם: " + _name;
         ContentRendered += (_, _) => NameInput.Focus();
         PreviewKeyDown += (_, e) =>
         {
