@@ -199,10 +199,10 @@ public partial class MainWindow : Window
         var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight > 0 ? host.ActualHeight : 32), 8, Math.Max(8, ActualHeight - 8));
         menu.MaxHeight = Math.Max(0, ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, ActualWidth - 16);
-        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening; the placement
-        // mode itself is pinned in XAML (ContextMenuService.Placement="Custom") because the service reads
-        // it when DECIDING the placement, before this Opening handler runs.
-        ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom);
+        // ContextMenuService overrides PlacementTarget/Placement AFTER this event for keyboard and mouse
+        // opens, so nothing set here alone sticks. Handle the event and open the menu ourselves (approved
+        // 22.11: anchored at the source, never overflowing the window) - same pattern as the dropdowns.
+        e.Handled = true;
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
         menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
         {
@@ -215,7 +215,6 @@ public partial class MainWindow : Window
             return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
                 System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
         };
-        // Let WPF open its normal context menu: mouse right-click or keyboard Menu / Shift+F10.
-        // Neither route invokes the name/open button.
+        menu.IsOpen = true;
     }
 }
