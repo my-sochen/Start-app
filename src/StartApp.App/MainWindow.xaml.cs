@@ -224,6 +224,6 @@ public partial class MainWindow : Window
             capturedMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
             capturedMenu.IsOpen = false;
             capturedMenu.IsOpen = true;
-        }), System.Windows.Threading.DispatcherPriority.Input);
+        }), System.Windows.Threading.DispatcherPriority.Background);   // Input runs BEFORE the service's own posted open; Background runs after it
     }
 }
