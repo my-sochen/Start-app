@@ -3,6 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StartApp.App"
         Title="Start-app" Icon="Assets/start-app-ufo.ico" Height="560" Width="900" MinWidth="720" MinHeight="400">
+    <!-- approved 22.11 mock chrome: tabs live inside the title bar row itself (same row as min/max/close);
+         WindowChrome keeps the NATIVE caption buttons and resize behavior while the client area draws the row. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" CornerRadius="0" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="True"/>
+    </WindowChrome.WindowChrome>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
         <local:ColorBrushConverter x:Key="ColorBrush"/>
@@ -84,6 +89,7 @@
                                 </TextBlock>
                                 <DockPanel Grid.Row="4" Margin="14,10,14,12">
                                     <Button DockPanel.Dock="Left" Content="שגר" Style="{StaticResource PrimaryActionButton}"
+                                            IsEnabled="{Binding Converter={StaticResource HasItemsToBool}}"
                                             Command="{Binding DataContext.OpenWorkspaceForCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
                                     <StackPanel HorizontalAlignment="Right">
                                         <TextBlock Foreground="#626B79" FontSize="11" TextAlignment="Right">
@@ -184,18 +190,40 @@
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Border Grid.Row="0" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
+        <!-- title-bar tab strip (approved 22.11 mock): logo + app name + tabs at the LEFT, LTR like the mock;
+             native caption buttons stay on the right (WindowChrome). Tabs are hit-test-visible inside the caption area. -->
+        <Border Grid.Row="0" Background="#F5F6F8" BorderBrush="#E2E6EC" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight">
+                <Image Source="Assets/start-app-ufo.png" Width="18" Height="18" Margin="10,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="Start-app" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Button Content="אופציות ▾" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Options menu"/>
+                <Button Content="תצוגה ▾" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="View menu"/>
+                <Button Content="עזרה ▾" Click="HelpMenu_Click" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Help menu">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="אודות Start-app" Click="AboutMenuItem_Click"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <Button Content="הגדרות" Command="{Binding OpenSettingsCommand}" Padding="12,0"
+                        Style="{StaticResource TitleBarTab}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Settings"/>
+            </StackPanel>
+        </Border>
+        <!-- update status strip (kept from the old menu row; סביבה גלובלית stays here until its approved home lands) -->
+        <Border Grid.Row="1" Padding="8,4" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
                 DataContext="{Binding Updates, RelativeSource={RelativeSource AncestorType=Window}}">
             <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" Content="אופציות ▾" Click="OptionsMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
-                        AutomationProperties.Name="Options menu"/>
-                <Button DockPanel.Dock="Right" Content="תצוגה ▾" Click="ViewMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
-                        AutomationProperties.Name="View menu"/>
-                <Button DockPanel.Dock="Right" Content="הגדרות" Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
-                        AutomationProperties.Name="Settings"/>
                 <Button DockPanel.Dock="Right" Content="סביבה גלובלית" Command="{Binding DataContext.OpenGlobalEnvCommand, RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,2" Margin="8,0,0,0"
                         AutomationProperties.Name="Global environment"/>
                 <Button DockPanel.Dock="Right" Content="פתח הורדה רשמית" Command="{Binding DownloadCommand}" Padding="8,2" Margin="8,0,0,0"
@@ -204,7 +232,7 @@
                            AutomationProperties.Name="Update status"/>
             </DockPanel>
         </Border>
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
