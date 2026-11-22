@@ -223,6 +223,12 @@ try {
   Assert 'single-item open really started notepad' ($npC -gt $npB) "before=$npB after=$npC"
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   # 3c. item actions menu (no עריכה inside - spec: direct edit button only) and the edit form changes one instance only
+  # The details form grew over time (category row, quiet default button), so at 900x560 the first row sits
+  # low enough that its menu would overflow the window bottom. Scroll the details viewport down a little
+  # first (a normal user action at this height); the containment assertion below is unchanged and still
+  # requires the menu fully inside the window.
+  $dvp = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Workspace details viewport')))
+  if ($null -ne $dvp) { try { $dsp = $dvp.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern); for ($i = 0; $i -lt 4; $i++) { $dsp.ScrollVertical([System.Windows.Automation.ScrollAmount]::SmallIncrement) }; Start-Sleep -Milliseconds 500 } catch { } }
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
   $ifound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'item menu shows the six settled entries' (@($ifound).Count -eq 6) ("found: $($ifound -join ', ')")
@@ -1838,14 +1844,15 @@ public static class WinCap {
     return $true
   }
   function Test-SavedCardTopologyV4($nodes, $anchorName, $itemRid) {
-    # Prototype-UX expected topology, runtime qualification still owed: exactly 2
-    # direct (depth-1) Buttons parented to the item - the named anchor (title)
-    # and one other (go) - and exactly 4 depth-2 Texts bound by parentRid: title (== anchor name),
-    # category, 'Last opened: *' parented to the anchor;
-    # go-label (== go button name) parented to the go button. Every node is a depth-1 Button
-    # or a depth-2 Text; anything else refuses (unknown coverage). ALL rect fields finite-positive AND
-    # integral (96-DPI straight-edge domain); all RIDs unique and readable; geometric containment kept
-    # in ADDITION to parent binding. Masks = ALL node rects (buttons cover their texts).
+    # Approved card topology (תצוגה redesign, 22.11 handoff): exactly 3 direct (depth-1) Buttons parented
+    # to the item - the named anchor (title), שגר (go) and the הצגת פרטים details link - exactly 3 depth-1
+    # Texts parented to the item (category chip, stats line, footer line), and exactly 3 depth-2 Texts
+    # bound by parentRid: title (== anchor name) parented to the anchor, go-label (== go button name)
+    # parented to the go button, details-label (== details button name) parented to the details button.
+    # Every node is a depth-1 Button or a depth-1/depth-2 Text; anything else refuses (unknown coverage).
+    # ALL rect fields finite-positive AND integral (96-DPI straight-edge domain); all RIDs unique and
+    # readable; geometric containment kept in ADDITION to parent binding. Masks = ALL node rects
+    # (buttons cover their texts).
     $res = [ordered]@{ ok = $false; reason = ''; maskRects = $null }
     if ($null -eq $nodes -or $nodes.Count -eq 0) { $res.reason = 'no nodes'; return $res }
     $ridSeen = @{}
@@ -1858,32 +1865,39 @@ public static class WinCap {
       if ([string]::IsNullOrEmpty($rk) -or $rk -eq 'rid-error') { $res.reason = "node '$($n.name)' rid unreadable"; return $res }
       if ($ridSeen.ContainsKey($rk)) { $res.reason = "duplicate runtime id '$rk'"; return $res }
       $ridSeen[$rk] = $true
-      if ($null -eq $n.parentRid -or [string]::IsNullOrEmpty(($n.parentRid -join ','))) { $res.reason = "node '$($n.name)' has no parent rid (structure walk must record parentage)"; return $res }
+      if ($null -eq $n.parentRid -or $null -eq $n.parentRid -or [string]::IsNullOrEmpty(($n.parentRid -join ','))) { $res.reason = "node '$($n.name)' has no parent rid (structure walk must record parentage)"; return $res }
       $isBtn = ($n.ct -eq 'ControlType.Button' -and $n.depth -eq 1)
-      $isTxt = ($n.ct -eq 'ControlType.Text' -and $n.depth -eq 2)
+      $isTxt = ($n.ct -eq 'ControlType.Text' -and ($n.depth -eq 1 -or $n.depth -eq 2))
       if (-not ($isBtn -or $isTxt)) { $res.reason = "unexpected node type/depth '$($n.ct)' depth=$($n.depth) name='$($n.name)' (unknown coverage)"; return $res }
     }
     $btns = @($nodes | Where-Object { $_.ct -eq 'ControlType.Button' })
-    $txts = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' })
-    if ($btns.Count -ne 2) { $res.reason = "expected exactly 2 direct buttons, got $($btns.Count)"; return $res }
-    if ($txts.Count -ne 4) { $res.reason = "expected exactly 4 text nodes, got $($txts.Count)"; return $res }
+    $txts1 = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' -and $_.depth -eq 1 })
+    $txts2 = @($nodes | Where-Object { $_.ct -eq 'ControlType.Text' -and $_.depth -eq 2 })
+    if ($btns.Count -ne 3) { $res.reason = "expected exactly 3 direct buttons, got $($btns.Count)"; return $res }
+    if (($txts1.Count + $txts2.Count) -ne 6) { $res.reason = "expected exactly 6 text nodes, got $($txts1.Count + $txts2.Count)"; return $res }
+    if ($txts1.Count -ne 3) { $res.reason = "expected exactly 3 depth-1 texts (category/stats/footer), got $($txts1.Count)"; return $res }
+    if ($txts2.Count -ne 3) { $res.reason = "expected exactly 3 depth-2 texts (title/go-label/details-label), got $($txts2.Count)"; return $res }
     $itemRidK = ($itemRid -join ',')
     foreach ($b in $btns) { if (-not [string]::Equals(($b.parentRid -join ','), $itemRidK, [StringComparison]::Ordinal)) { $res.reason = "button '$($b.name)' not parented to the list item"; return $res } }
+    foreach ($t in $txts1) { if (-not [string]::Equals(($t.parentRid -join ','), $itemRidK, [StringComparison]::Ordinal)) { $res.reason = "depth-1 text '$($t.name)' not parented to the list item"; return $res } }
     $anchor = @($btns | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($anchor.Count -ne 1) { $res.reason = "anchor button '$anchorName' count=$($anchor.Count)"; return $res }
-    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid })
-    if ($go.Count -ne 1) { $res.reason = 'go button not uniquely identified'; return $res }
-    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ',')
-    $titleT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
-    $openedT = @($txts | Where-Object { $_.name -like 'Last opened:*' }); if ($openedT.Count -ne 1) { $res.reason = "'Last opened' text count=$($openedT.Count)"; return $res }
-    $goT = @($txts | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
-    $catT = @($txts | Where-Object { $_.rid -ne $titleT[0].rid -and $_.rid -ne $openedT[0].rid -and $_.rid -ne $goT[0].rid })
-    if ($catT.Count -ne 1) { $res.reason = "category text not uniquely identified ($($catT.Count))"; return $res }
-    # parent bindings: each text bound to its GROUNDED parent button (not geometric containment alone)
-    foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not [string]::Equals(($t.parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "anchor text '$($t.name)' parent rid is not the anchor button"; return $res } }
+    $go = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and [string]::Equals([string]$_.name, 'שגר', [StringComparison]::Ordinal) })
+    if ($go.Count -ne 1) { $res.reason = "go button 'שגר' not uniquely identified ($($go.Count))"; return $res }
+    $det = @($btns | Where-Object { $_.rid -ne $anchor[0].rid -and $_.rid -ne $go[0].rid })
+    if ($det.Count -ne 1) { $res.reason = 'details button not uniquely identified'; return $res }
+    if (-not ([string]$det[0].name).StartsWith('הצגת פרטים')) { $res.reason = "unexpected third button name '$($det[0].name)' (expected the הצגת פרטים details link)"; return $res }
+    $aK = ($anchor[0].rid -join ','); $gK = ($go[0].rid -join ','); $dK = ($det[0].rid -join ',')
+    $titleT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$anchorName, [StringComparison]::Ordinal) }); if ($titleT.Count -ne 1) { $res.reason = "title text count=$($titleT.Count)"; return $res }
+    $goT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$go[0].name, [StringComparison]::Ordinal) }); if ($goT.Count -ne 1) { $res.reason = "go-label text count=$($goT.Count)"; return $res }
+    $detT = @($txts2 | Where-Object { [string]::Equals([string]$_.name, [string]$det[0].name, [StringComparison]::Ordinal) }); if ($detT.Count -ne 1) { $res.reason = "details-label text count=$($detT.Count)"; return $res }
+    # parent bindings: each depth-2 text bound to its GROUNDED parent button (not geometric containment alone)
+    if (-not [string]::Equals(($titleT[0].parentRid -join ','), $aK, [StringComparison]::Ordinal)) { $res.reason = "title text parent rid is not the anchor button"; return $res }
     if (-not [string]::Equals(($goT[0].parentRid -join ','), $gK, [StringComparison]::Ordinal)) { $res.reason = 'go-label text parent rid is not the go button'; return $res }
+    if (-not [string]::Equals(($detT[0].parentRid -join ','), $dK, [StringComparison]::Ordinal)) { $res.reason = 'details-label text parent rid is not the details button'; return $res }
     $inside = { param($ir, $or2) ($ir.Left -ge $or2.Left -and $ir.Top -ge $or2.Top -and $ir.Right -le $or2.Right -and $ir.Bottom -le $or2.Bottom) }
-    foreach ($t in @($titleT[0], $openedT[0], $catT[0])) { if (-not (& $inside $t.rect $anchor[0].rect)) { $res.reason = "anchor text '$($t.name)' not inside the anchor button"; return $res } }
+    if (-not (& $inside $titleT[0].rect $anchor[0].rect)) { $res.reason = "title text '$($titleT[0].name)' not inside the anchor button"; return $res }
     if (-not (& $inside $goT[0].rect $go[0].rect)) { $res.reason = 'go-label text not inside the go button'; return $res }
+    if (-not (& $inside $detT[0].rect $det[0].rect)) { $res.reason = 'details-label text not inside the details button'; return $res }
     $masks = New-Object System.Collections.Generic.List[object]
     foreach ($n in $nodes) { $masks.Add([ordered]@{ L = [int]$n.rect.Left; T = [int]$n.rect.Top; R = [int]$n.rect.Right; B = [int]$n.rect.Bottom }) }  # exact: integrality verified above
     $res.maskRects = $masks; $res.ok = $true
