@@ -13,6 +13,8 @@ public partial class App : Application
     private JsonStore? _store;
     private void OnStartup(object sender, StartupEventArgs e)
     {
+        // Phase 2 apply-helper mode: the staged-copy instance performs the post-close swap and exits.
+        if (e.Args.Length > 0 && e.Args[0] == "--apply-update") { Shutdown(UpdateApplyCli.Run(e.Args)); return; }
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp");
         // crash evidence is opt-in (the e2e harnesses set STARTAPP_CRASHLOG=1): the product binary keeps no diagnostic surface
         if (Environment.GetEnvironmentVariable("STARTAPP_CRASHLOG") == "1")
