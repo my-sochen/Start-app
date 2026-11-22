@@ -148,6 +148,8 @@ public partial class MainWindow
     /// <summary>Template and size changes re-template the already-generated cards.</summary>
     private void OnViewOptionChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.UnsavedOpen) && _hooked?.UnsavedOpen == true)
+            Dispatcher.BeginInvoke(new Action(() => UnsavedCancelButton.Focus()));
         if (e.PropertyName is nameof(MainViewModel.CurrentTemplate) or nameof(MainViewModel.CurrentCardSize))
         {
             WorkspaceList.ItemTemplate = (DataTemplate)Resources[_hooked!.CurrentTemplate switch

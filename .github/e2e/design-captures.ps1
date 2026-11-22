@@ -74,7 +74,11 @@ try {
   $colorMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
   Start-Sleep -Milliseconds 350
   Capture 'view-color-flyouts-900x560' 900 560
-  [System.Windows.Forms.SendKeys]::SendWait('{ESC}{ESC}{ESC}')
+  $colorMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  $filter.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  Start-Sleep -Milliseconds 500
+  $win = $a::FromHandle($p.MainWindowHandle)
   InvokeNamed 'New workspace button'
   Capture 'create-empty-mock-size' 1224 786
   $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
