@@ -29,16 +29,24 @@ public sealed class CaptureHoverIcon : Canvas
     private readonly Path _beamLeft = BeamPath(CaptureHoverMotion.BeamWidth);
     private readonly Path _beamRight = BeamPath(CaptureHoverMotion.BeamWidth);
     private readonly Canvas _beams = new();
-    private Path[] _dots;
+    private Path[] _dots = [];
     private readonly Path[] _boxes = { BoxPath(), BoxPath() };
     private readonly TranslateTransform _bob = new();
     private readonly RotateTransform _tilt = new();
     private readonly TranslateTransform[] _boxOffsets = { new(), new() };
     private readonly ScaleTransform[] _boxScales = { new(), new() };
 
+    private readonly StreamGeometryCache _streamLeft = new();
+    private readonly StreamGeometryCache _streamRight = new();
+
     private Button? _hoverSource;
     private bool _ticking;
     private Stopwatch? _clock;
+    private double _phase;
+    private long _lastTickMs;
+    private bool _easingOut;
+    private double _easeOutRate = 1.0;
+    private double _easeOutTarget;
 
     public CaptureHoverIcon()
     {
@@ -53,6 +61,10 @@ public sealed class CaptureHoverIcon : Canvas
         _beams.Opacity = 0;
         _beamLeftGlow.Opacity = CaptureHoverMotion.BeamGlowOpacity;
         _beamRightGlow.Opacity = CaptureHoverMotion.BeamGlowOpacity;
+        _beamLeftGlow.Data = _streamLeft.Geometry;
+        _beamLeft.Data = _streamLeft.Geometry;
+        _beamRightGlow.Data = _streamRight.Geometry;
+        _beamRight.Data = _streamRight.Geometry;
 
         for (var i = 0; i < _boxes.Length; i++)
         {
@@ -135,8 +147,8 @@ public sealed class CaptureHoverIcon : Canvas
         _beams.Opacity = CaptureHoverMotion.BeamOpacity(t);
         if (_beams.Opacity > 0)
         {
-            SetStream(_beamLeftGlow, _beamLeft, CaptureHoverMotion.StreamLeftStart, CaptureHoverMotion.StreamLeftEnd, CaptureHoverMotion.StreamLeftAmp, t);
-            SetStream(_beamRightGlow, _beamRight, CaptureHoverMotion.StreamRightStart, CaptureHoverMotion.StreamRightEnd, CaptureHoverMotion.StreamRightAmp, t);
+            _streamLeft.Update(CaptureHoverMotion.StreamLeftStart, CaptureHoverMotion.StreamLeftEnd, CaptureHoverMotion.StreamLeftAmp, t);
+            _streamRight.Update(CaptureHoverMotion.StreamRightStart, CaptureHoverMotion.StreamRightEnd, CaptureHoverMotion.StreamRightAmp, t);
         }
 
         for (var i = 0; i < _boxes.Length; i++)
@@ -155,21 +167,37 @@ public sealed class CaptureHoverIcon : Canvas
             _dots[i].Opacity = CaptureHoverMotion.DotOpacity(t, CaptureHoverMotion.DotPhases[i]);
     }
 
-    private static void SetStream(Path glow, Path main, (double X, double Y) start, (double X, double Y) end, double amp, double t)
+    // Reuses one PathGeometry per beam and rewrites the bezier points in place each
+    // frame; the segment count is fixed, so hovered animation allocates nothing.
+    private sealed class StreamGeometryCache
     {
-        var figure = new PathFigure { StartPoint = new Point(start.X, start.Y) };
-        var segment = new PolyBezierSegment();
-        foreach (var (c1, c2, segEnd) in CaptureHoverMotion.StreamSegments(start, end, amp, t))
+        public readonly PathGeometry Geometry = new();
+        private PolyBezierSegment? _segment;
+
+        public void Update((double X, double Y) start, (double X, double Y) end, double amp, double t)
         {
-            segment.Points.Add(new Point(c1.X, c1.Y));
-            segment.Points.Add(new Point(c2.X, c2.Y));
-            segment.Points.Add(new Point(segEnd.X, segEnd.Y));
+            var segments = CaptureHoverMotion.StreamSegments(start, end, amp, t);
+            if (_segment is null || _segment.Points.Count != segments.Count * 3)
+            {
+                var figure = new PathFigure { StartPoint = new Point(start.X, start.Y) };
+                _segment = new PolyBezierSegment();
+                figure.Segments.Add(_segment);
+                Geometry.Figures.Clear();
+                Geometry.Figures.Add(figure);
+            }
+            else
+            {
+                Geometry.Figures[0].StartPoint = new Point(start.X, start.Y);
+            }
+            var points = _segment.Points;
+            points.Clear();
+            foreach (var (c1, c2, segEnd) in segments)
+            {
+                points.Add(new Point(c1.X, c1.Y));
+                points.Add(new Point(c2.X, c2.Y));
+                points.Add(new Point(segEnd.X, segEnd.Y));
+            }
         }
-        figure.Segments.Add(segment);
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        glow.Data = geometry;
-        main.Data = geometry;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -194,11 +222,26 @@ public sealed class CaptureHoverIcon : Canvas
 
     private void OnHoverChanged(object? sender, EventArgs e)
     {
-        if (_hoverSource?.IsMouseOver == true) StartTicking();
-        else
+        if (_hoverSource?.IsMouseOver == true)
         {
-            StopTicking();
-            RenderFrameAt(0);
+            _easingOut = false;
+            StartTicking();
+        }
+        else if (_ticking)
+        {
+            // Ease out to the next rest pose (t wraps to 0) instead of snapping back.
+            var loop = CaptureHoverMotion.LoopSeconds;
+            var remaining = loop - (_phase % loop);
+            if (remaining >= loop - 0.001 || remaining <= 0.001)
+            {
+                _easingOut = false;
+                StopTicking();
+                RenderFrameAt(0);
+                return;
+            }
+            _easeOutTarget = _phase + remaining;
+            _easeOutRate = remaining / 0.45; // constant ~450 ms settle, slight speed change only
+            _easingOut = true;
         }
     }
 
@@ -207,6 +250,7 @@ public sealed class CaptureHoverIcon : Canvas
         if (_ticking) return;
         _ticking = true;
         _clock = Stopwatch.StartNew();
+        _lastTickMs = 0;
         CompositionTarget.Rendering += OnRendering;
     }
 
@@ -221,7 +265,19 @@ public sealed class CaptureHoverIcon : Canvas
     private void OnRendering(object? sender, EventArgs e)
     {
         if (_clock is null) return;
-        RenderFrameAt(_clock.Elapsed.TotalSeconds % CaptureHoverMotion.LoopSeconds);
+        var nowMs = _clock.ElapsedMilliseconds;
+        var dt = _lastTickMs == 0 ? 0 : (nowMs - _lastTickMs) / 1000.0;
+        _lastTickMs = nowMs;
+        _phase += dt * (_easingOut ? _easeOutRate : 1.0);
+        if (_easingOut && _phase >= _easeOutTarget)
+        {
+            _easingOut = false;
+            _phase = 0;
+            StopTicking();
+            RenderFrameAt(0);
+            return;
+        }
+        RenderFrameAt(_phase % CaptureHoverMotion.LoopSeconds);
     }
 
     private Button? FindAncestorButton()
