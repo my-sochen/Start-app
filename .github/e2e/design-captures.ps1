@@ -90,7 +90,7 @@ try {
     $button = $win.FindFirst($ts, $visible)
     if (!$button) { throw "Missing visible app control: $name" }
     if ($name -in @('Options menu', 'Toggle default workspace')) {
-      $point = [System.Windows.Point]::new()
+      $point = [System.Windows.Point]::new(0.0, 0.0)
       $clickable = $false
       for ($attempt = 0; $attempt -lt 20 -and !$clickable; $attempt++) {
         $clickable = $button.TryGetClickablePoint([ref]$point)
