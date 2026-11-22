@@ -759,6 +759,7 @@ public sealed partial class MainViewModel : ObservableBase
         _current = s; var keep = Selected?.Id;
         RefreshCategories();
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
+        ApplyView();
         Raise(nameof(HasOtherWorkspaces));
         Selected = Workspaces.FirstOrDefault(w => w.Id == keep) ?? Workspaces.FirstOrDefault();
     }
