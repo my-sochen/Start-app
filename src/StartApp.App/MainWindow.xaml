@@ -478,6 +478,7 @@
                             <TextBlock DockPanel.Dock="Left" Text="כתובת" Width="80" VerticalAlignment="Center"/>
                             <TextBox FlowDirection="LeftToRight" Text="{Binding EditItemTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Edit item target"/>
                         </DockPanel>
+                        <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="פתח באמצעות" Width="80" VerticalAlignment="Center"/><TextBox FlowDirection="LeftToRight" Text="{Binding EditItemOpenWith, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding EditItemOpenWithApplicable}" Style="{StaticResource DetailsInput}" ToolTip="נתיב מלא לתוכנה או לדפדפן; ריק: ברירת המחדל של Windows. לא חל על אייטם תוכנה." AutomationProperties.Name="Edit item open with"/></DockPanel>
                     <TextBlock Text="{Binding ItemEditError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="שמור" AutomationProperties.Name="Save item edit" Command="{Binding SaveItemEditCommand}" Style="{StaticResource PrimaryActionButton}" MinWidth="74" MinHeight="38" Padding="16,8" Margin="0,0,6,0"

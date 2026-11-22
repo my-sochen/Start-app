@@ -132,6 +132,17 @@ try {
   (RootNamed 'Confirm item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   Capture 'all-items-multi-env-edit' 1280 880
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('אתר לדוגמה')
+  $linkName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'אתר לדוגמה')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
+  $linkName.SetFocus(); [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+  (RootNamed 'ערוך').SetFocus(); [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  $choice = $a::RootElement.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'אולפן ביתי')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)))))
+  $choice.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).AddToSelection()
+  (RootNamed 'Confirm item workspace choice').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'all-items-link-full-editor' 1280 880
+  (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $allSearch.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('עורך')
+  $sharedName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
   foreach ($action in @(@('מחק','all-items-delete-env-picker'), @('הוסף לסביבה','all-items-add-env-picker'))) {
     $sharedName.SetFocus()
     [System.Windows.Forms.SendKeys]::SendWait('+{F10}')

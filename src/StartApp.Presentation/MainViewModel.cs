@@ -210,7 +210,7 @@ public sealed partial class MainViewModel : ObservableBase
         EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
         CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
-        EditAddressCommand = Cmd(p => BeginAddressEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
+        EditAddressCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
         SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
         CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
         CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
@@ -625,12 +625,19 @@ public sealed partial class MainViewModel : ObservableBase
     private string _editItemTarget = "";
     private string _origItemName = "", _origItemDesc = "", _origItemTarget = "";
     /// <summary>Any change in the item edit form shows its Save button (same rule as the details screen).</summary>
-    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget);
+    private string _editItemOpenWith = "", _origItemOpenWith = "";
+    private ItemType _editItemType;
+    public bool EditItemOpenWithApplicable => _editItemType != ItemType.Program;
+    public string EditItemOpenWith { get => _editItemOpenWith; set { Set(ref _editItemOpenWith, value ?? ""); Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    public bool ItemEditDirty => ItemEditOpen && (EditItemName != _origItemName || EditItemDescription != _origItemDesc || EditItemTarget != _origItemTarget || EditItemOpenWith != _origItemOpenWith);
     private void BeginItemEdit(ItemRow row)
     {
         if (!TryOpenEditorForm()) return;
         ClearFieldErrors();
         _editItemWsId = Selected?.Id ?? ""; _editItemId = row.InstanceId; _origItemName = row.Name; _origItemDesc = row.Description ?? ""; _origItemTarget = row.Target;
+        _editItemType = Enum.Parse<ItemType>(row.Type);
+        var membership = Selected?.Items.FirstOrDefault(m => (m.Id ?? m.ItemId) == row.InstanceId);
+        _origItemOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _origItemOpenWith; Raise(nameof(EditItemOpenWithApplicable));
         EditItemName = _origItemName; EditItemDescription = _origItemDesc; EditItemTarget = _origItemTarget;
         ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }
@@ -648,6 +655,8 @@ public sealed partial class MainViewModel : ObservableBase
         if (editedItem is not null && (Catalog.ValidateTarget(editedItem.Type, EditItemTarget) ?? Catalog.ValidateDescription(EditItemDescription)) is { } itemError)
         { FieldError("item", "בדקו את כתובת הפריט ואת התיאור לפני השמירה.", "Not saved: " + itemError); return false; }
         var targetChanged = EditItemTarget != _origItemTarget;
+        LaunchConfig? editedLaunch = string.IsNullOrWhiteSpace(EditItemOpenWith) ? null : _editItemType == ItemType.Link ? new LaunchConfig(Browser: EditItemOpenWith.Trim()) : new LaunchConfig(OpenWith: EditItemOpenWith.Trim());
+        if (EditItemOpenWith != _origItemOpenWith && Catalog.ValidateLaunch(_editItemType, editedLaunch) is { } launchError) { FieldError("item", "יש להזין נתיב מלא לתוכנה או לדפדפן.", launchError); return false; }
         var ok = Apply(c =>
         {
             // Validate again inside the mutation: Mutate reloads the current disk state, so the snapshot
@@ -661,6 +670,7 @@ public sealed partial class MainViewModel : ObservableBase
             // the same item in other workspaces keeps its address, and the instance id stays stable.
             if (targetChanged) c.ReplaceTargetLocal(_editItemWsId, _editItemId, EditItemTarget);
             c.UpdateInstance(_editItemWsId, _editItemId, EditItemName, EditItemDescription);
+            if (EditItemOpenWith != _origItemOpenWith) c.SetLaunch(_editItemWsId, _editItemId, editedLaunch);
         });
         if (ok) { Status = "Item saved"; ItemEditOpen = false; }
         return ok;
