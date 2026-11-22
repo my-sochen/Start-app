@@ -26,6 +26,7 @@ public partial class ItemBatchEditWindow : Window
             OpenWithPicker.SetDefaultLabel(OpenWithInput, "ללא");
             ClearLaunch.Content = "ללא תוכנה חלופית בכל הסביבות שנבחרו";
         }
+        if (row.Type == "Program") { OpenWithField.Visibility = Visibility.Collapsed; Grid.SetColumn(NameField, 0); Grid.SetColumnSpan(NameField, 3); }
         OpenWithInput.IsEnabled = ClearLaunch.IsEnabled = row.Type != "Program"; OpenWithPicker.SetPath(OpenWithInput, _program);
         OpenWithInput.ToolTip = row.Type == "Program" ? "לא חל על אייטם תוכנה: האייטם הוא התוכנה עצמה" : "בחר תוכנה מותקנת או תוכנה אחרת. ברירת המחדל של Windows אינה משנה את הגדרות המחשב.";
         if (row.Type == "Folder") OpenWithInput.ToolTip = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";

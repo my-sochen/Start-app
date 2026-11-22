@@ -114,6 +114,15 @@ try {
     if (!$element) { throw "Missing app popup control: $name" }
     return $element
   }
+  function ClickRootNamed($name) {
+    $button = RootNamed $name
+    $bounds = $button.Current.BoundingRectangle
+    if ($bounds.Width -le 0 -or $bounds.Height -le 0) { throw "Empty mouse target: $name" }
+    [void][DesignWindow]::SetCursorPos([int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))
+    [DesignWindow]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+    [DesignWindow]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 350
+  }
   function ExpandNamed($name) {
     $element = RootNamed $name
     $element.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
@@ -158,8 +167,10 @@ try {
   $batchName = (RootNamed 'Selected item name').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
   $originalBatchName = $batchName.Current.Value
   $batchName.SetValue($originalBatchName + ' updated')
-  (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  ClickRootNamed 'Cancel selected item edit'
   Capture 'all-items-unsaved-dialog' 1280 880
+  [System.Windows.Forms.SendKeys]::SendWait('{TAB}+{TAB}')
+  Capture 'all-items-unsaved-keyboard-focus' 1280 880 $true
   (RootNamed 'Keep selected item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   $batchName.SetValue($originalBatchName)
   (RootNamed 'Cancel selected item edit').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
@@ -275,11 +286,22 @@ try {
   $editInput = RootNamed 'Edit item name'
   $editInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('תיעוד הפרויקט מעודכן')
   Capture 'details-item-editor-dirty' 1280 880
-  InvokeNamed 'Cancel item edit'
+  ClickRootNamed 'Cancel item edit'
   Capture 'details-item-unsaved-dialog' 1280 880
+  [System.Windows.Forms.SendKeys]::SendWait('{TAB}+{TAB}')
+  Capture 'details-item-unsaved-keyboard-focus' 1280 880 $true
   (RootNamed 'Keep item editing').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   InvokeNamed 'Save item edit'
   InvokeNamed 'Edit item'
+  InvokeNamed 'Cancel item edit'
+  $programName = $win.FindFirst($ts, (New-Object System.Windows.Automation.AndCondition((New-Object $pc($a::NameProperty, 'עורך טקסט')), (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))))
+  if (!$programName) { throw 'Software details name was not found' }
+  $programBounds = $programName.Current.BoundingRectangle
+  $programCenterY = $programBounds.Y + $programBounds.Height / 2
+  $programEdit = $win.FindAll($ts, (New-Object $pc($a::NameProperty, 'Edit item'))) | Where-Object { $b = $_.Current.BoundingRectangle; !$_.Current.IsOffscreen -and [Math]::Abs(($b.Y + $b.Height / 2) - $programCenterY) -lt 24 } | Select-Object -First 1
+  if (!$programEdit) { throw 'Software details edit action was not found' }
+  $programEdit.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Capture 'details-program-item-editor' 1280 880
   InvokeNamed 'Cancel item edit'
   InvokeNamed 'שגר'
   Capture 'launch-selection' 1280 880
@@ -368,6 +390,17 @@ try {
     if (!$other) { throw 'No second staged accordion arrow detected' }
     $other.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Capture 'capture-switched-item-editor' 1280 880
+    $candidate.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    $second.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    $software = $openItems.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox))) | Where-Object { $_.Current.Name -like '*PowerShell*' } | Select-Object -First 1
+    if (!$software) { throw 'Software capture fixture was not found' }
+    $software.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+    InvokeNamed 'Add selected capture items'
+    $programArrow = $added.FindAll($ts, (New-Object $pc($a::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *PowerShell*' } | Select-Object -First 1
+    if (!$programArrow) { throw 'Software staged editor was not found' }
+    $programArrow.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    if ($captureScroll.Current.VerticallyScrollable) { $captureScroll.SetScrollPercent(-1,100) }
+    Capture 'capture-program-item-editor' 1280 880
   } catch { $_.Exception.Message | Set-Content design-captures/capture-fixture-gap.txt }
   finally { $fixture.Close(); $fixture.Dispose() }
   "Source: $env:GITHUB_SHA`nSynthetic demo data. Real app window, no test UI.`nHome opened; options and view buttons clicked. No deploy, account, or purchase actions." | Set-Content design-captures/actions.txt
