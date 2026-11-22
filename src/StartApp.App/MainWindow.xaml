@@ -614,6 +614,33 @@
             </Border>
         </Grid>
 
+        <!-- ============ default-env replace confirm (דיאלוג אישור החלפת ברירת מחדל, approved mock home-default-confirm 22.11):
+             overlay #17243C44, white card radius 7, shadow 0 18px 80px #18243D30, width 560. Cancel/✕/outside change nothing. ============ -->
+        <Grid Grid.RowSpan="2" Visibility="{Binding DefaultConfirmOpen, Converter={StaticResource B2V}}" Background="#4417243C">
+            <Border Background="White" CornerRadius="7" Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,24">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="80" ShadowDepth="18" Direction="270" Color="#18243D" Opacity="0.19"/>
+                </Border.Effect>
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelDefaultReplaceCommand}" Style="{StaticResource QuietTextButton}" FontSize="13" AutomationProperties.Name="Cancel default-env replace"/>
+                        <TextBlock DockPanel.Dock="Right" Text="הגדרת סביבת ברירת מחדל" FontSize="11" Foreground="#626B79" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <TextBlock Text="כבר מוגדרת סביבת ברירת מחדל" FontSize="20" FontWeight="SemiBold" Foreground="#222833" Margin="0,14,0,0"/>
+                    <TextBlock Text="{Binding DefaultConfirmBody}" FontSize="13" Foreground="#5B6576" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <Border Background="#EEF3FB" BorderBrush="#CED8E9" BorderThickness="1" CornerRadius="5" Padding="12,8" Margin="0,14,0,0">
+                        <TextBlock Text="{Binding DefaultConfirmNotice}" FontSize="12" Foreground="#3F526D" TextWrapping="Wrap"/>
+                    </Border>
+                    <Border Height="1" Background="#E4E8EF" Margin="0,16"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="כן, הגדר כברירת מחדל" Style="{StaticResource PrimaryActionButton}" Command="{Binding ConfirmDefaultReplaceCommand}" AutomationProperties.Name="Confirm default-env replace"/>
+                        <Button Content="ביטול" Command="{Binding CancelDefaultReplaceCommand}" Margin="10,0,0,0" Padding="16,7" FontSize="13"
+                                Background="White" BorderBrush="#C5CAD4" BorderThickness="1" Cursor="Hand" AutomationProperties.Name="Cancel default-env replace button"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- ============ address popup (פופאפ עריכת כתובת) ============ -->
         <Grid Grid.RowSpan="2" Visibility="{Binding AddressEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
             <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
