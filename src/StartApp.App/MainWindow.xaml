@@ -340,7 +340,7 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top">
                             <Button Content="שגר" Command="{Binding OpenWorkspaceCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="57" Height="38"/>
-                            <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinWidth="112" Height="38" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
+                            <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource DialogPrimaryButton}" Padding="16,8" MinWidth="112" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
                             <Button Content="חזרה לסביבות" Command="{Binding BackCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="123" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Back to workspaces"/>
                             <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus"/>
                         </StackPanel>
@@ -490,8 +490,8 @@
                 <StackPanel>
                     <TextBlock Text="{Binding CaptureDupSingleMessage}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Add anyway" Command="{Binding ConfirmCaptureDupSingleCommand}" Padding="12,2" AutomationProperties.Name="Capture duplicate add anyway"/>
-                        <Button Content="Cancel" Command="{Binding CancelCaptureDupSingleCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
+                        <Button Content="Add anyway" Command="{Binding ConfirmCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicate add anyway"/>
+                        <Button Content="Cancel" Command="{Binding CancelCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>
@@ -507,8 +507,8 @@
                         <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Label}" AutomationProperties.Name="{Binding Label}" Margin="0,2"/></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <Button Content="Add ticked" Command="{Binding ConfirmCaptureDupGroupCommand}" Padding="12,2" AutomationProperties.Name="Capture duplicates add ticked"/>
-                        <Button Content="Skip duplicates" Command="{Binding CancelCaptureDupGroupCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
+                        <Button Content="Add ticked" Command="{Binding ConfirmCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicates add ticked"/>
+                        <Button Content="Skip duplicates" Command="{Binding CancelCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>
@@ -521,8 +521,8 @@
                     <TextBlock Text="סביבת עבודה ריקה" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
                     <TextBlock Text="This workspace has no items yet." TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="עבור לפרטי הסביבה" Command="{Binding GoToDetailsCommand}" Padding="12,2"/>
-                        <Button Content="Close" Command="{Binding CloseEmptyWorkspaceCommand}" Padding="12,2" Margin="8,0,0,0"/>
+                        <Button Content="עבור לפרטי הסביבה" Command="{Binding GoToDetailsCommand}" Style="{StaticResource CompactActionButton}"/>
+                        <Button Content="Close" Command="{Binding CloseEmptyWorkspaceCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>
@@ -561,14 +561,14 @@
             <local:DialogFrame MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseAddressEditCommand}" Padding="6,0" AutomationProperties.Name="Close address edit" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseAddressEditCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close address edit" ToolTip="Close"/>
                         <TextBlock Text="עריכת כתובת" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBox Text="{Binding EditAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Full address"/>
                     <TextBlock Text="{Binding AddressError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <Button Content="העתק" Command="{Binding CopyFullAddressCommand}" Padding="12,2" AutomationProperties.Name="Copy full address"/>
-                        <Button Content="שמור" Command="{Binding SaveAddressCommand}" Padding="12,2" Margin="8,0,0,0"
+                        <Button Content="העתק" Command="{Binding CopyFullAddressCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Copy full address"/>
+                        <Button Content="שמור" Command="{Binding SaveAddressCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0"
                                 Visibility="{Binding AddressEditDirty, Converter={StaticResource B2V}}"/>
                     </StackPanel>
                 </StackPanel>
@@ -580,14 +580,14 @@
             <local:DialogFrame MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Padding="6,0" AutomationProperties.Name="Close open with" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close open with" ToolTip="Close"/>
                         <TextBlock Text="פתח באמצעות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBlock Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
                     <TextBox Text="{Binding OpenWithProgram, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Program path"/>
                     <CheckBox Content="הגדר כברירת מחדל" IsChecked="{Binding OpenWithSetDefault}" Margin="0,6,0,0" AutomationProperties.Name="Set as default"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Padding="12,2" AutomationProperties.Name="Open with chosen program"/>
+                        <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Open with chosen program"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>
@@ -599,7 +599,7 @@
             <local:DialogFrame MinWidth="460">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Padding="6,0" AutomationProperties.Name="Close resource picker" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close resource picker" ToolTip="Close"/>
                         <TextBlock Text="בחר מסביבות קיימות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <ItemsControl ItemsSource="{Binding PickerTypes}">
@@ -636,7 +636,7 @@
             <local:DialogFrame MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseDesignCommand}" Padding="6,0" AutomationProperties.Name="Close card design" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseDesignCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close card design" ToolTip="Close"/>
                         <TextBlock Text="עיצוב כרטיס" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <!-- preview: same color/frame rule as the card, bound to the unsaved values -->
@@ -672,7 +672,7 @@
                         <TextBox Text="{Binding DesignImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Card image path" ToolTip="Full path of the uploaded image"/>
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <Button Content="שמור" Command="{Binding SaveDesignCommand}" Padding="12,2"
+                        <Button Content="שמור" Command="{Binding SaveDesignCommand}" Style="{StaticResource CompactActionButton}"
                                 Visibility="{Binding DesignDirty, Converter={StaticResource B2V}}" AutomationProperties.Name="Save card design"/>
                     </StackPanel>
                 </StackPanel>
@@ -684,7 +684,7 @@
             <local:DialogFrame MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Padding="6,0" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
                         <TextBlock Text="ערוך קטגוריה" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='Current: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
@@ -738,8 +738,8 @@
                             <ListBox ItemsSource="{Binding CategoryDeleteWorkspaces}" MaxHeight="90" Margin="0,4,0,0" AutomationProperties.Name="Assigned workspaces"
                                      Visibility="{Binding CategoryDeleteListShown, Converter={StaticResource B2V}}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                                <Button Content="מחק והעבר" Command="{Binding ConfirmCategoryDeleteCommand}" Padding="12,2" AutomationProperties.Name="Confirm category delete"/>
-                                <Button Content="בטל" Command="{Binding CancelCategoryDeleteCommand}" Padding="12,2" Margin="8,0,0,0"/>
+                                <Button Content="מחק והעבר" Command="{Binding ConfirmCategoryDeleteCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Confirm category delete"/>
+                                <Button Content="בטל" Command="{Binding CancelCategoryDeleteCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -761,7 +761,7 @@
                     <TextBlock Text="אם תצא בלי לשמור, השינויים יאבדו." FontSize="13" Foreground="#5B6576" LineHeight="25" LineStackingStrategy="BlockLineHeight"/>
                     <Border BorderBrush="#E4E8EF" BorderThickness="0,1,0,0" Margin="0,20,0,0" Padding="0,20,0,0">
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="שמור וצא" Command="{Binding SaveAndExitCommand}" Style="{StaticResource PrimaryActionButton}" Padding="16,8" MinHeight="38"/>
+                            <Button Content="שמור וצא" Command="{Binding SaveAndExitCommand}" Style="{StaticResource DialogPrimaryButton}" Padding="16,8" MinHeight="38"/>
                             <Button Content="צא בלי לשמור" Command="{Binding ExitWithoutSavingCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="122" MinHeight="38" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Border>
