@@ -25,6 +25,7 @@ internal static class Program
     }
     private static readonly List<object> Results = new();
     private static readonly List<object> SameProcess = new();
+    private static readonly List<object> DialogFrames = new();
     [STAThread] private static int Main(string[] args)
     {
         if (args.Length != 1 || Directory.Exists(args[0])) return 2;
@@ -63,6 +64,7 @@ internal static class Program
                 await Take(window,output,"09-minimum-size");
                 vm.CaptureCloseCommand.Execute(null);
                 File.WriteAllText(Path.Combine(output,"same-process.json"),JsonSerializer.Serialize(SameProcess));
+                File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
                 File.WriteAllText(Path.Combine(output,"results.json"),JsonSerializer.Serialize(Results,new JsonSerializerOptions{WriteIndented=true}));
             } catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}
             finally {window.Close();app.Shutdown(code);}
@@ -96,6 +98,37 @@ internal static class Program
             previous=pixels;await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(80);
         }
         if(steady<3 || image is null)throw new Exception("WPF frame never became exactly stable: "+name);
+        // Independently compare the shared frame with its original Border shape in this exact
+        // window/process. Copy every effective local frame value, move the same child, add no wrapper.
+        var frames = Descendants(window).OfType<Border>().Where(e => e.GetType().FullName == "StartApp.App.DialogFrame").ToList();
+        if (frames.Count > 0)
+        {
+            var swaps = new List<(System.Windows.Controls.Panel Parent, int Index, Border Frame, Border Plain)>();
+            foreach (var frame in frames)
+            {
+                if (frame.Parent is not System.Windows.Controls.Panel panel) throw new Exception("Unsupported frame parent");
+                var plain = new Border(); var values = frame.GetLocalValueEnumerator();
+                while (values.MoveNext())
+                {
+                    var entry = values.Current; if (entry.Property.ReadOnly) continue;
+                    var binding = System.Windows.Data.BindingOperations.GetBindingBase(frame, entry.Property);
+                    if (binding is not null) System.Windows.Data.BindingOperations.SetBinding(plain, entry.Property, binding);
+                    else plain.SetValue(entry.Property, entry.Value);
+                }
+                var child = frame.Child; frame.Child = null; plain.Child = child;
+                var index = panel.Children.IndexOf(frame); panel.Children.RemoveAt(index); panel.Children.Insert(index, plain);
+                swaps.Add((panel, index, frame, plain));
+            }
+            await Settle(window);
+            var plainImage = new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); plainImage.Render(window);
+            var actual = new byte[width*height*4]; var expected = new byte[actual.Length]; image.CopyPixels(actual,width*4,0); plainImage.CopyPixels(expected,width*4,0);
+            var different = 0; for (var p=0;p<actual.Length;p+=4) if (!actual.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4))) different++;
+            DialogFrames.Add(new { state = name, different_pixels = different, frame_count = frames.Count });
+            var plainPng = new PngBitmapEncoder(); plainPng.Frames.Add(BitmapFrame.Create(plainImage)); using (var f=File.Create(Path.Combine(output,name+"-plain-dialog-border.png"))) plainPng.Save(f);
+            foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Parent.Children.RemoveAt(swap.Index); swap.Parent.Children.Insert(swap.Index,swap.Frame); }
+            await Settle(window);
+            if (different != 0) throw new Exception("Shared dialog frame pixels differ: " + name + " " + different);
+        }
         // In candidate only, compare original baseline Grid against extracted UserControl inside the
         // SAME actual MainWindow and VM, sharing glyph caches. Baseline assembly run has no CaptureView.
         var capture = Descendants(window).OfType<FrameworkElement>().FirstOrDefault(e => e.GetType().FullName == "StartApp.App.CaptureView");
