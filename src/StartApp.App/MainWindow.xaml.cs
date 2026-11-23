@@ -11,12 +11,23 @@ public partial class MainWindow : Window
     private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
     private readonly WindowSessionSubscriptions _sessionSubscriptions;
+    private readonly DialogFocusSession<System.Windows.IInputElement> _defaultDialogFocus;
     private MainViewModel? _hooked => _sessionSubscriptions.Current;
     public MainWindow() : this(UpdateComposition.Create()) { }
     internal MainWindow(UpdateViewModel updates)
     {
         Updates = updates ?? throw new ArgumentNullException(nameof(updates));
         _sessionSubscriptions = new(OnFocusAddRequested, OnCopyAddressRequested, OnAppCloseApproved, OnPickImageRequested, OnPickCreateImageRequested, OnViewOptionChanged);
+        _defaultDialogFocus = new(
+            () => System.Windows.Input.Keyboard.FocusedElement,
+            () => System.Windows.Input.InputManager.Current.MostRecentInputDevice is System.Windows.Input.KeyboardDevice,
+            keyboard => { if (keyboard) DefaultConfirmPrimaryButton.Focus(); else DefaultConfirmOverlay.Focus(); },
+            (element, keyboard) =>
+            {
+                if (element is not UIElement { IsVisible: true, IsEnabled: true } target) return;
+                if (!keyboard && target is Control control) control.FocusVisualStyle = null;
+                target.Focus();
+            });
         InitializeComponent();
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
         Updates.StagedUpdateReady += OnStagedUpdateReady;
@@ -118,30 +129,7 @@ public partial class MainWindow : Window
     { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
     private void CaptionTab_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
-    private System.Windows.IInputElement? _defaultReturnFocus;
-    private bool _defaultDialogActive, _defaultKeyboardEntry;
-    private void UpdateDefaultDialogFocus()
-    {
-        if (_hooked?.DefaultConfirmOpen == true)
-        {
-            if (_defaultDialogActive) return;
-            _defaultDialogActive = true;
-            _defaultReturnFocus = System.Windows.Input.Keyboard.FocusedElement;
-            _defaultKeyboardEntry = System.Windows.Input.InputManager.Current.MostRecentInputDevice is System.Windows.Input.KeyboardDevice;
-            if (_defaultKeyboardEntry) DefaultConfirmPrimaryButton.Focus();
-            else DefaultConfirmOverlay.Focus();
-        }
-        else if (_defaultDialogActive)
-        {
-            _defaultDialogActive = false;
-            if (_defaultReturnFocus is UIElement { IsVisible: true, IsEnabled: true } target)
-            {
-                if (!_defaultKeyboardEntry && target is Control control) control.FocusVisualStyle = null;
-                target.Focus();
-            }
-            _defaultReturnFocus = null;
-        }
-    }
+    private void UpdateDefaultDialogFocus() => _defaultDialogFocus.Update(_hooked?.DefaultConfirmOpen == true);
     private void DefaultConfirm_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key != System.Windows.Input.Key.Escape || _hooked?.DefaultConfirmOpen != true) return;
