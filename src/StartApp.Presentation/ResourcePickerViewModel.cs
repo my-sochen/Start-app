@@ -10,21 +10,17 @@ public sealed partial class MainViewModel
     // exact address. Choosing fills the add form's address; the local name/description stay for the user before adding. ----
     /// <summary>One resource in the picker. Name is the catalog item's original name; Usage is the number of workspaces containing the same address.</summary>
     public sealed record PickerRow(string ItemId, string Name, string Target, int Usage, ItemType Type);
+    private readonly ResourcePickerSession _resourcePicker = new();
     public ObservableCollection<PickerRow> PickerRows { get; } = new();
-    public bool PickerOpen { get => _pickerOpen; private set { Set(ref _pickerOpen, value); RaiseCommands(); } }
-    private bool _pickerOpen;
-    /// <summary>The active type button in the picker; אתרים is the default.</summary>
-    public ItemType PickerType { get => _pickerType; private set => Set(ref _pickerType, value); }
-    private ItemType _pickerType = ItemType.Link;
-    /// <summary>The four type buttons in the settled order: תוכנות, אתרים, קבצים, תיקיות.</summary>
+    public bool PickerOpen { get => _resourcePicker.IsOpen; private set { if (_resourcePicker.IsOpen != value) { _resourcePicker.IsOpen = value; Raise(nameof(PickerOpen)); } RaiseCommands(); } }
+    /// <summary>The active type button in the picker; links are the default.</summary>
+    public ItemType PickerType { get => _resourcePicker.Type; private set { if (_resourcePicker.Type != value) { _resourcePicker.Type = value; Raise(nameof(PickerType)); } } }
     public IReadOnlyList<ItemType> PickerTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
-    /// <summary>Search filter, applied inside each type list (name and address, case-insensitive).</summary>
-    public string PickerSearch { get => _pickerSearch; set { Set(ref _pickerSearch, value ?? ""); RefreshPicker(); } }
-    private string _pickerSearch = "";
+    public string PickerSearch { get => _resourcePicker.Search; set { var search = value ?? ""; if (_resourcePicker.Search != search) { _resourcePicker.Search = search; Raise(nameof(PickerSearch)); } RefreshPicker(); } }
     private void RefreshPicker()
     {
         PickerRows.Clear(); if (!PickerOpen) return;
-        foreach (var row in ResourcePickerQuery.Read(_current, PickerType, _pickerSearch))
+        foreach (var row in _resourcePicker.Read(_current))
             PickerRows.Add(new PickerRow(row.ItemId, row.Name, row.Target, row.Usage, row.Type));
     }
     private void OpenPicker() { PickerType = ItemType.Link; PickerOpen = true; RefreshPicker(); }
