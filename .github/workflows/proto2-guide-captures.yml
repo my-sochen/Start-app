@@ -1,0 +1,24 @@
+name: proto2-guide-captures
+on:
+  push:
+    branches: [chore/proto2-guide-captures]
+    paths:
+      - '.github/e2e/proto2-guide-captures.ps1'
+      - '.github/workflows/proto2-guide-captures.yml'
+permissions:
+  contents: read
+jobs:
+  published-binary-captures:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Run only the hash-verified published binary with sample data
+        shell: pwsh
+        run: ./.github/e2e/proto2-guide-captures.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: proto2-exact-release-guide-captures
+          path: proto2-captures/
+          retention-days: 7
