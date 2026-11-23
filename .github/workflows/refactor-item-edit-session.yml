@@ -25,7 +25,7 @@ jobs:
       - name: Item edit session and integration contracts
         shell: pwsh
         run: |
-          dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~ItemEditSessionTests|FullyQualifiedName~ItemEditTests|FullyQualifiedName~Pr19GuardTests|FullyQualifiedName~CommandNotificationTests"
+          dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~ItemEditSessionTests|FullyQualifiedName~ItemRowActionsTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~ReviewInputTests|FullyQualifiedName~OpeningNotificationTests|FullyQualifiedName~Pr19GuardTests|FullyQualifiedName~CommandNotificationTests"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/StartApp.Platform.Windows.Tests/StartApp.Platform.Windows.Tests.csproj -c Release --filter "FullyQualifiedName~MenuBindingSourceTests"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
