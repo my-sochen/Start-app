@@ -142,6 +142,30 @@ internal static class Program
             var different = 0; for (var p=0;p<actual.Length;p+=4) if (!actual.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4))) different++;
             DialogFrames.Add(new { state = name, different_pixels = different, frame_count = frames.Count });
             var plainPng = new PngBitmapEncoder(); plainPng.Frames.Add(BitmapFrame.Create(plainImage)); using (var f=File.Create(Path.Combine(output,name+"-plain-dialog-border.png"))) plainPng.Save(f);
+            // Control: repeat the identical reparent using plain Border -> plain Border.
+            // Preserve the original shared/plain failure; a red control never waives it.
+            foreach (var swap in swaps)
+            {
+                var replacement = new Border(); var locals=swap.Plain.GetLocalValueEnumerator();
+                while(locals.MoveNext())
+                {
+                    var entry=locals.Current; if(entry.Property.ReadOnly)continue;
+                    var binding=System.Windows.Data.BindingOperations.GetBindingBase(swap.Plain,entry.Property);
+                    if(binding is not null)System.Windows.Data.BindingOperations.SetBinding(replacement,entry.Property,binding);
+                    else replacement.SetValue(entry.Property,entry.Value);
+                }
+                var child=swap.Plain.Child;swap.Plain.Child=null;replacement.Child=child;
+                swap.Parent.Children.RemoveAt(swap.Index);swap.Parent.Children.Insert(swap.Index,replacement);
+                // Keep the same restoration identity without adding or removing any layout layer.
+                replacement.Child=null;swap.Plain.Child=child;
+                swap.Parent.Children.RemoveAt(swap.Index);swap.Parent.Children.Insert(swap.Index,swap.Plain);
+            }
+            await Settle(window);
+            var repeatImage=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);repeatImage.Render(window);
+            var repeatBytes=new byte[expected.Length];repeatImage.CopyPixels(repeatBytes,width*4,0);
+            var controlPixels=0;for(var p=0;p<expected.Length;p+=4)if(!expected.AsSpan(p,4).SequenceEqual(repeatBytes.AsSpan(p,4)))controlPixels++;
+            var controlPng=new PngBitmapEncoder();controlPng.Frames.Add(BitmapFrame.Create(repeatImage));using(var f=File.Create(Path.Combine(output,name+"-plain-repeat-control.png")))controlPng.Save(f);
+            File.AppendAllText(Path.Combine(output,"dialog-control.jsonl"),JsonSerializer.Serialize(new{state=name,shared_plain_pixels=different,plain_repeat_pixels=controlPixels})+Environment.NewLine);
             foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Parent.Children.RemoveAt(swap.Index); swap.Parent.Children.Insert(swap.Index,swap.Frame); }
             await Settle(window);
             var actualPng = new PngBitmapEncoder(); actualPng.Frames.Add(BitmapFrame.Create(image)); using (var f=File.Create(Path.Combine(output,name+"-shared-dialog-frame.png"))) actualPng.Save(f);
