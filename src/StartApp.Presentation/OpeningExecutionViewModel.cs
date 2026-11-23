@@ -94,29 +94,22 @@ public sealed partial class MainViewModel
     {
         var detector = _detector is IOpenSnapshotSource ? new NoOpenStateDetection() : _detector;
         var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
-        var results = new (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[snapshot.Count];
-        var next = -1; Exception? fault = null; var gate = new object(); var published = false; var reported = false;
-        // Publication is also the fault-ownership handoff. Before it, Guard owns the
-        // error and OpenTask includes its delivery. Afterwards, report immediately:
-        // another worker or even a launch call may remain blocked indefinitely.
+        var publication = new CheckResultPublication<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>(snapshot.Count);
+        var next = -1;
+        // Publication is the fault-ownership handoff. Before it Guard owns delivery;
+        // afterwards report promptly even if another worker or launch is still blocked.
         void ObserveFault(Exception error)
         {
-            Exception? late = null;
-            lock (gate)
-            {
-                fault ??= error;
-                if (published && !reported) { reported = true; late = fault; }
-            }
-            if (late is not null) ReportLate(late);
+            if (publication.ObserveFault(error) is { } late) ReportLate(late);
         }
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
             try { while (!stop.Token.IsCancellationRequested)
             {
                 var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
-                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, detector); lock (gate) { if (!published) results[i] = r; } }
+                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, detector); publication.Record(i, r); }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
-                { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
+                { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); publication.Record(i, r); }
                 catch (Exception e) { ObserveFault(e); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
             } }
             finally { _checkWorkers.Release(); }
@@ -133,15 +126,7 @@ public sealed partial class MainViewModel
         // error delivery. This fallback waits for all workers: only errors caught
         // by a worker's Evaluate catch are guaranteed prompt late reporting.
         _ = all.ContinueWith(t => ObserveFault(t.Exception!.GetBaseException()), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-        (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] done;
-        Exception? f0;
-        lock (gate)
-        {
-            published = true;
-            done = ((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[])results.Clone();
-            f0 = fault;
-            if (f0 is not null) reported = true; // Guard owns delivery, including no-subscriber rethrow.
-        }
+        var (done, f0) = publication.Publish();
         if (f0 is not null) ExceptionDispatchInfo.Capture(f0).Throw();
         if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
         stop.Cancel();
