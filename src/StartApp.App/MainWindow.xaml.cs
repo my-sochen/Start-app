@@ -8,8 +8,7 @@ namespace StartApp.App;
 public partial class MainWindow : Window
 {
     public UpdateViewModel Updates { get; }
-    private UpdateAvailableWindow? _updateAvailableWindow;
-    private bool _closeApproved;
+    private readonly WindowUpdateSession<UpdateAvailableWindow> _updateWindow = new();
     private readonly WindowSessionSubscriptions _sessionSubscriptions;
     private readonly DialogFocusSession<System.Windows.IInputElement> _defaultDialogFocus;
     private MainViewModel? _hooked => _sessionSubscriptions.Current;
@@ -38,17 +37,17 @@ public partial class MainWindow : Window
     // Phase 2: the verified package is staged - launch the apply helper and close for the swap.
     private void OnStagedUpdateReady(StagedUpdate staged)
     {
-        try { UpdateApplyLauncher.Launch(staged); _closeApproved = true; Close(); }
+        try { UpdateApplyLauncher.Launch(staged); _updateWindow.ApproveClose(); Close(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
         { Updates.NotifyApplyFailed(); }
     }
     private void ShowStartupUpdate()
     {
-        if (_closeApproved || !IsLoaded || _updateAvailableWindow is not null) return;
-        _updateAvailableWindow = new UpdateAvailableWindow(Updates) { Owner = this };
-        _updateAvailableWindow.Closed += (_, _) => _updateAvailableWindow = null;
         // Non-modal: dismissing or ignoring an optional update never blocks work.
-        _updateAvailableWindow.Show();
+        _updateWindow.ShowStartup(IsLoaded,
+            () => new UpdateAvailableWindow(Updates) { Owner = this },
+            (window, closed) => window.Closed += (_, _) => closed(),
+            window => window.Show());
     }
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
@@ -81,7 +80,7 @@ public partial class MainWindow : Window
     }
     private void ShowDetailsAddForm_Click(object sender, RoutedEventArgs e) => OnFocusAddRequested();
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
-    private void OnAppCloseApproved() { _closeApproved = true; Close(); }
+    private void OnAppCloseApproved() { _updateWindow.ApproveClose(); Close(); }
     private void OnPickImageRequested()
     {
         var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
@@ -94,7 +93,7 @@ public partial class MainWindow : Window
     }
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_closeApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
+        if (!_updateWindow.CloseApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
         base.OnClosing(e);
     }
     // Capture dropdown (לכידה): anchored under its button at the window's left edge, so it opens downward and stays inside the window.
