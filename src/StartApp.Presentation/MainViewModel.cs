@@ -124,11 +124,11 @@ public sealed partial class MainViewModel : ObservableBase
     public ICommand OpenWorkspaceCommand { get; }
     public ICommand AddItemCommand { get; }
     /// <summary>Duplicate-add confirmation: visible while an add waits for the user to approve a second instance of the same target.</summary>
-    public bool DuplicatePending => _pendingDup;
-    private bool _pendingDup;
+    public bool DuplicatePending => _manualAdd.DuplicatePending;
+    private readonly ManualAddSession _manualAdd = new();
     /// <summary>Text shown next to the duplicate confirm/cancel buttons.</summary>
-    public string DuplicateMessage { get => _dupMessage; private set => Set(ref _dupMessage, value); }
-    private string _dupMessage = "";
+    public string DuplicateMessage { get => _manualAdd.DuplicateMessage; private set { if (_manualAdd.DuplicateMessage != value) { _manualAdd.DuplicateMessage = value; Raise(nameof(DuplicateMessage)); } } }
+
     public ICommand ConfirmDuplicateCommand { get; }
     public ICommand CancelDuplicateCommand { get; }
     /// <summary>Set instead of opening when the workspace has no items (the spec's דיאלוג סביבת עבודה ריקה).</summary>
@@ -249,8 +249,8 @@ public sealed partial class MainViewModel : ObservableBase
             Apply(c => c.RemoveInstance(Selected!.Id, row.InstanceId));
         }, p => !ReadOnly && Selected != null && p is ItemRow);
         AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
-        ConfirmDuplicateCommand = Cmd(_ => { _pendingDup = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _pendingDup);
-        CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _pendingDup);
+        ConfirmDuplicateCommand = Cmd(_ => { _manualAdd.DuplicatePending = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _manualAdd.DuplicatePending);
+        CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _manualAdd.DuplicatePending);
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
         OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
@@ -268,21 +268,18 @@ public sealed partial class MainViewModel : ObservableBase
     // deletion, so a preserved form can neither crash nor silently retarget.
     public string Status { get => _status; private set { Set(ref _status, value); PresentLegacyStatus(value); } }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); RaiseCommands(); } }
-    public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); Raise(nameof(NewItemTypeIndex)); ClearDup(); } }
-    public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value);
+    public ItemType NewItemType { get => _manualAdd.Type; set { if (_manualAdd.Type != value) { _manualAdd.Type = value; Raise(nameof(NewItemType)); } Raise(nameof(NewItemTypeIndex)); ClearDup(); } }
+    public string NewTarget { get => _manualAdd.Target; set { if (_manualAdd.Target != value) { _manualAdd.Target = value; Raise(nameof(NewTarget)); }
         if (Uri.TryCreate(value, UriKind.Absolute, out var pasted) && (pasted.Scheme == Uri.UriSchemeHttp || pasted.Scheme == Uri.UriSchemeHttps)) NewItemType = ItemType.Link;
         ClearDup(); RaiseCommands(); } }
     public static IReadOnlyList<string> ItemTypeLabels { get; } = new[] { "אתר", "קובץ", "תיקייה", "תוכנה" };
     public int NewItemTypeIndex { get => (int)NewItemType; set => NewItemType = (ItemType)value; }
-    private ItemType _newType = ItemType.File; private string _newTarget = "";
     /// <summary>Optional local name for the instance in this workspace. Empty means the original (derived) name.</summary>
-    public string NewItemName { get => _newItemName; set { Set(ref _newItemName, value ?? ""); ClearDup(); } }
-    private string _newItemName = "";
+    public string NewItemName { get => _manualAdd.Name; set { var text = value ?? ""; if (_manualAdd.Name != text) { _manualAdd.Name = text; Raise(nameof(NewItemName)); } ClearDup(); } }
     /// <summary>Optional description typed in the add form. Empty means none.</summary>
-    public string NewDescription { get => _newDescription; set { Set(ref _newDescription, value ?? ""); ClearDup(); } }
-    private string _newDescription = "";
+    public string NewDescription { get => _manualAdd.Description; set { var text = value ?? ""; if (_manualAdd.Description != text) { _manualAdd.Description = text; Raise(nameof(NewDescription)); } ClearDup(); } }
 
-    private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
+    private void ClearDup(string? status = null) { if (!_manualAdd.DuplicatePending) return; _manualAdd.DuplicatePending = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
     private readonly WorkspaceCreateDraft _workspaceCreate = new();
     public string NewName { get => _workspaceCreate.Name; set { if (_workspaceCreate.Name != value) { _workspaceCreate.Name = value; Raise(nameof(NewName)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     public string NewWorkspaceDescription { get => _workspaceCreate.Description; set { var text = value ?? ""; if (_workspaceCreate.Description != text) { _workspaceCreate.Description = text; Raise(nameof(NewWorkspaceDescription)); } Raise(nameof(CreateDirty)); } }
@@ -432,18 +429,17 @@ public sealed partial class MainViewModel : ObservableBase
     /// exists in this workspace first asks for confirmation; confirming adds a second, independent instance.</summary>
     private void AddItem(bool force = false)
     {
-        var type = NewItemType; var target = NewTarget;
-        if (Uri.TryCreate(target, UriKind.Absolute, out var web) && (web.Scheme == Uri.UriSchemeHttp || web.Scheme == Uri.UriSchemeHttps)) type = ItemType.Link;
+        var type = _manualAdd.EffectiveType; var target = NewTarget;
         var wsId = Selected!.Id; var desc = NewDescription; var name = NewItemName;
-        var err = Catalog.ValidateInputTarget(type, target) ?? Catalog.ValidateDescription(desc) ?? Catalog.ValidateInstanceName(string.IsNullOrWhiteSpace(name) ? null : name);
+        var err = _manualAdd.ValidationError;
         if (err != null) { FieldError("add", err == Catalog.WebsiteTargetError ? err : "פרטי האייטם אינם תקינים. בדקו את הכתובת בהתאם לסוג, את השם ואת התיאור.", "Not added: " + err); return; }
         if (!force && new Catalog(_current).HasTarget(wsId, type, target))
         {
-            _pendingDup = true; Raise(nameof(DuplicatePending)); RaiseCommands();
+            _manualAdd.DuplicatePending = true; Raise(nameof(DuplicatePending)); RaiseCommands();
             DuplicateMessage = "This target is already in the workspace. Add it again as a separate instance with its own name and settings?";
             return;
         }
-        _pendingDup = false; DuplicateMessage = ""; Raise(nameof(DuplicatePending));
+        _manualAdd.DuplicatePending = false; DuplicateMessage = ""; Raise(nameof(DuplicatePending));
         if (Apply(c => { var it = c.GetOrAddItem(type, DisplayName(type, target), target); c.AddToWorkspace(wsId, it.Id, null, string.IsNullOrWhiteSpace(name) ? null : name, desc); }))
         {
             NewTarget = ""; NewDescription = ""; NewItemName = "";
