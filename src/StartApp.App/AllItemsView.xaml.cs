@@ -75,7 +75,8 @@ public partial class MainWindow
             if (detail is not null) menu.Items.Add(new MenuItem { Header = "פתח באמצעות", Command = vm.OpenWithCommand, CommandParameter = detail });
             else menu.Items.Add(ActionItem("פתח באמצעות", () => Act("openwith")));
         }
-        var share = ActionItem("הוסף לסביבה", () => Act("share")); share.IsEnabled = !vm.ReadOnly && !row.MixedTypes && vm.ItemActionWorkspaces(row, true).Count > 0; menu.Items.Add(share);
+        var source = detail is null ? vm.SavedTransferFromAll(row) : vm.SavedTransferFromDetail(detail);
+        menu.Items.Add(BuildSavedItemAddMenu(vm, source));
         if (detail is not null)
         {
             menu.Items.Add(new Separator());
