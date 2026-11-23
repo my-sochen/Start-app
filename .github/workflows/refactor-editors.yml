@@ -1,0 +1,25 @@
+name: refactor-editors
+on:
+  push:
+    branches: [refactor/item-editors]
+permissions:
+  contents: read
+jobs:
+  editor-contracts:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Item, address, open-with, dirty state and staged editor contracts
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~ItemRowActionsTests|FullyQualifiedName~ItemRowMenuTests|FullyQualifiedName~DetailsViewModelTests|FullyQualifiedName~StagedItemActionsTests|FullyQualifiedName~ViewSourceIntegrityTests|FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~CommandNotificationTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows app without XAML changes
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
