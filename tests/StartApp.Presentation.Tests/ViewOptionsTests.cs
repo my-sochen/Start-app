@@ -26,6 +26,10 @@ public class ViewOptionsTests
             c.AddToWorkspace(bet.Id, gpt.Id);
             c.TouchLastOpened(bet.Id); c.TouchLastOpened(bet.Id);
             c.TouchLastOpened(gimel.Id);
+            // This fixture tests ordering, not wall-clock precision. Consecutive UtcNow calls
+            // can tie on Windows; keep the launch counts above, but make sort keys explicit.
+            bet.LastOpenedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            gimel.LastOpenedAt = bet.LastOpenedAt.Value.AddMinutes(1);
         });
         return new MainViewModel(repo, new NotImplementedLauncher());
     }
