@@ -64,4 +64,24 @@ public class SavedItemTransferTests
         var source = vm.SavedTransferFromDetail(vm.Items.Single())!; Assert.True(vm.CreateWorkspaceFromSavedItem(source, "copy"));
         Assert.All(repo.Load().Workspaces, w => Assert.Equal(@"C:\Browser\browser.exe", w.Items.Single().Launch!.Browser));
     }
+    [Theory]
+    [InlineData(GlobalListKind.Whitelist, GlobalListKind.Blacklist)]
+    [InlineData(GlobalListKind.Blacklist, GlobalListKind.Whitelist)]
+    public void Saved_global_list_source_can_confirm_move_in_both_directions(GlobalListKind first, GlobalListKind second)
+    {
+        using var repo=Repo();repo.Mutate(c=>c.AddGlobalEntry(first,ItemType.Link,"listed","https://example.com/listed"));
+        var vm=new MainViewModel(repo,new NotImplementedLauncher());vm.OpenGlobalEnvCommand.Execute(null);
+        var row=(first==GlobalListKind.Whitelist?vm.WhitelistRows:vm.BlacklistRows).Single(e=>e.Target=="https://example.com/listed");
+        var source=vm.SavedTransferFromGlobal(row)!;
+        Assert.False(vm.AddSavedItemToList(source,second));Assert.True(vm.AddSavedItemToList(source,second,true));
+        Assert.DoesNotContain(new Catalog(repo.Load()).GlobalEntries(first),e=>e.Target==source.Target);
+        Assert.Single(new Catalog(repo.Load()).GlobalEntries(second).Where(e=>e.Target==source.Target));
+    }
+    [Fact] public void Multiple_destinations_are_all_or_nothing_when_one_is_duplicate()
+    {
+        using var repo=Repo();var vm=Setup(repo);var source=vm.SavedTransferFromDetail(vm.Items.Single())!;var empty="";
+        repo.Mutate(c=>empty=c.CreateWorkspace("empty").Id);vm.Reload();
+        Assert.False(vm.AddSavedItemToWorkspaces(source,new[]{empty,source.WorkspaceId!}));Assert.Empty(repo.Load().Workspaces.Single(w=>w.Id==empty).Items);
+    }
+
 }
