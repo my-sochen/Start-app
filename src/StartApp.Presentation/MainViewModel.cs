@@ -1178,7 +1178,7 @@ public sealed partial class MainViewModel : ObservableBase
         public string TargetLabel => Type == ItemType.Link ? "כתובת האתר" : "נתיב";
     }
     /// <summary>One item already saved in the workspace on the side-by-side screen (read-only here).</summary>
-    public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File");
+    public sealed record CaptureExistingRow(string Name, string Target, string Group, string Type = "File", string InstanceId = "");
     /// <summary>One duplicate in the grouped dialog; the user ticks which ones to add anyway (none ticked by default).</summary>
     public sealed class DupChoice : ObservableBase
     {
@@ -1377,7 +1377,7 @@ public sealed partial class MainViewModel : ObservableBase
         CaptureWorkspaceItems.Clear();
         var w = _current.Workspaces.FirstOrDefault(x => x.Id == _capWsId); if (w is null) return;
         foreach (var m in w.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 4).ThenBy(x => x.i))
-            if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type), it.Type.ToString()));
+            if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type), it.Type.ToString(), m.m.Id ?? m.m.ItemId));
     }
     private bool IsCaptureDuplicate(CaptureRow r) =>
         new Catalog(_current).HasTarget(_capWsId, r.Type, r.Target) || StagedRows.Any(s => s.Type == r.Type && s.Target == r.Target);

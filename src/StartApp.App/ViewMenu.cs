@@ -17,7 +17,7 @@ public partial class MainWindow
     /// bottom-left like the approved menu mocks, flipping above the button or clamping inside the window when
     /// it would otherwise overflow. Programmatic IsOpen opens used the MousePoint default before, so a
     /// keyboard/UIA open detached the menu to the cursor instead of the button.</summary>
-    private ContextMenu NewAnchoredMenu(Button target, ContextMenu? existing = null)
+    private ContextMenu NewAnchoredMenu(FrameworkElement target, ContextMenu? existing = null)
     {
         var menu = existing ?? new ContextMenu();
         menu.PlacementTarget = target;
