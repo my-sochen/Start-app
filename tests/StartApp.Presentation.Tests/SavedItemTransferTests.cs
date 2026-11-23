@@ -147,7 +147,21 @@ public class SavedItemTransferTests
         Assert.False(vm.AddSavedItemToList(source,destination));
         Assert.True(vm.ReadOnly);Assert.False(vm.SavedItemTransferAllowed);Assert.True(vm.ToastVisible);
         Assert.Contains("האייטם לא נוסף",vm.ToastMessage);Assert.NotEmpty(vm.ToastTechnicalDetails);
+        string? copied=null;vm.CopyAddressRequested+=text=>copied=text;vm.CopyTechnicalDetailsCommand.Execute(vm.ToastTechnicalDetails);
+        Assert.Equal(vm.ToastTechnicalDetails,copied);
+        if(!newer)Assert.Contains(Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!,"store.json.diag-*")),copied);
         Assert.Equal("",vm.SavedItemListConflict);Assert.Equal(bytes,File.ReadAllText(path));
         Assert.False(vm.AddSavedItemToList(source,destination));Assert.Equal(bytes,File.ReadAllText(path));
     }
+    [Theory]
+    [InlineData(false,false)] [InlineData(true,false)] [InlineData(false,true)] [InlineData(true,true)]
+    public void Other_saved_item_destinations_already_fail_closed(bool newer,bool create)
+    {
+        var path=Path.Combine(Path.GetTempPath(),"transfer-other-"+Guid.NewGuid(),"store.json");using var repo=new JsonStore(path);var vm=Setup(repo);
+        var source=vm.SavedTransferFromDetail(vm.Items.Single())!;var destination=repo.Mutate(c=>c.CreateWorkspace("destination")).Workspaces.Last().Id;
+        var bytes=newer?"{\"schemaVersion\":999}":"invalid json";File.WriteAllText(path,bytes);
+        Assert.False(create?vm.CreateWorkspaceFromSavedItem(source,"new"):vm.AddSavedItemToWorkspaces(source,new[]{destination}));
+        Assert.True(vm.ReadOnly);Assert.True(vm.ToastVisible);Assert.Equal(bytes,File.ReadAllText(path));
+    }
+
 }

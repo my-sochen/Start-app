@@ -41,6 +41,9 @@ public sealed partial class MainViewModel
         if (ok) { RefreshAfterSavedTransfer(); ShowToast("נוצרה סביבה חדשה עם האייטם. המקור לא השתנה.", false); }
         return ok;
     }
+    private static string StoreErrorDetails(Exception error) => error is StoreCorruptException { DiagnosticCopy: { Length: > 0 } copy }
+        ? error.Message + Environment.NewLine + "Diagnostic copy: " + copy : error.Message;
+
     public string SavedItemListConflict { get; private set; } = "";
     public bool AddSavedItemToList(SavedItemTransfer source, GlobalListKind destination, bool confirmedMove = false)
     {
@@ -57,7 +60,7 @@ public sealed partial class MainViewModel
         {
             ReadOnly = true;
             Status = e.Message;
-            ShowToast("האייטם לא נוסף. קובץ הנתונים אינו ניתן לעריכה והושאר ללא שינוי.", true, e.Message);
+            ShowToast("האייטם לא נוסף. קובץ הנתונים אינו ניתן לעריכה והושאר ללא שינוי.", true, StoreErrorDetails(e));
             return false;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.IO.IOException or UnauthorizedAccessException or StoreLockedException)

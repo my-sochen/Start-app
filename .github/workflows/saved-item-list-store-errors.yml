@@ -1,7 +1,12 @@
 name: saved-item-list-store-errors
 on:
   push:
-    branches: [fix/saved-item-list-store-errors]
+    branches: [dev, fix/saved-item-list-store-errors]
+    paths: ['src/**', 'tests/**', '.github/workflows/saved-item-list-store-errors.yml']
+  pull_request:
+    branches: [dev]
+    paths: ['src/**', 'tests/**', '.github/workflows/saved-item-list-store-errors.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -16,4 +21,19 @@ jobs:
       - name: Build actual WPF app
         run: dotnet build src/StartApp.App/StartApp.App.csproj -c Release
       - name: Saved transfer and affected item list regressions
-        run: dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~GlobalEnvTests|FullyQualifiedName~ItemRowActionsTests|FullyQualifiedName~StagedItemActionsTests"
+        run: dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~GlobalEnvTests|FullyQualifiedName~GlobalListStoreErrorTests|FullyQualifiedName~ItemRowActionsTests|FullyQualifiedName~StagedItemActionsTests"
+      - name: Actual WPF list errors and clipboard
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.StoreErrorUiCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary=Join-Path $PWD 'tests/StartApp.StoreErrorUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $p=Start-Process $binary -ArgumentList ('"'+$PWD+'/store-error-evidence"') -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill($true); throw 'UI fixture timeout' }
+          if ($p.ExitCode -ne 0) { Get-Content store-error-evidence/error.txt; throw 'UI fixture failed' }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: store-error-ui
+          path: store-error-evidence/
+          retention-days: 7
