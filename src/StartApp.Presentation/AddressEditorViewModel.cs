@@ -5,15 +5,19 @@ namespace StartApp.Presentation;
 public sealed partial class MainViewModel
 {
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
-    public bool AddressEditOpen { get => _addressEditOpen; private set { Set(ref _addressEditOpen, value); if (!value) { _addressStaged = null; _addressInstId = ""; _addressWsId = ""; } RaiseCommands(); } }
-    private bool _addressEditOpen;
-    private string _addressInstId = "", _addressWsId = "";
-    public string EditAddress { get => _editAddress; set { Set(ref _editAddress, value ?? ""); Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
-    private string _editAddress = "";
-    private string _origAddress = "";
-    /// <summary>Any change in the address popup shows its Save button (same rule as the other edit screens).</summary>
-    public bool AddressEditDirty => AddressEditOpen && EditAddress != _origAddress;
-    private StagedRow? _addressStaged;
+    private readonly AddressEditSession<StagedRow> _addressEdit = new();
+    public bool AddressEditOpen
+    {
+        get => _addressEdit.IsOpen;
+        private set
+        {
+            if (_addressEdit.IsOpen != value) { _addressEdit.IsOpen = value; Raise(nameof(AddressEditOpen)); }
+            if (!value) _addressEdit.ClearTarget();
+            RaiseCommands();
+        }
+    }
+    public string EditAddress { get => _addressEdit.Address; set { var text = value ?? ""; if (_addressEdit.Address != text) { _addressEdit.Address = text; Raise(nameof(EditAddress)); } Raise(nameof(AddressEditDirty)); RaiseCommands(); } }
+    public bool AddressEditDirty => _addressEdit.IsDirty;
     // At most one item/address editor is active at a time. Opening another editor while one is dirty is
     // refused with a clear status, so a pending draft is never silently replaced (PR19 review: clicking a
     // second row's Edit dropped the first draft; an explicitly saved popup address was later overwritten by
@@ -27,13 +31,13 @@ public sealed partial class MainViewModel
         ItemEditOpen = false; AddressEditOpen = false;
         return true;
     }
-    private void BeginAddressEdit(ItemRow row) { if (!TryOpenEditorForm()) return; _addressStaged = null; _addressWsId = Selected?.Id ?? ""; _addressInstId = row.InstanceId; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    private void BeginAddressEdit(ItemRow row) { if (!TryOpenEditorForm()) return; _addressEdit.StagedTarget = null; _addressEdit.WorkspaceId = Selected?.Id ?? ""; _addressEdit.InstanceId = row.InstanceId; _addressEdit.OriginalAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
     /// <summary>עריכת כתובת on a staged row: the same address popup a saved item gets, but שמור writes the staged row's
     /// address (staged until the capture's own שמור) instead of the store.</summary>
-    private void BeginAddressEditStaged(StagedRow row) { if (!TryOpenEditorForm()) return; _addressInstId = ""; _addressWsId = ""; _addressStaged = row; _origAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
+    private void BeginAddressEditStaged(StagedRow row) { if (!TryOpenEditorForm()) return; _addressEdit.InstanceId = ""; _addressEdit.WorkspaceId = ""; _addressEdit.StagedTarget = row; _addressEdit.OriginalAddress = row.Target; EditAddress = row.Target; AddressEditOpen = true; }
     private bool SaveAddress()
     {
-        if (_addressStaged is { } sa)
+        if (_addressEdit.StagedTarget is { } sa)
         {
             var errS = Catalog.ValidateInputTarget(sa.Type, EditAddress);
             if (errS != null) { FieldError("address", errS == Catalog.WebsiteTargetError ? errS : "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + errS); return false; }
@@ -42,8 +46,8 @@ public sealed partial class MainViewModel
         }
         // Same binding rule as the item editor: validate the workspace+instance captured when the popup
         // opened, never the current selection; a missing record keeps the typed address in the form.
-        var wsA = _current.Workspaces.FirstOrDefault(w => w.Id == _addressWsId);
-        var m = wsA?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
+        var wsA = _current.Workspaces.FirstOrDefault(w => w.Id == _addressEdit.WorkspaceId);
+        var m = wsA?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressEdit.InstanceId);
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing; your address is still in the form"; return false; }
         var err = Catalog.ValidateInputTarget(it.Type, EditAddress);
         if (err != null) { FieldError("address", err == Catalog.WebsiteTargetError ? err : "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + err); return false; }
@@ -53,10 +57,10 @@ public sealed partial class MainViewModel
         {
             // Same inside-the-mutation validation as the item editor: Mutate reloads disk state, so the
             // precheck snapshot can be stale; a missing captured record aborts with a handled ArgumentException.
-            var wsNow = c.Store.Workspaces.FirstOrDefault(w => w.Id == _addressWsId);
-            var mNow = wsNow?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
+            var wsNow = c.Store.Workspaces.FirstOrDefault(w => w.Id == _addressEdit.WorkspaceId);
+            var mNow = wsNow?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressEdit.InstanceId);
             if (mNow is null || !c.Store.Items.ContainsKey(mNow.ItemId)) throw new ArgumentException("the item no longer exists in the saved data; your address is still in the form");
-            c.ReplaceTargetLocal(_addressWsId, _addressInstId, EditAddress);
+            c.ReplaceTargetLocal(_addressEdit.WorkspaceId, _addressEdit.InstanceId, EditAddress);
         });
         if (ok) { Status = "Address saved"; AddressEditOpen = false; }
         return ok;
