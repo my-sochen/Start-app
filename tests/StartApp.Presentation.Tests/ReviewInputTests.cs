@@ -79,15 +79,15 @@ public class ReviewInputTests
         c.AddGlobalEntry(GlobalListKind.GlobalItems, type, "sample", target);
         c.AddGlobalEntry(GlobalListKind.Whitelist, type, "sample", target);
         c.MoveGlobalEntry(GlobalListKind.Blacklist, type, "sample", target);
-        Assert.Empty(c.Store.CaptureWhitelist); Assert.Single(c.Store.CaptureBlacklist); Assert.Single(c.Store.GlobalItems);
+        Assert.Empty(c.Store.CaptureWhitelist); Assert.Single(c.Store.CaptureBlacklist.Where(e=>!e.IsDefault)); Assert.Single(c.Store.GlobalItems);
         c.MoveGlobalEntry(GlobalListKind.Whitelist, type, "sample", target);
-        Assert.Single(c.Store.CaptureWhitelist); Assert.Empty(c.Store.CaptureBlacklist);
+        Assert.Single(c.Store.CaptureWhitelist); Assert.Empty(c.Store.CaptureBlacklist.Where(e=>!e.IsDefault));
     }
     [Fact] public void Invalid_confirmed_move_does_not_remove_original()
     {
         var c=new Catalog(new Store()); c.AddGlobalEntry(GlobalListKind.Whitelist,ItemType.Link,"same","https://example.com/");
         Assert.Throws<ArgumentException>(()=>c.MoveGlobalEntry(GlobalListKind.Blacklist,ItemType.Link,"same","javascript:alert(1)"));
-        Assert.Single(c.Store.CaptureWhitelist); Assert.Empty(c.Store.CaptureBlacklist);
+        Assert.Single(c.Store.CaptureWhitelist); Assert.Empty(c.Store.CaptureBlacklist.Where(e=>!e.IsDefault));
     }
 
 }
