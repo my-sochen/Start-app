@@ -77,13 +77,18 @@ internal static class Program
     {
         await Settle(window);
         var width=(int)Math.Ceiling(window.ActualWidth);var height=(int)Math.Ceiling(window.ActualHeight);
-        // Prime WPF glyph caches before taking the compared frame. Keep a hard exact baseline-repeat gate.
-        for (var i=0;i<3;i++)
+        // Require an unchanged frame inside this process before comparing across products.
+        // No pixel filtering, tolerance or product render settings are applied.
+        RenderTargetBitmap? image=null; byte[]? previous=null; var steady=0;
+        for (var i=0;i<30;i++)
         {
-            var warm=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);warm.Render(window);
-            await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(80);
+            image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);image.Render(window);
+            var pixels=new byte[width*height*4];image.CopyPixels(pixels,width*4,0);
+            steady=previous is not null && previous.AsSpan().SequenceEqual(pixels) ? steady+1 : 0;
+            if(steady>=3)break;
+            previous=pixels;await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(80);
         }
-        var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);image.Render(window);
+        if(steady<3 || image is null)throw new Exception("WPF frame never became exactly stable: "+name);
         var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(output,name+".png")))png.Save(f);
         // Native desktop screenshot as separate evidence: includes actual window/composition and focus.
         var point=window.PointToScreen(new System.Windows.Point(0,0));
