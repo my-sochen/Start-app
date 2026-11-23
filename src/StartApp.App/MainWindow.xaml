@@ -486,7 +486,7 @@
 
         <!-- duplicate warning for ONE dragged item -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="320" MaxWidth="480">
+            <local:DialogFrame MinWidth="320" MaxWidth="480">
                 <StackPanel>
                     <TextBlock Text="{Binding CaptureDupSingleMessage}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -494,12 +494,12 @@
                         <Button Content="Cancel" Command="{Binding CancelCaptureDupSingleCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ONE grouped dialog for the duplicates of an add-all / add-selected -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CaptureDupGroupPending, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340" MaxWidth="520">
+            <local:DialogFrame MinWidth="340" MaxWidth="520">
                 <StackPanel>
                     <TextBlock Text="Already in this workspace" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
                     <TextBlock Text="Tick the ones you want to add again as separate instances." TextWrapping="Wrap" Margin="0,0,0,6"/>
@@ -511,12 +511,12 @@
                         <Button Content="Skip duplicates" Command="{Binding CancelCaptureDupGroupCommand}" Padding="12,2" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ empty-workspace dialog (דיאלוג סביבת עבודה ריקה) ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding EmptyWorkspaceOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="300">
+            <local:DialogFrame MinWidth="300">
                 <StackPanel>
                     <TextBlock Text="סביבת עבודה ריקה" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
                     <TextBlock Text="This workspace has no items yet." TextWrapping="Wrap" Margin="0,0,0,10"/>
@@ -525,17 +525,17 @@
                         <Button Content="Close" Command="{Binding CloseEmptyWorkspaceCommand}" Padding="12,2" Margin="8,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ default-env replace confirm (דיאלוג אישור החלפת ברירת מחדל, approved mock home-default-confirm 22.11):
              overlay #17243C44, white card radius 7, shadow 0 18px 80px #18243D30, width 560. Cancel/✕/outside change nothing. ============ -->
         <Border x:Name="DefaultPickerShade" Grid.RowSpan="3" Panel.ZIndex="39" Background="#4417243C" Visibility="Collapsed"/>
         <Grid x:Name="DefaultConfirmOverlay" Panel.ZIndex="40" Grid.RowSpan="3" Focusable="True" FocusVisualStyle="{x:Null}" KeyboardNavigation.TabNavigation="Cycle" KeyDown="DefaultConfirm_KeyDown" Visibility="{Binding DefaultConfirmOpen, Converter={StaticResource B2V}}" Background="#4417243C">
-            <Border Background="White" CornerRadius="7" Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,24">
-                <Border.Effect>
+            <local:DialogFrame CornerRadius="7" Width="560" Padding="28,24">
+                <local:DialogFrame.Effect>
                     <DropShadowEffect BlurRadius="80" ShadowDepth="18" Direction="270" Color="#18243D" Opacity="0.19"/>
-                </Border.Effect>
+                </local:DialogFrame.Effect>
                 <StackPanel>
                     <DockPanel>
                         <Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelDefaultReplaceCommand}" Style="{StaticResource QuietTextButton}" FontSize="13" AutomationProperties.Name="Cancel default-env replace"/>
@@ -553,12 +553,12 @@
                                 Background="White" BorderBrush="#C5CAD4" BorderThickness="1" Cursor="Hand" AutomationProperties.Name="Cancel default-env replace button"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ address popup (פופאפ עריכת כתובת) ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding AddressEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
+            <local:DialogFrame MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseAddressEditCommand}" Padding="6,0" AutomationProperties.Name="Close address edit" ToolTip="Close"/>
@@ -572,12 +572,12 @@
                                 Visibility="{Binding AddressEditDirty, Converter={StaticResource B2V}}"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ open-with popup (פופאפ פתח באמצעות) ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding OpenWithOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="420">
+            <local:DialogFrame MinWidth="420">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Padding="6,0" AutomationProperties.Name="Close open with" ToolTip="Close"/>
@@ -590,13 +590,13 @@
                         <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Padding="12,2" AutomationProperties.Name="Open with chosen program"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ existing-resource picker (בחר מסביבות קיימות): items only, four type buttons,
              original resource names (site address under the name), search, usage-count sort ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding PickerOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="460">
+            <local:DialogFrame MinWidth="460">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Padding="6,0" AutomationProperties.Name="Close resource picker" ToolTip="Close"/>
@@ -628,12 +628,12 @@
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ card design popup (פופאפ עיצוב כרטיס) ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding DesignEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="440">
+            <local:DialogFrame MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseDesignCommand}" Padding="6,0" AutomationProperties.Name="Close card design" ToolTip="Close"/>
@@ -676,12 +676,12 @@
                                 Visibility="{Binding DesignDirty, Converter={StaticResource B2V}}" AutomationProperties.Name="Save card design"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ category popup (פופאפ עריכת קטגוריה) ============ -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CategoryEditOpen, Converter={StaticResource B2V}}" Background="#66000000">
-            <Border Background="White" Padding="16" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="440">
+            <local:DialogFrame MinWidth="440">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Padding="6,0" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
@@ -744,13 +744,13 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
 
         <!-- ============ unsaved-changes exit dialog (דיאלוג יציאה עם שינויים שלא נשמרו) ============ -->
         <Grid Grid.RowSpan="4" Panel.ZIndex="100" Visibility="{Binding UnsavedOpen, Converter={StaticResource B2V}}" Background="#4417243C">
             <Grid.InputBindings><KeyBinding Key="Escape" Command="{Binding CloseUnsavedCommand}"/></Grid.InputBindings>
-            <Border Background="White" Padding="28" CornerRadius="7" Width="560" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}}" HorizontalAlignment="Center" VerticalAlignment="Center" FlowDirection="RightToLeft" KeyboardNavigation.TabNavigation="Cycle">
+            <local:DialogFrame Padding="28" CornerRadius="7" Width="560" MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Window}}" FlowDirection="RightToLeft" KeyboardNavigation.TabNavigation="Cycle">
                 <StackPanel>
                     <DockPanel FlowDirection="LeftToRight" Height="16" Margin="0,0,0,18">
                         <Button x:Name="UnsavedCancelButton" DockPanel.Dock="Left" Content="×" Command="{Binding CloseUnsavedCommand}" Style="{StaticResource QuietTextButton}" FontSize="14" Width="12" AutomationProperties.Name="Back to editing" ToolTip="חזרה לעריכה"/>
@@ -766,10 +766,10 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
         <Grid Grid.RowSpan="3" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding SelectionPending, Converter={StaticResource B2V}}">
-            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="620" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+            <local:DialogFrame BorderBrush="#CCCCCC" BorderThickness="1" Margin="20" MaxWidth="620" MaxHeight="340" FlowDirection="RightToLeft" CornerRadius="0" HorizontalAlignment="Stretch">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10"><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelOpenCommand}" Margin="0,0,12,0" AutomationProperties.Name="Close opening selection"/><TextBlock Text="מה לפתוח בסביבה?" FontSize="18" FontWeight="SemiBold"/></DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0"><Button Content="שגר" Command="{Binding ConfirmSelectionCommand}" Padding="16,4" AutomationProperties.Name="Confirm opening selection"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4" Margin="8,0"/></StackPanel>
@@ -777,23 +777,23 @@
                         <ListBox.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name}"><DockPanel Margin="0,3"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextWrapping="Wrap" FlowDirection="LeftToRight"/></StackPanel></DockPanel></CheckBox></DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
                 </DockPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
         <Grid Grid.RowSpan="3" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding OpenDecisionPending, Converter={StaticResource B2V}}">
-            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="620" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+            <local:DialogFrame BorderBrush="#CCCCCC" BorderThickness="1" Margin="20" MaxWidth="620" MaxHeight="340" FlowDirection="RightToLeft" CornerRadius="0" HorizontalAlignment="Stretch">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8"><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelOpenCommand}" Margin="0,0,12,0" AutomationProperties.Name="Close confirmed duplicates"/><TextBlock Text="פריטים שזוהו כפתוחים" FontSize="18" FontWeight="SemiBold"/></DockPanel><TextBlock Text="סמנו רק את מה שתרצו לפתוח שוב. עדיין לא נשלחה בקשת פתיחה." TextWrapping="Wrap" Margin="0,6,0,0"/><TextBlock Text="אתרים מזוהים לפי שורת הכתובת, גם אם הוקלדה כתובת שטרם נפתחה." TextWrapping="Wrap" Margin="0,4,0,0" FontSize="12" Foreground="#585254" AutomationProperties.Name="Browser observation limitation"/></StackPanel>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0"><Button Content="המשך לפתיחה" Command="{Binding ConfirmOpenAnywayCommand}" Padding="12,4" AutomationProperties.Name="Confirm duplicate choices"/><Button Content="חזרה לבחירה" Command="{Binding BackToOpeningSelectionCommand}" Padding="12,4" Margin="8,0" Visibility="{Binding CanBackToOpeningSelection, Converter={StaticResource B2V}}"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4"/></StackPanel>
                     <ListBox ItemsSource="{Binding ReopenChoices}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Confirmed duplicate list"><ListBox.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name}"><DockPanel Margin="0,3"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextWrapping="Wrap" FlowDirection="LeftToRight"/></StackPanel></DockPanel></CheckBox></DataTemplate></ListBox.ItemTemplate></ListBox>
                 </DockPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
         <Grid Grid.RowSpan="3" Panel.ZIndex="30" Background="#66000000" Visibility="{Binding LastResultsOpen, Converter={StaticResource B2V}}">
-            <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" Padding="16" Margin="20" MaxWidth="660" MaxHeight="340" VerticalAlignment="Center" FlowDirection="RightToLeft">
+            <local:DialogFrame BorderBrush="#CCCCCC" BorderThickness="1" Margin="20" MaxWidth="660" MaxHeight="340" FlowDirection="RightToLeft" CornerRadius="0" HorizontalAlignment="Stretch">
                 <DockPanel><DockPanel DockPanel.Dock="Top" Margin="0,0,0,10"><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CloseLastOpeningResultsCommand}" Margin="0,0,12,0" AutomationProperties.Name="Close last opening results"/><TextBlock Text="תוצאות הפתיחה האחרונות" FontSize="18" FontWeight="SemiBold"/></DockPanel>
                     <ListBox ItemsSource="{Binding LastOpeningResults}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Opening results"><ListBox.ItemTemplate><DataTemplate><DockPanel Margin="0,4"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0" VerticalAlignment="Top"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Message}" TextWrapping="Wrap"/><Expander Header="פרטים טכניים" Margin="0,3,0,0"><StackPanel><TextBlock Text="{Binding TechnicalDetails}" TextWrapping="Wrap" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding DataContext.CopyTechnicalDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding TechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel></DockPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
                 </DockPanel>
-            </Border>
+            </local:DialogFrame>
         </Grid>
         <Border Grid.RowSpan="3" Panel.ZIndex="25" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" Padding="12" Width="480" MaxHeight="250" Background="#FFF9EB" BorderBrush="#B48629" BorderThickness="1" Visibility="{Binding ToastVisible, Converter={StaticResource B2V}}" FlowDirection="RightToLeft" AutomationProperties.Name="Notification">
             <StackPanel><DockPanel><Button DockPanel.Dock="Left" Content="✕" Command="{Binding DismissToastCommand}" AutomationProperties.Name="Dismiss notification"/><TextBlock Text="{Binding ToastMessage}" TextWrapping="Wrap" Margin="0,0,8,0"/></DockPanel><Button Content="תוצאות הפתיחה" Command="{Binding ToastDetailsCommand}" HorizontalAlignment="Right" Margin="0,5,0,0" Visibility="{Binding ToastHasOpeningResults, Converter={StaticResource B2V}}"/><Expander Header="פרטים טכניים"><StackPanel><TextBox Text="{Binding ToastTechnicalDetails, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" FlowDirection="LeftToRight"/><Button Content="העתק פרטים" Command="{Binding CopyTechnicalDetailsCommand}" CommandParameter="{Binding ToastTechnicalDetails}" HorizontalAlignment="Right"/></StackPanel></Expander></StackPanel>

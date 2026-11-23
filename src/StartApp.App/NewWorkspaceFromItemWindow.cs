@@ -28,7 +28,7 @@ internal sealed class NewWorkspaceFromItemWindow : Window
         var cancel = new Button { Content = "ביטול", IsCancel = true, Style = (Style)FindResource("HomeToolbarButton"), Margin = new Thickness(8,0,0,0) };
         System.Windows.Automation.AutomationProperties.SetName(cancel, "Cancel item environment");cancel.Click += (_, _) => DialogResult = false;
         actions.Children.Add(create);actions.Children.Add(cancel);body.Children.Add(actions);
-        Content = new Border { Child = body, Padding = new Thickness(24), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(201,208,220)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
+        Content = new DialogFrame { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = body, Padding = new Thickness(24), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(201,208,220)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
         Loaded += (_, _) => input.Focus();
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; DialogResult = false; } };
     }
