@@ -84,4 +84,19 @@ public class SavedItemTransferTests
         Assert.False(vm.AddSavedItemToWorkspaces(source,new[]{empty,source.WorkspaceId!}));Assert.Empty(repo.Load().Workspaces.Single(w=>w.Id==empty).Items);
     }
 
+    [Fact] public void Capture_blocks_all_saved_transfer_mutations_even_with_prior_source_snapshot()
+    {
+        using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
+        var empty = ""; repo.Mutate(c => empty = c.CreateWorkspace("empty").Id); vm.Reload();
+        vm.AddFromOpenCommand.Execute(null); Assert.True(vm.CaptureOpen); Assert.False(vm.SavedItemTransferAllowed);
+        Assert.False(vm.CreateWorkspaceFromSavedItem(source, "not created"));
+        Assert.False(vm.AddSavedItemToWorkspaces(source, new[] { empty }));
+        Assert.False(vm.AddSavedItemToList(source, GlobalListKind.GlobalItems));
+        Assert.False(vm.AddSavedItemToList(source, GlobalListKind.Whitelist));
+        Assert.False(vm.AddSavedItemToList(source, GlobalListKind.Blacklist));
+        var saved = repo.Load(); Assert.Equal(2, saved.Workspaces.Count);
+        Assert.Empty(saved.Workspaces.Single(w => w.Id == empty).Items); Assert.Empty(saved.GlobalItems); Assert.Empty(saved.CaptureWhitelist);
+        Assert.Empty(saved.CaptureBlacklist.Where(e => !e.IsDefault));
+    }
+
 }

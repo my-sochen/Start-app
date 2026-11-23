@@ -72,7 +72,6 @@ function MenuShot($name){$r=New-Object ReviewWin+R;[void][ReviewWin]::GetWindowR
 function DetailMenu {Context 'Edit item';ExpandAdd}
 function RightClickElement($element) { $r=$element.Current.BoundingRectangle;[void][ReviewWin]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[ReviewWin]::mouse_event(8,0,0,0,[UIntPtr]::Zero);[ReviewWin]::mouse_event(16,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 200 }
 function SavedGlobalMenu { $list=Wait 'Global items list';$text=$list.FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,'Shared sample')));if(-not $text){throw 'Global saved text missing'};RightClickElement $text;ExpandAdd }
-function SavedCaptureMenu { $list=Wait 'Saved items in the workspace';$row=$list.FindFirst($TS::Children,(New-Object $PC($A::ControlTypeProperty,$CT::ListItem)));if(-not $row){throw 'Saved capture row missing'};RightClickElement $row;ExpandAdd }
 
 try{
  Scenario '01-details-submenu' {
@@ -92,8 +91,14 @@ try{
  Scenario '04-all-items' {
   Mouse 'Options menu';Menu 'אייטמים';$e=Wait 'Shared sample' $CT::Button;$e.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');ExpandAdd;MenuShot '04-all-items-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From all items';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'All Items saved row copies' (@($o.workspaces|Where-Object name -eq 'From all items').Count -eq 1) 'Effective saved instance snapshot'
  }
- Scenario '05-capture-saved-side' {
-  Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 6;SavedCaptureMenu;MenuShot '05-saved-capture-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From capture saved';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Saved capture destination row copies' (@($o.workspaces|Where-Object name -eq 'From capture saved').Count -eq 1) 'Newly scanned and unsaved staged rows have no new menu'
+ Scenario '05-capture-no-add-to' {
+  Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 6
+  $before=Get-Content $store -Raw
+  $list=Wait 'Saved items in the workspace';$row=$list.FindFirst($TS::Children,(New-Object $PC($A::ControlTypeProperty,$CT::ListItem)));if(-not $row){throw 'Saved capture row missing'}
+  RightClickElement $row;MenuShot '05-capture-saved-no-add-to';Record 'Capture saved side has no Add-to menu' ($null -eq (FindMenu 'הוסף ל...')) 'Saved side is read-only during capture'
+  [Windows.Forms.SendKeys]::SendWait('{ESC}');$open=Wait 'Open now list';$row=$open.FindFirst($TS::Children,(New-Object $PC($A::ControlTypeProperty,$CT::ListItem)));if(-not $row){throw 'Scanned capture row missing'}
+  RightClickElement $row;MenuShot '05-capture-scan-no-add-to';Record 'Capture scan side has no Add-to menu' ($null -eq (FindMenu 'הוסף ל...')) 'No new transfer entry on scanned items'
+  [Windows.Forms.SendKeys]::SendWait('{ESC}');Record 'Capture right-click does not mutate store' ((Get-Content $store -Raw) -eq $before) 'Both capture sides unchanged'
  }
 }finally{StopApp;Flush;if(Test-Path "$storeDir/crash.log"){Copy-Item "$storeDir/crash.log" "$out/crash.log"}}
 if(@($results|Where-Object{-not $_.ok}).Count -gt 0){throw 'Saved Add-to checks failed; inspect results.json'}

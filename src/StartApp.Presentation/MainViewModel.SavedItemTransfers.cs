@@ -4,7 +4,6 @@ namespace StartApp.Presentation;
 public sealed partial class MainViewModel
 {
     public SavedItemTransfer? SavedTransferFromDetail(ItemRow row) => SavedTransferFromInstance(Selected?.Id, row.InstanceId);
-    public SavedItemTransfer? SavedTransferFromCapture(CaptureExistingRow row) => SavedTransferFromInstance(_capWsId, row.InstanceId);
     public SavedItemTransfer? SavedTransferFromAll(AllItemRow row)
     {
         if (row.MixedTypes) return null;
@@ -20,13 +19,12 @@ public sealed partial class MainViewModel
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var item)) return null;
         return new(item.Type, m.Name ?? item.Name, item.Target, m.Description ?? item.Description ?? "", m.Launch, w!.Id, m.Id ?? m.ItemId);
     }
-    public bool SavedItemTransferAllowed => ItemActionsAllowed && !GlobalConflictOpen && !UnsavedOpen && !DetailsDirty && !CreateDirty && !DesignDirty;
+    public bool SavedItemTransferAllowed => !CaptureOpen && ItemActionsAllowed && !GlobalConflictOpen && !UnsavedOpen && !DetailsDirty && !CreateDirty && !DesignDirty;
     public IReadOnlyList<Workspace> SavedItemDestinations(SavedItemTransfer source) => SavedItemTransferService.Destinations(_current, source);
     private void RefreshAfterSavedTransfer()
     {
         RefreshItems(); RefreshGlobalEnvRows();
         if (InAllItems) RefreshAllItems();
-        if (IsCaptureSide) RefreshCaptureWorkspaceItems();
     }
     public bool AddSavedItemToWorkspaces(SavedItemTransfer source, IReadOnlyList<string> ids)
     {

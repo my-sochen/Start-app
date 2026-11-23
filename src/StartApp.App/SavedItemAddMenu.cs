@@ -6,11 +6,6 @@ namespace StartApp.App;
 
 public partial class MainWindow
 {
-    private void SavedCaptureContextOpening(object sender, ContextMenuEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: MainViewModel.CaptureExistingRow row } host && DataContext is MainViewModel vm)
-        { e.Handled = true; ShowSavedTransferActions(host, vm.SavedTransferFromCapture(row)); }
-    }
     internal void ShowSavedTransferActions(FrameworkElement anchor, SavedItemTransfer? source)
     {
         if (DataContext is not MainViewModel vm) return;
