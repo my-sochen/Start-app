@@ -282,8 +282,12 @@ public sealed partial class MainViewModel : ObservableBase
     // deletion, so a preserved form can neither crash nor silently retarget.
     public string Status { get => _status; private set { Set(ref _status, value); PresentLegacyStatus(value); } }
     public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); RaiseCommands(); } }
-    public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); ClearDup(); } }
-    public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value); ClearDup(); RaiseCommands(); } }
+    public ItemType NewItemType { get => _newType; set { Set(ref _newType, value); Raise(nameof(NewItemTypeIndex)); ClearDup(); } }
+    public string NewTarget { get => _newTarget; set { Set(ref _newTarget, value);
+        if (Uri.TryCreate(value, UriKind.Absolute, out var pasted) && (pasted.Scheme == Uri.UriSchemeHttp || pasted.Scheme == Uri.UriSchemeHttps)) NewItemType = ItemType.Link;
+        ClearDup(); RaiseCommands(); } }
+    public static IReadOnlyList<string> ItemTypeLabels { get; } = new[] { "אתר", "קובץ", "תיקייה", "תוכנה" };
+    public int NewItemTypeIndex { get => (int)NewItemType; set => NewItemType = (ItemType)value; }
     private ItemType _newType = ItemType.File; private string _newTarget = "";
     /// <summary>Optional local name for the instance in this workspace. Empty means the original (derived) name.</summary>
     public string NewItemName { get => _newItemName; set { Set(ref _newItemName, value ?? ""); ClearDup(); } }
@@ -363,8 +367,8 @@ public sealed partial class MainViewModel : ObservableBase
     {
         if (_addressStaged is { } sa)
         {
-            var errS = Catalog.ValidateTarget(sa.Type, EditAddress);
-            if (errS != null) { FieldError("address", "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + errS); return false; }
+            var errS = Catalog.ValidateInputTarget(sa.Type, EditAddress);
+            if (errS != null) { FieldError("address", errS == Catalog.WebsiteTargetError ? errS : "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + errS); return false; }
             sa.Target = EditAddress; Status = "Address updated on the staged item (saved to the workspace on שמור)"; AddressEditOpen = false;
             return true;
         }
@@ -373,8 +377,8 @@ public sealed partial class MainViewModel : ObservableBase
         var wsA = _current.Workspaces.FirstOrDefault(w => w.Id == _addressWsId);
         var m = wsA?.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == _addressInstId);
         if (m is null || !_current.Items.TryGetValue(m.ItemId, out var it)) { Status = "Not saved: the saved item record is missing; your address is still in the form"; return false; }
-        var err = Catalog.ValidateTarget(it.Type, EditAddress);
-        if (err != null) { FieldError("address", "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + err); return false; }
+        var err = Catalog.ValidateInputTarget(it.Type, EditAddress);
+        if (err != null) { FieldError("address", err == Catalog.WebsiteTargetError ? err : "הכתובת אינה תקינה. הזינו כתובת מלאה בהתאם לסוג הפריט.", "Not saved: " + err); return false; }
         // The change applies to the captured workspace only, for every type including sites: ReplaceTargetLocal re-points this one
         // instance at the new address; the same item in other workspaces and other instances here keep their own address.
         var ok = Apply(c =>
@@ -654,8 +658,8 @@ public sealed partial class MainViewModel : ObservableBase
         if (ws is null || !ws.Items.Any(x => (x.Id ?? x.ItemId) == _editItemId))
         { Status = "Not saved: this item was removed; your changes are still in the form - cancel the edit or add the item again"; return false; }
         var editedItem = _current.Items.GetValueOrDefault(ws.Items.First(x => (x.Id ?? x.ItemId) == _editItemId).ItemId);
-        if (editedItem is not null && (Catalog.ValidateTarget(editedItem.Type, EditItemTarget) ?? Catalog.ValidateDescription(EditItemDescription)) is { } itemError)
-        { FieldError("item", "בדקו את כתובת הפריט ואת התיאור לפני השמירה.", "Not saved: " + itemError); return false; }
+        if (editedItem is not null && (Catalog.ValidateInputTarget(editedItem.Type, EditItemTarget) ?? Catalog.ValidateDescription(EditItemDescription)) is { } itemError)
+        { FieldError("item", itemError == Catalog.WebsiteTargetError ? itemError : "בדקו את כתובת הפריט ואת התיאור לפני השמירה.", "Not saved: " + itemError); return false; }
         var targetChanged = EditItemTarget != _origItemTarget;
         LaunchConfig? editedLaunch = string.IsNullOrWhiteSpace(EditItemOpenWith) ? null : _editItemType == ItemType.Link ? new LaunchConfig(Browser: EditItemOpenWith.Trim()) : new LaunchConfig(OpenWith: EditItemOpenWith.Trim());
         if (EditItemOpenWith != _origItemOpenWith && Catalog.ValidateLaunch(_editItemType, editedLaunch) is { } launchError) { FieldError("item", "יש להזין נתיב מלא לתוכנה או לדפדפן.", launchError); return false; }
@@ -835,9 +839,11 @@ public sealed partial class MainViewModel : ObservableBase
     /// exists in this workspace first asks for confirmation; confirming adds a second, independent instance.</summary>
     private void AddItem(bool force = false)
     {
-        var type = NewItemType; var target = NewTarget; var wsId = Selected!.Id; var desc = NewDescription; var name = NewItemName;
-        var err = Catalog.ValidateTarget(type, target) ?? Catalog.ValidateDescription(desc) ?? Catalog.ValidateInstanceName(string.IsNullOrWhiteSpace(name) ? null : name);
-        if (err != null) { FieldError("add", "פרטי האייטם אינם תקינים. בדקו את הכתובת בהתאם לסוג, את השם ואת התיאור.", "Not added: " + err); return; }
+        var type = NewItemType; var target = NewTarget;
+        if (Uri.TryCreate(target, UriKind.Absolute, out var web) && (web.Scheme == Uri.UriSchemeHttp || web.Scheme == Uri.UriSchemeHttps)) type = ItemType.Link;
+        var wsId = Selected!.Id; var desc = NewDescription; var name = NewItemName;
+        var err = Catalog.ValidateInputTarget(type, target) ?? Catalog.ValidateDescription(desc) ?? Catalog.ValidateInstanceName(string.IsNullOrWhiteSpace(name) ? null : name);
+        if (err != null) { FieldError("add", err == Catalog.WebsiteTargetError ? err : "פרטי האייטם אינם תקינים. בדקו את הכתובת בהתאם לסוג, את השם ואת התיאור.", "Not added: " + err); return; }
         if (!force && new Catalog(_current).HasTarget(wsId, type, target))
         {
             _pendingDup = true; Raise(nameof(DuplicatePending)); RaiseCommands();
@@ -1162,7 +1168,8 @@ public sealed partial class MainViewModel : ObservableBase
         public string Label => "Added: " + OriginalName;
         public string Name { get => _name; set => Set(ref _name, value ?? ""); }
         public string Description { get => _description; set => Set(ref _description, value ?? ""); }
-        public string Target { get => _target; set => Set(ref _target, value ?? ""); }
+        public string Target { get => _target; set { Set(ref _target, value ?? ""); Raise(nameof(TargetError)); } }
+        public string TargetError => Catalog.ValidateInputTarget(Type, Target) ?? "";
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
@@ -1422,8 +1429,8 @@ public sealed partial class MainViewModel : ObservableBase
         foreach (var s in staged)
         {
             var ow = s.OpenWith.Trim(); LaunchConfig? launch = ow.Length == 0 ? null : s.Type == ItemType.Link ? new LaunchConfig(Browser: ow) : new LaunchConfig(OpenWith: ow);
-            var err = Catalog.ValidateTarget(s.Type, s.Target) ?? Catalog.ValidateDescription(s.Description) ?? Catalog.ValidateLaunch(s.Type, launch);
-            if (err != null) { Status = $"Not saved ({s.OriginalName}): " + err; return false; }
+            var err = Catalog.ValidateInputTarget(s.Type, s.Target) ?? Catalog.ValidateDescription(s.Description) ?? Catalog.ValidateLaunch(s.Type, launch);
+            if (err != null) { s.IsEditing = true; Status = $"Not saved ({s.OriginalName}): " + err; return false; }
         }
         var ok = Apply(c =>
         {
@@ -1454,7 +1461,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return false; }
         foreach (var i in chosen)
         {
-            var err = Catalog.ValidateTarget(i.Type, i.Target) ?? Catalog.ValidateLaunch(i.Type, RetainedBrowserLaunch(i));
+            var err = Catalog.ValidateInputTarget(i.Type, i.Target) ?? Catalog.ValidateLaunch(i.Type, RetainedBrowserLaunch(i));
             if (err != null) { Status = $"Not created ({i.Name}): " + err; return false; }
         }
         var ok = Apply(c =>

@@ -8,6 +8,7 @@
              FontFamily="./Assets/Fonts/#Noto Sans Hebrew, Arial"
              AutomationProperties.Name="Global environment screen">
     <UserControl.Resources>
+        <Style x:Key="DisableDuringConflict" TargetType="FrameworkElement"><Style.Triggers><DataTrigger Binding="{Binding GlobalConflictOpen}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger></Style.Triggers></Style>
         <BooleanToVisibilityConverter x:Key="B2V"/>
         <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource HomeToolbarButton}">
             <Setter Property="MinHeight" Value="38"/><Setter Property="MinWidth" Value="70"/><Setter Property="Padding" Value="14,6"/>
@@ -41,14 +42,14 @@
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid Grid.Row="0" Margin="32,22,32,0">
+        <Grid Grid.Row="0" Margin="32,22,32,0" Style="{StaticResource DisableDuringConflict}">
             <Button Content="חזרה לסביבות" Style="{StaticResource SecondaryButton}" MinWidth="123" HorizontalAlignment="Left" VerticalAlignment="Top" Command="{Binding CloseGlobalEnvCommand}" AutomationProperties.Name="Back to workspaces"/>
             <StackPanel HorizontalAlignment="Right" FlowDirection="RightToLeft">
                 <TextBlock Text="סביבה גלובלית" FontSize="22" FontWeight="SemiBold" Foreground="#222833" AutomationProperties.Name="Global environment title"/>
                 <TextBlock Text="מרכז אחד לכל מה שקורה תמיד: פריטים שנפתחים עם הפעלת המחשב, ורשימות הלכידה." FontSize="13" Foreground="#626B79"/>
             </StackPanel>
         </Grid>
-        <ScrollViewer Grid.Row="1" Margin="32,8,32,0" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" FlowDirection="RightToLeft">
+        <ScrollViewer Style="{StaticResource DisableDuringConflict}" Grid.Row="1" Margin="32,8,32,0" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" FlowDirection="RightToLeft">
             <ScrollViewer.Resources><sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">15</sys:Double></ScrollViewer.Resources>
             <StackPanel Margin="0,16,0,0" FlowDirection="LeftToRight">
                 <Border Style="{StaticResource GroupBox}"><StackPanel>
@@ -78,7 +79,7 @@
             </StackPanel>
         </ScrollViewer>
         <TextBlock Grid.Row="2" Style="{StaticResource HintText}" Margin="32,10,32,18" Text="הסרה של רשומת ברירת מחדל מהרשימה השחורה תחזיר אותה ללכידות."/>
-        <Grid Grid.RowSpan="3" Background="#66000000" Visibility="{Binding AddFormVisible, Converter={StaticResource B2V}}">
+        <Grid Style="{StaticResource DisableDuringConflict}" Grid.RowSpan="3" Background="#66000000" Visibility="{Binding AddFormVisible, Converter={StaticResource B2V}}">
             <Border Background="White" BorderBrush="#DCE1E9" BorderThickness="1" CornerRadius="6" Padding="24" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" AutomationProperties.Name="Global entry add form">
                 <StackPanel FlowDirection="RightToLeft">
                     <TextBlock Text="{Binding AddFormListTitle}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16"/>
@@ -95,6 +96,11 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+        </Grid>
+        <Grid Grid.RowSpan="3" Background="#66505A70" Visibility="{Binding GlobalConflictOpen, Converter={StaticResource B2V}}" KeyboardNavigation.TabNavigation="Cycle" AutomationProperties.Name="Capture list conflict popup">
+          <Border Background="White" BorderBrush="#C9D0DC" BorderThickness="1" CornerRadius="6" Padding="24" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <StackPanel FlowDirection="RightToLeft"><TextBlock Text="הפריט נמצא ברשימה הנגדית" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="{Binding GlobalConflictMessage}" TextWrapping="Wrap" Margin="0,14,0,18"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Left"><Button Content="העבר לרשימה המבוקשת" Command="{Binding MoveGlobalConflictCommand}" Style="{StaticResource PrimaryActionButton}" AutomationProperties.Name="Move capture list item"/><Button Content="ביטול" Command="{Binding CloseGlobalConflictCommand}" Style="{StaticResource HomeToolbarButton}" Margin="8,0,0,0" AutomationProperties.Name="Close capture list conflict"/></StackPanel></StackPanel>
+          </Border>
         </Grid>
     </Grid>
 </UserControl>
