@@ -63,6 +63,23 @@ internal static class Program
                 window.Width=720;window.Height=400;vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;vm.CapturePickWorkspaceCommand.Execute(workspace);
                 await Take(window,output,"09-minimum-size");
                 vm.CaptureCloseCommand.Execute(null);
+                // Candidate-only coverage of each actual dialog frame. These are visual fixture states,
+                // not workflow/permission claims; ordinary capture states above still run identically.
+                if (typeof(MainWindow).Assembly.GetType("StartApp.App.DialogFrame") is not null)
+                {
+                    window.Width=960; window.Height=650; await Settle(window);
+                    var cards=Descendants(window).OfType<Border>().Where(e=>e.GetType().FullName=="StartApp.App.DialogFrame").ToList();
+                    var roots=cards.Select(c=>c.Parent).OfType<UIElement>().Distinct().ToList();
+                    var originalVisibility=roots.Select(r=>r.Visibility).ToArray();
+                    foreach(var root in roots)root.SetCurrentValue(UIElement.VisibilityProperty,Visibility.Collapsed);
+                    for(var i=0;i<cards.Count;i++)
+                    {
+                        var root=(UIElement)cards[i].Parent; root.SetCurrentValue(UIElement.VisibilityProperty,Visibility.Visible);
+                        await Take(window,output,"frame-"+(i+1).ToString("00"),false);
+                        root.SetCurrentValue(UIElement.VisibilityProperty,Visibility.Collapsed);
+                    }
+                    for(var i=0;i<roots.Count;i++)roots[i].SetCurrentValue(UIElement.VisibilityProperty,originalVisibility[i]);
+                }
                 File.WriteAllText(Path.Combine(output,"same-process.json"),JsonSerializer.Serialize(SameProcess));
                 File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
                 File.WriteAllText(Path.Combine(output,"results.json"),JsonSerializer.Serialize(Results,new JsonSerializerOptions{WriteIndented=true}));
@@ -82,7 +99,7 @@ internal static class Program
         await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         await Task.Delay(120);
     }
-    private static async Task Take(Window window,string output,string name)
+    private static async Task Take(Window window,string output,string name,bool captureComparison=true)
     {
         await Settle(window);
         var width=(int)Math.Ceiling(window.ActualWidth);var height=(int)Math.Ceiling(window.ActualHeight);
@@ -132,7 +149,7 @@ internal static class Program
         // In candidate only, compare original baseline Grid against extracted UserControl inside the
         // SAME actual MainWindow and VM, sharing glyph caches. Baseline assembly run has no CaptureView.
         var capture = Descendants(window).OfType<FrameworkElement>().FirstOrDefault(e => e.GetType().FullName == "StartApp.App.CaptureView");
-        if(capture?.Parent is System.Windows.Controls.Panel parent)
+        if(captureComparison && capture?.Parent is System.Windows.Controls.Panel parent)
         {
             var index=parent.Children.IndexOf(capture);var baseline=new CaptureBaselineGrid(window.Resources);
             parent.Children.RemoveAt(index);parent.Children.Insert(index,baseline);await Settle(window);
