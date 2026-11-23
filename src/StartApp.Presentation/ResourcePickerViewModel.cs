@@ -21,17 +21,11 @@ public sealed partial class MainViewModel
     /// <summary>Search filter, applied inside each type list (name and address, case-insensitive).</summary>
     public string PickerSearch { get => _pickerSearch; set { Set(ref _pickerSearch, value ?? ""); RefreshPicker(); } }
     private string _pickerSearch = "";
-    /// <summary>Workspaces containing this exact address (by item identity: type + exact target). Used for the sort.</summary>
-    private int UsageOf(string itemId) => _current.Workspaces.Count(w => w.Items.Any(m => m.ItemId == itemId));
     private void RefreshPicker()
     {
         PickerRows.Clear(); if (!PickerOpen) return;
-        var q = _pickerSearch;
-        foreach (var it in _current.Items.Values
-            .Where(i => i.Type == PickerType)
-            .Where(i => q.Length == 0 || i.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || i.Target.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(i => UsageOf(i.Id)).ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
-            PickerRows.Add(new PickerRow(it.Id, it.Name, it.Target, UsageOf(it.Id), it.Type));
+        foreach (var row in ResourcePickerQuery.Read(_current, PickerType, _pickerSearch))
+            PickerRows.Add(new PickerRow(row.ItemId, row.Name, row.Target, row.Usage, row.Type));
     }
     private void OpenPicker() { PickerType = ItemType.Link; PickerOpen = true; RefreshPicker(); }
     private void PickResource(PickerRow row)
