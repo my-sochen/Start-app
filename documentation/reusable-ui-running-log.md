@@ -28,3 +28,5 @@ Refactor branches only. No merge into dev/main, no release or publish. Preserve 
 ## Current diagnostic
 -874c856Windows control: plain reparent is0pixels on all reached states, but initial shared/plain remains4pixels on frame05. This alone does not establish product causation.
 -a795cc0adds restored-shared comparison and collects every overlay failure before throwing. Same strict any-pixel gate; no product change. Local compilePASS. Windows pending.
+- a795cc0Windows result: all13visible overlays reached.12are exact; only open-with frame05differs4pixels initially. Restoring the original shared frame then matches the plain Border exactly and differs from its own initial image by the same4pixels. That rules against a persistent class-dependent rendering difference in this fixture, but first-exposure/reparent cause needs a direct self-control.
+-60950cfadds that shared-to-same-shared control before any class substitution, logs equal-invalidation comparison separately, and adds actual notice/conflict/new-workspace prompt windows. Local compilePASS. Windows pending. Initial gate remains red if any initial pixel differs.

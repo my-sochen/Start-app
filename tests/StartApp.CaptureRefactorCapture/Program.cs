@@ -114,6 +114,9 @@ internal static class Program
     private static async Task Take(Window window,string output,string name,bool captureComparison=true)
     {
         await Settle(window);
+        // Loaded focus handlers can post after ContentRendered; clear the actual focused descendant.
+        if(Keyboard.FocusedElement is UIElement focused)focused.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+        Keyboard.ClearFocus();FocusManager.SetFocusedElement(window,null);window.Focus();await Settle(window);
         var width=(int)Math.Ceiling(window.ActualWidth);var height=(int)Math.Ceiling(window.ActualHeight);
         // Require an unchanged frame inside this process before comparing across products.
         // No pixel filtering, tolerance or product render settings are applied.
@@ -145,6 +148,17 @@ internal static class Program
             var selfDifference=0;for(var p=0;p<initialPixels.Length;p+=4)if(!initialPixels.AsSpan(p,4).SequenceEqual(sameFramePixels.AsSpan(p,4)))selfDifference++;
             var selfPng=new PngBitmapEncoder();selfPng.Frames.Add(BitmapFrame.Create(sameFrameImage));using(var f=File.Create(Path.Combine(output,name+"-shared-self-control.png")))selfPng.Save(f);
             File.AppendAllText(Path.Combine(output,"dialog-self.jsonl"),JsonSerializer.Serialize(new{state=name,shared_self_pixels=selfDifference})+Environment.NewLine);
+            foreach(var frame in frames)
+            {
+                var child=frame.Child;frame.Child=null;frame.Child=child;
+                if(frame.Parent is System.Windows.Controls.Panel owner){var index=owner.Children.IndexOf(frame);owner.Children.RemoveAt(index);owner.Children.Insert(index,frame);}
+                else if(ReferenceEquals(window.Content,frame)){window.Content=null;window.Content=frame;}
+            }
+            await Settle(window);
+            var secondSelf=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);secondSelf.Render(window);
+            var secondSelfPixels=new byte[sameFramePixels.Length];secondSelf.CopyPixels(secondSelfPixels,width*4,0);
+            var secondSelfDiff=0;for(var p=0;p<secondSelfPixels.Length;p+=4)if(!secondSelfPixels.AsSpan(p,4).SequenceEqual(sameFramePixels.AsSpan(p,4)))secondSelfDiff++;
+            File.AppendAllText(Path.Combine(output,"dialog-self-repeat.jsonl"),JsonSerializer.Serialize(new{state=name,repeat_shared_self_pixels=secondSelfDiff})+Environment.NewLine);
             var swaps = new List<(Action<Border> Replace, Border Frame, Border Plain)>();
             foreach (var frame in frames)
             {
@@ -170,7 +184,7 @@ internal static class Program
             var actual = new byte[width*height*4]; var expected = new byte[actual.Length]; image.CopyPixels(actual,width*4,0); plainImage.CopyPixels(expected,width*4,0);
             var different = 0; for (var p=0;p<actual.Length;p+=4) if (!actual.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4))) different++;
             var equalInvalidationDifference=0;for(var p=0;p<expected.Length;p+=4)if(!sameFramePixels.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4)))equalInvalidationDifference++;
-            DialogFrames.Add(new { state = name, different_pixels = different, equal_invalidation_pixels=equalInvalidationDifference, frame_count = frames.Count });
+            DialogFrames.Add(new { state = name, different_pixels = different, equal_invalidation_pixels=equalInvalidationDifference, second_self_pixels=secondSelfDiff, frame_count = frames.Count });
             var plainPng = new PngBitmapEncoder(); plainPng.Frames.Add(BitmapFrame.Create(plainImage)); using (var f=File.Create(Path.Combine(output,name+"-plain-dialog-border.png"))) plainPng.Save(f);
             // Control: repeat the identical reparent using plain Border -> plain Border.
             // Preserve the original shared/plain failure; a red control never waives it.
