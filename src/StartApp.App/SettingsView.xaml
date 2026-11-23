@@ -8,42 +8,8 @@
          DataContext is the window's UpdateViewModel; the back command binds to the
          hosting window's MainViewModel. Pixel tokens come from the handoff spec. -->
     <UserControl.Resources>
-        <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="38"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="14,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="#315cc5" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bg" Property="Opacity" Value="0.55"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="38"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Padding" Value="14,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="White" BorderBrush="#c5cad4" BorderThickness="1" CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+
+
         <Style x:Key="FutureTag" TargetType="Border">
             <Setter Property="Background" Value="#f4f6f9"/>
             <Setter Property="BorderBrush" Value="#dbe0e8"/>
@@ -73,7 +39,7 @@
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="סביבות העבודה / הגדרות" FontSize="12" Foreground="#636e7d" HorizontalAlignment="Right"/>
             <DockPanel Grid.Row="1" Margin="0,17,0,0">
-                <Button DockPanel.Dock="Left" Content="חזרה לסביבות" Style="{StaticResource SecondaryButton}" Height="38" MinWidth="123" VerticalAlignment="Top"
+                <Button DockPanel.Dock="Left" Content="חזרה לסביבות" Style="{StaticResource SettingsSecondaryButton}" Height="38" MinWidth="123" VerticalAlignment="Top"
                         Command="{Binding DataContext.CloseSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         AutomationProperties.Name="Back to workspaces"/>
                 <StackPanel>
@@ -122,11 +88,11 @@
                         </Border>
                         <DockPanel Margin="14,8">
                             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                                <Button x:Name="CheckButton" Content="בדוק עדכונים" Style="{StaticResource PrimaryButton}"
+                                <Button x:Name="CheckButton" Content="בדוק עדכונים" Style="{StaticResource SettingsPrimaryButton}"
                                         Command="{Binding CheckCommand}" AutomationProperties.Name="Check for updates"/>
-                                <Button x:Name="UpdateNowButton" Content="עדכן עכשיו" Style="{StaticResource PrimaryButton}"
+                                <Button x:Name="UpdateNowButton" Content="עדכן עכשיו" Style="{StaticResource SettingsPrimaryButton}"
                                         Command="{Binding DownloadCommand}" Visibility="Collapsed" AutomationProperties.Name="Update now"/>
-                                <Button x:Name="RecheckButton" Content="בדוק שוב" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                <Button x:Name="RecheckButton" Content="בדוק שוב" Style="{StaticResource SettingsSecondaryButton}" Margin="8,0,0,0"
                                         Command="{Binding CheckCommand}" Visibility="Collapsed" AutomationProperties.Name="Check again"/>
                             </StackPanel>
                             <TextBlock Style="{StaticResource HintText}" Text="בדיקה ידנית מלבד הבדיקה האוטומטית בכל הפעלה"
