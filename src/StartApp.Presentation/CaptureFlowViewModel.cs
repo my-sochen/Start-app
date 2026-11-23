@@ -34,16 +34,15 @@ public sealed partial class MainViewModel
     public ObservableCollection<StagedRow> StagedRows => _stagedItems.Rows;
     private readonly CaptureDuplicateSession<CaptureRow, DupChoice> _captureDuplicates = new();
     public ObservableCollection<DupChoice> CaptureDupChoices => _captureDuplicates.Choices;
-    private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
-    public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); Raise(nameof(CaptureTargetHeader)); RaiseCommands(); } }
-    public bool CaptureOpen => _captureStage != CaptureStage.None;
-    public bool IsCaptureNew => _captureStage == CaptureStage.NewForm;
-    public bool IsCapturePick => _captureStage == CaptureStage.PickWorkspace;
-    public bool IsCaptureSide => _captureStage == CaptureStage.SideBySide;
+    private readonly CaptureSessionState _captureSession = new();
+    public CaptureStage CaptureStageNow { get => _captureSession.Stage; private set { if (_captureSession.Stage != value) { _captureSession.Stage = value; Raise(nameof(CaptureStageNow)); } Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); Raise(nameof(CaptureTargetHeader)); RaiseCommands(); } }
+    public bool CaptureOpen => _captureSession.IsOpen;
+    public bool IsCaptureNew => _captureSession.IsNew;
+    public bool IsCapturePick => _captureSession.IsPick;
+    public bool IsCaptureSide => _captureSession.IsSide;
     public bool CaptureEmpty => CaptureOpen && !IsScanning && CaptureRows.Count == 0;
     /// <summary>True while a scan runs in the background; the capture screen is already up and shows a scanning state.</summary>
-    public bool IsScanning { get => _isScanning; private set { Set(ref _isScanning, value); Raise(nameof(CaptureEmpty)); RaiseCommands(); } }
-    private bool _isScanning;
+    public bool IsScanning { get => _captureSession.Scanning; private set { if (_captureSession.Scanning != value) { _captureSession.Scanning = value; Raise(nameof(IsScanning)); } Raise(nameof(CaptureEmpty)); RaiseCommands(); } }
     /// <summary>The in-flight background scan; tests await it. Null until the first capture entry.</summary>
     public Task? CurrentScan { get; private set; }
     /// <summary>Hard bound for one scan: a source stuck in COM/UI Automation is abandoned after this, never waited on forever.</summary>
@@ -62,11 +61,10 @@ public sealed partial class MainViewModel
     }
     public string CaptureSelectionText => CaptureRows.Count(r => r.IsChecked) + " נבחרו";
     public string CaptureTargetHeader => IsCaptureSide ? "היעד: " + CaptureWorkspaceName : IsCaptureNew ? "סביבה חדשה" : "בחירת סביבה";
-    public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _capWsId)?.Name ?? "";
-    public string CaptureSearch { get => _captureSearch; set { Set(ref _captureSearch, value ?? ""); RefreshCaptureResults(); } }
-    private string _captureSearch = "";
+    public string CaptureWorkspaceName => _current.Workspaces.FirstOrDefault(w => w.Id == _captureSession.WorkspaceId)?.Name ?? "";
+    public string CaptureSearch { get => _captureSession.Search; set { var text = value ?? ""; if (_captureSession.Search != text) { _captureSession.Search = text; Raise(nameof(CaptureSearch)); } RefreshCaptureResults(); } }
     /// <summary>Unsaved capture work: staged additions on the side-by-side screen, or a filled-in new-workspace form.</summary>
-    public bool CaptureDirty => (_captureStage == CaptureStage.SideBySide && StagedRows.Count > 0) || (_captureStage == CaptureStage.NewForm && CreateDirty);
+    public bool CaptureDirty => _captureSession.IsDirty(StagedRows.Count, CreateDirty);
     public bool UnsavedForCapture { get => _unsavedExit.ForCapture; private set { if (_unsavedExit.ForCapture != value) { _unsavedExit.ForCapture = value; Raise(nameof(UnsavedForCapture)); } } }
     public bool CaptureDupSinglePending => _captureDuplicates.SinglePending;
     public string CaptureDupSingleMessage { get => _captureDuplicates.SingleMessage; private set { if (_captureDuplicates.SingleMessage != value) { _captureDuplicates.SingleMessage = value; Raise(nameof(CaptureDupSingleMessage)); } } }
@@ -101,7 +99,7 @@ public sealed partial class MainViewModel
         OpenSettingsCommand = Cmd(_ => { InAllItems = false; InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
         CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureStage == CaptureStage.PickWorkspace);
+        CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureSession.Stage == CaptureStage.PickWorkspace);
         CaptureAddCommand = Cmd(_ => AddCaptured(), _ => IsCaptureSide && CaptureRows.Count > 0 && CaptureIdle && !ReadOnly);
         CaptureDropCommand = Cmd(p => DropCaptured((CaptureRow)p!), p => p is CaptureRow && IsCaptureSide && CaptureIdle && !ReadOnly);
         CaptureSaveCommand = Cmd(_ => SaveStaged(), _ => IsCaptureSide && StagedRows.Count > 0 && CaptureIdle && !ReadOnly);
@@ -191,22 +189,22 @@ public sealed partial class MainViewModel
     private void RefreshCaptureResults()
     {
         CaptureWorkspaceResults.Clear();
-        foreach (var w in Workspaces.Where(w => _captureSearch.Length == 0 || w.Name.Contains(_captureSearch, StringComparison.OrdinalIgnoreCase) || w.EffectiveCategory.Contains(_captureSearch, StringComparison.OrdinalIgnoreCase)))
+        foreach (var w in Workspaces.Where(w => _captureSession.Search.Length == 0 || w.Name.Contains(_captureSession.Search, StringComparison.OrdinalIgnoreCase) || w.EffectiveCategory.Contains(_captureSession.Search, StringComparison.OrdinalIgnoreCase)))
             CaptureWorkspaceResults.Add(w);
     }
     private void EnterSideBySide(string wsId)
     {
-        _capWsId = wsId; StagedRows.Clear(); RefreshCaptureWorkspaceItems(); Raise(nameof(CaptureWorkspaceName)); CaptureStageNow = CaptureStage.SideBySide;
+        _captureSession.WorkspaceId = wsId; StagedRows.Clear(); RefreshCaptureWorkspaceItems(); Raise(nameof(CaptureWorkspaceName)); CaptureStageNow = CaptureStage.SideBySide;
     }
     private void RefreshCaptureWorkspaceItems()
     {
         CaptureWorkspaceItems.Clear();
-        var w = _current.Workspaces.FirstOrDefault(x => x.Id == _capWsId); if (w is null) return;
+        var w = _current.Workspaces.FirstOrDefault(x => x.Id == _captureSession.WorkspaceId); if (w is null) return;
         foreach (var m in w.Items.Select((m, i) => (m, i)).OrderBy(x => _current.Items.TryGetValue(x.m.ItemId, out var g) ? GroupRank(g.Type) : 4).ThenBy(x => x.i))
             if (_current.Items.TryGetValue(m.m.ItemId, out var it)) CaptureWorkspaceItems.Add(new CaptureExistingRow(m.m.Name ?? it.Name, it.Target, GroupOf(it.Type), it.Type.ToString()));
     }
     private bool IsCaptureDuplicate(CaptureRow r) =>
-        new Catalog(_current).HasTarget(_capWsId, r.Type, r.Target) || StagedRows.Any(s => s.Type == r.Type && s.Target == r.Target);
+        new Catalog(_current).HasTarget(_captureSession.WorkspaceId, r.Type, r.Target) || StagedRows.Any(s => s.Type == r.Type && s.Target == r.Target);
     private void Stage(CaptureRow r) { StagedRows.Add(new StagedRow(r.Item)); Raise(nameof(CaptureDirty)); RaiseCommands(); }
     /// <summary>One item dragged (or dropped by the view) onto the workspace side: a duplicate gets its own warning for that one drag.</summary>
     public void DropCaptured(CaptureRow r)
@@ -247,7 +245,7 @@ public sealed partial class MainViewModel
     private void CloseOpenWith() { OpenWithOpen = false; _openWith.ClearTargets(); }
     private bool SaveStaged()
     {
-        var wsId = _capWsId; var staged = StagedRows.ToList();
+        var wsId = _captureSession.WorkspaceId; var staged = StagedRows.ToList();
         foreach (var s in staged)
         {
             var ow = s.OpenWith.Trim(); LaunchConfig? launch = ow.Length == 0 ? null : s.Type == ItemType.Link ? new LaunchConfig(Browser: ow) : new LaunchConfig(OpenWith: ow);
@@ -320,7 +318,7 @@ public sealed partial class MainViewModel
         if (StagedRows.Count > 0) { MarkUnsavedHost(false, false, false, false, true); _unsavedExit.Continuation = BackToPick; UnsavedOpen = true; return; }
         BackToPick();
     }
-    private void BackToPick() { StagedRows.Clear(); _capWsId = ""; CaptureSearch = ""; RefreshCaptureResults(); CaptureStageNow = CaptureStage.PickWorkspace; }
+    private void BackToPick() { StagedRows.Clear(); _captureSession.WorkspaceId = ""; CaptureSearch = ""; RefreshCaptureResults(); CaptureStageNow = CaptureStage.PickWorkspace; }
     private void CaptureClose()
     {
         if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _unsavedExit.Continuation = ResetCapture; UnsavedOpen = true; return; }
@@ -331,7 +329,7 @@ public sealed partial class MainViewModel
     {
         _captureScan.CancelAndInvalidate(); // a scan still in flight is discarded, never applied
         IsScanning = false;
-        CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _captureDuplicates.SingleTarget = null; _capWsId = "";
+        CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _captureDuplicates.SingleTarget = null; _captureSession.WorkspaceId = "";
         CaptureDupGroupPending = false; CaptureSearch = "";
         if (IsCaptureNew) ResetCreateForm(); // X-discard from capture-new: the shared create form fields leave with the capture screen
         Raise(nameof(CaptureDupSinglePending)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureAddLabel));
