@@ -169,30 +169,12 @@ public sealed partial class MainViewModel
         }
     }
 
-    private static bool NeverLaunched(PreflightState s) => s is PreflightState.Missing or PreflightState.Unavailable or PreflightState.Unsupported or PreflightState.NeedsDecision;
-
     /// <summary>Starts items one after another on a background worker (Process.Start can block). Cancel stops FURTHER items only: requests already sent cannot be undone
     /// and are reported. A start call that is blocked in the OS cannot be interrupted; only the single launch worker is ever held by it.</summary>
     private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null)
     {
         var cts = _openOperation.BeginLaunch(); IsLaunching = true;
-        var results = new List<OpeningResult>(); Exception? fault = null;
-        await Task.Run(() =>
-        {
-            try { for (int i = 0; i < plan.Count; i++)
-            {
-                var p = plan[i];
-                if (cts.IsCancellationRequested) { results.Add(new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה.")); continue; }
-                if (declined?.Contains(i) == true) { results.Add(new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. בחרת שלא לפתוח שוב.")); continue; }
-                if (NeverLaunched(p.Finding.State)) { results.Add(new(p.Item, OpeningOutcome.Skipped, SkipExplanation(p.Finding), p.Finding.Detail)); continue; }
-                var r = _launcher.Launch(p.Item, p.Launch);
-                results.Add(r.Status == LaunchStatus.Started
-                    ? new(p.Item, OpeningOutcome.RequestSent, "בקשת הפתיחה נשלחה. אין בכך אישור שהפריט נטען.")
-                    : new(p.Item, OpeningOutcome.Failed, "בקשת הפתיחה נכשלה. בדקו את הכתובת, ההרשאות והתוכנה שנבחרה ונסו שוב.", r.Detail ?? r.Status.ToString()));
-            } }
-            catch (Exception e) { fault = e; }
-        }).ConfigureAwait(true);
-        if (fault != null) foreach (var p in plan.Skip(results.Count)) results.Add(new(p.Item, OpeningOutcome.Failed, "לא נפתח: הפעולה נעצרה בגלל תקלה.", fault.GetType().Name));
+        var (results, fault) = await OpeningLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true);
         OpenReport.Clear(); LastOpeningResults.Clear();
         foreach (var r in results.OrderBy(r => r.IsProblem ? 0 : 1)) { LastOpeningResults.Add(r); OpenReport.Add(r.Name + ": " + r.Message); }
         var sent = results.Count(r => r.Outcome == OpeningOutcome.RequestSent);

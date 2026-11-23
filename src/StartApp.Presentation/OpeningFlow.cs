@@ -77,14 +77,6 @@ public sealed partial class MainViewModel
         CopyTechnicalDetailsCommand = Cmd(p => CopyAddressRequested?.Invoke(p as string ?? ""), p => p is string);
     }
 
-    private static string SkipExplanation(PreflightFinding f) => f.State switch
-    {
-        PreflightState.Missing => "לא נמצא בכתובת השמורה. בדקו את הכתובת ונסו שוב.",
-        PreflightState.Unavailable => "לא ניתן היה לבדוק את הפריט בגלל גישה או זמן המתנה. לא נפתח; בדקו הרשאות ונסו שוב.",
-        PreflightState.NeedsDecision => "הפריט דורש בדיקה נוספת לפני פתיחה. בדקו את הכתובת והתוכנה שנבחרה.",
-        _ => "הפריט או צורת הפתיחה אינם נתמכים. עדכנו את הכתובת או את התוכנה שנבחרה."
-    };
-
     private readonly FieldErrorSession _fieldError = new();
     public string InlineError { get => _fieldError.Message; private set { if (_fieldError.Message != value) { _fieldError.Message = value; Raise(nameof(InlineError)); } } }
     private void FieldError(string host, string message, string technical)
