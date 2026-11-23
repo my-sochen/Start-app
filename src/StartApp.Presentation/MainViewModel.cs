@@ -28,9 +28,9 @@ public sealed partial class MainViewModel : ObservableBase
 
     public ObservableCollection<Workspace> Workspaces { get; } = new();
     public ObservableCollection<ItemRow> Items { get; } = new();
-    private readonly List<RelayCommand> _commands = new();
-    private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) { var c = new RelayCommand(run, can); _commands.Add(c); return c; }
-    private void RaiseCommands() { foreach (var c in _commands) c.Raise(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); Raise(nameof(CanBackToOpeningSelection)); }
+    private readonly CommandRegistry _commands = new();
+    private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) => _commands.Add(run, can);
+    private void RaiseCommands() { _commands.RaiseAll(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); Raise(nameof(CanBackToOpeningSelection)); }
     public ICommand CreateWorkspaceCommand { get; }
     /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
     public ICommand OpenDetailsCommand { get; }
