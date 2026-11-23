@@ -24,7 +24,7 @@ public sealed partial class MainViewModel : ObservableBase
     private readonly IItemPreflight? _preflight;
     private readonly IOpenStateDetector _detector;
     private readonly IOpenItemCapturer _capturer;
-    private Workspace? _selected; private string _status = ""; private bool _readOnly; private string _newName = "";
+    private Workspace? _selected; private string _status = ""; private bool _readOnly;
 
     public ObservableCollection<Workspace> Workspaces { get; } = new();
     public ObservableCollection<ItemRow> Items { get; } = new();
@@ -284,25 +284,15 @@ public sealed partial class MainViewModel : ObservableBase
     private string _newDescription = "";
 
     private void ClearDup(string? status = null) { if (!_pendingDup) return; _pendingDup = false; DuplicateMessage = ""; if (status != null) Status = status; Raise(nameof(DuplicatePending)); RaiseCommands(); }
-    public string NewName { get => _newName; set { Set(ref _newName, value); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
-    /// <summary>Optional workspace description in the create form.</summary>
-    public string NewWorkspaceDescription { get => _newWsDesc; set { Set(ref _newWsDesc, value ?? ""); Raise(nameof(CreateDirty)); } }
-    private string _newWsDesc = "";
-    /// <summary>Category chosen in the create form from the managed list (קטגוריה: כללי מסומנת כברירת מחדל, ואפשר לבחור אחרת).</summary>
-    public string NewWorkspaceCategory { get => _newWsCat; set { Set(ref _newWsCat, value ?? Workspace.DefaultCategory); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); } }
-    private string _newWsCat = Workspace.DefaultCategory;
-    /// <summary>Optional card color chosen at creation (#RRGGBB, palette or typed; empty = the app's default look). The same
-    /// design rule as עצב כרטיס applies from the first save: with an image the color is the frame, without one the background.</summary>
-    public string NewWorkspaceColor { get => _newWsColor; set { Set(ref _newWsColor, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
-    private string _newWsColor = "";
-    /// <summary>Optional card background image path chosen at creation; empty = none.</summary>
-    public string NewWorkspaceImagePath { get => _newWsImage; set { Set(ref _newWsImage, value ?? ""); Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
-    private string _newWsImage = "";
-    /// <summary>Clears every create-form field after a successful create or a discard (יציאה בלי לשמור).</summary>
+    private readonly WorkspaceCreateDraft _workspaceCreate = new();
+    public string NewName { get => _workspaceCreate.Name; set { if (_workspaceCreate.Name != value) { _workspaceCreate.Name = value; Raise(nameof(NewName)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
+    public string NewWorkspaceDescription { get => _workspaceCreate.Description; set { var text = value ?? ""; if (_workspaceCreate.Description != text) { _workspaceCreate.Description = text; Raise(nameof(NewWorkspaceDescription)); } Raise(nameof(CreateDirty)); } }
+    public string NewWorkspaceCategory { get => _workspaceCreate.Category; set { var text = value ?? Workspace.DefaultCategory; if (_workspaceCreate.Category != text) { _workspaceCreate.Category = text; Raise(nameof(NewWorkspaceCategory)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); } }
+    public string NewWorkspaceColor { get => _workspaceCreate.Color; set { var text = value ?? ""; if (_workspaceCreate.Color != text) { _workspaceCreate.Color = text; Raise(nameof(NewWorkspaceColor)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
+    public string NewWorkspaceImagePath { get => _workspaceCreate.ImagePath; set { var text = value ?? ""; if (_workspaceCreate.ImagePath != text) { _workspaceCreate.ImagePath = text; Raise(nameof(NewWorkspaceImagePath)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
+    // Keep host setter order and notifications on successful create/discard.
     private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
-    /// <summary>The create form holds unsaved input; closing the app then goes through the same unsaved-exit
-    /// dialog (spec: דיאלוג יציאה עם שינויים שלא נשמרו applies to טופס יצירת סביבה too).</summary>
-    public bool CreateDirty => NewName.Length > 0 || NewWorkspaceDescription.Length > 0 || NewWorkspaceCategory != Workspace.DefaultCategory || NewWorkspaceColor.Length > 0 || NewWorkspaceImagePath.Length > 0;
+    public bool CreateDirty => _workspaceCreate.IsDirty;
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
     public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
     private bool _unsavedForCreate;
@@ -334,13 +324,7 @@ public sealed partial class MainViewModel : ObservableBase
         get => _inCreate;
         private set { Set(ref _inCreate, value); Raise(nameof(InOverview)); RaiseCommands(); }
     }
-    public Workspace CreatePreview => new()
-    {
-        Name = string.IsNullOrWhiteSpace(NewName) ? "פרויקט חדש" : NewName,
-        Category = NewWorkspaceCategory,
-        Color = string.IsNullOrWhiteSpace(NewWorkspaceColor) ? "#7189BB" : NewWorkspaceColor,
-        ImagePath = NewWorkspaceImagePath
-    };
+    public Workspace CreatePreview => _workspaceCreate.Preview;
     public void ShowCreateScreen()
     {
         if (ReadOnly || CaptureOpen || InSettings || InGlobalEnv || IsChecking || IsLaunching || UnsavedOpen || InCreate) return;
