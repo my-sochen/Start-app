@@ -7,6 +7,7 @@ This guide describes the staged refactor branch, not a released build. The draft
 | Change you want | Start here | Keep out of this class |
 | --- | --- | --- |
 | New workspace input, dirty state or preview | `src/StartApp.Presentation/WorkspaceCreateDraft.cs` | Saving, navigation and notifications |
+| Manual-add draft, web-target interpretation and duplicate state | `ManualAddSession.cs` in the same folder | Selected workspace, notification order and catalog mutation |
 | Existing workspace details draft | `WorkspaceDetailsDraft.cs` in the same folder | Picking another workspace or writing storage |
 | Item edit draft and captured identity | `ItemEditSession.cs` | Retargeting to current selection during save |
 | Saved/staged address edit state | `AddressEditSession.cs` | Store writes and staged-row writes |
@@ -15,7 +16,11 @@ This guide describes the staged refactor branch, not a released build. The draft
 | Category editor draft/warning state | `CategoryEditSession.cs` | Catalog mutations |
 | Resource picker type/search/open state | `ResourcePickerSession.cs` | Binding collections and writes |
 | Resource picker sorting/filtering/usage | `ResourcePickerQuery.cs` | Session state |
+| Capture single/group duplicate state | `CaptureDuplicateSession.cs` | Duplicate identity policy and stage/save decisions |
+| Staged-row collection and same-group movement | `StagedItemCollection.cs` | Row writes and capture persistence |
 | Scan cancellation and stale results | `CaptureScanLifetime.cs` | Scan adapter and UI publication |
+| Opening target, checked plan and UI phase flags | `OpeningSessionState.cs` | Launch/check orchestration and notification order |
+| Atomic worker result and fault handoff | `CheckResultPublication.cs` | Deadline, cancellation, worker budget and error display |
 | Opening cancellation and generations | `OpenOperationLifetime.cs` | Launch and check policy |
 | Blocking preflight worker ceiling | `OpenCheckWorkerBudget.cs` | Resetting capacity when a worker times out |
 | Toast state and stale auto-hide identity | `ToastSession.cs` | Timer and dispatcher |
@@ -23,6 +28,7 @@ This guide describes the staged refactor branch, not a released build. The draft
 | Unsaved dialog and deferred continuation | `UnsavedExitSession.cs` | Save/discard ordering |
 | Command registration/invalidation order | `CommandRegistry.cs` | Execute/can-execute policy |
 | Window subscription lifetime | `src/StartApp.App/WindowSessionSubscriptions.cs` | View rendering |
+| Optional update window and approved-close state | `WindowUpdateSession.cs` in the App folder | WPF construction/events, apply launch and actual closing |
 | Default dialog focus transition | `DialogFocusSession.cs` in the App folder | WPF focus eligibility |
 | Row context-menu geometry | `WindowPopupPlacement.cs` in the App folder | Popup opening and dispatcher ordering |
 
@@ -52,10 +58,22 @@ For staged addresses and open-with defaults, the target is a staged row. Those w
 - Opening and capture lifetimes deliberately have different source-disposal rules. Do not replace one with the other without reviewing late-worker behavior.
 - The unsaved continuation is consumed before invocation, so reentry or an exception cannot execute the same continuation twice.
 
+## Follow a check deadline
+
+1. `OpeningExecutionViewModel.cs` creates one `CheckResultPublication` per check run.
+2. Workers record by original item index. Expected environmental failures become findings; unexpected faults enter the first-fault handoff.
+3. At the deadline, `Publish` takes a detached snapshot under the same lock used by workers. A later worker cannot change it.
+4. A fault already present belongs to `Guard`. The first fault arriving after handoff is returned to the late-error callback once, without waiting for another blocked worker.
+5. `OpenCheckWorkerBudget` still holds each worker's slot until its `finally` runs. Publication and cancellation do not free capacity.
+
+## Follow an optional update window
+
+`MainWindow.ShowStartupUpdate` delegates loaded/approved-close/single-window checks to `WindowUpdateSession`. Creation assigns the reference before the close event is subscribed, and subscription happens before showing. Dismissal clears the reference; it does not approve closing or install anything. A successfully launched apply helper or explicit application-close approval marks the session approved before `Close` is called. WPF events and apply-launch error handling remain in the window.
+
 ## Where to test
 
 - Each presentation owner has a matching `*Tests.cs` in `tests/StartApp.Presentation.Tests/`.
-- `tests/StartApp.App.Session.Tests/` compiles the exact production subscription, focus and placement source without WPF, then tests state/order/geometry directly.
+- `tests/StartApp.App.Session.Tests/` compiles the exact production subscription, focus, update-window lifetime and placement source without WPF, then tests state/order/geometry directly.
 - Existing integration tests exercise public MainViewModel commands, saved/staged paths and error handling. Run the contracts for the affected workflow, not an unrelated full suite.
 - `tests/StartApp.Platform.Windows.Tests/MenuBindingSourceTests.cs` checks XAML popup bindings and the call into the extracted geometry. A source contract is not rendered visual proof.
 - `tests/StartApp.CaptureRefactorCapture/` runs actual production MainWindow/XAML against a synthetic store.
