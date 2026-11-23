@@ -29,7 +29,7 @@ internal static class Program
         if (args.Length != 1 || Directory.Exists(args[0])) return 2;
         var output = Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
         // Use the same deterministic WPF software renderer for both products. No text/layout overrides.
-        System.Windows.Interop.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+        System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         var app = new Application();
         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml") });
         var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(), null, _ => throw new Exception("Unexpected browser"))) { Width=960, Height=650, Left=12, Top=12 };
