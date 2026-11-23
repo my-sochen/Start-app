@@ -254,8 +254,8 @@ public sealed partial class MainViewModel : ObservableBase
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
         OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _pendingOpen != null);
-        CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _pendingOpen != null || IsChecking || IsLaunching);
+        ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _opening.PendingPlan != null);
+        CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _opening.PendingPlan != null || IsChecking || IsLaunching);
         Reload();
     }
 

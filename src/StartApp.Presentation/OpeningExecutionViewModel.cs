@@ -8,7 +8,7 @@ namespace StartApp.Presentation;
 // Opening execution and cancellation. Public bindings remain on the shared workspace session.
 public sealed partial class MainViewModel
 {
-    private List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>? _pendingOpen;
+    private readonly OpeningSessionState _opening = new();
 
 
     public ICommand ConfirmOpenAnywayCommand { get; }
@@ -17,13 +17,13 @@ public sealed partial class MainViewModel
     public ObservableCollection<string> OpenProblems { get; } = new();
     /// <summary>Per-item outcome of the last open (one line per item).</summary>
     public ObservableCollection<string> OpenReport { get; } = new();
-    public bool OpenDecisionPending => _pendingOpen != null;
+    public bool OpenDecisionPending => _opening.DecisionPending;
     /// <summary>Label of the confirm button. When every item is skipped by policy, confirming only shows the report, so it says so.</summary>
     public string ConfirmLabel => "המשך לפתיחה";
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
-    public bool ShowOpenPanel => _isChecking || _isLaunching;
+    public bool ShowOpenPanel => _opening.ShowOpenPanel;
 
-    private void ClearPending() { if (IsChecking) { _openOperation.CancelCheckAndInvalidate(); IsChecking = false; } if (IsLaunching) _openOperation.CancelLaunch(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
+    private void ClearPending() { if (IsChecking) { _openOperation.CancelCheckAndInvalidate(); IsChecking = false; } if (IsLaunching) _openOperation.CancelLaunch(); _opening.PendingPlan = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
 
     /// <summary>לחיצה על שם האייטם: opens that one item after the same honest preflight the full open uses; the report line
@@ -37,7 +37,7 @@ public sealed partial class MainViewModel
     }
     private void OpenOneCore(string name, Item it, LaunchConfig? launch)
     {
-        ClearPending(); OpeningChoices.Clear(); _singleOpening = true; _openWsId = "";
+        ClearPending(); OpeningChoices.Clear(); _opening.SingleItem = true; _opening.WorkspaceId = "";
         var copy = it with { Name = name };
         StartSelectedCheck(new() { (new Membership(it.Id, Launch: launch), copy) });
     }
@@ -53,18 +53,16 @@ public sealed partial class MainViewModel
     private const int CheckWorkers = 4;
     private readonly OpenCheckWorkerBudget _checkWorkers = new(CheckWorkers);
     private readonly OpenOperationLifetime _openOperation = new();
-    private bool _isChecking, _isLaunching;
-    public bool IsLaunching { get => _isLaunching; private set { Set(ref _isLaunching, value); RaiseCommands(); } }
-    public bool IsChecking { get => _isChecking; private set { Set(ref _isChecking, value); RaiseCommands(); } }
+    public bool IsLaunching { get => _opening.Launching; private set { if (_opening.Launching != value) { _opening.Launching = value; Raise(nameof(IsLaunching)); } RaiseCommands(); } }
+    public bool IsChecking { get => _opening.Checking; private set { if (_opening.Checking != value) { _opening.Checking = value; Raise(nameof(IsChecking)); } RaiseCommands(); } }
     /// <summary>The running (or last) check-and-open operation. UI code never waits on it; tests await it.</summary>
     public Task OpenTask { get; private set; } = Task.CompletedTask;
 
-    private string _openWsId = "";
     private void Open()
     {
         ClearPending();
         if (Selected!.Items.Count == 0) { EmptyWorkspaceOpen = true; return; }
-        _openWsId = Selected.Id; _singleOpening = false;
+        _opening.WorkspaceId = Selected.Id; _opening.SingleItem = false;
         OpeningChoices.Clear();
         foreach (var m in Selected.Items)
         {
@@ -76,7 +74,7 @@ public sealed partial class MainViewModel
 
     private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
     {
-        SelectionPending = false; _pendingOpen = null; ReopenChoices.Clear();
+        SelectionPending = false; _opening.PendingPlan = null; ReopenChoices.Clear();
         var (gen, token) = _openOperation.BeginCheck();
         IsChecking = true;
         OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token));
@@ -174,7 +172,7 @@ public sealed partial class MainViewModel
         IsChecking = false;
         var confirmed = plan.Select((p, i) => (p, i)).Where(x => x.p.Finding.State == PreflightState.Ready && x.p.Dup == OpenState.Open).ToList();
         if (confirmed.Count == 0) { await LaunchAsync(plan); return; }
-        _pendingOpen = plan;
+        _opening.PendingPlan = plan;
         foreach (var x in confirmed)
         {
             ReopenChoices.Add(new ReopenChoice(x.i, x.p.Item));
@@ -197,9 +195,9 @@ public sealed partial class MainViewModel
 
     private void ConfirmOpen()
     {
-        var plan = _pendingOpen!;
+        var plan = _opening.PendingPlan!;
         var declined = ReopenChoices.Where(x => !x.IsChecked).Select(x => x.PlanIndex).ToHashSet();
-        _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); RaiseCommands();
+        _opening.PendingPlan = null; ReopenChoices.Clear(); OpenProblems.Clear(); RaiseCommands();
         var gen = _openOperation.NextGeneration(); OpenTask = Guard(gen, LaunchAsync(plan, declined));
     }
 
@@ -257,7 +255,7 @@ public sealed partial class MainViewModel
         OpenReport.Clear(); LastOpeningResults.Clear();
         foreach (var r in results.OrderBy(r => r.IsProblem ? 0 : 1)) { LastOpeningResults.Add(r); OpenReport.Add(r.Name + ": " + r.Message); }
         var sent = results.Count(r => r.Outcome == OpeningOutcome.RequestSent);
-        var stampSaved = sent == 0 || _singleOpening || Apply(c => c.TouchLastOpened(_openWsId));
+        var stampSaved = sent == 0 || _opening.SingleItem || Apply(c => c.TouchLastOpened(_opening.WorkspaceId));
         IsLaunching = false; Raise(nameof(HasLastOpeningResults));
         var hasProblems = results.Any(r => r.IsProblem);
         if (!stampSaved)

@@ -41,15 +41,12 @@ public sealed record OpeningResult(Item Item, OpeningOutcome Outcome, string Mes
 
 public sealed partial class MainViewModel
 {
-    private bool _singleOpening;
     public ObservableCollection<OpeningChoice> OpeningChoices { get; } = new();
     public ObservableCollection<ReopenChoice> ReopenChoices { get; } = new();
     public ObservableCollection<OpeningResult> LastOpeningResults { get; } = new();
-    private bool _selectionPending;
-    public bool SelectionPending { get => _selectionPending; private set { Set(ref _selectionPending, value); RaiseCommands(); } }
-    public bool CanBackToOpeningSelection => OpenDecisionPending && !_singleOpening;
-    private bool _resultsOpen;
-    public bool LastResultsOpen { get => _resultsOpen; private set { Set(ref _resultsOpen, value); RaiseCommands(); } }
+    public bool SelectionPending { get => _opening.SelectionPending; private set { if (_opening.SelectionPending != value) { _opening.SelectionPending = value; Raise(nameof(SelectionPending)); } RaiseCommands(); } }
+    public bool CanBackToOpeningSelection => _opening.CanBackToSelection;
+    public bool LastResultsOpen { get => _opening.ResultsOpen; private set { if (_opening.ResultsOpen != value) { _opening.ResultsOpen = value; Raise(nameof(LastResultsOpen)); } RaiseCommands(); } }
     public bool HasLastOpeningResults => LastOpeningResults.Count > 0;
     public ICommand ConfirmSelectionCommand { get; private set; } = null!;
     public ICommand BackToOpeningSelectionCommand { get; private set; } = null!;
@@ -72,7 +69,7 @@ public sealed partial class MainViewModel
     {
         ConfirmSelectionCommand = Cmd(_ => StartSelectedCheck(OpeningChoices.Where(x => x.IsChecked).Select(x =>
             (x.Membership, x.Item is null ? null : x.Item with { Name = x.Name })).ToList()), _ => SelectionPending && OpeningChoices.Any(x => x.IsChecked));
-        BackToOpeningSelectionCommand = Cmd(_ => { _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); SelectionPending = true; RaiseCommands(); }, _ => CanBackToOpeningSelection);
+        BackToOpeningSelectionCommand = Cmd(_ => { _opening.PendingPlan = null; ReopenChoices.Clear(); OpenProblems.Clear(); SelectionPending = true; RaiseCommands(); }, _ => CanBackToOpeningSelection);
         ShowLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = true, _ => HasLastOpeningResults);
         CloseLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = false, _ => LastResultsOpen);
         DismissToastCommand = Cmd(_ => { ToastVisible = false; _toastSession.NextGeneration(); }, _ => ToastVisible);
