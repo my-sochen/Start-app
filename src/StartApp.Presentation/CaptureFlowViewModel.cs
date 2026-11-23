@@ -70,8 +70,7 @@ public sealed partial class MainViewModel
     private string _captureSearch = "";
     /// <summary>Unsaved capture work: staged additions on the side-by-side screen, or a filled-in new-workspace form.</summary>
     public bool CaptureDirty => (_captureStage == CaptureStage.SideBySide && StagedRows.Count > 0) || (_captureStage == CaptureStage.NewForm && CreateDirty);
-    public bool UnsavedForCapture { get => _unsavedForCapture; private set => Set(ref _unsavedForCapture, value); }
-    private bool _unsavedForCapture;
+    public bool UnsavedForCapture { get => _unsavedExit.ForCapture; private set { if (_unsavedExit.ForCapture != value) { _unsavedExit.ForCapture = value; Raise(nameof(UnsavedForCapture)); } } }
     public bool CaptureDupSinglePending { get => _dupSingle != null; }
     public string CaptureDupSingleMessage { get => _dupSingleMessage; private set => Set(ref _dupSingleMessage, value); }
     private string _dupSingleMessage = ""; private CaptureRow? _dupSingle;
@@ -316,7 +315,7 @@ public sealed partial class MainViewModel
     {
         if (IsCaptureNew)
         {
-            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; FieldError("create", "חסר שם לסביבה. הזינו שם כדי לשמור.", "Not saved: workspace name is required"); return false; }
+            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _unsavedExit.ClearContinuation(); FieldError("create", "חסר שם לסביבה. הזינו שם כדי לשמור.", "Not saved: workspace name is required"); return false; }
             return CreateFromCapture();
         }
         return SaveStaged();
@@ -329,13 +328,13 @@ public sealed partial class MainViewModel
     }
     private void CaptureBack()
     {
-        if (StagedRows.Count > 0) { MarkUnsavedHost(false, false, false, false, true); _exitAction = BackToPick; UnsavedOpen = true; return; }
+        if (StagedRows.Count > 0) { MarkUnsavedHost(false, false, false, false, true); _unsavedExit.Continuation = BackToPick; UnsavedOpen = true; return; }
         BackToPick();
     }
     private void BackToPick() { StagedRows.Clear(); _capWsId = ""; CaptureSearch = ""; RefreshCaptureResults(); CaptureStageNow = CaptureStage.PickWorkspace; }
     private void CaptureClose()
     {
-        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _exitAction = ResetCapture; UnsavedOpen = true; return; }
+        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _unsavedExit.Continuation = ResetCapture; UnsavedOpen = true; return; }
         ResetCapture();
     }
     /// <summary>X: the capture list is dropped; opening capture again scans what is open at that moment. What was already saved stays saved.</summary>

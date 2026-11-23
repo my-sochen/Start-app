@@ -136,18 +136,17 @@ public sealed partial class MainViewModel : ObservableBase
     private bool _emptyOpen;
     public ICommand CloseEmptyWorkspaceCommand { get; }
     /// <summary>The shared unsaved-changes exit dialog (דיאלוג יציאה עם שינויים שלא נשמרו).</summary>
-    public bool UnsavedOpen { get => _unsavedOpen; private set { Set(ref _unsavedOpen, value); RaiseCommands(); } }
-    private bool _unsavedOpen;
-    private Action _exitAction = () => { };
+    private readonly UnsavedExitSession _unsavedExit = new();
+    public bool UnsavedOpen { get => _unsavedExit.IsOpen; private set { if (_unsavedExit.IsOpen != value) { _unsavedExit.IsOpen = value; Raise(nameof(UnsavedOpen)); } RaiseCommands(); } }
     /// <summary>Window-close guard: false means the close was cancelled and the unsaved-changes dialog opened instead.</summary>
     public bool RequestAppClose()
     {
-        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (CreateDirty) { MarkUnsavedHost(true, false, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
-        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _exitAction = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (CaptureDirty) { MarkUnsavedHost(false, false, false, false, true); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (CreateDirty) { MarkUnsavedHost(true, false, false); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
+        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _unsavedExit.Continuation = () => AppCloseApproved?.Invoke(); UnsavedOpen = true; return false; }
         return true;
     }
     private void SaveAndExit()
@@ -161,12 +160,12 @@ public sealed partial class MainViewModel : ObservableBase
         if (UnsavedForDesign && DesignDirty) { if (!SaveDesign()) return; }
         if (UnsavedForCreate && CreateDirty)
         {
-            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _exitAction = () => { }; Status = "Not saved: workspace name is required"; return; }
+            if (string.IsNullOrWhiteSpace(NewName)) { UnsavedOpen = false; _unsavedExit.ClearContinuation(); Status = "Not saved: workspace name is required"; return; }
             Create();
-            if (CreateDirty) { UnsavedOpen = false; _exitAction = () => { }; return; } // creation failed; keep editing
+            if (CreateDirty) { UnsavedOpen = false; _unsavedExit.ClearContinuation(); return; } // creation failed; keep editing
         }
         if (DetailsDirty) { if (!SaveDetails()) return; }
-        UnsavedOpen = false; var a = _exitAction; _exitAction = () => { }; a();
+        UnsavedOpen = false; _unsavedExit.Continue();
     }
     /// <summary>Fired when the user chose שמור וצא or צא בלי לשמור for a window close.</summary>
     public event Action? AppCloseApproved;
@@ -190,8 +189,8 @@ public sealed partial class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _workspaceDetails.SuppressDirty = true; LoadDetails(); _workspaceDetails.SuppressDirty = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
-        CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _workspaceDetails.SuppressDirty = true; LoadDetails(); _workspaceDetails.SuppressDirty = false; } _unsavedExit.Continue(); }, _ => UnsavedOpen);
+        CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _unsavedExit.ClearContinuation(); }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
@@ -294,17 +293,13 @@ public sealed partial class MainViewModel : ObservableBase
     private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
     public bool CreateDirty => _workspaceCreate.IsDirty;
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
-    public bool UnsavedForCreate { get => _unsavedForCreate; private set => Set(ref _unsavedForCreate, value); }
-    private bool _unsavedForCreate;
+    public bool UnsavedForCreate { get => _unsavedExit.ForCreate; private set { if (_unsavedExit.ForCreate != value) { _unsavedExit.ForCreate = value; Raise(nameof(UnsavedForCreate)); } } }
     /// <summary>True while the open unsaved-exit dialog guards the item edit form (טופס עריכת אייטם).</summary>
-    public bool UnsavedForItemEdit { get => _unsavedForItemEdit; private set => Set(ref _unsavedForItemEdit, value); }
-    private bool _unsavedForItemEdit;
+    public bool UnsavedForItemEdit { get => _unsavedExit.ForItemEdit; private set { if (_unsavedExit.ForItemEdit != value) { _unsavedExit.ForItemEdit = value; Raise(nameof(UnsavedForItemEdit)); } } }
     /// <summary>True while the open unsaved-exit dialog guards the address popup (פופאפ עריכת כתובת).</summary>
-    public bool UnsavedForAddress { get => _unsavedForAddress; private set => Set(ref _unsavedForAddress, value); }
-    private bool _unsavedForAddress;
+    public bool UnsavedForAddress { get => _unsavedExit.ForAddress; private set { if (_unsavedExit.ForAddress != value) { _unsavedExit.ForAddress = value; Raise(nameof(UnsavedForAddress)); } } }
     /// <summary>True while the open unsaved-exit dialog guards the card design popup (פופאפ עיצוב כרטיס).</summary>
-    public bool UnsavedForDesign { get => _unsavedForDesign; private set => Set(ref _unsavedForDesign, value); }
-    private bool _unsavedForDesign;
+    public bool UnsavedForDesign { get => _unsavedExit.ForDesign; private set { if (_unsavedExit.ForDesign != value) { _unsavedExit.ForDesign = value; Raise(nameof(UnsavedForDesign)); } } }
     public string UnsavedContextLabel => UnsavedForCreate ? "יצירת סביבה · יציאה" : UnsavedForItemEdit || UnsavedForAddress ? "עריכת אייטם · יציאה" : UnsavedForDesign ? "עיצוב כרטיס · יציאה" : UnsavedForCapture ? "לכידה · יציאה" : "פרטי הסביבה · יציאה";
     public string UnsavedContextMessage => UnsavedForCreate ? "בוצעו שינויים בסביבה החדשה שעדיין לא נשמרו." : UnsavedForItemEdit || UnsavedForAddress ? "בוצעו שינויים באייטם שעדיין לא נשמרו." : UnsavedForDesign ? "בוצעו שינויים בעיצוב הכרטיס שעדיין לא נשמרו." : UnsavedForCapture ? "בוצעו שינויים בלכידה שעדיין לא נשמרו." : "בוצעו שינויים בפרטי הסביבה שעדיין לא נשמרו.";
     private void MarkUnsavedHost(bool forCreate, bool forItemEdit, bool forAddress, bool forDesign = false, bool forCapture = false)
@@ -332,7 +327,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty)
         {
             MarkUnsavedHost(false, ItemEditDirty, AddressEditDirty, DesignDirty);
-            _exitAction = Show; UnsavedOpen = true; return;
+            _unsavedExit.Continuation = Show; UnsavedOpen = true; return;
         }
         Show();
     }
@@ -342,7 +337,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (CreateDirty)
         {
             MarkUnsavedHost(true, false, false);
-            _exitAction = () => InCreate = false; UnsavedOpen = true; return;
+            _unsavedExit.Continuation = () => InCreate = false; UnsavedOpen = true; return;
         }
         InCreate = false;
     }
@@ -385,9 +380,9 @@ public sealed partial class MainViewModel : ObservableBase
     private void Back()
     {
         ClearPending(); ClearDup(); EmptyWorkspaceOpen = false;
-        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _exitAction = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
-        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
-        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => { AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (DetailsDirty) { MarkUnsavedHost(false, false, false); _unsavedExit.Continuation = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _unsavedExit.Continuation = () => { ItemEditOpen = false; AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _unsavedExit.Continuation = () => { AddressEditOpen = false; InDetails = false; }; UnsavedOpen = true; return; }
         ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false;
         InDetails = false;
     }

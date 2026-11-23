@@ -33,7 +33,7 @@ public sealed partial class MainViewModel
     }
     private void CloseDesign()
     {
-        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _exitAction = () => DesignEditOpen = false; UnsavedOpen = true; return; }
+        if (DesignDirty) { MarkUnsavedHost(false, false, false, true); _unsavedExit.Continuation = () => DesignEditOpen = false; UnsavedOpen = true; return; }
         DesignEditOpen = false;
     }
 
