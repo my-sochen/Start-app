@@ -16,7 +16,7 @@ for(const [lang,values] of Object.entries(expected)){
   const target=values[i];
   assert.equal(catalogs[lang][source],target,lang+' catalog meaning '+i);count++;
   assert.equal(context.window.StartAppI18n.t(source),target,lang+' runtime meaning '+i);count++;
-  assert.ok(html.includes(target.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')),lang+' static meaning '+i);count++;
+  assert.ok(html.replaceAll('&#x27;',"'").replaceAll('&quot;','"').replaceAll('&amp;','&').replaceAll('&lt;','<').replaceAll('&gt;','>').includes(target),lang+' static meaning '+i);count++;
  }
 }
 console.log(count+' focused meaning consistency checks passed');

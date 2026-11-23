@@ -82,7 +82,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
       target.appendChild(note); return;
     }
     result.entries.forEach(pointer => {
-      const row = document.createElement("div"); row.className = "prototype-offer";
+      const row = document.createElement("div"); row.className = "prototype-offer"; row.dataset.tag = pointer.tag;
       const version = document.createElement("bdi"); version.textContent = pointer.version;
       const button = document.createElement("button"); button.type = "button"; button.disabled = true;
       P.render({button}, {state: "ok", pointer});

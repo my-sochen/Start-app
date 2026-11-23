@@ -5,7 +5,7 @@ const catalogs=JSON.parse(readFileSync(new URL('locales/catalogs.json',base)));
 let checks=0;
 const ok=(yes,name)=>{assert.ok(yes,name);checks++};
 for(const [lang,mapping] of Object.entries(catalogs)){
- ok(Object.keys(mapping).length===145,lang+' complete source coverage');
+ ok(Object.keys(mapping).length===193,lang+' complete source coverage');
  for(const [source,target] of Object.entries(mapping)){
   ok(target.trim().length>0,lang+' nonempty');
   ok(!/[\u0590-\u05ff]/.test(target),lang+' no unintended Hebrew');

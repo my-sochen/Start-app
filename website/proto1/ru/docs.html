@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html data-site-root=".." dir="ltr" lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="https://my-sochen.github.io/Start-app/proto1/ru/docs.html" rel="canonical"/>
+<meta content="Start-app: Руководство пользователя для ознакомительного прототипа, не стабильной версии." name="description"/>
+<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
+<title>start app</title>
+<link rel="icon" href="../../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+<link href="../../styles.css" rel="stylesheet"/>
+<link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+<link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/proto1/en/docs.html" />
+<link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/proto1/ru/docs.html" />
+<link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/proto1/zh-Hans/docs.html" />
+<link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/proto1/ja/docs.html" />
+<link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/proto1/fr/docs.html" />
+<link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/proto1/es/docs.html" />
+<link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/proto1/de/docs.html" />
+<link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+  </head>
+<body>
+<a class="skip" href="#main">Перейти к содержимому</a>
+<div class="pinned-top">
+<header>
+<a aria-label="Start-app, домашняя страница" class="brand" href="../../ru/index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+<nav aria-label="основная навигация">
+<a aria-current="page" href="docs.html">Руководство пользователя</a><a href="../../ru/index.html?version=v0.1.0-proto.1#download">Скачать</a>
+</nav>
+<details class="language-switch"><summary>язык</summary><nav aria-label="Выбор языка"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a aria-current="true" dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<div class="docs-jump">
+<a href="#toc">Главы руководства</a><a href="#main">Наверх ↑</a>
+</div>
+</div>
+<main class="wrap" id="main">
+<div class="docs-intro">
+<p class="eyebrow">Руководство пользователя</p>
+<h1 tabindex="-1">гид Start-app</h1>
+<p class="lead"> Шаг за шагом: создание рабочего пространства, добавление элементов, захват, запуск и сохранение - с реальными скриншотами приложения и с ограничениями, которые важно знать. </p>
+<p class="pill">Оценочный прототип, а не стабильная версия</p>
+        <details class="version-switch"><summary>Версия руководства: <bdi>0.1.0-proto.1</bdi></summary><nav aria-label="Выбор версии руководства"><a dir="ltr" href="../../ru/docs.html">0.1.0-proto.2</a><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.1</a></nav></details>
+</div>
+<div class="doc-layout">
+<aside aria-label="оглавление" class="sidebar" tabindex="0" id="toc">
+<label for="doc-search">Поиск по главам руководства</label><input autocomplete="off" id="doc-search" placeholder="Например: сохранение или захват" type="search"/>
+<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
+<nav aria-label="Главы руководства">
+<a href="#about">что это такое Start-app</a><a href="#install">Требования к системе и установке</a><a href="#main-screen">Главный экран: вид окружения</a><a href="#create">Создание новой рабочей среды</a><a href="#items">Добавление элементов вручную</a><a href="#capture">Захват: сканирование, выделение и дублирование</a><a href="#edit">Редактирование окружения и предметов</a><a href="#launch">Запускаем среду и тестируем перед открытием</a><a href="#limits">Известные ограничения</a><a href="#storage">Сохранение и локальное хранилище</a><a href="#privacy">Коротко о конфиденциальности</a><a href="#faq">часто задаваемые вопросы</a>
+</nav>
+<p class="note">Поиск локальный по странице. без отправки данных.</p>
+</aside>
+<div>
+<p class="no-results" hidden="" id="no-results"> Эпизоды не найдены. Попробуйте другое слово или очистите поиск. </p>
+<section class="doc-section" data-doc="" id="about">
+<span class="doc-kicker">начинать</span>
+<h2>что это такое Start-app</h2>
+<p> Start-app Сохраняет программы, папки, файлы и ссылки под одним именем среды. При следующем открытии компьютера команда «Выполнить» откроет все элементы вместе, не выбирая каждый заново. </p>
+<p> Данное руководство сопровождает весь маршрут: главный экран, создание среды, добавление элементов вручную или путем захвата, редактирования, запуска и сохранения. глава <a href="#limits">Известные ограничения</a> Централизуйте в одном месте все, что приложение не делает. </p>
+</section>
+<section class="doc-section" data-doc="" id="install">
+<span class="doc-kicker">начинать</span>
+<h2>Требования к системе и установке</h2>
+<p> Целью упаковки является Windows x64. Не существует проверенной версии для Mac или Linux. </p>
+<p> Отображается доступность загрузки <a href="../../ru/index.html?version=v0.1.0-proto.1#download">на главной странице</a> И обновляется автоматически: при наличии проверенной версии прототипа появляется ссылка для скачивания, а также номер версии, размер файла и его sha256 для проверки перед установкой. </p>
+<p class="doc-version-download">Загрузка версии, которую описывает это руководство, <bdi>0.1.0-proto.1</bdi>, находится в <a href="../../ru/index.html?version=v0.1.0-proto.1#download">списке версий на главной странице</a>. Загрузка выполняется только там, а не со страницы руководства.</p>
+<h3>Активация после загрузки</h3>
+<p> Загрузка представляет собой ZIP-файл, а не установщик. После загрузки: </p>
+<ol class="steps-list" data-layout-legacy hidden>
+<li>Извлеките все файлы из ZIP в папку.</li>
+<li> Откройте извлеченную папку и запустите <bdi><code>StartApp.App.exe</code></bdi>.
+              </li>
+<li>Оставьте DLL и файлы среды выполнения в папке рядом с файлом.</li>
+</ol>
+            <p data-layout-unknown>Извлеките все файлы ZIP в папку. Структура пакета неизвестна; перед выбором исполняемого файла прочитайте инструкции к версии.</p>
+            <p data-layout-portable hidden>Извлеките все файлы ZIP. Запустите <bdi><code>Start-app.exe</code></bdi> из корневой папки, сохраните рядом папку <bdi><code>App</code></bdi> и всегда перемещайте всю папку целиком.</p>
+<p data-layout-legacy-unqualified> Текущее устройство проекта — пакет, включающий среду выполнения, без регистрации и входа, с локальным хранением данных на устройстве. Свойства каждого пакета, предлагаемого для скачивания, публикуются и проверяются при его одобрении.</p>
+            <p data-layout-legacy-qualification hidden> Приложение включает в себя среду выполнения, поэтому нет необходимости устанавливать .NET отдельно. Никакой регистрации, аккаунта или входа. Данные сохраняются в локальный файл в<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            </p>
+<p data-layout-legacy-qualification hidden> Что тестировалось: Этот прототип был создан как автономное приложение Windows x64 и успешно запускался и завершал работу на размещенном сервере Windows Server 2025. Не проводилось независимое тестирование на домашней Windows 11, и не существует обязательств по минимальной версии Windows. Нет никакой гарантии, что предупреждения системы безопасности или предупреждения антивирусного программного обеспечения не появятся. </p>
+</section>
+<section class="doc-section" data-doc="" id="main-screen">
+<span class="doc-kicker">Экраны</span>
+<h2>Главный экран: вид окружения</h2>
+<p> В верхней части экрана находится список сред. На каждой карточке среды указаны название, описание, категория, выбранные цвет и изображение карточки, время создания и последнего открытия. Время последнего открытия обновляется при запуске среды, а не при открытии отдельного элемента. </p>
+<p> На каждой карточке есть кнопка «Запустить» и меню «...» с дополнительными действиями. Под списком находится форма создания новой среды, а в углу - переход к экрану захвата. </p>
+<figure class="shot">
+<img alt="Главный экран с тремя карточками сред, цветной карточкой со временем последнего открытия и формой создания среды внизу" height="560" loading="lazy" src="../../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
+<figcaption> Главный экран: карточки среды, включая карточку с цветным оформлением, и форма создания среды. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="create">
+<span class="doc-kicker">Экраны</span>
+<h2>Создание новой рабочей среды</h2>
+<p> В форме создания название обязательно. Категория по умолчанию - «Общие». Можно выбрать цвет и изображение карточки. Описание необязательно. После сохранения появляется подтверждение, что данные сохранены. </p>
+<figure class="shot">
+<img alt="Полная форма создания среды: имя, описание, категория по умолчанию, цветовая палитра и поле изображения, а также строка состояния, сведения о которой сохранены." height="560" loading="lazy" src="../../shots/doc-feat-08-overview-after-guard.png" width="900"/>
+<figcaption> Форма создания среды: название, описание, категория, цвет и изображение. </figcaption>
+</figure>
+<p> Если вы попытаетесь запустить среду, в которой еще нет элементов, появится сообщение с указанием сведений о среде для добавления элементов. </p>
+<figure class="shot">
+<img alt="Сообщение о пустой рабочей области при запуске с переходом к деталям среды." height="560" loading="lazy" src="../../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
+<figcaption> Запуск пустой среды перенаправляет на добавление элементов. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="items">
+<span class="doc-kicker">Экраны</span>
+<h2>Добавление элементов вручную</h2>
+<p> На экране сведений о среде добавьте элементы четырех типов: сайт, файл, папка и программное обеспечение. Каждому элементу можно дать свое имя и описание. Для локальных путей требуется полный путь Windows, а не короткий программный псевдоним. </p>
+<figure class="shot">
+<img alt="Экран сведений об среде без элементов, со строкой добавления элемента и выбора типа." height="560" loading="lazy" src="../../shots/doc-feat-01-details-empty.png" width="900"/>
+<figcaption> Экран сведений об окружающей среде: строка добавления и выбор типа элемента. </figcaption>
+</figure>
+<p> Элементы сгруппированы на экране по типу: веб-сайты, папки, файлы и программное обеспечение. Каждая строка имеет кнопку редактирования и меню действий. </p>
+<figure class="shot">
+<img alt="Четыре группы элементов полностью: веб-сайты, папки, файлы и программное обеспечение, с редактированием каждой строки." height="560" loading="lazy" src="../../shots/doc-feat-22-four-groups.png" width="900"/>
+<figcaption> Четыре группы элементов: сайты, папки, файлы и программное обеспечение. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="capture">
+<span class="doc-kicker">операции</span>
+<h2>Захват: сканирование, выделение и дублирование</h2>
+<p> Захват сканирует то, что сейчас открыто: программы и проводник Windows, а также в браузере адресную строку. Источник браузера знает Chrome, Edge и Brave; В настоящее время не существует полной матрицы совместимости для каждого браузера и версии. Сканирование может занять до 10 секунд. </p>
+<p> Результаты отображаются для выбора перед сохранением. Вы можете создать из них новую среду или добавить их в существующую среду с помощью поиска, который ее найдет. </p>
+<figure class="shot">
+<img alt="Экран захвата: поиск существующей среды по списку элементов, определенных как открытые в данный момент." height="560" loading="lazy" src="../../shots/doc-cap-pick-workspace-search.png" width="900"/>
+<figcaption> Выбор среды присутствует в снимке рядом со списком «открыть сейчас». </figcaption>
+</figure>
+<p> При создании новой среды элементы проверяются по умолчанию. При добавлении в существующую среду: без отметок действие - «Добавить все», а с пометками - «Добавить выбранное». Дублирование того, что уже сохранено в среде, требует одобрения. Добавления параллельных экранов остаются временными, пока вы не нажмете «Сохранить». </p>
+<figure class="shot">
+<img alt="Экран параллельного захвата перед сохранением: добавленные и несохраненные элементы в сравнении с обнаруженными элементами" height="560" loading="lazy" src="../../shots/doc-cap-side-by-side-staged.png" width="900"/>
+<figcaption> Рядом перед сохранением: ничего не сохраняется до тех пор, пока не будет нажата кнопка «Сохранить». </figcaption>
+</figure>
+<p> Захваченный сайт также сохраняет браузер, из которого он был найден, если его можно идентифицировать. </p>
+<figure class="shot">
+<img alt="Захваченная среда с шестью захваченными элементами, сайты сохраняют браузер, из которого они были найдены." height="560" loading="lazy" src="../../shots/doc-cap-created-from-capture-details.png" width="900"/>
+<figcaption> Среда, созданная путем захвата, включая сохранение исходного браузера каждого сайта. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="edit">
+<span class="doc-kicker">операции</span>
+<h2>Редактирование окружения и предметов</h2>
+<p> Меню «...» карты среды предлагает следующие функции: «Просмотр», «Запуск», «Добавить элемент», «Форматировать карту» и «Редактировать категорию». </p>
+<figure class="shot">
+<img alt="Меню действий с картой среды: просмотр, запуск, добавление элемента, карточка дизайна, изменение категории." height="560" loading="lazy" src="../../shots/doc-feat-12-card-actions-menu.png" width="900"/>
+<figcaption>Меню действий карты окружения.</figcaption>
+</figure>
+<p> При создании открытки выберите цвет и фоновое изображение. Для каждого элемента вы можете редактировать имя, описание и адрес, скопировать адрес, переместить его в списке или удалить из текущей среды. «Открыть с помощью» сохраняется в элементе внутри. Start-app только без изменения ассоциаций по умолчанию в Windows. </p>
+<figure class="shot">
+<img alt="Панель дизайна карты с цветовой палитрой и выбором фонового изображения" height="560" loading="lazy" src="../../shots/doc-feat-13-design-popup-open.png" width="900"/>
+<figcaption>Дизайн карты: цвет и фоновое изображение.</figcaption>
+</figure>
+<p> При выходе из редактирования с несохраненными изменениями открывается предупреждение: сохранить и выйти, выйти без сохранения или вернуться к редактированию. </p>
+<figure class="shot">
+<img alt="Предупреждение о несохраненных изменениях с опциями сохранения и выхода или выхода без сохранения" height="560" loading="lazy" src="../../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
+<figcaption>Предупреждение о выходе с несохраненными изменениями.</figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="launch">
+<span class="doc-kicker">операции</span>
+<h2>Запускаем среду и тестируем перед открытием</h2>
+<p> Команда «запустить» проверяет элементы перед открытием и отделяет элементы, которые готовы, отсутствуют, не поддерживаются, недоступны или требуют решения. Предметы, требующие решения, не получают общего обхода. Ссылки открываются только в формате http/https, а для программного обеспечения требуется полный путь. </p>
+<figure class="shot">
+<img alt="Панель принятия решений перед открытием с предупреждениями для каждого элемента, кнопками «Все равно открыть» и «Отменить», а также пояснением, что еще ничего не открывалось." height="560" loading="lazy" src="../../shots/doc-feat-09-decision-panel.png" width="900"/>
+<figcaption> Перед открытием: честные предупреждения для каждого предмета, и ничего не открывается до одобрения. </figcaption>
+</figure>
+<p> После подтверждения приложение отправляет Windows запрос на открытие каждого элемента. Важно понимать, что это значит: отправленный запрос не является доказательством того, что нужное окно действительно открылось. Приложение также не может достоверно определить, открыт ли уже конкретный элемент, поэтому повторное открытие может привести к созданию дубликатов. Элемент, файл которого не найден, выдает сообщение «файл не найден». </p>
+</section>
+<section class="doc-section" data-doc="" id="limits">
+<span class="doc-kicker">надежность</span>
+<h2>Известные ограничения</h2>
+<ul>
+<li> Автоматическая идентификация документа, открытого в программном обеспечении, отсутствует; Открытое программное обеспечение не является свидетельством открытия в нем определенного файла. Документы добавляются вручную. </li>
+<li> Нет никаких гарантий восстановления несохраненного контента или расположения окон. </li>
+<li> «уже открыто» достоверно неизвестно; Повторное открытие может привести к созданию дубликатов. </li>
+<li> При захвате можно открыто переключаться между вкладками для чтения адресов. </li>
+<li> Частичный результат захвата или пустой список не означают, что ничего не открыто. </li>
+<li> В интерфейсе нет операции удаления окружения; Вы можете удалять элементы из среды, но не удалять всю среду. </li>
+<li> Может появиться надпись «Поделиться в другой среде», но она неактивна. </li>
+</ul>
+</section>
+<section class="doc-section" data-doc="" id="storage">
+<span class="doc-kicker">надежность</span>
+<h2>Сохранение и локальное хранилище</h2>
+<p> В текущем устройстве проекта рабочие области сохраняются в локальном файле на компьютере: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Изменения сохраняются только при явном нажатии кнопки «Сохранить». </p>
+</section>
+<section class="doc-section" data-doc="" id="privacy">
+<span class="doc-kicker">надежность</span>
+<h2>Коротко о конфиденциальности</h2>
+<p> В текущем устройстве данные о средах сохраняются локально на компьютере. Открытие ссылки или программного обеспечения создает обычное сообщение об этом пункте назначения - например, открытие веб-сайта в браузере ведет на этот веб-сайт. </p>
+<p> Сам этот сайт не содержит форм, аналитики, удаленных шрифтов или сторонних сервисов. </p>
+</section>
+<section class="doc-section" data-doc="" id="faq">
+<span class="doc-kicker">надежность</span>
+<h2>часто задаваемые вопросы</h2>
+<h3>что Start-app делает?</h3>
+<p> Сохраняет программы, папки, файлы и ссылки под одним именем среды и открывает их все вместе командой «Выполнить». </p>
+<h3>Все ли открытое вернется в точности так, как было?</h3>
+<p> Не гарантировано. Нет автоматического захвата документов, открытых в программах, восстановления несохраненного контента или обещания размещения окна. Открытие - это запрос к операционной системе, с предварительной проверкой и отчетностью. </p>
+<h3>Как добавить документ, открытый в программе?</h3>
+<p> Вручную: добавьте сам файл как элемент типа файла в сведениях о среде. Захват не распознает его самостоятельно из открытого ПО. </p>
+<h3>Где хранится информация?</h3>
+<p> в локальном файле на компьютере. Подробности в главе <a href="#storage">Сохранение и локальное хранилище</a>.
+            </p>
+</section>
+</div>
+</div>
+</main>
+<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
+<script src="../../i18n.js"></script>
+<script src="../../docs.js"></script>
+<script src="../../site-nav.js"></script>
+</body>
+</html>

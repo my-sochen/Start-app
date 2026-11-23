@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="canonical" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+    <meta
+      name="description"
+      content="Start-app: מדריך למשתמש לאב-טיפוס להערכה, לא גרסה יציבה."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'"
+    />
+    <title>start app</title>
+    <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="stylesheet" href="../styles.css" />
+  <link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+<link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/proto1/en/docs.html" />
+<link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/proto1/ru/docs.html" />
+<link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/proto1/zh-Hans/docs.html" />
+<link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/proto1/ja/docs.html" />
+<link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/proto1/fr/docs.html" />
+<link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/proto1/es/docs.html" />
+<link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/proto1/de/docs.html" />
+<link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+  </head>
+  <body>
+    <a class="skip" href="#main">דילוג לתוכן</a>
+    <div class="pinned-top">
+    <header>
+      <a class="brand" href="../index.html" aria-label="Start-app, דף הבית"
+        ><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a
+      >
+      <nav aria-label="ניווט ראשי">
+        <a href="docs.html" aria-current="page">מדריך למשתמש</a
+        ><a href="../index.html?version=v0.1.0-proto.1#download">הורדה</a>
+      </nav>
+    <details class="language-switch"><summary>שפה</summary><nav aria-label="בחירת שפה"><a aria-current="true" dir="ltr" href="docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details>
+    </header>
+        <div class="docs-jump">
+          <a href="#toc">פרקי המדריך</a><a href="#main">חזרה למעלה ↑</a>
+        </div>
+    </div>
+    <main id="main" class="wrap">
+      <div class="docs-intro">
+        <p class="eyebrow">מדריך למשתמש</p>
+        <h1 tabindex="-1">מדריך Start-app</h1>
+        <p class="lead">
+          צעד אחר צעד: יצירת סביבת עבודה, הוספת פריטים, לכידה, שיגור ושמירה -
+          עם צילומי מסך אמיתיים של האפליקציה ועם המגבלות שחשוב להכיר.
+        </p>
+        <p class="pill">אב-טיפוס להערכה, לא גרסה יציבה</p>
+        <details class="version-switch"><summary>גרסת המדריך: <bdi>0.1.0-proto.1</bdi></summary><nav aria-label="בחירת גרסת המדריך"><a dir="ltr" href="../docs.html">0.1.0-proto.2</a><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.1</a></nav></details>
+      </div>
+      <div class="doc-layout">
+        <aside class="sidebar" tabindex="0" id="toc" aria-label="תוכן עניינים">
+          <label for="doc-search">חיפוש בפרקי המדריך</label
+          ><input
+            id="doc-search"
+            type="search"
+            placeholder="למשל: שמירה או לכידה"
+            autocomplete="off"
+          />
+          <p
+            id="search-status"
+            class="search-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+          <nav aria-label="פרקי המדריך">
+            <a href="#about">מה זה Start-app</a
+            ><a href="#install">דרישות מערכת והתקנה</a
+            ><a href="#main-screen">המסך הראשי: תצוגת הסביבות</a
+            ><a href="#create">יצירת סביבת עבודה חדשה</a
+            ><a href="#items">הוספת אייטמים ידנית</a
+            ><a href="#capture">לכידה: סריקה, בחירה וכפילויות</a
+            ><a href="#edit">עריכת סביבה ואייטמים</a
+            ><a href="#launch">שיגור סביבה ובדיקות לפני פתיחה</a
+            ><a href="#limits">מגבלות ידועות</a
+            ><a href="#storage">שמירה ואחסון מקומי</a
+            ><a href="#privacy">פרטיות בקצרה</a
+            ><a href="#faq">שאלות נפוצות</a>
+          </nav>
+          <p class="note">החיפוש מקומי לדף. ללא שליחת הנתון.</p>
+        </aside>
+        <div>
+          <p class="no-results" id="no-results" hidden>
+            לא נמצאו פרקים. נסו מילה אחרת או נקו את החיפוש.
+          </p>
+          <section id="about" class="doc-section" data-doc>
+            <span class="doc-kicker">התחלה</span>
+            <h2>מה זה Start-app</h2>
+            <p>
+              Start-app שומרת תוכנות, תיקיות, קבצים וקישורים תחת שם סביבה אחד.
+              בפעם הבאה שפותחים את המחשב, פקודת &quot;שגר&quot; פותחת את כל
+              הפריטים יחד, בלי לבחור כל אחד מחדש.
+            </p>
+            <p>
+              המדריך הזה מלווה את כל המסלול: המסך הראשי, יצירת סביבה, הוספת
+              אייטמים ידנית או מלכידה, עריכה, שיגור ושמירה. פרק
+              <a href="#limits">מגבלות ידועות</a> מרכז במקום אחד את כל מה
+              שהאפליקציה לא עושה.
+            </p>
+          </section>
+          <section id="install" class="doc-section" data-doc>
+            <span class="doc-kicker">התחלה</span>
+            <h2>דרישות מערכת והתקנה</h2>
+            <p>
+              יעד האריזה הוא Windows x64. אין גרסת Mac או Linux מאומתת.
+            </p>
+            <p>
+              זמינות ההורדה מוצגת <a href="../index.html?version=v0.1.0-proto.1#download">בדף הבית</a>
+              ומתעדכנת אוטומטית: כשקיימת גרסת אב-טיפוס מאומתת מופיע שם קישור
+              הורדה, יחד עם מספר הגרסה, גודל הקובץ וה-sha256 שלו לבדיקה לפני
+              ההתקנה.
+            </p>
+            <p class="doc-version-download">ההורדה של הגרסה שמתאר המדריך הזה, <bdi>0.1.0-proto.1</bdi>, נמצאת <a href="../index.html?version=v0.1.0-proto.1#download">ברשימת הגרסאות בדף הבית</a>. ההורדה מתבצעת רק שם, לא מדף המדריך.</p>
+            <h3>הפעלה אחרי ההורדה</h3>
+            <p>
+              ההורדה היא קובץ ZIP, לא מתקין. אחרי ההורדה:
+            </p>
+            <ol class="steps-list" data-layout-legacy hidden>
+              <li>חלצו את כל הקבצים מה־ZIP לתיקייה.</li>
+              <li>
+                פתחו את התיקייה שחולצה והפעילו את
+                <bdi><code>StartApp.App.exe</code></bdi>.
+              </li>
+              <li>השאירו את קובצי ה־DLL וה־runtime בתיקייה, לצד הקובץ.</li>
+            </ol>
+            <p data-layout-unknown>חלצו את כל קובצי ה־ZIP לתיקייה. מבנה החבילה לא זוהה; בדקו את הוראות הגרסה לפני בחירת קובץ להפעלה.</p>
+            <p data-layout-portable hidden>חלצו את כל קובצי ה־ZIP. הפעילו את <bdi><code>Start-app.exe</code></bdi> שבתיקייה הראשית, השאירו לצדו את תיקיית <bdi><code>App</code></bdi>, והעבירו תמיד את כל התיקייה יחד.</p>
+            <p data-layout-legacy-unqualified>
+              מבנה הפרויקט הנוכחי מתוכנן כחבילה הכוללת את סביבת ההרצה, ללא
+              הרשמה או התחברות, ועם שמירת נתונים מקומית במכשיר. מאפייני כל
+              חבילה שתוצע להורדה יפורסמו ויאומתו בעת אישורה.
+            </p>
+            <p data-layout-legacy-qualification hidden>
+              האפליקציה כוללת את סביבת ההרצה שלה, ולכן אין צורך בהתקנת .NET
+              בנפרד. אין הרשמה, חשבון או התחברות. הנתונים נשמרים בקובץ מקומי
+              ב־<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            </p>
+            <p data-layout-legacy-qualification hidden>
+              מה נבדק: אב-טיפוס זה נבנה כאפליקציית Windows x64 עצמאית, והופעל
+              ונסגר בהצלחה בשרת Windows Server 2025 מתארח. לא נבדק באופן
+              עצמאי ב־Windows 11 ביתי, ואין התחייבות לגרסת Windows מינימלית.
+              אין התחייבות שלא יופיעו אזהרות אבטחה או התראות של תוכנת אנטי-וירוס.
+            </p>
+          </section>
+          <section id="main-screen" class="doc-section" data-doc>
+            <span class="doc-kicker">מסכים</span>
+            <h2>המסך הראשי: תצוגת הסביבות</h2>
+            <p>
+              בראש המסך נמצאת רשימת הסביבות. בכל כרטיס סביבה רואים שם, תיאור,
+              קטגוריה, צבע ותמונת כרטיס שבחרתם, זמן יצירה ופתיחה אחרונה.
+              חותמת הפתיחה האחרונה מתעדכנת בשיגור סביבה, לא בפתיחת אייטם בודד.
+            </p>
+            <p>
+              לכל כרטיס כפתור &quot;שגר&quot; ותפריט &quot;...&quot; עם פעולות
+              נוספות. מתחת לרשימה נמצא טופס יצירת סביבה חדשה, ובפינה כניסה
+              למסך הלכידה.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-24-create-form-design-controls.png"
+                alt="המסך הראשי עם שלושה כרטיסי סביבה, כרטיס מסומן בצבע עם חותמת פתיחה אחרונה, וטופס יצירת סביבה מתחת"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                המסך הראשי: כרטיסי סביבה, כולל כרטיס מעוצב בצבע, וטופס יצירת
+                סביבה.
+              </figcaption>
+            </figure>
+          </section>
+          <section id="create" class="doc-section" data-doc>
+            <span class="doc-kicker">מסכים</span>
+            <h2>יצירת סביבת עבודה חדשה</h2>
+            <p>
+              בטופס היצירה שם הוא שדה חובה. קטגוריית ברירת המחדל היא
+              &quot;כללי&quot;, ואפשר לבחור צבע ותמונת כרטיס. התיאור הוא שדה
+              רשות. אחרי השמירה מופיע אישור שהפרטים נשמרו.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-08-overview-after-guard.png"
+                alt="טופס יצירת סביבה מלא: שם, תיאור, קטגוריה עם ברירת מחדל, פלטת צבעים ושדה תמונה, ושורת סטטוס שהפרטים נשמרו"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                טופס יצירת סביבה: שם, תיאור, קטגוריה, צבע ותמונה.
+              </figcaption>
+            </figure>
+            <p>
+              אם מנסים לשגר סביבה שעדיין אין בה אייטמים, מופיעה הודעה שמפנה
+              לפרטי הסביבה כדי להוסיף אייטמים.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-11-empty-workspace-dialog.png"
+                alt="הודעת סביבת עבודה ריקה בעת שיגור, עם מעבר לפרטי הסביבה"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                שיגור של סביבה ריקה מפנה להוספת אייטמים.
+              </figcaption>
+            </figure>
+          </section>
+          <section id="items" class="doc-section" data-doc>
+            <span class="doc-kicker">מסכים</span>
+            <h2>הוספת אייטמים ידנית</h2>
+            <p>
+              במסך פרטי הסביבה מוסיפים אייטמים מארבעה סוגים: אתר, קובץ, תיקייה
+              ותוכנה. לכל אייטם אפשר לתת שם ותיאור משלכם. לנתיבים מקומיים
+              נדרש נתיב Windows מלא, לא כינוי תוכנה קצר.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-01-details-empty.png"
+                alt="מסך פרטי סביבה ללא אייטמים, עם שורת הוספת אייטם ובחירת סוג"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                מסך פרטי סביבה: שורת ההוספה ובחירת סוג האייטם.
+              </figcaption>
+            </figure>
+            <p>
+              האייטמים מקובצים במסך לפי סוג: אתרים, תיקיות, קבצים ותוכנות.
+              לכל שורה כפתור עריכה ותפריט פעולות.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-22-four-groups.png"
+                alt="ארבע קבוצות האייטמים במלואן: אתרים, תיקיות, קבצים ותוכנות, עם עריכה לכל שורה"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                ארבע קבוצות האייטמים: אתרים, תיקיות, קבצים ותוכנות.
+              </figcaption>
+            </figure>
+          </section>
+          <section id="capture" class="doc-section" data-doc>
+            <span class="doc-kicker">פעולות</span>
+            <h2>לכידה: סריקה, בחירה וכפילויות</h2>
+            <p>
+              הלכידה סורקת מה שפתוח עכשיו: תוכנות וחלונות סייר קבצים, ובדפדפן
+              את שורת הכתובת. מקור הדפדפן מכיר Chrome, Edge ו-Brave; אין כרגע
+              מטריצת תאימות מלאה לכל דפדפן וגרסה. הסריקה עשויה להימשך עד כ-10
+              שניות.
+            </p>
+            <p>
+              התוצאות מוצגות לבחירה לפני שמירה. אפשר ליצור מהן סביבה חדשה או
+              להוסיף אותן לסביבה קיימת - עם חיפוש שמאתר אותה.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-cap-pick-workspace-search.png"
+                alt="מסך לכידה: חיפוש סביבה קיימת לצד רשימת הפריטים שזוהו כפתוחים כעת"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                בחירת סביבה קיימת בלכידה, לצד רשימת &quot;פתוח כעת&quot;.
+              </figcaption>
+            </figure>
+            <p>
+              ביצירת סביבה חדשה הפריטים מסומנים כברירת מחדל. בהוספה לסביבה
+              קיימת: בלי סימונים הפעולה היא &quot;הוסף הכל&quot;, ועם סימונים -
+              &quot;הוסף נבחרים&quot;. כפילויות מול מה שכבר שמור בסביבה דורשות
+              אישור. תוספות במסך צד-לצד נשארות זמניות עד שלוחצים שמור.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-cap-side-by-side-staged.png"
+                alt="מסך הלכידה צד-לצד לפני שמירה: פריטים שנוספו ועוד לא נשמרו מול הפריטים שזוהו"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                צד-לצד לפני שמירה: שום דבר לא נשמר עד לחיצה על שמור.
+              </figcaption>
+            </figure>
+            <p>
+              אתר שנלכד שומר גם את הדפדפן שממנו הוא נמצא, כשאפשר לזהות אותו.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-cap-created-from-capture-details.png"
+                alt="סביבה שנוצרה מלכידה עם שישה פריטים שנלכדו, אתרים שומרים את הדפדפן שממנו נמצאו"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                סביבה שנוצרה מלכידה, כולל שמירת דפדפן המקור של כל אתר.
+              </figcaption>
+            </figure>
+          </section>
+          <section id="edit" class="doc-section" data-doc>
+            <span class="doc-kicker">פעולות</span>
+            <h2>עריכת סביבה ואייטמים</h2>
+            <p>
+              תפריט &quot;...&quot; של כרטיס סביבה מציע: הצג, שגר, הוסף אייטם,
+              עצב כרטיס וערוך קטגוריה.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-12-card-actions-menu.png"
+                alt="תפריט הפעולות של כרטיס סביבה: הצג, שגר, הוסף אייטם, עצב כרטיס, ערוך קטגוריה"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>תפריט הפעולות של כרטיס סביבה.</figcaption>
+            </figure>
+            <p>
+              בעיצוב כרטיס בוחרים צבע ותמונת רקע. בכל אייטם אפשר לערוך שם,
+              תיאור וכתובת, להעתיק כתובת, להזיז ברשימה או להסיר מהסביבה
+              הנוכחית. &quot;פתח באמצעות&quot; נשמר לאייטם בתוך Start-app
+              בלבד, בלי לשנות שיוכי ברירת מחדל ב-Windows.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-13-design-popup-open.png"
+                alt="חלונית עיצוב כרטיס עם פלטת צבעים ובחירת תמונת רקע"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>עיצוב כרטיס: צבע ותמונת רקע.</figcaption>
+            </figure>
+            <p>
+              יציאה מעריכה עם שינויים שלא נשמרו פותחת אזהרה: שמור וצא, צא בלי
+              לשמור, או חזרה לעריכה.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-07-unsaved-dialog.png"
+                alt="אזהרת שינויים שלא נשמרו עם האפשרויות שמור וצא או צא בלי לשמור"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>אזהרת יציאה עם שינויים שלא נשמרו.</figcaption>
+            </figure>
+          </section>
+          <section id="launch" class="doc-section" data-doc>
+            <span class="doc-kicker">פעולות</span>
+            <h2>שיגור סביבה ובדיקות לפני פתיחה</h2>
+            <p>
+              הפקודה &quot;שגר&quot; בודקת את הפריטים לפני הפתיחה ומפרידה בין
+              פריטים שמוכנים, חסרים, לא נתמכים, לא זמינים או מצריכים החלטה.
+              פריטים שמצריכים החלטה לא מקבלים מעקף כללי. קישורים נפתחים
+              ב-http/https בלבד, ולתוכנות נדרש נתיב מלא.
+            </p>
+            <figure class="shot">
+              <img
+                src="../shots/doc-feat-09-decision-panel.png"
+                alt="פאנל ההחלטות לפני פתיחה עם אזהרות לכל פריט, כפתורי Open anyway ו-Cancel, והבהרה ששום דבר עוד לא נפתח"
+                width="900"
+                height="560"
+                loading="lazy"
+              />
+              <figcaption>
+                לפני פתיחה: אזהרות כנות לכל פריט, ושום דבר לא נפתח עד אישור.
+              </figcaption>
+            </figure>
+            <p>
+              אחרי אישור, האפליקציה שולחת ל-Windows בקשה לפתוח כל פריט. חשוב
+              להבין מה זה אומר: בקשה שנשלחה אינה הוכחה שהחלון הרצוי באמת
+              נפתח. האפליקציה גם לא יכולה לדעת באופן אמין אם הפריט המדויק כבר
+              פתוח, ולכן פתיחה חוזרת עלולה ליצור כפילות. פריט שהקובץ שלו לא
+              נמצא נכשל בהודעת &quot;הקובץ לא נמצא&quot;.
+            </p>
+          </section>
+          <section id="limits" class="doc-section" data-doc>
+            <span class="doc-kicker">אמינות</span>
+            <h2>מגבלות ידועות</h2>
+            <ul>
+              <li>
+                אין זיהוי אוטומטי של המסמך שפתוח בתוך תוכנה; תוכנה פתוחה אינה
+                ראיה לקובץ מסוים שפתוח בה. מסמכים מוסיפים ידנית.
+              </li>
+              <li>
+                אין הבטחה לשחזור תוכן שלא נשמר או למיקום חלונות.
+              </li>
+              <li>
+                &quot;כבר פתוח&quot; אינו ידוע באופן אמין; פתיחה חוזרת עלולה
+                ליצור כפילות.
+              </li>
+              <li>
+                הלכידה עשויה לעבור בגלוי בין לשוניות כדי לקרוא כתובות.
+              </li>
+              <li>
+                תוצאת לכידה חלקית או רשימה ריקה אינן אומרות שאין שום דבר
+                פתוח.
+              </li>
+              <li>
+                אין פעולת מחיקת סביבה בממשק; אפשר להסיר אייטמים מסביבה, לא
+                למחוק סביבה שלמה.
+              </li>
+              <li>
+                &quot;שיתוף לסביבה אחרת&quot; עשוי להופיע אך אינו פעיל.
+              </li>
+            </ul>
+          </section>
+          <section id="storage" class="doc-section" data-doc>
+            <span class="doc-kicker">אמינות</span>
+            <h2>שמירה ואחסון מקומי</h2>
+            <p>
+              במבנה הפרויקט הנוכחי, סביבות העבודה נשמרות בקובץ מקומי במחשב:
+              <code>%LOCALAPPDATA%\StartApp\store.json</code>. שינויים נשמרים
+              רק כשלוחצים שמור במפורש.
+            </p>
+          </section>
+          <section id="privacy" class="doc-section" data-doc>
+            <span class="doc-kicker">אמינות</span>
+            <h2>פרטיות בקצרה</h2>
+            <p>
+              במבנה הנוכחי, הנתונים של הסביבות נשמרים מקומית במחשב. פתיחת קישור או תוכנה
+              יוצרת את התקשורת הרגילה של אותו יעד - למשל, פתיחת אתר בדפדפן
+              פונה לאותו אתר.
+            </p>
+            <p>
+              האתר הזה עצמו אינו כולל טפסים, אנליטיקה, גופנים מרוחקים או
+              שירותי צד שלישי.
+            </p>
+          </section>
+          <section id="faq" class="doc-section" data-doc>
+            <span class="doc-kicker">אמינות</span>
+            <h2>שאלות נפוצות</h2>
+            <h3>מה Start-app עושה?</h3>
+            <p>
+              שומרת תוכנות, תיקיות, קבצים וקישורים תחת שם סביבה אחד, ופותחת את
+              כולם יחד בפקודת &quot;שגר&quot;.
+            </p>
+            <h3>האם כל מה שפתוח יחזור בדיוק כמו שהיה?</h3>
+            <p>
+              לא מובטח. אין לכידה אוטומטית של מסמכים שפתוחים בתוך תוכנות,
+              שחזור תוכן שלא נשמר או הבטחה למיקום חלונות. פתיחה היא בקשה
+              למערכת ההפעלה, עם בדיקות מקדימות ודיווח.
+            </p>
+            <h3>איך מוסיפים מסמך שפתוח בתוך תוכנה?</h3>
+            <p>
+              ידנית: מוסיפים את הקובץ עצמו כאייטם מסוג קובץ בפרטי הסביבה.
+              הלכידה לא מזהה אותו לבד מתוך התוכנה הפתוחה.
+            </p>
+            <h3>איפה נשמר המידע?</h3>
+            <p>
+              בקובץ מקומי במחשב. פירוט בפרק <a href="#storage">שמירה ואחסון
+              מקומי</a>.
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+      <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <script src="../i18n.js"></script>
+    <script src="../docs.js"></script>
+    <script src="../site-nav.js"></script>
+  </body>
+</html>
