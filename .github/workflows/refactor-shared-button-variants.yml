@@ -33,6 +33,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force evidence | Out-Null
+          Remove-Item baseline/tests/StartApp.CaptureRefactorCapture -Recurse -Force
           Copy-Item tests/StartApp.CaptureRefactorCapture baseline/tests/StartApp.CaptureRefactorCapture -Recurse
           foreach ($variant in @('before','before-repeat','after')) {
             $root = if ($variant -ne 'after') { 'baseline' } else { '.' }
