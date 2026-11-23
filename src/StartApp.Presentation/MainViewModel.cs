@@ -190,7 +190,7 @@ public sealed partial class MainViewModel : ObservableBase
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
-        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _detailsDirtyBypass = true; LoadDetails(); _detailsDirtyBypass = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
+        ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _workspaceDetails.SuppressDirty = true; LoadDetails(); _workspaceDetails.SuppressDirty = false; } var a = _exitAction; _exitAction = () => { }; a(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _exitAction = () => { }; }, _ => UnsavedOpen);
         FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
         OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
@@ -358,18 +358,11 @@ public sealed partial class MainViewModel : ObservableBase
     /// <summary>The empty state of the details screen: message plus an הוסף אייטם button.</summary>
     public bool ShowEmptyItemsMessage => InDetails && Selected != null && Selected.Items.Count == 0;
 
-    /// <summary>Editable workspace name on the details screen (direct editing, no edit button).</summary>
-    public string EditName { get => _editName; set { Set(ref _editName, value ?? ""); RaiseDirty(); } }
-    private string _editName = "";
-    /// <summary>Editable category; the built-in default is כללי and custom category management is a separate feature.</summary>
-    public string EditCategory { get => _editCategory; set { Set(ref _editCategory, value ?? ""); RaiseDirty(); } }
-    private string _editCategory = "";
-    /// <summary>Editable workspace description.</summary>
-    public string EditDescription { get => _editDescription; set { Set(ref _editDescription, value ?? ""); RaiseDirty(); } }
-    private string _editDescription = "";
-    private bool _detailsDirtyBypass;
-    /// <summary>Any change on the details screen shows the Save button (spec: כל שינוי מציג כפתור שמירה). Scoped to an open details session: before the fields load (overview/startup) the blank edit boxes must not read as "changed" (PR19 review: a freshly started app with a saved workspace looked dirty and prompted on close).</summary>
-    public bool DetailsDirty => !_detailsDirtyBypass && InDetails && Selected != null && (EditName != Selected.Name || EditCategory != Selected.EffectiveCategory || EditDescription != (Selected.Description ?? ""));
+    private readonly WorkspaceDetailsDraft _workspaceDetails = new();
+    public string EditName { get => _workspaceDetails.Name; set { var text = value ?? ""; if (_workspaceDetails.Name != text) { _workspaceDetails.Name = text; Raise(nameof(EditName)); } RaiseDirty(); } }
+    public string EditCategory { get => _workspaceDetails.Category; set { var text = value ?? ""; if (_workspaceDetails.Category != text) { _workspaceDetails.Category = text; Raise(nameof(EditCategory)); } RaiseDirty(); } }
+    public string EditDescription { get => _workspaceDetails.Description; set { var text = value ?? ""; if (_workspaceDetails.Description != text) { _workspaceDetails.Description = text; Raise(nameof(EditDescription)); } RaiseDirty(); } }
+    public bool DetailsDirty => _workspaceDetails.IsDirty(InDetails, Selected);
     public string CreatedAtText => Selected?.CreatedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "unknown";
     /// <summary>Card display: last time the workspace was really opened, or never.</summary>
     public static string LastOpenedTextOf(Workspace w) => w.LastOpenedAt is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "never";
@@ -377,7 +370,7 @@ public sealed partial class MainViewModel : ObservableBase
     private void LoadDetails()
     {
         if (Selected is null) return;
-        _editName = Selected.Name; _editCategory = Selected.EffectiveCategory; _editDescription = Selected.Description ?? "";
+        _workspaceDetails.Load(Selected);
         Raise(nameof(EditName)); Raise(nameof(EditCategory)); Raise(nameof(EditDescription)); RaiseDirty(); Raise(nameof(CreatedAtText));
     }
     private void OpenDetails(Workspace w)
