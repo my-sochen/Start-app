@@ -20,7 +20,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Focused tests
         shell: pwsh
-        run: dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~ReviewInputTests|FullyQualifiedName~GlobalEnvTests"
+        run: dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~ReviewInputTests|FullyQualifiedName~GlobalEnvTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~StagedItemActionsTests"
       - name: Adversarial product behavior review, synthetic data only
         shell: pwsh
         run: ./.github/e2e/review-fixes.ps1
