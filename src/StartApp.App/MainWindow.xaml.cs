@@ -147,39 +147,7 @@ public partial class MainWindow : Window
         }
         if (host.DataContext is ItemRow detail && DataContext is MainViewModel viewModel && viewModel.AllItemFromDetail(detail) is { } allRow && FindItemActionButton(host) is { } anchor)
         { e.Handled = true; ShowItemActions(anchor, allRow, detail); return; }
-        // Keep row identity separate from window commands across the popup boundary.
-        menu.PlacementTarget = host;
-        menu.DataContext = host.DataContext;
-        // Do not anchor below the whole expanded editor or a partly scrolled-out row.
-        // Compute the final popup origin inside the owner, then express it relative to the host.
-        var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));
-        // A just-materialized (virtualized) row can report ActualHeight 0 here; fall back to the 32 dip offset.
-        var anchorY = WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, ActualHeight);
-        menu.MaxHeight = Math.Max(0, ActualHeight - 16);
-        menu.MaxWidth = Math.Max(0, ActualWidth - 16);
-        // ContextMenuService overrides PlacementTarget/Placement for keyboard and mouse opens, and for the
-        // keyboard route e.Handled here does not cancel its open (measured 22.11: identical placement with
-        // and without handling). So let whoever opened it finish, then re-place on the next dispatcher tick:
-        // reopening with our anchored clamped Custom placement wins regardless of the open path (approved
-        // 22.11: anchored at the source, never overflowing the window).
-        var capturedMenu = menu;
-        var capturedCallback = (System.Windows.Controls.Primitives.CustomPopupPlacementCallback)((popupSize, targetSize, _) =>
-        {
-            // popupSize at callback time can under-measure the final rendered height (measured 22.11: 173 vs
-            // a final 187 UIA rect), so flip/clamp against an 18px-padded height - under-flipping overflows.
-            var offset = WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width,
-                popupSize.Width, popupSize.Height, anchorY, ActualWidth, ActualHeight);
-            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(offset.X, offset.Y),
-                System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-        });
-        capturedMenu.Dispatcher.BeginInvoke(new System.Action(() =>
-        {
-            if (!capturedMenu.IsOpen) return;
-            capturedMenu.PlacementTarget = host;
-            capturedMenu.CustomPopupPlacementCallback = capturedCallback;
-            capturedMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-            capturedMenu.IsOpen = false;
-            capturedMenu.IsOpen = true;
-        }), System.Windows.Threading.DispatcherPriority.Background);   // Input runs BEFORE the service's own posted open; Background runs after it
+        Menus.AnchorRow(host,menu);
+
     }
 }

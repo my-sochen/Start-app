@@ -77,8 +77,9 @@ public class MenuBindingSourceTests
         Assert.Contains("selectedEnvironment.IsEnabled = vm.SavedItemDestinations(source).Count > 0",submenu);
         Assert.Contains("destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind)",submenu);
         foreach(var destination in new[]{"GlobalListKind.Blacklist","GlobalListKind.Whitelist","GlobalListKind.GlobalItems"}) Assert.Contains(destination,submenu);
+        code+=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"Components","ActionMenu.cs"));
         // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
-        Assert.Contains("WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, ActualHeight)",code);
+        Assert.Contains("WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, _owner.ActualHeight)",code);
         Assert.Contains("WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width",code);
         var placement=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"WindowPopupPlacement.cs"));
         Assert.Contains("popupHeight + 18",placement);
