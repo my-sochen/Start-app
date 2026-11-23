@@ -31,7 +31,8 @@ public sealed partial class MainViewModel
     public ObservableCollection<Workspace> CaptureWorkspaceResults { get; } = new();
     public ObservableCollection<CaptureExistingRow> CaptureWorkspaceItems { get; } = new();
     public ObservableCollection<StagedRow> StagedRows { get; } = new();
-    public ObservableCollection<DupChoice> CaptureDupChoices { get; } = new();
+    private readonly CaptureDuplicateSession<CaptureRow, DupChoice> _captureDuplicates = new();
+    public ObservableCollection<DupChoice> CaptureDupChoices => _captureDuplicates.Choices;
     private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
     public CaptureStage CaptureStageNow { get => _captureStage; private set { Set(ref _captureStage, value); Raise(nameof(CaptureOpen)); Raise(nameof(IsCaptureNew)); Raise(nameof(IsCapturePick)); Raise(nameof(IsCaptureSide)); Raise(nameof(CaptureDirty)); Raise(nameof(CaptureTargetHeader)); RaiseCommands(); } }
     public bool CaptureOpen => _captureStage != CaptureStage.None;
@@ -66,11 +67,9 @@ public sealed partial class MainViewModel
     /// <summary>Unsaved capture work: staged additions on the side-by-side screen, or a filled-in new-workspace form.</summary>
     public bool CaptureDirty => (_captureStage == CaptureStage.SideBySide && StagedRows.Count > 0) || (_captureStage == CaptureStage.NewForm && CreateDirty);
     public bool UnsavedForCapture { get => _unsavedExit.ForCapture; private set { if (_unsavedExit.ForCapture != value) { _unsavedExit.ForCapture = value; Raise(nameof(UnsavedForCapture)); } } }
-    public bool CaptureDupSinglePending { get => _dupSingle != null; }
-    public string CaptureDupSingleMessage { get => _dupSingleMessage; private set => Set(ref _dupSingleMessage, value); }
-    private string _dupSingleMessage = ""; private CaptureRow? _dupSingle;
-    public bool CaptureDupGroupPending { get => _dupGroup; private set { Set(ref _dupGroup, value); RaiseCommands(); } }
-    private bool _dupGroup;
+    public bool CaptureDupSinglePending => _captureDuplicates.SinglePending;
+    public string CaptureDupSingleMessage { get => _captureDuplicates.SingleMessage; private set { if (_captureDuplicates.SingleMessage != value) { _captureDuplicates.SingleMessage = value; Raise(nameof(CaptureDupSingleMessage)); } } }
+    public bool CaptureDupGroupPending { get => _captureDuplicates.GroupPending; private set { if (_captureDuplicates.GroupPending != value) { _captureDuplicates.GroupPending = value; Raise(nameof(CaptureDupGroupPending)); } RaiseCommands(); } }
     public ICommand CaptureNewCommand { get; private set; } = null!;
     public ICommand CaptureExistingCommand { get; private set; } = null!;
     public ICommand AddFromOpenCommand { get; private set; } = null!;
@@ -93,7 +92,7 @@ public sealed partial class MainViewModel
     public ICommand CancelCaptureDupSingleCommand { get; private set; } = null!;
     public ICommand ConfirmCaptureDupGroupCommand { get; private set; } = null!;
     public ICommand CancelCaptureDupGroupCommand { get; private set; } = null!;
-    private bool CaptureIdle => !_dupGroup && _dupSingle == null;
+    private bool CaptureIdle => _captureDuplicates.IsIdle;
     private void InitCaptureCommands()
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
@@ -126,16 +125,16 @@ public sealed partial class MainViewModel
         StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly && !ItemEditDirty && !AddressEditDirty);
         StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
-        ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _dupSingle!; _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _dupSingle != null);
-        CancelCaptureDupSingleCommand = Cmd(_ => { _dupSingle = null; Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); }, _ => _dupSingle != null);
-        ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _dupGroup);
-        CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _dupGroup);
+        ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _captureDuplicates.SingleTarget!; _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _captureDuplicates.SingleTarget != null);
+        CancelCaptureDupSingleCommand = Cmd(_ => { _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); }, _ => _captureDuplicates.SingleTarget != null);
+        ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _captureDuplicates.GroupPending);
+        CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _captureDuplicates.GroupPending);
     }
     private void OnCaptureCheckChanged() { Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); }
     private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
     {
         CaptureRows.Clear(); CaptureNotes.Clear();
-        StagedRows.Clear(); CaptureDupChoices.Clear(); _dupSingle = null; CaptureDupGroupPending = false; CaptureSearch = "";
+        StagedRows.Clear(); CaptureDupChoices.Clear(); _captureDuplicates.SingleTarget = null; CaptureDupGroupPending = false; CaptureSearch = "";
         Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureDupSinglePending));
         // The screen opens right away; the scan itself runs off the UI thread, so a stuck COM/UIA call can never freeze the window.
         if (wsId != null) EnterSideBySide(wsId);
@@ -214,7 +213,7 @@ public sealed partial class MainViewModel
         if (!IsCaptureSide || !CaptureIdle) return;
         if (IsCaptureDuplicate(r))
         {
-            _dupSingle = r; CaptureDupSingleMessage = $"'{r.Name}' is already in this workspace (or already added here). Add it again as a separate instance?";
+            _captureDuplicates.SingleTarget = r; CaptureDupSingleMessage = $"'{r.Name}' is already in this workspace (or already added here). Add it again as a separate instance?";
             Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); return;
         }
         Stage(r);
@@ -335,7 +334,7 @@ public sealed partial class MainViewModel
     {
         _captureScan.CancelAndInvalidate(); // a scan still in flight is discarded, never applied
         IsScanning = false;
-        CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _dupSingle = null; _capWsId = "";
+        CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _captureDuplicates.SingleTarget = null; _capWsId = "";
         CaptureDupGroupPending = false; CaptureSearch = "";
         if (IsCaptureNew) ResetCreateForm(); // X-discard from capture-new: the shared create form fields leave with the capture screen
         Raise(nameof(CaptureDupSinglePending)); Raise(nameof(CaptureEmpty)); Raise(nameof(CaptureAddLabel));
