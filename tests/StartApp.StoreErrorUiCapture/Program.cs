@@ -22,7 +22,7 @@ internal static class Program
     static async Task Click(Button b,Window w){Check(b.IsVisible&&b.IsEnabled,"Button unavailable: "+b.Content);((IInvokeProvider)new ButtonAutomationPeer(b)).Invoke();await Idle(w);}
     [STAThread] static int Main(string[] args)
     {
-        if(args.Length!=1||Directory.Exists(args[0]))return 2;Directory.CreateDirectory(args[0]);var records=new List<object>();var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+        if(args.Length!=1||Directory.Exists(args[0]))return 2;args[0]=Path.GetFullPath(args[0]);Directory.CreateDirectory(args[0]);var records=new List<object>();var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml")});int result=0;
         app.Startup+=async(_,_)=>{
             try{
@@ -53,7 +53,7 @@ internal static class Program
                     var notification=Children<Border>(w).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Notification");var expander=Children<Expander>(notification).Single();expander.IsExpanded=true;await Idle(w);
                     var details=Children<TextBox>(expander).Single(t=>t.IsReadOnly&&t.Text==vm.ToastTechnicalDetails);
                     Check(details.IsVisible,"Technical details not visible");await Click(Children<Button>(w).Single(b=>ReferenceEquals(b.Command,vm.CopyTechnicalDetailsCommand)&&b.IsVisible),w);
-                    Check(Clipboard.GetText()==vm.ToastTechnicalDetails,"Actual clipboard mismatch");if(!newer)Check(vm.ToastTechnicalDetails.Contains(Directory.GetFiles(Path.GetDirectoryName(path)!,"store.json.diag-*").Single()),"Copy path missing");
+                    File.WriteAllText(Path.Combine(args[0],name+"-details.txt"),vm.ToastTechnicalDetails);Check(Clipboard.GetText()==vm.ToastTechnicalDetails,"Actual clipboard mismatch");if(!newer)Check(vm.ToastTechnicalDetails.Contains(Directory.GetFiles(Path.GetDirectoryName(path)!,"store.json.diag-*").Single()),"Copy path missing");
                     var png=new PngBitmapEncoder();var image=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(w);png.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(args[0],name+".png")))png.Save(f);
                     records.Add(new{name,readonlyState=vm.ReadOnly,notificationVisible=vm.ToastVisible,detailsVisible=details.IsVisible,clipboardExact=true,storeUnchanged=true});w.DataContext=null;w.Close();
                 }
