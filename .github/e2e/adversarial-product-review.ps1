@@ -57,75 +57,50 @@ function Shot($name){
 }
 function Dump($name){$lines=@();foreach($root in (Roots)){foreach($e in $root.FindAll($TS::Descendants,[Windows.Automation.Condition]::TrueCondition)){try{if(-not $e.Current.IsOffscreen){$lines+="$($e.Current.ControlType.ProgrammaticName)|$($e.Current.Name)|enabled=$($e.Current.IsEnabled)|rect=$($e.Current.BoundingRectangle)"}}catch{}}};$lines|Set-Content "$out/$name-uia.txt"}
 function Scenario($name,[scriptblock]$body){try{Seed;StartApp;&$body;Record "$name completed" $true 'Behavior observations recorded'}catch{Record "$name harness-or-product-stop" $false $_.Exception.Message;try{Shot "$name-stop";Dump "$name-stop"}catch{}}finally{StopApp}}
-function Menu($name){$e=Wait $name $CT::MenuItem;$e.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 200}
+function Menu($name){$e=Wait $name $CT::MenuItem;$e.SetFocus();[Windows.Forms.SendKeys]::SendWait('{ENTER}');Start-Sleep -Milliseconds 250}
 function Mouse($name){$e=Wait $name $CT::Button;$r=$e.Current.BoundingRectangle;[void][ReviewWin]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[ReviewWin]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[ReviewWin]::mouse_event(4,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 200}
 function Context($name){$e=Wait $name $CT::Button;$e.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');Start-Sleep -Milliseconds 250}
 $env:STARTAPP_CRASHLOG='1'
 try{
- Scenario '01-empty-create' {
-  Click 'New workspace button';Record 'Blank workspace creation blocked' (-not (Wait 'Create workspace' $CT::Button).Current.IsEnabled) 'Blank name'
-  Text 'Workspace name' '   ';Record 'Whitespace-only workspace creation blocked' (-not (Wait 'Create workspace' $CT::Button).Current.IsEnabled) 'Spaces only';Shot '01-create-whitespace'
-  Text 'Workspace name' ('א'*240);Click 'Create workspace';Shot '01-long-workspace';Dump '01-long-workspace'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Long workspace name persisted length' $true (@($o.workspaces|Where-Object{$_.name.Length -gt 200})[0].name.Length)
+ Scenario '16-invalid-edit-restart' {
+  Click 'Review one';Click 'Edit item';Text 'Edit item target' 'javascript:alert(1)';Click 'Save item edit';StopApp;StartApp;Click 'Review one'
+  $o=Get-Content $store -Raw|ConvertFrom-Json;$m=@(($o.workspaces|Where-Object id -eq 'one').items|Where-Object id -eq 'm1')[0];$target=$o.items.PSObject.Properties[$m.itemId].Value.target
+  Record 'Edited javascript target persists after restart' ($target -eq 'javascript:alert(1)') $target;Shot '16-invalid-edit-after-restart';Copy-Item $store "$out/16-invalid-store.json"
  }
- Scenario '02-create-unsaved' {
-  Click 'New workspace button';Text 'Workspace name' 'Unsaved sample';Click 'ביטול וחזרה';Shot '02-create-unsaved-guard';Dump '02-create-unsaved-guard'
-  Record 'Dirty new workspace guard visible' ($null -ne (Find 'Back to editing')) 'Cancel/back should not silently discard typed name'
+ Scenario '17-global-schema-validation' {
+  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add global item';Text 'Global entry name' 'Script URI sample';Text 'Global entry target' 'javascript:alert(1)';Click 'Confirm global add';StopApp;StartApp;Mouse 'Options menu';Menu 'סביבה גלובלית';Shot '17-global-restarted';Copy-Item $store "$out/17-global-store.json"
+  Record 'Invalid global URI survives restart' ((Get-Content $store -Raw) -like '*javascript:alert(1)*') 'Stored and reloaded, never executed'
  }
- Scenario '03-workspace-persistence' {
-  Click 'Review one';Text 'Workspace name' 'Changed sample';Click 'Save workspace details';StopApp;StartApp
-  Record 'Saved workspace survives restart' ($null -ne (Find 'Changed sample' $CT::Button)) 'Read persisted UI after process restart'
+ Scenario '18-all-items-selected-scope' {
+  Mouse 'Options menu';Menu 'אייטמים';Context 'Shared sample';Menu 'ערוך';[void](Wait 'Choose item environments');Shot '18-picker-default'
+  Record 'All-items picker initially confirms disabled' (-not (Wait 'Confirm item workspace choice' $CT::Button).Current.IsEnabled) 'No environments should be selected automatically'
+  $row=Wait 'Review one' $CT::ListItem;$row.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select();Click 'Confirm item workspace choice';Text 'Selected item name' 'Batch one only';Click 'Save selected item edit'
+  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'All-items edit applies only selected environment' ((($o.workspaces|Where-Object id -eq 'one').items|Where-Object id -eq 'm1').name -eq 'Batch one only' -and -not (($o.workspaces|Where-Object id -eq 'two').items|Where-Object id -eq 'm3').name) 'Identical copies, only Review one chosen';Shot '18-batch-result'
  }
- Scenario '04-workspace-unsaved-navigation' {
-  Click 'Review one';Text 'Workspace description' 'Unsaved description';Click 'Back to workspaces';Shot '04-workspace-guard';Dump '04-workspace-guard'
-  Record 'Dirty workspace navigation guard visible' ($null -ne (Find 'Back to editing')) 'Back from changed workspace details'
+ Scenario '19-local-delete' {
+  Click 'Review one';Context 'Shared sample';Menu 'מחיקה';Shot '19-delete-after-menu';Dump '19-delete-after-menu';Copy-Item $store "$out/19-delete-store.json"
+  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Delete in workspace preserves other copy' (@(($o.workspaces|Where-Object id -eq 'two').items|Where-Object itemId -eq 'site').Count -eq 1) 'Local deletion, inspect evidence for confirm/undo'
  }
- Scenario '05-item-identity' {
-  Click 'Review one';Click 'Edit item';Text 'Edit item name' 'Only first workspace';Click 'Save item edit'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;$first=($o.workspaces|Where-Object id -eq 'one').items|Where-Object itemId -eq 'site';$other=($o.workspaces|Where-Object id -eq 'two').items|Where-Object itemId -eq 'site'
-  Record 'Local item edit does not rename other workspace' ($first.name -eq 'Only first workspace' -and $other.name -ne 'Only first workspace') ($o|ConvertTo-Json -Depth 8 -Compress)
+ Scenario '20-default-replace' {
+  Click 'Review one';Click 'Toggle default workspace';Click 'Back to workspaces';Click 'Review two';Click 'Toggle default workspace';Shot '20-default-replace';[void](Wait 'Cancel default-env replace');Click 'Cancel default-env replace'
+  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Cancel default replacement keeps original' ($o.defaultWorkspaceId -eq 'one') "default=$($o.defaultWorkspaceId)"
+  Click 'Toggle default workspace';Click 'Confirm default-env replace';StopApp;StartApp;$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Default replacement persists' ($o.defaultWorkspaceId -eq 'two') "default=$($o.defaultWorkspaceId)";Shot '20-default-restart'
  }
- Scenario '06-invalid-item-edit' {
-  Click 'Review one';Click 'Edit item';Text 'Edit item target' 'javascript:alert(1)';Click 'Save item edit';Shot '06-invalid-target';Dump '06-invalid-target'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Script scheme not persisted as website' ($o.items.site.target -notlike 'javascript:*') 'Unsafe/non-web scheme rejected by normal editor'
+ Scenario '21-whitelist-staging' {
+  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add whitelist item';Text 'Global entry name' 'Priority sample';Text 'Global entry target' 'https://example.com/priority';Click 'Confirm global add';Click 'Back to workspaces';Click 'Review one';$before=Get-Content $store -Raw;Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 8
+  $list=Wait 'Open now list';$boxes=$list.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::CheckBox)));$sample=@($boxes|Where-Object{$_.Current.Name -like '*Priority sample*'})[0]
+  Record 'Whitelist offered while not actually open' ($null -ne $sample) 'Global page says priority even when not open; actual runtime behavior'
+  if($sample){$sample.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle();Click 'Add selected capture items';Shot '21-staged';Click 'Close capture';Shot '21-staged-guard';Dump '21-staged-guard';Record 'Staged capture close guard' ($null -ne (Find 'Back to editing')) 'Draft has an added row but not saved';Record 'Capture draft not persisted before save' ((Get-Content $store -Raw) -ceq $before) 'Synthetic whitelist staged item'}
  }
- Scenario '07-item-cancel-guard' {
-  Click 'Review one';Click 'Edit item';Text 'Edit item name' 'Unsaved item';Click 'Cancel item edit';Shot '07-item-guard';Dump '07-item-guard'
-  Record 'Dirty item cancel guard visible' ($null -ne (Find 'Keep item editing')) 'Cancel after item name change'
+ Scenario '22-missing-only-open-results' {
+  StopApp;$o=Get-Content $store -Raw|ConvertFrom-Json;($o.workspaces|Where-Object id -eq 'one').items=@(($o.workspaces|Where-Object id -eq 'one').items|Where-Object itemId -eq 'missing');$o|ConvertTo-Json -Depth 10|Set-Content $store;StartApp
+  Click 'Review one';Click 'שגר';Click 'Confirm opening selection';[void](Wait 'Notification');Shot '22-missing-toast';Dump '22-missing-toast';Click 'Back to workspaces';Mouse 'Options menu';Menu 'תוצאות הפתיחה האחרונות';Shot '22-missing-results';Dump '22-missing-results'
+  Record 'Missing-file pipeline returned without launchable resources' $true 'Only a synthetic nonexistent file selected; no browser/program/file can be opened'
  }
- Scenario '08-search' {
-  Text 'Workspace search' 'no-match-xyz';Shot '08-search-empty';Dump '08-search-empty';Record 'Search hides unmatched card' ($null -eq (Find 'Review one' $CT::Button)) 'Unmatched workspace search'
-  Text 'Workspace search' '';Record 'Clearing search restores cards' ($null -ne (Find 'Review one' $CT::Button)) 'Clear search without restart'
- }
- Scenario '09-small-viewport' {
-  [void][ReviewWin]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,12,12,720,400,0x40);Start-Sleep -Milliseconds 300;Shot '09-min-home';Dump '09-min-home';Click 'Settings';Shot '09-min-settings';Dump '09-min-settings';Click 'Back to workspaces';Click 'New workspace button';Shot '09-min-create';Dump '09-min-create'
- }
- Scenario '10-global-invalid' {
-  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add global item';Text 'Global entry name' 'Invalid website';Text 'Global entry target' 'javascript:alert(1)';Shot '10-global-invalid-before';Dump '10-global-invalid-before'
-  $confirm=Wait 'Confirm global add' $CT::Button;if($confirm.Current.IsEnabled){Click 'Confirm global add'}
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global list rejects javascript target' (-not (@($o.globalItems)|Where-Object{$_.target -like 'javascript:*'})) 'Default type and error visibility captured';Shot '10-global-invalid-after';Dump '10-global-invalid-after'
- }
- Scenario '11-global-unsaved' {
-  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add global item';Text 'Global entry name' 'Unsaved global';Text 'Global entry target' 'https://example.com/unsaved';Click 'Cancel global add';Shot '11-global-cancel';Dump '11-global-cancel'
-  Record 'Global add cancel outcome' $true 'Inspect whether typed draft is discarded without guard; do not label as confirmed data loss'
- }
- Scenario '12-capture-cancel' {
-  $before=Get-Content $store -Raw;Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 8;Shot '12-capture';Dump '12-capture';Click 'Close capture'
-  Record 'Capture scan and close do not mutate store' ((Get-Content $store -Raw) -ceq $before) 'No rows added/saved'
- }
- Scenario '13-item-delete' {
-  Click 'Review one';Context 'Shared sample';Menu 'מחיקה';Shot '13-item-delete';Dump '13-item-delete';$o=Get-Content $store -Raw|ConvertFrom-Json
-  Record 'Delete local item leaves other workspace membership' (@(($o.workspaces|Where-Object id -eq 'two').items|Where-Object itemId -eq 'site').Count -eq 1) 'Deletion via item right-click'
-  Record 'Delete interaction evidence' $true 'Inspect whether confirmation or undo exists after one click'
- }
- Scenario '14-launch-cancel' {
-  Click 'Review one';$before=Get-Content $store -Raw;Click 'שגר';[void](Wait 'Confirm opening selection');Shot '14-selection';Click 'Close opening selection';Record 'Launch-selection cancel leaves store unchanged' ((Get-Content $store -Raw) -ceq $before) 'No final launch confirmation clicked'
- }
- foreach($mode in @('corrupt','too-new','lock')){
-  try{
-   Seed;if($mode -eq 'corrupt'){Set-Content $store '{bad-json'};if($mode -eq 'too-new'){$o=Get-Content $store -Raw|ConvertFrom-Json;$o.schemaVersion=999;$o|ConvertTo-Json -Depth 10|Set-Content $store}
-   $before=[IO.File]::ReadAllBytes($store);$lock=$null;if($mode -eq 'lock'){$lock=[IO.File]::Open("$store.lock",[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
-   StartApp;Shot "15-store-$mode";Dump "15-store-$mode";Record "Store $mode preserves original bytes" ([Convert]::ToBase64String([IO.File]::ReadAllBytes($store)) -ceq [Convert]::ToBase64String($before)) 'Fresh synthetic failure fixture';Record "Store $mode create affordance" $true "New-workspace visible=$($null -ne (Find 'New workspace button'))"
-  }catch{Record "Store $mode harness-or-product-stop" $false $_.Exception.Message}finally{StopApp;if($lock){$lock.Dispose()}}
+ Scenario '23-scroll-small-create' {
+  [void][ReviewWin]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,12,12,720,400,0x40);Click 'New workspace button'
+  Text 'Workspace name' 'Small viewport sample';$sw=[Diagnostics.Stopwatch]::StartNew();$found=$false
+  foreach($sc in $win.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::Pane)))){try{$sp=$sc.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern);if($sp.Current.VerticallyScrollable){$sp.SetScrollPercent(-1,100);$found=$true}}catch{}}
+  Shot '23-min-create-bottom';Dump '23-min-create-bottom';Record 'Create action reachable at min viewport' ($null -ne (Find 'Create workspace' $CT::Button)) "scrollAttempt=$found"
  }
 }finally{StopApp;Flush;if(Test-Path "$storeDir/crash.log"){Copy-Item "$storeDir/crash.log" "$out/crash.log"};Get-ChildItem $out|Select-Object Name,Length}
