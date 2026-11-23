@@ -16,6 +16,10 @@ using Application=System.Windows.Application;
 
 internal static class Program
 {
+    private sealed class FixedCapture:IOpenItemCapturer
+    {
+        public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.Link,"Staged fixture","https://example.org/")},Array.Empty<string>());
+    }
     static IEnumerable<DependencyObject> Tree(DependencyObject root)
     {
         yield return root;
@@ -35,7 +39,7 @@ internal static class Program
         RenderOptions.ProcessRenderMode=RenderMode.SoftwareOnly;
         var app=new Application();app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml")});
         using var repo=new JsonStore(Path.Combine(output,"fixture","store.json"));
-        var vm=new MainViewModel(repo,new NotImplementedLauncher());
+        var vm=new MainViewModel(repo,new NotImplementedLauncher(),capturer:new FixedCapture()){ScanMinVisible=TimeSpan.Zero};
         var window=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected browser"))){DataContext=vm,Width=960,Height=650,Left=12,Top=12};
         var code=0;var results=new List<object>();
         async Task Save(string name,ContextMenu menu,MenuItem? submenu=null)
@@ -68,6 +72,15 @@ internal static class Program
                 var source=new SavedItemTransfer(ItemType.Link,"Fixture item","https://example.com/","",null);
                 Invoke(window,"ShowSavedTransferActions",Button(window,"Capture"),source);await Settle(window);menu=OpenMenu();await Save("saved-add",menu);
                 var add=menu.Items.OfType<MenuItem>().Single();add.IsSubmenuOpen=true;await Save("saved-add-submenu",menu,add);add.IsSubmenuOpen=false;menu.IsOpen=false;
+                vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());vm.NewTarget="https://example.com/";vm.NewItemName="Fixture item";vm.AddItemCommand.Execute(null);await Settle(window);
+                var itemHost=Tree(window).OfType<FrameworkElement>().First(e=>System.Windows.Automation.AutomationProperties.GetName(e)=="Item row");
+                var itemArgs=(ContextMenuEventArgs)Activator.CreateInstance(typeof(ContextMenuEventArgs),BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{itemHost,true,0d,0d},null)!;
+                Invoke(window,"RowContextMenu_Opening",itemHost,itemArgs);await Settle(window);menu=OpenMenu();await Save("saved-item-row",menu);menu.IsOpen=false;
+                vm.BackCommand.Execute(null);vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single());vm.CaptureAddCommand.Execute(null);await Settle(window);
+                var stagedHost=Tree(window).OfType<FrameworkElement>().First(e=>System.Windows.Automation.AutomationProperties.GetName(e)=="Staged item row");
+                var stagedArgs=(ContextMenuEventArgs)Activator.CreateInstance(typeof(ContextMenuEventArgs),BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{stagedHost,true,0d,0d},null)!;
+                Invoke(window,"RowContextMenu_Opening",stagedHost,stagedArgs);menu=stagedHost.ContextMenu;menu.IsOpen=true;await Save("staged-item-row",menu);menu.IsOpen=false;
+                vm.CaptureSaveCommand.Execute(null);vm.CaptureCloseCommand.Execute(null);
                 File.WriteAllText(Path.Combine(output,"menus.json"),JsonSerializer.Serialize(results,new JsonSerializerOptions{WriteIndented=true}));
             }
             catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}
