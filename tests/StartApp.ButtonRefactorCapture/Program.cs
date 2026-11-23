@@ -26,10 +26,10 @@ internal static class Program
                 if(style is null)
                 {
                     style=name switch{"SettingsPrimaryButton"=>settings.Resources["PrimaryButton"],"SettingsSecondaryButton"=>settings.Resources["SecondaryButton"],"GlobalSecondaryButton"=>global.Resources["SecondaryButton"],"AddLinkButton"=>global.Resources["AddLink"],_=>null};
-                    if(name=="CompactActionButton")b.Padding=new Thickness(12,2);
-                    if(name=="CompactIconButton")b.Padding=new Thickness(6,0);
+                    if(name=="CompactActionButton")b.Padding=new Thickness(12,2,12,2);
+                    if(name=="CompactIconButton")b.Padding=new Thickness(6,0,6,0);
                     if(name=="DialogPrimaryButton"){style=app.FindResource("PrimaryActionButton");b.Height=38;}
-                    if(name=="DialogSecondaryButton"){style=app.FindResource("HomeToolbarButton");b.Height=38;b.Padding=new Thickness(16,7);}
+                    if(name=="DialogSecondaryButton"){style=app.FindResource("HomeToolbarButton");b.Height=38;b.Padding=new Thickness(16,7,16,7);}
                 }
                 if(style is Style s)b.Style=s;wrap.Children.Add(b);
             }
