@@ -80,6 +80,16 @@ internal static class Program
                         root.SetCurrentValue(UIElement.VisibilityProperty,Visibility.Collapsed);
                     }
                     for(var i=0;i<roots.Count;i++)roots[i].SetCurrentValue(UIElement.VisibilityProperty,originalVisibility[i]);
+                    // Actual secondary-window constructors with synthetic data; no user store mutation.
+                    var assembly=typeof(MainWindow).Assembly;
+                    var promptType=assembly.GetType("StartApp.App.SavedItemPromptWindow")!;
+                    foreach(var notice in new[]{false,true})
+                    {
+                        var prompt=(Window)Activator.CreateInstance(promptType,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic,null,new object[]{"Fixture notice","Synthetic conflict or notice body","Continue",notice},null)!;
+                        prompt.Owner=window;prompt.Show();await Take(prompt,output,notice?"prompt-notice":"prompt-conflict",false);prompt.Close();
+                    }
+                    var workspacePrompt=(Window)Activator.CreateInstance(assembly.GetType("StartApp.App.NewWorkspaceFromItemWindow")!,vm,new SavedItemTransfer(ItemType.Link,"Fixture item","https://example.com/","",null))!;
+                    workspacePrompt.Owner=window;workspacePrompt.Show();await Take(workspacePrompt,output,"prompt-new-workspace",false);workspacePrompt.Close();
                 }
                 File.WriteAllText(Path.Combine(output,"same-process.json"),JsonSerializer.Serialize(SameProcess));
                 File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
@@ -122,10 +132,27 @@ internal static class Program
         var frames = Descendants(window).OfType<Border>().Where(e => e.GetType().FullName == "StartApp.App.DialogFrame").ToList();
         if (frames.Count > 0)
         {
-            var swaps = new List<(System.Windows.Controls.Panel Parent, int Index, Border Frame, Border Plain)>();
+            // No type substitution: measure whether first exposure survives its own reparent.
+            foreach(var frame in frames)
+            {
+                var child=frame.Child;frame.Child=null;frame.Child=child;
+                if(frame.Parent is System.Windows.Controls.Panel owner){var index=owner.Children.IndexOf(frame);owner.Children.RemoveAt(index);owner.Children.Insert(index,frame);}
+                else if(ReferenceEquals(window.Content,frame)){window.Content=null;window.Content=frame;}
+            }
+            await Settle(window);
+            var sameFrameImage=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);sameFrameImage.Render(window);
+            var initialPixels=new byte[width*height*4];var sameFramePixels=new byte[initialPixels.Length];image.CopyPixels(initialPixels,width*4,0);sameFrameImage.CopyPixels(sameFramePixels,width*4,0);
+            var selfDifference=0;for(var p=0;p<initialPixels.Length;p+=4)if(!initialPixels.AsSpan(p,4).SequenceEqual(sameFramePixels.AsSpan(p,4)))selfDifference++;
+            var selfPng=new PngBitmapEncoder();selfPng.Frames.Add(BitmapFrame.Create(sameFrameImage));using(var f=File.Create(Path.Combine(output,name+"-shared-self-control.png")))selfPng.Save(f);
+            File.AppendAllText(Path.Combine(output,"dialog-self.jsonl"),JsonSerializer.Serialize(new{state=name,shared_self_pixels=selfDifference})+Environment.NewLine);
+            var swaps = new List<(Action<Border> Replace, Border Frame, Border Plain)>();
             foreach (var frame in frames)
             {
-                if (frame.Parent is not System.Windows.Controls.Panel panel) throw new Exception("Unsupported frame parent");
+                Action<Border> replace;
+                if(frame.Parent is System.Windows.Controls.Panel panel)
+                {var index=panel.Children.IndexOf(frame);replace=value=>{panel.Children.RemoveAt(index);panel.Children.Insert(index,value);};}
+                else if(ReferenceEquals(window.Content,frame))replace=value=>window.Content=value;
+                else throw new Exception("Unsupported frame parent");
                 var plain = new Border(); var values = frame.GetLocalValueEnumerator();
                 while (values.MoveNext())
                 {
@@ -135,14 +162,15 @@ internal static class Program
                     else plain.SetValue(entry.Property, entry.Value);
                 }
                 var child = frame.Child; frame.Child = null; plain.Child = child;
-                var index = panel.Children.IndexOf(frame); panel.Children.RemoveAt(index); panel.Children.Insert(index, plain);
-                swaps.Add((panel, index, frame, plain));
+                replace(plain);
+                swaps.Add((replace, frame, plain));
             }
             await Settle(window);
             var plainImage = new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); plainImage.Render(window);
             var actual = new byte[width*height*4]; var expected = new byte[actual.Length]; image.CopyPixels(actual,width*4,0); plainImage.CopyPixels(expected,width*4,0);
             var different = 0; for (var p=0;p<actual.Length;p+=4) if (!actual.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4))) different++;
-            DialogFrames.Add(new { state = name, different_pixels = different, frame_count = frames.Count });
+            var equalInvalidationDifference=0;for(var p=0;p<expected.Length;p+=4)if(!sameFramePixels.AsSpan(p,4).SequenceEqual(expected.AsSpan(p,4)))equalInvalidationDifference++;
+            DialogFrames.Add(new { state = name, different_pixels = different, equal_invalidation_pixels=equalInvalidationDifference, frame_count = frames.Count });
             var plainPng = new PngBitmapEncoder(); plainPng.Frames.Add(BitmapFrame.Create(plainImage)); using (var f=File.Create(Path.Combine(output,name+"-plain-dialog-border.png"))) plainPng.Save(f);
             // Control: repeat the identical reparent using plain Border -> plain Border.
             // Preserve the original shared/plain failure; a red control never waives it.
@@ -157,10 +185,10 @@ internal static class Program
                     else replacement.SetValue(entry.Property,entry.Value);
                 }
                 var child=swap.Plain.Child;swap.Plain.Child=null;replacement.Child=child;
-                swap.Parent.Children.RemoveAt(swap.Index);swap.Parent.Children.Insert(swap.Index,replacement);
+                swap.Replace(replacement);
                 // Keep the same restoration identity without adding or removing any layout layer.
                 replacement.Child=null;swap.Plain.Child=child;
-                swap.Parent.Children.RemoveAt(swap.Index);swap.Parent.Children.Insert(swap.Index,swap.Plain);
+                swap.Replace(swap.Plain);
             }
             await Settle(window);
             var repeatImage=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);repeatImage.Render(window);
@@ -168,7 +196,7 @@ internal static class Program
             var controlPixels=0;for(var p=0;p<expected.Length;p+=4)if(!expected.AsSpan(p,4).SequenceEqual(repeatBytes.AsSpan(p,4)))controlPixels++;
             var controlPng=new PngBitmapEncoder();controlPng.Frames.Add(BitmapFrame.Create(repeatImage));using(var f=File.Create(Path.Combine(output,name+"-plain-repeat-control.png")))controlPng.Save(f);
             File.AppendAllText(Path.Combine(output,"dialog-control.jsonl"),JsonSerializer.Serialize(new{state=name,shared_plain_pixels=different,plain_repeat_pixels=controlPixels})+Environment.NewLine);
-            foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Parent.Children.RemoveAt(swap.Index); swap.Parent.Children.Insert(swap.Index,swap.Frame); }
+            foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Replace(swap.Frame); }
             await Settle(window);
             var restoredImage=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);restoredImage.Render(window);
             var restoredBytes=new byte[actual.Length];restoredImage.CopyPixels(restoredBytes,width*4,0);
