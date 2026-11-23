@@ -1,0 +1,20 @@
+name: submenu-contract-tests
+on:
+  push:
+    branches: [fix/submenu-source-contract]
+permissions:
+  contents: read
+jobs:
+  full-unit-step:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Whole-solution tests, same command as dev validation
+        shell: pwsh
+        run: |
+          dotnet test StartApp.slnx --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
