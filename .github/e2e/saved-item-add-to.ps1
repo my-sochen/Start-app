@@ -23,7 +23,7 @@ $storeDir=Join-Path $env:LOCALAPPDATA 'StartApp';$store=Join-Path $storeDir 'sto
 $exe=(Get-ChildItem src/StartApp.App/bin/Release -Recurse -Filter StartApp.App.exe|Select-Object -First 1).FullName
 $A=[Windows.Automation.AutomationElement];$TS=[Windows.Automation.TreeScope];$PC=[Windows.Automation.PropertyCondition];$CT=[Windows.Automation.ControlType]
 $results=[Collections.Generic.List[object]]::new();$script:p=$null;$script:win=$null
-function Flush { @{baseDev='a69364d160366f485232ef99a9a474b7d6638f77';harnessCommit=$env:GITHUB_SHA;syntheticOnly=$true;results=@($results.ToArray())}|ConvertTo-Json -Depth 12|Set-Content "$out/results.json" }
+function Flush { @{baseDev='80a6828d51cd3f91447328c5e548a3df61dec9fe';harnessCommit=$env:GITHUB_SHA;syntheticOnly=$true;results=@($results.ToArray())}|ConvertTo-Json -Depth 12|Set-Content "$out/results.json" }
 function Record($name,$ok,$detail){$results.Add(@{name=$name;ok=[bool]$ok;detail="$detail"});Write-Host "$name : $ok : $detail";Flush}
 function StopApp {if($script:p -and -not $script:p.HasExited){$script:p.Kill();$script:p.WaitForExit()};$script:p=$null;$script:win=$null}
 function StartApp {
@@ -70,6 +70,10 @@ function ChooseMenu($name){$e=WaitMenu $name;$e.SetFocus();[Windows.Forms.SendKe
 function ExpandAdd { $e=WaitMenu 'הוסף ל...';$e.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand();Start-Sleep -Milliseconds 200 }
 function MenuShot($name){$r=New-Object ReviewWin+R;[void][ReviewWin]::GetWindowRect($p.MainWindowHandle,[ref]$r);$im=New-Object Drawing.Bitmap ($r.Rt-$r.L),($r.B-$r.T);$g=[Drawing.Graphics]::FromImage($im);try{$g.CopyFromScreen($r.L,$r.T,0,0,$im.Size);$im.Save("$out/$name.png")}finally{$g.Dispose();$im.Dispose()}}
 function DetailMenu {Context 'Edit item';ExpandAdd}
+function RightClickElement($element) { $r=$element.Current.BoundingRectangle;[void][ReviewWin]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[ReviewWin]::mouse_event(8,0,0,0,[UIntPtr]::Zero);[ReviewWin]::mouse_event(16,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 200 }
+function SavedGlobalMenu { $list=Wait 'Global items list';$text=$list.FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,'Shared sample')));if(-not $text){throw 'Global saved text missing'};RightClickElement $text;ExpandAdd }
+function SavedCaptureMenu { $list=Wait 'Saved items in the workspace';$row=$list.FindFirst($TS::Children,(New-Object $PC($A::ControlTypeProperty,$CT::ListItem)));if(-not $row){throw 'Saved capture row missing'};RightClickElement $row;ExpandAdd }
+
 try{
  Scenario '01-details-submenu' {
   Click 'Review one';DetailMenu;MenuShot '01-right-click-submenu'
@@ -83,13 +87,13 @@ try{
  }
  Scenario '03-global-and-conflict' {
   Click 'Review one';DetailMenu;ChooseMenu 'רשימה לבנה';DetailMenu;ChooseMenu 'רשימה שחורה';[void](Wait 'Move capture list item' $CT::Button);Shot '03-move-confirm';Click 'Close capture list conflict';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Cancel opposite list copy leaves original' (@($o.captureWhitelist).Count -eq 1 -and @($o.captureBlacklist).Count -eq 0) 'Cancel does not mutate'
-  DetailMenu;ChooseMenu 'רשימה שחורה';Click 'Move capture list item';DetailMenu;ChooseMenu 'סביבה גלובלית';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'List move and startup copy preserve workspace source' (@($o.captureWhitelist).Count -eq 0 -and @($o.captureBlacklist).Count -eq 1 -and @($o.globalItems).Count -eq 1 -and @($o.workspaces[0].items).Count -eq 2) 'Only list conflict moves';Click 'Back to workspaces';Mouse 'Options menu';Menu 'סביבה גלובלית';$host=Wait 'Saved global item';$host.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');ExpandAdd;MenuShot '03-global-row-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From global';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global saved row can copy to new environment' (@($o.workspaces|Where-Object name -eq 'From global').Count -eq 1) 'Same five destinations'
+  DetailMenu;ChooseMenu 'רשימה שחורה';Click 'Move capture list item';DetailMenu;ChooseMenu 'סביבה גלובלית';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'List move and startup copy preserve workspace source' (@($o.captureWhitelist).Count -eq 0 -and @($o.captureBlacklist).Count -eq 1 -and @($o.globalItems).Count -eq 1 -and @($o.workspaces[0].items).Count -eq 2) 'Only list conflict moves';Click 'Back to workspaces';Mouse 'Options menu';Menu 'סביבה גלובלית';SavedGlobalMenu;MenuShot '03-global-row-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From global';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global saved row can copy to new environment' (@($o.workspaces|Where-Object name -eq 'From global').Count -eq 1) 'Same five destinations'
  }
  Scenario '04-all-items' {
   Mouse 'Options menu';Menu 'אייטמים';$e=Wait 'Shared sample' $CT::Button;$e.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');ExpandAdd;MenuShot '04-all-items-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From all items';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'All Items saved row copies' (@($o.workspaces|Where-Object name -eq 'From all items').Count -eq 1) 'Effective saved instance snapshot'
  }
  Scenario '05-capture-saved-side' {
-  Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 6;$host=Wait 'Saved capture item';$host.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');ExpandAdd;MenuShot '05-saved-capture-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From capture saved';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Saved capture destination row copies' (@($o.workspaces|Where-Object name -eq 'From capture saved').Count -eq 1) 'Newly scanned and unsaved staged rows have no new menu'
+  Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 6;SavedCaptureMenu;MenuShot '05-saved-capture-submenu';ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From capture saved';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Saved capture destination row copies' (@($o.workspaces|Where-Object name -eq 'From capture saved').Count -eq 1) 'Newly scanned and unsaved staged rows have no new menu'
  }
 }finally{StopApp;Flush;if(Test-Path "$storeDir/crash.log"){Copy-Item "$storeDir/crash.log" "$out/crash.log"}}
 if(@($results|Where-Object{-not $_.ok}).Count -gt 0){throw 'Saved Add-to checks failed; inspect results.json'}

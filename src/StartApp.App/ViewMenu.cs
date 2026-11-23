@@ -41,6 +41,14 @@ public partial class MainWindow
     private void OnAnchoredSubmenuOpened(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is not MenuItem item || item.Template.FindName("PART_Popup", item) is not System.Windows.Controls.Primitives.Popup popup) return;
+        if (item.Tag as string == "saved-add-submenu")
+        {
+            popup.CustomPopupPlacementCallback = null;
+            popup.PlacementTarget = item;
+            popup.Placement = System.Windows.Controls.Primitives.PlacementMode.Left;
+            popup.HorizontalOffset = 0; popup.VerticalOffset = 0;
+            return;
+        }
         popup.MaxWidth = Math.Max(120, ActualWidth - 16);
         popup.MaxHeight = Math.Max(120, ActualHeight - 16);
         popup.PlacementTarget = item;

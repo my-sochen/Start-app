@@ -19,7 +19,7 @@ public partial class MainWindow
     }
     private MenuItem BuildSavedItemAddMenu(MainViewModel vm, SavedItemTransfer? source)
     {
-        var menu = new MenuItem { Header = "הוסף ל...", IsEnabled = source is not null && vm.SavedItemTransferAllowed };
+        var menu = new MenuItem { Header = "הוסף ל...", Tag = "saved-add-submenu", IsEnabled = source is not null && vm.SavedItemTransferAllowed };
         if (source is null) return menu;
         menu.Items.Add(ActionItem("סביבה חדשה", () => ShowItemDialog(new NewWorkspaceFromItemWindow(vm, source))));
         menu.Items.Add(ActionItem("סביבה נבחרת", () =>

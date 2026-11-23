@@ -12,7 +12,7 @@ internal sealed class SavedItemPromptWindow : Window
         Title = title; Width = 440; SizeToContent = SizeToContent.Height; WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false; Background = Brushes.Transparent; AllowsTransparency = true;
-        FontFamily = new FontFamily("./Assets/Fonts/#Noto Sans Hebrew, Arial");
+        FontSize = 15; FontFamily = new FontFamily("./Assets/Fonts/#Noto Sans Hebrew, Arial");
         var body = new StackPanel { FlowDirection = FlowDirection.RightToLeft };
         body.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold });
         body.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,14,0,18) });

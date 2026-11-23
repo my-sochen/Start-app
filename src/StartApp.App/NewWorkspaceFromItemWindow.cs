@@ -12,7 +12,7 @@ internal sealed class NewWorkspaceFromItemWindow : Window
         Title = "סביבה חדשה מהאייטם"; Width = 480; SizeToContent = SizeToContent.Height;
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false; Background = Brushes.Transparent; AllowsTransparency = true;
-        FontFamily = new FontFamily("./Assets/Fonts/#Noto Sans Hebrew, Arial");
+        FontSize = 15; FontFamily = new FontFamily("./Assets/Fonts/#Noto Sans Hebrew, Arial");
         var body = new StackPanel { FlowDirection = FlowDirection.RightToLeft };
         body.Children.Add(new TextBlock { Text = "הוסף לסביבה חדשה", FontSize = 20, FontWeight = FontWeights.SemiBold });
         body.Children.Add(new TextBlock { Text = source.Name + " יועתק לסביבה החדשה. המקור לא ישתנה.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,14,0,18) });
