@@ -10,11 +10,13 @@ public partial class MainWindow : Window
     public UpdateViewModel Updates { get; }
     private UpdateAvailableWindow? _updateAvailableWindow;
     private bool _closeApproved;
-    private MainViewModel? _hooked;
+    private readonly WindowSessionSubscriptions _sessionSubscriptions;
+    private MainViewModel? _hooked => _sessionSubscriptions.Current;
     public MainWindow() : this(UpdateComposition.Create()) { }
     internal MainWindow(UpdateViewModel updates)
     {
         Updates = updates ?? throw new ArgumentNullException(nameof(updates));
+        _sessionSubscriptions = new(OnFocusAddRequested, OnCopyAddressRequested, OnAppCloseApproved, OnPickImageRequested, OnPickCreateImageRequested, OnViewOptionChanged);
         InitializeComponent();
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
         Updates.StagedUpdateReady += OnStagedUpdateReady;
@@ -40,31 +42,8 @@ public partial class MainWindow : Window
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
     // made one upload click queue two sequential OpenFileDialogs).
-    private void Hook()
-    {
-        var vm = DataContext as MainViewModel;
-        if (ReferenceEquals(vm, _hooked)) return;
-        Detach();
-        if (vm is null) return;
-        vm.FocusAddRequested += OnFocusAddRequested;
-        vm.CopyAddressRequested += OnCopyAddressRequested;
-        vm.AppCloseApproved += OnAppCloseApproved;
-        vm.PickImageRequested += OnPickImageRequested;
-        vm.PickCreateImageRequested += OnPickCreateImageRequested;
-        vm.PropertyChanged += OnViewOptionChanged;
-        _hooked = vm;
-    }
-    private void Detach()
-    {
-        if (_hooked is null) return;
-        _hooked.FocusAddRequested -= OnFocusAddRequested;
-        _hooked.CopyAddressRequested -= OnCopyAddressRequested;
-        _hooked.AppCloseApproved -= OnAppCloseApproved;
-        _hooked.PickImageRequested -= OnPickImageRequested;
-        _hooked.PickCreateImageRequested -= OnPickCreateImageRequested;
-        _hooked.PropertyChanged -= OnViewOptionChanged;
-        _hooked = null;
-    }
+    private void Hook() => _sessionSubscriptions.Replace(DataContext as MainViewModel);
+    private void Detach() => _sessionSubscriptions.Dispose();
     private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
     private void ToggleMaximizeWindow_Click(object sender, RoutedEventArgs e)
     {
