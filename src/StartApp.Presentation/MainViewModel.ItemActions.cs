@@ -40,7 +40,7 @@ public sealed partial class MainViewModel
     {
         if (!ItemActionsAllowed || targets.Count == 0) { Status = "לא ניתן לבצע את הפעולה כעת. שמרו או בטלו עריכה פתוחה ונסו שוב."; return false; }
         if (changedName is not null && string.IsNullOrWhiteSpace(changedName)) { Status = "חסר שם לאייטם."; return false; }
-        if (changedTarget is not null) foreach (var type in targets.Select(t => t.Type).Distinct()) if (Catalog.ValidateTarget(type, changedTarget) is { } error) { Status = error; return false; }
+        if (changedTarget is not null) foreach (var type in targets.Select(t => t.Type).Distinct()) if (Catalog.ValidateInputTarget(type, changedTarget) is { } error) { Status = error; return false; }
         if (changedDescription is not null && Catalog.ValidateDescription(changedDescription) is { } descriptionError) { Status = descriptionError; return false; }
         LaunchConfig? NewLaunch(ItemType type) => string.IsNullOrWhiteSpace(changedProgram) ? null : type == ItemType.Link ? new LaunchConfig(Browser: changedProgram.Trim()) : new LaunchConfig(OpenWith: changedProgram.Trim());
         if (changeLaunch) foreach (var type in targets.Select(t => t.Type).Distinct()) if (Catalog.ValidateLaunch(type, NewLaunch(type)) is { } launchError) { Status = launchError; return false; }

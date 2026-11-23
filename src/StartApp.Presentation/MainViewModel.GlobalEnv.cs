@@ -24,6 +24,12 @@ public sealed partial class MainViewModel
         public string DescriptionLine => Entry.IsDefault ? TypeLabel + " · ברירת מחדל, ניתן להסרה" : string.IsNullOrEmpty(AddedDisplay) ? TypeLabel : TypeLabel + " · " + AddedDisplay;
     }
 
+    private bool _globalConflictOpen;
+    public bool GlobalConflictOpen { get => _globalConflictOpen; private set => Set(ref _globalConflictOpen, value); }
+    private string _globalConflictMessage = "";
+    public string GlobalConflictMessage { get => _globalConflictMessage; private set => Set(ref _globalConflictMessage, value); }
+    public ICommand CloseGlobalConflictCommand { get; private set; } = null!;
+    public ICommand MoveGlobalConflictCommand { get; private set; } = null!;
     private bool _inGlobalEnv;
     public bool InGlobalEnv { get => _inGlobalEnv; private set { Set(ref _inGlobalEnv, value); RaiseCommands(); } }
 
@@ -63,6 +69,14 @@ public sealed partial class MainViewModel
 
     private void InitGlobalEnvCommands()
     {
+        CloseGlobalConflictCommand = Cmd(_ => GlobalConflictOpen = false, _ => GlobalConflictOpen);
+        MoveGlobalConflictCommand = Cmd(_ => {
+            if (_addingKind is not { } kind) return;
+            try {
+                var saved = _repo.Mutate(c => c.MoveGlobalEntry(kind, GlobalEntryType(_newEntryTypeIndex), _newEntryName, _newEntryTarget));
+                Show(saved); RefreshGlobalEnvRows(); GlobalConflictOpen = false; AddingKind = null; GlobalEnvError = "";
+            } catch (Exception e) when (e is ArgumentException or InvalidOperationException) { GlobalEnvError = e.Message; GlobalConflictOpen = false; }
+        }, _ => GlobalConflictOpen);
         OpenGlobalEnvCommand = Cmd(_ => { InAllItems = false; InSettings = false; RefreshGlobalEnvRows(); InGlobalEnv = true; }, _ => !_inGlobalEnv);
         CloseGlobalEnvCommand = Cmd(_ => { InGlobalEnv = false; AddingKind = null; GlobalEnvError = ""; }, _ => _inGlobalEnv);
         StartGlobalAddCommand = Cmd(p => { if (p is GlobalListKind k) { AddingKind = k; NewEntryName = ""; NewEntryTarget = ""; NewEntryTypeIndex = k == GlobalListKind.Blacklist ? 1 : 0; GlobalEnvError = ""; } }, _ => _inGlobalEnv);
@@ -86,6 +100,8 @@ public sealed partial class MainViewModel
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {
             GlobalEnvError = "לא ניתן להוסיף: " + e.Message;
+            if (e.Message is Catalog.WhitelistConflictError or Catalog.BlacklistConflictError)
+            { GlobalConflictMessage = e.Message; GlobalConflictOpen = true; }
         }
     }
 

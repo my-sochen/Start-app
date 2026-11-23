@@ -55,6 +55,18 @@ public sealed class Catalog
         return null;
     }
 
+    public const string WebsiteTargetError = "כתובת אתר חייבת להתחיל ב-http:// או ב-https:// ולכלול שם אתר תקין.";
+
+    /// <summary>New input is stricter than stored-data shape validation. Legacy unsupported links remain readable
+    /// so the user can repair them; preflight still refuses to execute them.</summary>
+    public static string? ValidateInputTarget(ItemType type, string target)
+    {
+        if (type == ItemType.Link && (!Uri.TryCreate(target, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(uri.Host)))
+            return WebsiteTargetError;
+        return ValidateTarget(type, target);
+    }
+
     /// <summary>Explicit absolute Windows path (drive or UNC share). Pure string rule; no filesystem access.</summary>
     public static bool IsAbsoluteWindowsPath(string v) => AbsWin.IsMatch(v);
 
@@ -101,7 +113,7 @@ public sealed class Catalog
     /// <summary>Reuses the catalog item with the same type and target. A given description never overwrites an existing non-empty one; it only fills an empty one.</summary>
     public Item GetOrAddItem(ItemType type, string name, string target, string? description = null)
     {
-        var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
+        var te = ValidateInputTarget(type, target); if (te != null) throw new ArgumentException(te);
         var de = ValidateDescription(description); if (de != null) throw new ArgumentException(de);
         if (string.IsNullOrWhiteSpace(description)) description = null;
         var key = Key(type, target);
@@ -358,10 +370,18 @@ public sealed class Catalog
 
     /// <summary>Adds one row to a סביבה גלובלית list. Same validation as catalog targets; a row with the same type+target
     /// already in the list is returned as-is (never duplicated).</summary>
+    public const string WhitelistConflictError = "הפריט כבר נמצא ברשימה השחורה. לא ניתן להוסיף אותו ללבנה. להעביר אותו לרשימה הלבנה? ההעברה תסיר אותו מהרשימה השחורה.";
+    public const string BlacklistConflictError = "הפריט כבר נמצא ברשימה הלבנה. לא ניתן להוסיף אותו לשחורה. להעביר אותו לרשימה השחורה? ההעברה תסיר אותו מהרשימה הלבנה.";
     public GlobalListEntry AddGlobalEntry(GlobalListKind kind, ItemType type, string name, string target)
     {
-        var te = ValidateTarget(type, target); if (te != null) throw new ArgumentException(te);
+        var te = ValidateInputTarget(type, target); if (te != null) throw new ArgumentException(te);
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required");
+        if (kind is GlobalListKind.Whitelist or GlobalListKind.Blacklist)
+        {
+            var opposite = GlobalList(kind == GlobalListKind.Whitelist ? GlobalListKind.Blacklist : GlobalListKind.Whitelist);
+            if (opposite.Any(e => GlobalEnvRules.Matches(e, type, name, target)))
+                throw new ArgumentException(kind == GlobalListKind.Whitelist ? WhitelistConflictError : BlacklistConflictError);
+        }
         var list = GlobalList(kind);
         var key = Key(type, target);
         var existing = list.FirstOrDefault(e => Key(e.Type, e.Target) == key);
@@ -376,6 +396,17 @@ public sealed class Catalog
         };
         list.Add(entry);
         return entry;
+    }
+
+    /// <summary>Explicitly confirmed move. Validate before removing; the repository commits both changes atomically.</summary>
+    public GlobalListEntry MoveGlobalEntry(GlobalListKind destination, ItemType type, string name, string target)
+    {
+        if (destination is not (GlobalListKind.Whitelist or GlobalListKind.Blacklist)) throw new ArgumentException("not a capture list");
+        if (ValidateInputTarget(type, target) is { } error) throw new ArgumentException(error);
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required");
+        var opposite = GlobalList(destination == GlobalListKind.Whitelist ? GlobalListKind.Blacklist : GlobalListKind.Whitelist);
+        opposite.RemoveAll(e => GlobalEnvRules.Matches(e, type, name, target));
+        return AddGlobalEntry(destination, type, name, target);
     }
 
     /// <summary>Removes one row from a סביבה גלובלית list (הסרה). Removing a blacklist default returns it to captures — the
