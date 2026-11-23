@@ -58,14 +58,12 @@ public sealed partial class MainViewModel
     public ICommand DismissToastCommand { get; private set; } = null!;
     public ICommand ToastDetailsCommand { get; private set; } = null!;
     public ICommand CopyTechnicalDetailsCommand { get; private set; } = null!;
-    private string _toast = "", _technical = "";
-    private bool _toastVisible, _toastPersistent;
-    private int _toastGeneration;
-    public string ToastMessage { get => _toast; private set => Set(ref _toast, value); }
-    public string ToastTechnicalDetails { get => _technical; private set => Set(ref _technical, value); }
-    public bool ToastVisible { get => _toastVisible; private set => Set(ref _toastVisible, value); }
-    public bool ToastHasOpeningResults { get; private set; }
-    public bool ToastPersistent { get => _toastPersistent; private set => Set(ref _toastPersistent, value); }
+    private readonly ToastSession _toastSession = new();
+    public string ToastMessage { get => _toastSession.Message; private set { if (_toastSession.Message != value) { _toastSession.Message = value; Raise(nameof(ToastMessage)); } } }
+    public string ToastTechnicalDetails { get => _toastSession.TechnicalDetails; private set { if (_toastSession.TechnicalDetails != value) { _toastSession.TechnicalDetails = value; Raise(nameof(ToastTechnicalDetails)); } } }
+    public bool ToastVisible { get => _toastSession.Visible; private set { if (_toastSession.Visible != value) { _toastSession.Visible = value; Raise(nameof(ToastVisible)); } } }
+    public bool ToastHasOpeningResults { get => _toastSession.HasOpeningResults; private set => _toastSession.HasOpeningResults = value; }
+    public bool ToastPersistent { get => _toastSession.Persistent; private set { if (_toastSession.Persistent != value) { _toastSession.Persistent = value; Raise(nameof(ToastPersistent)); } } }
     private bool _saveFailed;
     public bool SaveBlocked => ReadOnly || _saveFailed;
     public string SaveBlockedMessage => ReadOnly ? "השמירה חסומה: לא ניתן לקרוא את קובץ הנתונים בבטחה. הקובץ לא שונה. בדקו הרשאות ותקינות ואז פתחו את התוכנה מחדש." : "השמירה לא הצליחה והשינויים לא נשמרו. בדקו הרשאות וזמינות של קובץ הנתונים ונסו לשמור שוב.";
@@ -77,7 +75,7 @@ public sealed partial class MainViewModel
         BackToOpeningSelectionCommand = Cmd(_ => { _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); SelectionPending = true; RaiseCommands(); }, _ => CanBackToOpeningSelection);
         ShowLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = true, _ => HasLastOpeningResults);
         CloseLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = false, _ => LastResultsOpen);
-        DismissToastCommand = Cmd(_ => { ToastVisible = false; _toastGeneration++; }, _ => ToastVisible);
+        DismissToastCommand = Cmd(_ => { ToastVisible = false; _toastSession.NextGeneration(); }, _ => ToastVisible);
         ToastDetailsCommand = Cmd(_ => { ToastVisible = false; LastResultsOpen = ToastHasOpeningResults && HasLastOpeningResults; }, _ => ToastHasOpeningResults && HasLastOpeningResults);
         CopyTechnicalDetailsCommand = Cmd(p => CopyAddressRequested?.Invoke(p as string ?? ""), p => p is string);
     }
@@ -116,7 +114,7 @@ public sealed partial class MainViewModel
 
     private void ShowToast(string message, bool persistent, string? technical = null, bool opening = false)
     {
-        var gen = ++_toastGeneration;
+        var gen = _toastSession.NextGeneration();
         ToastHasOpeningResults = opening; Raise(nameof(ToastHasOpeningResults));
         ToastMessage = message; ToastTechnicalDetails = technical ?? ""; ToastPersistent = persistent; ToastVisible = true;
         RaiseCommands();
@@ -125,7 +123,7 @@ public sealed partial class MainViewModel
     private async Task HideToastLater(int gen)
     {
         await Task.Delay(TimeSpan.FromSeconds(3));
-        if (_toastGeneration == gen) ToastVisible = false;
+        if (_toastSession.IsCurrent(gen)) ToastVisible = false;
     }
     private void PresentLegacyStatus(string value)
     {
