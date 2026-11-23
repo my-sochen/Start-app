@@ -20,10 +20,15 @@ class TraversalPolicy(unittest.TestCase):
         self.assertGreaterEqual(source.count('cancellationToken.ThrowIfCancellationRequested();'), 5)
         self.assertIn('if (!ScanGate.Wait(0))', source)
         self.assertIn('finally { ScanGate.Release(); }', source)
-        vm = (ROOT / 'src/StartApp.Presentation/MainViewModel.cs').read_text(encoding='utf-8')
-        self.assertIn('if (gen != _scanGen || cts.IsCancellationRequested) return;', vm)
-        self.assertIn('_scanGen++; try { _scanCts?.Cancel(); }', vm)
+        vm = (ROOT / 'src/StartApp.Presentation/Capture/CaptureFlowViewModel.cs').read_text(encoding='utf-8')
+        lifetime = (ROOT / 'src/StartApp.Presentation/Capture/CaptureScanLifetime.cs').read_text(encoding='utf-8')
+        self.assertIn('if (!_captureScan.IsCurrent(gen) || cts.IsCancellationRequested) return;', vm)
+        self.assertIn('_captureScan.CancelAndInvalidate();', vm)
         self.assertIn('CaptureScanning.BoundedAsync', vm)
+        self.assertIn('generation == _generation', lifetime)
+        self.assertIn('_generation++;', lifetime)
+        self.assertIn('_source?.Cancel();', lifetime)
+
 
 if __name__ == '__main__':
     unittest.main()

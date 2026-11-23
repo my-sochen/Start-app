@@ -6,27 +6,27 @@ This guide describes the staged refactor branch, not a released build. The draft
 
 | Change you want | Start here | Keep out of this class |
 | --- | --- | --- |
-| New workspace input, dirty state or preview | `src/StartApp.Presentation/WorkspaceCreateDraft.cs` | Saving, navigation and notifications |
-| Manual-add draft, web-target interpretation and duplicate state | `ManualAddSession.cs` in the same folder | Selected workspace, notification order and catalog mutation |
-| Existing workspace details draft | `WorkspaceDetailsDraft.cs` in the same folder | Picking another workspace or writing storage |
-| Item edit draft and captured identity | `ItemEditSession.cs` | Retargeting to current selection during save |
-| Saved/staged address edit state | `AddressEditSession.cs` | Store writes and staged-row writes |
-| Saved/staged open-with state | `OpenWithSession.cs` | Launching and setting Windows defaults |
-| Card design originals and draft | `CardDesignSession.cs` | Saving and unsaved-exit decisions |
-| Category editor draft/warning state | `CategoryEditSession.cs` | Catalog mutations |
-| Resource picker type/search/open state | `ResourcePickerSession.cs` | Binding collections and writes |
-| Resource picker sorting/filtering/usage | `ResourcePickerQuery.cs` | Session state |
-| Capture single/group duplicate state | `CaptureDuplicateSession.cs` | Duplicate identity policy and stage/save decisions |
-| Staged-row collection and same-group movement | `StagedItemCollection.cs` | Row writes and capture persistence |
-| Scan cancellation and stale results | `CaptureScanLifetime.cs` | Scan adapter and UI publication |
-| Opening target, checked plan and UI phase flags | `OpeningSessionState.cs` | Launch/check orchestration and notification order |
-| Atomic worker result and fault handoff | `CheckResultPublication.cs` | Deadline, cancellation, worker budget and error display |
-| Opening cancellation and generations | `OpenOperationLifetime.cs` | Launch and check policy |
-| Blocking preflight worker ceiling | `OpenCheckWorkerBudget.cs` | Resetting capacity when a worker times out |
-| Toast state and stale auto-hide identity | `ToastSession.cs` | Timer and dispatcher |
-| Inline validation routing | `FieldErrorSession.cs` | Validation rules and translated messages |
-| Unsaved dialog and deferred continuation | `UnsavedExitSession.cs` | Save/discard ordering |
-| Command registration/invalidation order | `CommandRegistry.cs` | Execute/can-execute policy |
+| New workspace input, dirty state or preview | `src/StartApp.Presentation/Workspaces/WorkspaceCreateDraft.cs` | Saving, navigation and notifications |
+| Manual-add draft, web-target interpretation and duplicate state | `Items/ManualAddSession.cs` | Selected workspace, notification order and catalog mutation |
+| Existing workspace details draft | `Workspaces/WorkspaceDetailsDraft.cs` | Picking another workspace or writing storage |
+| Item edit draft and captured identity | `Items/ItemEditSession.cs` | Retargeting to current selection during save |
+| Saved/staged address edit state | `Items/AddressEditSession.cs` | Store writes and staged-row writes |
+| Saved/staged open-with state | `Items/OpenWithSession.cs` | Launching and setting Windows defaults |
+| Card design originals and draft | `Workspaces/CardDesignSession.cs` | Saving and unsaved-exit decisions |
+| Category editor draft/warning state | `Workspaces/CategoryEditSession.cs` | Catalog mutations |
+| Resource picker type/search/open state | `Items/ResourcePickerSession.cs` | Binding collections and writes |
+| Resource picker sorting/filtering/usage | `Items/ResourcePickerQuery.cs` | Session state |
+| Capture single/group duplicate state | `Capture/CaptureDuplicateSession.cs` | Duplicate identity policy and stage/save decisions |
+| Staged-row collection and same-group movement | `Capture/StagedItemCollection.cs` | Row writes and capture persistence |
+| Scan cancellation and stale results | `Capture/CaptureScanLifetime.cs` | Scan adapter and UI publication |
+| Opening target, checked plan and UI phase flags | `Opening/OpeningSessionState.cs` | Launch/check orchestration and notification order |
+| Atomic worker result and fault handoff | `Opening/CheckResultPublication.cs` | Deadline, cancellation, worker budget and error display |
+| Opening cancellation and generations | `Opening/OpenOperationLifetime.cs` | Launch and check policy |
+| Blocking preflight worker ceiling | `Opening/OpenCheckWorkerBudget.cs` | Resetting capacity when a worker times out |
+| Toast state and stale auto-hide identity | `Shared/ToastSession.cs` | Timer and dispatcher |
+| Inline validation routing | `Shared/FieldErrorSession.cs` | Validation rules and translated messages |
+| Unsaved dialog and deferred continuation | `Shared/UnsavedExitSession.cs` | Save/discard ordering |
+| Command registration/invalidation order | `Shared/CommandRegistry.cs` | Execute/can-execute policy |
 | Window subscription lifetime | `src/StartApp.App/WindowSessionSubscriptions.cs` | View rendering |
 | Optional update window and approved-close state | `WindowUpdateSession.cs` in the App folder | WPF construction/events, apply launch and actual closing |
 | Default dialog focus transition | `DialogFocusSession.cs` in the App folder | WPF focus eligibility |
@@ -34,15 +34,15 @@ This guide describes the staged refactor branch, not a released build. The draft
 
 ## The host is still a host
 
-`MainViewModel` remains the public binding surface and workflow coordinator. Its partial files are one class, not independent objects. Files named `ItemEditorViewModel.cs`, `AddressEditorViewModel.cs`, `CardDesignViewModel.cs`, `CategoryManagerViewModel.cs` and `ResourcePickerViewModel.cs` adapt the independent owners to the existing public properties and commands.
+`MainViewModel` remains the public binding surface and workflow coordinator. Its partial files are one class, not independent objects. Files named `Items/ItemEditorViewModel.cs`, `Items/AddressEditorViewModel.cs`, `Workspaces/CardDesignViewModel.cs`, `Workspaces/CategoryManagerViewModel.cs` and `Items/ResourcePickerViewModel.cs` adapt the independent owners to the existing public properties and commands.
 
 A state owner has no repository, window or MainViewModel reference. The host keeps persistence, validation, notifications and cross-form decisions. Moving fields into an owner is a boundary, not a claim that all workflow orchestration has already been separated.
 
-`OpeningExecutionViewModel.cs` still coordinates asynchronous checks and launches. `CaptureFlowViewModel.cs` still coordinates scan publication, staging, duplicate decisions and capture saves. `MainViewModel.cs` still coordinates navigation, storage reload and save/discard ordering. These are remaining larger boundaries.
+`Opening/OpeningExecutionViewModel.cs` still coordinates asynchronous checks and launches. `Capture/CaptureFlowViewModel.cs` still coordinates scan publication, staging, duplicate decisions and capture saves. `Shell/MainViewModel.cs` still coordinates navigation, storage reload and save/discard ordering. These are remaining larger boundaries.
 
 ## Follow one saved item edit
 
-1. The public command calls `BeginItemEdit` in `ItemEditorViewModel.cs`.
+1. The public command calls `BeginItemEdit` in `Items/ItemEditorViewModel.cs`.
 2. The host refuses replacing an open dirty editor, then captures workspace and instance identity into `ItemEditSession`.
 3. Draft setters publish the same public binding notifications and command invalidation as before.
 4. Save validates the captured identity against the current snapshot, then checks it again inside the storage mutation.
@@ -60,7 +60,7 @@ For staged addresses and open-with defaults, the target is a staged row. Those w
 
 ## Follow a check deadline
 
-1. `OpeningExecutionViewModel.cs` creates one `CheckResultPublication` per check run.
+1. `Opening/OpeningExecutionViewModel.cs` creates one `CheckResultPublication` per check run.
 2. Workers record by original item index. Expected environmental failures become findings; unexpected faults enter the first-fault handoff.
 3. At the deadline, `Publish` takes a detached snapshot under the same lock used by workers. A later worker cannot change it.
 4. A fault already present belongs to `Guard`. The first fault arriving after handoff is returned to the late-error callback once, without waiting for another blocked worker.
