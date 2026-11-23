@@ -47,7 +47,7 @@ internal static class Program
                     else
                     {
                         var command=action=="add"?vm.ConfirmGlobalAddCommand:action=="remove"?vm.RemoveGlobalEntryCommand:vm.MoveGlobalConflictCommand;
-                        await Click(Children<Button>(w).Single(b=>ReferenceEquals(b.Command,command)&&b.IsVisible),w);
+                        await Click(Children<Button>(w).Single(b=>ReferenceEquals(b.Command,command)&&b.IsVisible&&(action!="remove"||b.CommandParameter is MainViewModel.GlobalEntryRow row&&row.Target=="https://example.com/")),w);
                     }
                     Check(vm.ReadOnly&&vm.ToastVisible&&vm.ToastPersistent,"Not fail closed");Check(File.ReadAllText(path)==bytes,"Store changed");
                     var notification=Children<Border>(w).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Notification");var expander=Children<Expander>(notification).Single();expander.IsExpanded=true;await Idle(w);
