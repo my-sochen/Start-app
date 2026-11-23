@@ -144,7 +144,12 @@ internal static class Program
             var plainPng = new PngBitmapEncoder(); plainPng.Frames.Add(BitmapFrame.Create(plainImage)); using (var f=File.Create(Path.Combine(output,name+"-plain-dialog-border.png"))) plainPng.Save(f);
             foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Parent.Children.RemoveAt(swap.Index); swap.Parent.Children.Insert(swap.Index,swap.Frame); }
             await Settle(window);
-            if (different != 0) throw new Exception("Shared dialog frame pixels differ: " + name + " " + different);
+            var actualPng = new PngBitmapEncoder(); actualPng.Frames.Add(BitmapFrame.Create(image)); using (var f=File.Create(Path.Combine(output,name+"-shared-dialog-frame.png"))) actualPng.Save(f);
+            if (different != 0)
+            {
+                File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
+                throw new Exception("Shared dialog frame pixels differ: " + name + " " + different);
+            }
         }
         // In candidate only, compare original baseline Grid against extracted UserControl inside the
         // SAME actual MainWindow and VM, sharing glyph caches. Baseline assembly run has no CaptureView.
