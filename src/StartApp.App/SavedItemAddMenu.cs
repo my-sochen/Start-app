@@ -20,7 +20,7 @@ public partial class MainWindow
         var selectedEnvironment = ActionItem("סביבה נבחרת", () =>
         {
             var destinations = vm.SavedItemDestinations(source);
-            if (destinations.Count == 0) { ShowItemDialog(SavedItemPromptWindow.Notice("אין סביבות זמינות", "כל הסביבות כבר מכילות אייטם באותו סוג וכתובת. אפשר ליצור סביבה חדשה.")); return; }
+            if (destinations.Count == 0) { ShowItemDialog(SavedItemPromptWindow.Notice("אין סביבות זמינות", "אין סביבות קיימות. אפשר ליצור סביבה חדשה.")); return; }
             var picker = new ItemWorkspacePickerWindow(destinations, source.Name, "share");
             if (ShowItemDialog(picker) == true) vm.AddSavedItemToWorkspaces(source, picker.ChosenWorkspaceIds);
         });
@@ -36,7 +36,7 @@ public partial class MainWindow
         void AddDestination(string label, GlobalListKind kind)
         {
             var destination = ActionItem(label, () => Add(kind));
-            destination.IsEnabled = !vm.SavedItemListAlreadyContains(source, kind);
+            destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind);
             menu.Items.Add(destination);
         }
         AddDestination("רשימה שחורה", GlobalListKind.Blacklist);

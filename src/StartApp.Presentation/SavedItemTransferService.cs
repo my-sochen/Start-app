@@ -23,19 +23,17 @@ public static class SavedItemTransferService
         if (!current) throw new ArgumentException("האייטם השתנה או הוסר. פתחו שוב את התפריט.");
         if (Catalog.ValidateInputTarget(source.Type, source.Target) is { } error) throw new ArgumentException(error);
     }
-    public static IReadOnlyList<Workspace> Destinations(Store store, SavedItemTransfer source) =>
-        store.Workspaces.Where(w => w.Id == source.WorkspaceId || !new Catalog(store).HasTarget(w.Id, source.Type, source.Target)).ToArray();
+    public static IReadOnlyList<Workspace> Destinations(Store store, SavedItemTransfer source) => store.Workspaces.ToArray();
 
-    public static bool ListContains(Store store, SavedItemTransfer source, GlobalListKind destination) =>
-        new Catalog(store).GlobalEntries(destination).Any(e => Catalog.Key(e.Type, e.Target) == Catalog.Key(source.Type, source.Target));
+    public static bool IsSourceList(SavedItemTransfer source, GlobalListKind destination) => source.ListKind == destination;
 
     public static void AddToWorkspaces(Catalog c, SavedItemTransfer source, IReadOnlyList<string> ids)
     {
         ValidateSource(c, source);
         if (ids.Count == 0 || ids.Distinct().Count() != ids.Count) throw new ArgumentException("בחרו סביבה להוספה.");
         foreach (var id in ids)
-            if (!c.Store.Workspaces.Any(w => w.Id == id) || (id != source.WorkspaceId && c.HasTarget(id, source.Type, source.Target)))
-                throw new ArgumentException("סביבת היעד השתנתה או כבר מכילה את האייטם. פתחו שוב את הרשימה.");
+            if (!c.Store.Workspaces.Any(w => w.Id == id))
+                throw new ArgumentException("סביבת היעד הוסרה. פתחו שוב את הרשימה.");
         var item = c.GetOrAddItem(source.Type, source.Name, source.Target);
         foreach (var id in ids)
         {

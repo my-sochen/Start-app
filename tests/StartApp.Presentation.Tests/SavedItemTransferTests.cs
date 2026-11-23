@@ -25,13 +25,15 @@ public class SavedItemTransferTests
         using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
         Assert.False(vm.CreateWorkspaceFromSavedItem(source, " ")); Assert.Single(repo.Load().Workspaces);
     }
-    [Fact] public void Existing_destination_rejects_duplicate_and_stale_destination_atomically()
+    [Fact] public void Already_populated_other_environment_is_selectable_and_gets_independent_copy()
     {
         using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
         var id = ""; repo.Mutate(c => id = c.CreateWorkspace("target").Id); vm.Reload();
+        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { id }));
         Assert.Contains(vm.SavedItemDestinations(source), w => w.Id == id);
-        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { id })); Assert.Equal(source.WorkspaceId, Assert.Single(vm.SavedItemDestinations(source)).Id);
-        Assert.False(vm.AddSavedItemToWorkspaces(source, new[] { id })); Assert.Single(repo.Load().Workspaces.Single(w => w.Id == id).Items);
+        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { id }));
+        var members = repo.Load().Workspaces.Single(w => w.Id == id).Items; Assert.Equal(2, members.Count);
+        Assert.NotEqual(members[0].Id, members[1].Id);
     }
     [Fact] public void Stale_source_rejected_without_creating_new_environment()
     {
@@ -108,17 +110,29 @@ public class SavedItemTransferTests
         Assert.NotEqual(members[0].Id, members[1].Id); Assert.Equal(members[0].Name, members[1].Name);
         Assert.Equal(members[0].Description, members[1].Description); Assert.Equal(members[0].Launch, members[1].Launch);
     }
+
     [Theory]
     [InlineData(GlobalListKind.GlobalItems)]
     [InlineData(GlobalListKind.Whitelist)]
     [InlineData(GlobalListKind.Blacklist)]
-    public void Already_present_global_destination_is_reported_for_disabled_menu(GlobalListKind kind)
+    public void Only_clicked_source_list_is_disabled_not_equal_items_in_other_places(GlobalListKind kind)
     {
         using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
-        Assert.False(vm.SavedItemListAlreadyContains(source, kind)); Assert.True(vm.AddSavedItemToList(source, kind));
-        Assert.True(vm.SavedItemListAlreadyContains(source, kind));
-        var changedName = source with { Name = "different display name" }; Assert.True(vm.SavedItemListAlreadyContains(changedName, kind));
-        var changedTarget = source with { Target = "https://example.com/another" }; Assert.False(vm.SavedItemListAlreadyContains(changedTarget, kind));
+        Assert.True(vm.AddSavedItemToList(source, kind)); Assert.False(vm.SavedItemIsSourceList(source, kind));
+        vm.OpenGlobalEnvCommand.Execute(null);
+        var row = (kind == GlobalListKind.GlobalItems ? vm.GlobalItemRows : kind == GlobalListKind.Whitelist ? vm.WhitelistRows : vm.BlacklistRows).Single(e => e.Target == source.Target);
+        var listed = vm.SavedTransferFromGlobal(row)!; Assert.True(vm.SavedItemIsSourceList(listed, kind));
+        foreach (var other in Enum.GetValues<GlobalListKind>().Where(k => k != kind)) Assert.False(vm.SavedItemIsSourceList(listed, other));
     }
-
+    [Fact] public void Global_startup_source_can_idempotently_add_existing_list_item_then_confirm_opposite_move()
+    {
+        using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
+        Assert.True(vm.AddSavedItemToList(source, GlobalListKind.GlobalItems)); Assert.True(vm.AddSavedItemToList(source, GlobalListKind.Blacklist));
+        vm.OpenGlobalEnvCommand.Execute(null); var global = vm.SavedTransferFromGlobal(vm.GlobalItemRows.Single())!;
+        Assert.False(vm.SavedItemIsSourceList(global, GlobalListKind.Blacklist)); Assert.True(vm.AddSavedItemToList(global, GlobalListKind.Blacklist));
+        Assert.Single(repo.Load().CaptureBlacklist.Where(e => !e.IsDefault));
+        Assert.False(vm.AddSavedItemToList(global, GlobalListKind.Whitelist)); Assert.Single(repo.Load().CaptureBlacklist.Where(e => !e.IsDefault));
+        Assert.True(vm.AddSavedItemToList(global, GlobalListKind.Whitelist, true)); Assert.Empty(repo.Load().CaptureBlacklist.Where(e => !e.IsDefault));
+        Assert.Single(repo.Load().CaptureWhitelist); Assert.Single(repo.Load().GlobalItems);
+    }
 }
