@@ -237,7 +237,7 @@ public sealed partial class MainViewModel : ObservableBase
             // Deleting the very row whose inline editor is open: a dirty editor wins - the delete is refused
             // with a clear status instead of stranding the edit on a missing instance (PR19 review). A clean
             // editor just closes before the delete.
-            if (ItemEditOpen && row.InstanceId == _editItemId)
+            if (ItemEditOpen && row.InstanceId == _itemEdit.InstanceId)
             {
                 if (ItemEditDirty) { Status = "Not deleted: save or cancel the open edit of this item first"; return; }
                 ItemEditOpen = false;
