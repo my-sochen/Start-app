@@ -4,6 +4,11 @@ from PIL import Image, ImageChops
 root = Path('evidence')
 images = sorted(p.name for p in (root / 'before').glob('*.png') if '-desktop' not in p.name and '-original-grid' not in p.name)
 assert len(images) == 9, f'Expected 9 fixed states, found {images}'
+# Same-process is an additional exact gate, never a substitute for the independent baseline control.
+shared = json.loads((root / 'after/same-process.json').read_text())
+assert len(shared) == 9 and {r['state'] + '.png' for r in shared} == set(images), shared
+assert all(r['different_pixels'] == 0 for r in shared), shared
+print('9 original-Grid versus extracted-view states exactly match in one process', flush=True)
 # A baseline repeat is an exactness control, not permission to ignore unstable pixels.
 control = []
 for name in images:
