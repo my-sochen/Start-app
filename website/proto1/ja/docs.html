@@ -62,22 +62,18 @@
 <span class="doc-kicker">始める</span>
 <h2>システムとインストールの要件</h2>
 <p> パッケージ化対象は Windows x64 です。検証済みの Mac または Linux バージョンはありません。 </p>
-<p> ダウンロードの可用性が表示されます <a href="../../ja/index.html?version=v0.1.0-proto.1#download">ホームページで</a> そして自動的に更新されます。検証済みのプロトタイプ バージョンがある場合は、インストール前に確認できるバージョン番号、ファイル サイズ、sha256 とともにダウンロード リンクが表示されます。 </p>
 <p class="doc-version-download">このガイドが説明するバージョン <bdi>0.1.0-proto.1</bdi> のダウンロードは、<a href="../../ja/index.html?version=v0.1.0-proto.1#download">ホームページのバージョン一覧</a>にあります。ダウンロードはそこでのみ行い、ガイドページからは行いません。</p>
 <h3>ダウンロード後のアクティベーション</h3>
 <p> ダウンロードはインストーラーではなく ZIP ファイルです。ダウンロード後: </p>
-<ol class="steps-list" data-layout-legacy hidden>
+<ol class="steps-list" data-layout-legacy>
 <li>ZIP からすべてのファイルをフォルダーに抽出します。</li>
 <li> 解凍したフォルダーを開き、実行します <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>DLL とランタイム ファイルは、ファイルの隣のフォルダーに残しておきます。</li>
 </ol>
-            <p data-layout-unknown>ZIP 内のすべてのファイルをフォルダーに展開してください。パッケージ構成は不明です。実行ファイルを選ぶ前に、その版の説明を確認してください。</p>
-            <p data-layout-portable hidden>ZIP 内のすべてのファイルを展開します。ルートフォルダーの <bdi><code>Start-app.exe</code></bdi> を実行し、App フォルダーを隣に保ち、移動時はフォルダー全体を移動してください。</p>
-<p data-layout-legacy-unqualified> 現在のプロジェクト設計は、ランタイムを含み、登録やサインインが不要で、データをデバイスにローカル保存するパッケージです。ダウンロード提供される各パッケージの特性は、承認時に公開・検証されます。</p>
-            <p data-layout-legacy-qualification hidden> アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-legacy-qualification> アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p data-layout-legacy-qualification hidden> テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。 </p>
+<p data-layout-legacy-qualification> テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。 </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">画面</span>

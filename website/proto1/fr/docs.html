@@ -62,22 +62,18 @@
 <span class="doc-kicker">commencer</span>
 <h2>Exigences du système et de l'installation</h2>
 <p> La cible du packaging est Windows x64. Il n’existe pas de version Mac ou Linux vérifiée. </p>
-<p> La disponibilité du téléchargement est affichée <a href="../../fr/index.html?version=v0.1.0-proto.1#download">sur la page d'accueil</a> Et mis à jour automatiquement : lorsqu'il existe une version prototype vérifiée, il existe un lien de téléchargement, ainsi que le numéro de version, la taille du fichier et son sha256 pour vérification avant l'installation. </p>
 <p class="doc-version-download">Le téléchargement de la version décrite par ce guide, <bdi>0.1.0-proto.1</bdi>, se trouve dans la <a href="../../fr/index.html?version=v0.1.0-proto.1#download">liste des versions de la page d’accueil</a>. Le téléchargement s’y fait uniquement, pas depuis la page du guide.</p>
 <h3>Activation après téléchargement</h3>
 <p> Le téléchargement est un fichier ZIP, pas un programme d'installation. Après téléchargement : </p>
-<ol class="steps-list" data-layout-legacy hidden>
+<ol class="steps-list" data-layout-legacy>
 <li>Extrayez tous les fichiers du ZIP dans un dossier.</li>
 <li> Ouvrez le dossier extrait et exécutez le <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>Laissez la DLL et les fichiers d'exécution dans le dossier, à côté du fichier.</li>
 </ol>
-            <p data-layout-unknown>Extrayez tous les fichiers ZIP dans un dossier. La structure du paquet est inconnue ; consultez les instructions de la version avant de choisir un exécutable.</p>
-            <p data-layout-portable hidden>Extrayez tous les fichiers ZIP. Lancez <bdi><code>Start-app.exe</code></bdi> dans le dossier racine, gardez le dossier <bdi><code>App</code></bdi> à côté et déplacez toujours le dossier complet.</p>
-<p data-layout-legacy-unqualified> La conception actuelle du projet est un paquet qui inclut son environnement d'exécution, sans inscription ni connexion, et dont les données sont stockées localement sur l'appareil. Les propriétés de chaque paquet proposé au téléchargement seront publiées et vérifiées lors de son approbation.</p>
-            <p data-layout-legacy-qualification hidden> L'application inclut son environnement d'exécution, il n'est donc pas nécessaire d'installer .NET séparément. Aucune inscription, compte ou connexion. Les données sont enregistrées dans un fichier local dans<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-legacy-qualification> L'application inclut son environnement d'exécution, il n'est donc pas nécessaire d'installer .NET séparément. Aucune inscription, compte ou connexion. Les données sont enregistrées dans un fichier local dans<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p data-layout-legacy-qualification hidden> Ce qui a été testé : ce prototype a été construit en tant qu'application Windows x64 autonome, et a démarré et arrêté avec succès sur un serveur Windows Server 2025 hébergé. Non testé indépendamment sur Windows 11 domestique, et il n’y a pas d’engagement minimum de version Windows. Il n'y a aucune garantie que les avertissements de sécurité ou les alertes du logiciel antivirus n'apparaîtront pas. </p>
+<p data-layout-legacy-qualification> Ce qui a été testé : ce prototype a été construit en tant qu'application Windows x64 autonome, et a démarré et arrêté avec succès sur un serveur Windows Server 2025 hébergé. Non testé indépendamment sur Windows 11 domestique, et il n’y a pas d’engagement minimum de version Windows. Il n'y a aucune garantie que les avertissements de sécurité ou les alertes du logiciel antivirus n'apparaîtront pas. </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">Écrans</span>

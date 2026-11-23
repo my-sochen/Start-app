@@ -62,22 +62,18 @@
 <span class="doc-kicker">comenzar</span>
 <h2>Requisitos del sistema y de instalación.</h2>
 <p> El destino del paquete es Windows x64. No existe una versión verificada para Mac o Linux. </p>
-<p> Se muestra la disponibilidad de descarga. <a href="../../es/index.html?version=v0.1.0-proto.1#download">en la pagina de inicio</a> Y se actualiza automáticamente: cuando hay una versión del prototipo verificada, hay un enlace de descarga, junto con el número de versión, el tamaño del archivo y su sha256 para verificar antes de la instalación. </p>
 <p class="doc-version-download">La descarga de la versión que documenta esta guía, <bdi>0.1.0-proto.1</bdi>, está en la <a href="../../es/index.html?version=v0.1.0-proto.1#download">lista de versiones de la página principal</a>. La descarga se realiza solo allí, no desde la página de la guía.</p>
 <h3>Activación después de la descarga</h3>
 <p> La descarga es un archivo ZIP, no un instalador. Después de descargar: </p>
-<ol class="steps-list" data-layout-legacy hidden>
+<ol class="steps-list" data-layout-legacy>
 <li>Extraiga todos los archivos del ZIP a una carpeta.</li>
 <li> Abra la carpeta extraída y ejecute el <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>Deje los archivos DLL y de tiempo de ejecución en la carpeta, al lado del archivo.</li>
 </ol>
-            <p data-layout-unknown>Extrae todos los archivos ZIP a una carpeta. Se desconoce la estructura del paquete; consulta las instrucciones de la versión antes de elegir un ejecutable.</p>
-            <p data-layout-portable hidden>Extrae todos los archivos ZIP. Ejecuta <bdi><code>Start-app.exe</code></bdi> en la carpeta raíz, conserva la carpeta <bdi><code>App</code></bdi> a su lado y mueve siempre toda la carpeta junta.</p>
-<p data-layout-legacy-unqualified> El diseño actual del proyecto es un paquete que incluye su entorno de ejecución, sin registro ni inicio de sesión, y con datos guardados localmente en el dispositivo. Las propiedades de cada paquete ofrecido para descarga se publicarán y verificarán cuando se apruebe.</p>
-            <p data-layout-legacy-qualification hidden> La aplicación incluye su entorno de ejecución, por lo que no es necesario instalar .NET por separado. Sin registro, cuenta o inicio de sesión. Los datos se guardan en un archivo local en<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-legacy-qualification> La aplicación incluye su entorno de ejecución, por lo que no es necesario instalar .NET por separado. Sin registro, cuenta o inicio de sesión. Los datos se guardan en un archivo local en<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p data-layout-legacy-qualification hidden> Qué se probó: este prototipo se creó como una aplicación Windows x64 independiente y se inició y cerró con éxito en un servidor Windows Server 2025 alojado. No se ha probado de forma independiente en Windows 11 doméstico y no existe un compromiso de versión mínima de Windows. No hay garantía de que no aparezcan advertencias de seguridad o alertas de software antivirus. </p>
+<p data-layout-legacy-qualification> Qué se probó: este prototipo se creó como una aplicación Windows x64 independiente y se inició y cerró con éxito en un servidor Windows Server 2025 alojado. No se ha probado de forma independiente en Windows 11 doméstico y no existe un compromiso de versión mínima de Windows. No hay garantía de que no aparezcan advertencias de seguridad o alertas de software antivirus. </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">Pantallas</span>

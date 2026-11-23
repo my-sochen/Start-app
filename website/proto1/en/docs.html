@@ -62,22 +62,18 @@
 <span class="doc-kicker">Getting started</span>
 <h2>System and installation requirements</h2>
 <p> The packaging target is Windows x64. There is no verified Mac or Linux version. </p>
-<p> Download availability is displayed <a href="../../en/index.html?version=v0.1.0-proto.1#download">on the home page</a> And updated automatically: when there is a verified prototype version there is a download link, along with the version number, file size and its sha256 for checking before installation. </p>
 <p class="doc-version-download">The download for the version this guide documents, <bdi>0.1.0-proto.1</bdi>, is in the <a href="../../en/index.html?version=v0.1.0-proto.1#download">versions list on the home page</a>. Downloads happen only there, not from the guide page.</p>
 <h3>Activation after download</h3>
 <p> The download is a ZIP file, not an installer. After downloading: </p>
-<ol class="steps-list" data-layout-legacy hidden>
+<ol class="steps-list" data-layout-legacy>
 <li>Extract all the files from the ZIP to a folder.</li>
 <li> Open the extracted folder and run the <bdi><code>StartApp.App.exe</code></bdi>.
               </li>
 <li>Leave the DLL and runtime files in the folder, next to the file.</li>
 </ol>
-            <p data-layout-unknown>Extract all ZIP files to a folder. Package layout is unknown; check the release instructions before choosing an executable.</p>
-            <p data-layout-portable hidden>Extract all ZIP files. Run <bdi><code>Start-app.exe</code></bdi> in the root folder, keep the <bdi><code>App</code></bdi> folder beside it, and always move the whole folder together.</p>
-<p data-layout-legacy-unqualified> The current project design is a package that includes its runtime, with no registration or sign-in, and data stored locally on the device. The properties of every package offered for download will be published and verified when it is approved.</p>
-            <p data-layout-legacy-qualification hidden> The application includes its runtime environment, so there is no need to install .NET separately. No registration, account or login. The data is saved to a local file in<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            <p data-layout-legacy-qualification> The application includes its runtime environment, so there is no need to install .NET separately. No registration, account or login. The data is saved to a local file in<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-<p data-layout-legacy-qualification hidden> What was tested: This prototype was built as a standalone Windows x64 application, and successfully started and shut down on a hosted Windows Server 2025 server. Not independently tested on home Windows 11, and there is no minimum Windows version commitment. There is no guarantee that security warnings or antivirus software alerts will not appear. </p>
+<p data-layout-legacy-qualification> What was tested: This prototype was built as a standalone Windows x64 application, and successfully started and shut down on a hosted Windows Server 2025 server. Not independently tested on home Windows 11, and there is no minimum Windows version commitment. There is no guarantee that security warnings or antivirus software alerts will not appear. </p>
 </section>
 <section class="doc-section" data-doc="" id="main-screen">
 <span class="doc-kicker">Screens</span>

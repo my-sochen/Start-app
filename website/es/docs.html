@@ -127,6 +127,7 @@
               <img src="../shots/doc-p2-08-capture-draft.png" alt="Captura lado a lado en un espacio existente en la versión 0.1.0-proto.2: los elementos guardados, la lista Abiertos ahora y un area Added, not saved yet vacía" width="926" height="643" loading="lazy" />
               <figcaption>Lado a lado antes de guardar: no se guarda nada hasta que se hace clic en Guardar.</figcaption>
             </figure>
+            <p>Al arrastrar un solo elemento que ya está en el espacio, se muestra una confirmación separada para ese arrastre: ¿agregarlo de nuevo como una instancia independiente? En la adición en lote ("Agregar todo" o "Agregar seleccionados"), solo se agregan los elementos seleccionados; si no hay ninguno seleccionado, se agregan todos. Los elementos que no son duplicados se agregan a la pantalla de inmediato, y todos los duplicados se reúnen en una sola ventana de selección agrupada donde marcas qué agregar.</p>
             <p>No hay prevención completa de duplicados: el mismo elemento se puede agregar más de una vez, aunque ya esté guardado en el espacio. Conviene revisar la lista antes de guardar.</p>
           </section>
           <section id="edit" class="doc-section" data-doc>
@@ -151,7 +152,7 @@
             </figure>
             <p>Si la comprobación identifica con certeza un elemento ya abierto, aparece una opción para volver a abrirlo: estos elementos están desmarcados por defecto. Marca solo lo que quieras abrir de nuevo; puedes volver a la selección o cancelar. Una detección incierta no prueba que el elemento esté cerrado. Los resultados distinguen una solicitud enviada, una omisión, un fallo y la elección de no volver a abrir. Una solicitud enviada no confirma que la ventana se haya abierto.</p>
             <p>Los enlaces se abren solo por http/https, y los programas requieren una ruta completa.</p>
-            <p>Después de la confirmación, la aplicación envía a Windows una solicitud para abrir cada elemento. Es importante comprender lo que esto significa: una solicitud enviada no es prueba de que la ventana deseada realmente se haya abierto. La aplicación tampoco puede determinar de manera confiable si el elemento exacto ya está abierto, por lo que volver a abrirlo puede crear duplicados. Un elemento cuyo archivo no se encuentra falla con el mensaje "archivo no encontrado".</p>
+            <p>Tras la confirmación, la aplicación envía a Windows una solicitud para abrir cada elemento. Una solicitud enviada no prueba que la ventana deseada se haya abierto realmente. Un elemento no encontrado en su ruta guardada se omite, con una explicación de que no se encontró en la ruta guardada y una sugerencia de comprobar la ruta e intentarlo de nuevo. La comprobación de "ya abierto" es parcial: solo un elemento identificado con certeza como abierto se ofrece como opción para volver a abrirlo, y cuando la comprobación no puede decidir, volver a abrirlo puede crear un duplicado.</p>
           </section>
           <section id="limits" class="doc-section" data-doc>
             <span class="doc-kicker">fiabilidad</span>
@@ -159,11 +160,12 @@
             <ul>
               <li>No existe una identificación automática del documento que se abre dentro del software; Un software abierto no es evidencia de que se haya abierto un archivo en particular. Los documentos se agregan manualmente.</li>
               <li>No hay garantía de recuperación del contenido no guardado o de la ubicación de la ventana.</li>
-              <li>"ya abierto" no se conoce de manera confiable; La reapertura puede crear duplicados.</li>
+              <li>La comprobación de "ya abierto" es parcial: una detección confirmada ofrece una opción para volver a abrir; sin certeza, volver a abrir puede crear un duplicado.</li>
               <li>Un resultado de captura parcial o una lista vacía no significa que no haya nada abierto.</li>
               <li>No hay prevención completa de duplicados entre elementos guardados y nuevos.</li>
               <li>No hay ninguna operación de eliminación del entorno en la interfaz; Puede eliminar elementos de un entorno, no eliminar un entorno completo.</li>
               <li>No hay actualización automática; la comprobación de versiónes aprobadas está disponible en la pantalla de configuración, y la instalación es manual desde el sitio oficial.</li>
+              <li>Las rutas de raíz de unidad o de raíz de recurso compartido de red no se admiten como destinos de carpetas, ni al agregar manualmente ni por captura; las rutas de subcarpetas normales sí se admiten.</li>
             </ul>
           </section>
           <section id="storage" class="doc-section" data-doc>

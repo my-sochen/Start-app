@@ -109,18 +109,12 @@
             <p>
               יעד האריזה הוא Windows x64. אין גרסת Mac או Linux מאומתת.
             </p>
-            <p>
-              זמינות ההורדה מוצגת <a href="../index.html?version=v0.1.0-proto.1#download">בדף הבית</a>
-              ומתעדכנת אוטומטית: כשקיימת גרסת אב-טיפוס מאומתת מופיע שם קישור
-              הורדה, יחד עם מספר הגרסה, גודל הקובץ וה-sha256 שלו לבדיקה לפני
-              ההתקנה.
-            </p>
             <p class="doc-version-download">ההורדה של הגרסה שמתאר המדריך הזה, <bdi>0.1.0-proto.1</bdi>, נמצאת <a href="../index.html?version=v0.1.0-proto.1#download">ברשימת הגרסאות בדף הבית</a>. ההורדה מתבצעת רק שם, לא מדף המדריך.</p>
             <h3>הפעלה אחרי ההורדה</h3>
             <p>
               ההורדה היא קובץ ZIP, לא מתקין. אחרי ההורדה:
             </p>
-            <ol class="steps-list" data-layout-legacy hidden>
+            <ol class="steps-list" data-layout-legacy>
               <li>חלצו את כל הקבצים מה־ZIP לתיקייה.</li>
               <li>
                 פתחו את התיקייה שחולצה והפעילו את
@@ -128,19 +122,12 @@
               </li>
               <li>השאירו את קובצי ה־DLL וה־runtime בתיקייה, לצד הקובץ.</li>
             </ol>
-            <p data-layout-unknown>חלצו את כל קובצי ה־ZIP לתיקייה. מבנה החבילה לא זוהה; בדקו את הוראות הגרסה לפני בחירת קובץ להפעלה.</p>
-            <p data-layout-portable hidden>חלצו את כל קובצי ה־ZIP. הפעילו את <bdi><code>Start-app.exe</code></bdi> שבתיקייה הראשית, השאירו לצדו את תיקיית <bdi><code>App</code></bdi>, והעבירו תמיד את כל התיקייה יחד.</p>
-            <p data-layout-legacy-unqualified>
-              מבנה הפרויקט הנוכחי מתוכנן כחבילה הכוללת את סביבת ההרצה, ללא
-              הרשמה או התחברות, ועם שמירת נתונים מקומית במכשיר. מאפייני כל
-              חבילה שתוצע להורדה יפורסמו ויאומתו בעת אישורה.
-            </p>
-            <p data-layout-legacy-qualification hidden>
+            <p data-layout-legacy-qualification>
               האפליקציה כוללת את סביבת ההרצה שלה, ולכן אין צורך בהתקנת .NET
               בנפרד. אין הרשמה, חשבון או התחברות. הנתונים נשמרים בקובץ מקומי
               ב־<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
             </p>
-            <p data-layout-legacy-qualification hidden>
+            <p data-layout-legacy-qualification>
               מה נבדק: אב-טיפוס זה נבנה כאפליקציית Windows x64 עצמאית, והופעל
               ונסגר בהצלחה בשרת Windows Server 2025 מתארח. לא נבדק באופן
               עצמאי ב־Windows 11 ביתי, ואין התחייבות לגרסת Windows מינימלית.

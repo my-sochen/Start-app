@@ -5,7 +5,7 @@ This is a local design/development candidate, not a published release.
 - Hebrew stays the source language. Added languages: English, Russian, Simplified Chinese, Japanese, French, Spanish and German.
 - Simplified Chinese is a provisional preview variant. It is not a final choice between Simplified and Traditional Chinese.
 - The original translations are Google Translate drafts of public website copy with limited editorial terminology corrections. They have not had native-speaker review. This is not a linguistic or accessibility certification.
-- There are 193 source entries per added language, including headings, guide text, alt text, accessible labels, descriptions and dynamic download/search messages.
+- There are 197 source entries per added language, including headings, guide text, alt text, accessible labels, descriptions and dynamic download/search messages.
 - Start-app stays literal. Platform names, file paths, code examples, release validation and package identity are not translated.
 - Existing app screenshots stay in Hebrew. Only the website is localized; the application/package is not changed.
 - Hebrew is RTL; other pages are LTR. Release metadata stays isolated LTR. Asian languages use locally available system fallback fonts, with no remote font calls. Actual Windows/Android fallback-font rendering still needs device review.

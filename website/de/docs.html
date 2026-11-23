@@ -127,6 +127,7 @@
               <img src="../shots/doc-p2-08-capture-draft.png" alt="Nebeneinander-Aufnahme in einem vorhandenen Arbeitsbereich in Version 0.1.0-proto.2: die gespeicherten Elemente, die Liste &quot;Derzeit geöffnet&quot; und ein leerer Bereich Added, not saved yet" width="926" height="643" loading="lazy" />
               <figcaption>Nebeneinander vor dem Speichern: Es wird nichts gespeichert, bis auf „Speichern“ geklickt wird.</figcaption>
             </figure>
+            <p>Beim Ziehen eines einzelnen Elements, das sich bereits im Arbeitsbereich befindet, wird für diesen Vorgang eine separate Bestätigung angezeigt: Erneut als separate Instanz hinzufügen? Bei der Stapelaufnahme ("Alle hinzufügen" oder "Auswahl hinzufügen") werden nur die ausgewählten Elemente hinzugefügt - ist nichts ausgewählt, werden alle hinzugefügt. Nicht doppelte Elemente werden sofort auf dem Bildschirm bereitgestellt, und alle Duplikate werden in einem einzigen gruppierten Auswahldialog gesammelt, in dem Sie markieren, was hinzugefügt werden soll.</p>
             <p>Es gibt keinen vollständigen Duplikatschutz: Dasselbe Element kann mehr als einmal hinzugefügt werden, auch wenn es bereits im Arbeitsbereich gespeichert ist. Es lohnt sich, die Liste vor dem Speichern zu prüfen.</p>
           </section>
           <section id="edit" class="doc-section" data-doc>
@@ -151,7 +152,7 @@
             </figure>
             <p>Wenn die Prüfung ein Element sicher als bereits geöffnet erkennt, erscheint eine Auswahl zum erneuten Öffnen: Diese Elemente sind standardmäßig nicht markiert. Markieren Sie nur, was Sie erneut öffnen möchten; Sie können zur Auswahl zurückkehren oder abbrechen. Eine unsichere Erkennung beweist nicht, dass ein Element geschlossen ist. Die Ergebnisse unterscheiden zwischen gesendeter Anfrage, Überspringen, Fehler und der Entscheidung, nicht erneut zu öffnen. Eine gesendete Anfrage bestätigt nicht, dass das Fenster geöffnet wurde.</p>
             <p>Links werden nur über http/https geöffnet, und Programme benötigen einen vollständigen Pfad.</p>
-            <p>Nach der Bestätigung sendet die Anwendung eine Aufforderung an Windows, jedes Element zu öffnen. Es ist wichtig zu verstehen, was das bedeutet: Eine gesendete Anfrage ist kein Beweis dafür, dass das gewünschte Fenster tatsächlich geöffnet wurde. Die App kann auch nicht zuverlässig erkennen, ob der genaue Artikel bereits geöffnet ist, sodass beim erneuten Öffnen möglicherweise Duplikate entstehen. Ein Element, dessen Datei nicht gefunden wird, schlägt mit der Meldung „Datei nicht gefunden“ fehl.</p>
+            <p>Nach der Bestätigung sendet die App an Windows eine Anfrage zum Öffnen jedes Elements. Eine gesendete Anfrage beweist nicht, dass das gewünschte Fenster tatsächlich geöffnet wurde. Ein Element, das unter seinem gespeicherten Pfad nicht gefunden wird, wird übersprungen, mit der Erklärung, dass es unter dem gespeicherten Pfad nicht gefunden wurde, und dem Hinweis, den Pfad zu prüfen und es erneut zu versuchen. Die Prüfung "bereits geöffnet" ist teilweise: Nur ein sicher als geöffnet erkanntes Element wird als Auswahl zum erneuten Öffnen angeboten, und wenn die Prüfung nicht entscheiden kann, kann ein erneutes Öffnen ein Duplikat erzeugen.</p>
           </section>
           <section id="limits" class="doc-section" data-doc>
             <span class="doc-kicker">Zuverlässigkeit</span>
@@ -159,11 +160,12 @@
             <ul>
               <li>Es gibt keine automatische Identifizierung des Dokuments, das innerhalb der Software geöffnet wird; Eine geöffnete Software ist kein Beweis dafür, dass eine bestimmte Datei darin geöffnet ist. Dokumente werden manuell hinzugefügt.</li>
               <li>Es gibt keine Garantie für die Wiederherstellung nicht gespeicherter Inhalte oder der Fensterplatzierung.</li>
-              <li>„bereits geöffnet“ ist nicht zuverlässig bekannt; Beim erneuten Öffnen können Duplikate entstehen.</li>
+              <li>Die Prüfung "bereits geöffnet" ist teilweise: Eine bestätigte Erkennung bietet eine Auswahl zum erneuten Öffnen; ohne Sicherheit kann ein erneutes Öffnen ein Duplikat erzeugen.</li>
               <li>Ein unvollständiges Erfassungsergebnis oder eine leere Liste bedeuten nicht, dass nichts offen ist.</li>
               <li>Es gibt keinen vollständigen Duplikatschutz zwischen gespeicherten und neuen Elementen.</li>
               <li>In der Schnittstelle gibt es keinen Vorgang zum Löschen der Umgebung. Sie können Elemente aus einer Umgebung entfernen, nicht jedoch eine gesamte Umgebung löschen.</li>
               <li>Keine automatische Aktualisierung; eine Prüfung freigegebener Versionen ist im Einstellungsbildschirm verfügbar, und die Installation erfolgt manuell von der offiziellen Website.</li>
+              <li>Pfade zum Stammverzeichnis eines Laufwerks oder einer Netzwerkfreigabe werden als Ordnerziele nicht unterstützt, weder beim manuellen Hinzufügen noch bei der Aufnahme; normale Unterordnerpfade werden unterstützt.</li>
             </ul>
           </section>
           <section id="storage" class="doc-section" data-doc>

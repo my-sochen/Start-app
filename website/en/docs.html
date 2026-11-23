@@ -127,6 +127,7 @@
               <img src="../shots/doc-p2-08-capture-draft.png" alt="Side-by-side capture in an existing workspace in version 0.1.0-proto.2: the saved items, the Open now list and an empty Added, not saved yet area" width="926" height="643" loading="lazy" />
               <figcaption>Side-by-Side Before Save: Nothing is saved until Save is clicked.</figcaption>
             </figure>
+            <p>Dragging a single item that is already in the workspace shows a separate confirmation for that drag: add it again as a separate instance? In batch add ("Add all" or "Add selected"), only the selected items are added - if none are selected, all of them. Non-duplicate items are staged immediately, and all duplicates are collected into one grouped selection dialog where you check what to add.</p>
             <p>There is no full duplicate prevention: the same item can be added more than once, even if it is already saved in the workspace. It is worth reviewing the list before saving.</p>
           </section>
           <section id="edit" class="doc-section" data-doc>
@@ -151,7 +152,7 @@
             </figure>
             <p>If the check positively identifies an item as already open, a reopen choice appears: those items are unchecked by default. Check only what you want to open again; you can return to selection or cancel. Uncertain detection is not proof that an item is closed. Opening results distinguish a request sent, a skip, a failure and a choice not to reopen. A request sent does not confirm that the window opened.</p>
             <p>Links open over http/https only, and programs require a full path.</p>
-            <p>After confirmation, the application sends Windows a request to open each item. It is important to understand what this means: a sent request is not proof that the desired window really opened. The app also cannot reliably tell if the exact item is already open, so re-opening may create duplicates. An item whose file is not found fails with a "file not found" message.</p>
+            <p>After confirmation, the app sends Windows a request to open each item. A request sent is not proof that the intended window actually opened. An item not found at its saved path is skipped, with an explanation that it was not found at the saved path and a suggestion to check the path and try again. "Already open" checking is partial: only an item positively identified as open is offered as a reopen choice, and when the check cannot decide, reopening may create a duplicate.</p>
           </section>
           <section id="limits" class="doc-section" data-doc>
             <span class="doc-kicker">Reliability</span>
@@ -159,11 +160,12 @@
             <ul>
               <li>There is no automatic identification of the document that is opened within the software; An open software is not evidence of a particular file opened in it. Documents are added manually.</li>
               <li>There is no guarantee of recovery of unsaved content or window placement.</li>
-              <li>"already open" is not reliably known; Reopening may create duplicates.</li>
+              <li>"Already open" checking is partial: a confirmed detection offers a reopen choice; when there is no certainty, reopening may create a duplicate.</li>
               <li>A partial capture result or an empty list does not mean that there is nothing open.</li>
               <li>There is no full duplicate prevention between saved and new items.</li>
               <li>There is no environment deletion operation in the interface; You can remove items from an environment, not delete an entire environment.</li>
               <li>There is no automatic update; a check for approved versions is available in the settings screen, and installation is manual from the official site.</li>
+              <li>Drive-root and network-share-root paths are not supported as folder targets, neither when adding manually nor by capture; regular subfolder paths are supported.</li>
             </ul>
           </section>
           <section id="storage" class="doc-section" data-doc>

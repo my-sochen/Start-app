@@ -127,6 +127,7 @@
               <img src="../shots/doc-p2-08-capture-draft.png" alt="Capture côte à côte dans un espace existant en version 0.1.0-proto.2 : les éléments enregistrés, la liste Ouverts actuellement et une zone Added, not saved yet vide" width="926" height="643" loading="lazy" />
               <figcaption>Côte à côte avant l'enregistrement : rien n'est enregistré tant que vous n'avez pas cliqué sur Enregistrer.</figcaption>
             </figure>
+            <p>Le glissement d'un élément unique déjà présent dans l'espace affiche une confirmation distincte pour ce glissement : l'ajouter à nouveau comme instance distincte ? Dans l'ajout groupé (« Tout ajouter » ou « Ajouter la sélection »), seuls les éléments sélectionnés sont ajoutés - si rien n'est sélectionné, tous le sont. Les éléments non dupliqués sont mis en attente immédiatement, et tous les doublons sont rassemblés dans une seule fenêtre de sélection groupée où vous cochez ce qu'il faut ajouter.</p>
             <p>Il n'y a pas de prévention complète des doublons : un même élément peut être ajouté plus d'une fois, même s'il est déjà enregistré dans l'espace. Il vaut mieux vérifier la liste avant d'enregistrer.</p>
           </section>
           <section id="edit" class="doc-section" data-doc>
@@ -151,7 +152,7 @@
             </figure>
             <p>Si la vérification identifie avec certitude un élément déjà ouvert, un choix de réouverture apparaît : ces éléments sont décochés par défaut. Cochez uniquement ce que vous voulez rouvrir ; vous pouvez revenir à la sélection ou annuler. Une détection incertaine ne prouve pas que l'élément est fermé. Les résultats distinguent une demande envoyée, un élément ignoré, un échec et le choix de ne pas rouvrir. Une demande envoyée ne confirme pas que la fenêtre s'est ouverte.</p>
             <p>Les liens s'ouvrent uniquement en http/https, et les programmes exigent un chemin complet.</p>
-            <p>Après confirmation, l'application envoie à Windows une demande d'ouverture de chaque élément. Il est important de comprendre ce que cela signifie : une requête envoyée ne constitue pas la preuve que la fenêtre souhaitée s'est réellement ouverte. L'application ne peut pas non plus déterminer de manière fiable si l'élément exact est déjà ouvert. La réouverture peut donc créer des doublons. Un élément dont le fichier est introuvable échoue avec un message « fichier introuvable ».</p>
+            <p>Après confirmation, l'application envoie à Windows une demande d'ouverture de chaque élément. Une demande envoyée ne prouve pas que la fenêtre voulue s'est réellement ouverte. Un élément introuvable à son chemin enregistré est ignoré, avec une explication indiquant qu'il n'a pas été trouvé au chemin enregistré et une suggestion de vérifier le chemin puis de réessayer. La vérification « déjà ouvert » est partielle : seul un élément identifié avec certitude comme ouvert est proposé comme choix de réouverture, et quand la vérification ne peut pas trancher, une réouverture peut créer un doublon.</p>
           </section>
           <section id="limits" class="doc-section" data-doc>
             <span class="doc-kicker">fiabilité</span>
@@ -159,11 +160,12 @@
             <ul>
               <li>Il n'y a pas d'identification automatique du document ouvert dans le logiciel ; Un logiciel ouvert ne constitue pas la preuve d'un fichier particulier qui y est ouvert. Les documents sont ajoutés manuellement.</li>
               <li>Il n'y a aucune garantie de récupération du contenu non enregistré ou de placement de la fenêtre.</li>
-              <li>« déjà ouvert » n'est pas connu de manière fiable ; La réouverture peut créer des doublons.</li>
+              <li>La vérification « déjà ouvert » est partielle : une détection confirmée propose un choix de réouverture ; sans certitude, une réouverture peut créer un doublon.</li>
               <li>Un résultat de capture partiel ou une liste vide ne signifie pas qu'il n'y a rien d'ouvert.</li>
               <li>Il n'y a pas de prévention complète des doublons entre éléments enregistrés et nouveaux.</li>
               <li>Il n'y a pas d'opération de suppression d'environnement dans l'interface ; Vous pouvez supprimer des éléments d'un environnement, mais pas supprimer un environnement entier.</li>
               <li>Pas de mise à jour automatique ; une vérification des versions approuvées est disponible dans l'écran des paramètres, et l'installation est manuelle depuis le site officiel.</li>
+              <li>Les chemins racine d'un lecteur ou d'un partage réseau ne sont pas pris en charge comme cibles de dossiers, ni lors de l'ajout manuel ni lors de la capture ; les chemins de sous-dossiers ordinaires sont pris en charge.</li>
             </ul>
           </section>
           <section id="storage" class="doc-section" data-doc>
