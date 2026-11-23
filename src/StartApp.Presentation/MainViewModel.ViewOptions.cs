@@ -272,5 +272,6 @@ public sealed partial class MainViewModel
 
         Raise(nameof(HasActiveFilters)); Raise(nameof(FilteredCountText)); Raise(nameof(FilterCategoryOptions));
         Raise(nameof(IsSingleContentFilter)); Raise(nameof(SingleContentFilterName)); Raise(nameof(SingleFilterCountText));
+        _clearFilters?.Raise();
     }
 }

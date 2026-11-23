@@ -128,6 +128,25 @@ public class ViewOptionsTests
         Assert.Equal("", vm.FilterContainsText);
     }
 
+    [Fact] public void Clear_filter_command_notifies_the_bound_button_when_filter_state_changes()
+    {
+        var vm = Seed(out _);
+        var command = vm.ClearFiltersCommand; // The view binds before the first filter is applied.
+        Assert.False(command.CanExecute(null));
+        var observedStates = new List<bool>();
+        command.CanExecuteChanged += (_, _) => observedStates.Add(command.CanExecute(null));
+
+        vm.ToggleCategoryFilter("כללי");
+        Assert.True(command.CanExecute(null));
+        Assert.Equal(new[] { true }, observedStates);
+
+        command.Execute(null);
+        Assert.False(command.CanExecute(null));
+        Assert.Equal(new[] { true, false }, observedStates);
+        Assert.Equal(3, vm.DisplayWorkspaces.Count);
+        Assert.Empty(vm.FilterChips);
+    }
+
     [Fact] public void Counter_and_color_options_stay_live_across_edits()
     {
         var vm = Seed(out _);
