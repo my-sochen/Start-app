@@ -71,7 +71,7 @@ function ExpandAdd { $e=WaitMenu 'הוסף ל...';$e.GetCurrentPattern([Windows.
 function MenuShot($name){$r=New-Object ReviewWin+R;[void][ReviewWin]::GetWindowRect($p.MainWindowHandle,[ref]$r);$im=New-Object Drawing.Bitmap ($r.Rt-$r.L),($r.B-$r.T);$g=[Drawing.Graphics]::FromImage($im);try{$g.CopyFromScreen($r.L,$r.T,0,0,$im.Size);$im.Save("$out/$name.png")}finally{$g.Dispose();$im.Dispose()}}
 function DetailMenu {Context 'Edit item';ExpandAdd}
 function RightClickElement($element) { $r=$element.Current.BoundingRectangle;[void][ReviewWin]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[ReviewWin]::mouse_event(8,0,0,0,[UIntPtr]::Zero);[ReviewWin]::mouse_event(16,0,0,0,[UIntPtr]::Zero);Start-Sleep -Milliseconds 200 }
-function SavedGlobalMenu($index=0) { $list=Wait 'Global items list';$texts=$list.FindAll($TS::Descendants,(New-Object $PC($A::NameProperty,'Shared sample')));if($texts.Count -le $index){throw 'Global saved text missing'};RightClickElement $texts[$index];ExpandAdd }
+function SavedGlobalMenu($listName='Global items list') { $list=Wait $listName;$texts=$list.FindAll($TS::Descendants,(New-Object $PC($A::NameProperty,'Shared sample')));if($texts.Count -eq 0){throw 'Global saved text missing'};RightClickElement $texts[0];ExpandAdd }
 
 try{
  Scenario '01-details-submenu' {
@@ -90,7 +90,7 @@ try{
   ChooseMenu 'רשימה שחורה';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global source add to existing blacklist is idempotent' (@($o.captureBlacklist).Count -eq 1 -and @($o.globalItems).Count -eq 1) 'No duplicate list entry'
   SavedGlobalMenu;ChooseMenu 'רשימה לבנה';[void](Wait 'Move capture list item' $CT::Button);Shot '03-global-source-move-confirm';Click 'Close capture list conflict';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global source opposite-list cancel preserves lists' (@($o.captureBlacklist).Count -eq 1 -and @($o.captureWhitelist).Count -eq 0) 'Global source untouched'
   SavedGlobalMenu;ChooseMenu 'רשימה לבנה';Click 'Move capture list item';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global source confirmed move preserves global source' (@($o.captureBlacklist).Count -eq 0 -and @($o.captureWhitelist).Count -eq 1 -and @($o.globalItems).Count -eq 1) 'Move only between capture lists'
-  SavedGlobalMenu 1;MenuShot '03-whitelist-source-submenu';Record 'Whitelist source disables only its own list' (-not (WaitMenu 'רשימה לבנה').Current.IsEnabled -and (WaitMenu 'רשימה שחורה').Current.IsEnabled -and (WaitMenu 'סביבה גלובלית').Current.IsEnabled) 'Global destination enabled despite already containing equal item'
+  SavedGlobalMenu 'Whitelist list';MenuShot '03-whitelist-source-submenu';Record 'Whitelist source disables only its own list' (-not (WaitMenu 'רשימה לבנה').Current.IsEnabled -and (WaitMenu 'רשימה שחורה').Current.IsEnabled -and (WaitMenu 'סביבה גלובלית').Current.IsEnabled) 'Global destination enabled despite already containing equal item'
   [Windows.Forms.SendKeys]::SendWait('{ESC}{ESC}');SavedGlobalMenu;ChooseMenu 'סביבה חדשה';Text 'New item environment name' 'From global';Click 'Create item environment';$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Global saved row can copy to new environment' (@($o.workspaces|Where-Object name -eq 'From global').Count -eq 1) 'Same five destinations'
  }
  Scenario '04-all-items' {
