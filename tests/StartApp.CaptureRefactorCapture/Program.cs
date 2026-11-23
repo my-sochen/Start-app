@@ -26,6 +26,7 @@ internal static class Program
     private static readonly List<object> Results = new();
     private static readonly List<object> SameProcess = new();
     private static readonly List<object> DialogFrames = new();
+    private static readonly List<string> FrameFailures = new();
     [STAThread] private static int Main(string[] args)
     {
         if (args.Length != 1 || Directory.Exists(args[0])) return 2;
@@ -83,6 +84,7 @@ internal static class Program
                 File.WriteAllText(Path.Combine(output,"same-process.json"),JsonSerializer.Serialize(SameProcess));
                 File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
                 File.WriteAllText(Path.Combine(output,"results.json"),JsonSerializer.Serialize(Results,new JsonSerializerOptions{WriteIndented=true}));
+                if(FrameFailures.Count>0)throw new Exception("Shared dialog frame pixels differ: "+string.Join(",",FrameFailures));
             } catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}
             finally {window.Close();app.Shutdown(code);}
         };
@@ -168,11 +170,18 @@ internal static class Program
             File.AppendAllText(Path.Combine(output,"dialog-control.jsonl"),JsonSerializer.Serialize(new{state=name,shared_plain_pixels=different,plain_repeat_pixels=controlPixels})+Environment.NewLine);
             foreach (var swap in swaps) { var child=swap.Plain.Child; swap.Plain.Child=null; swap.Frame.Child=child; swap.Parent.Children.RemoveAt(swap.Index); swap.Parent.Children.Insert(swap.Index,swap.Frame); }
             await Settle(window);
+            var restoredImage=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);restoredImage.Render(window);
+            var restoredBytes=new byte[actual.Length];restoredImage.CopyPixels(restoredBytes,width*4,0);
+            int initialRestored=0,plainRestored=0;
+            for(var p=0;p<actual.Length;p+=4){if(!actual.AsSpan(p,4).SequenceEqual(restoredBytes.AsSpan(p,4)))initialRestored++;if(!expected.AsSpan(p,4).SequenceEqual(restoredBytes.AsSpan(p,4)))plainRestored++;}
+            var restoredPng=new PngBitmapEncoder();restoredPng.Frames.Add(BitmapFrame.Create(restoredImage));using(var f=File.Create(Path.Combine(output,name+"-restored-shared-control.png")))restoredPng.Save(f);
+            File.AppendAllText(Path.Combine(output,"dialog-restoration.jsonl"),JsonSerializer.Serialize(new{state=name,initial_restored_pixels=initialRestored,plain_restored_pixels=plainRestored})+Environment.NewLine);
             var actualPng = new PngBitmapEncoder(); actualPng.Frames.Add(BitmapFrame.Create(image)); using (var f=File.Create(Path.Combine(output,name+"-shared-dialog-frame.png"))) actualPng.Save(f);
             if (different != 0)
             {
                 File.WriteAllText(Path.Combine(output,"dialog-frames.json"),JsonSerializer.Serialize(DialogFrames));
-                throw new Exception("Shared dialog frame pixels differ: " + name + " " + different);
+                // Continue collecting every state; the aggregate check below still fails on any pixel.
+                FrameFailures.Add(name+":"+different);
             }
         }
         // In candidate only, compare original baseline Grid against extracted UserControl inside the
