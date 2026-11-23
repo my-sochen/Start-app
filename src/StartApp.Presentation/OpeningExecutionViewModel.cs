@@ -50,8 +50,7 @@ public sealed partial class MainViewModel
     /// sent successfully, not that the document loaded.</summary>
     /// <summary>Overall time allowed for the pre-open checks. Items still unchecked after this are reported as "could not be checked", never as fine.</summary>
     public TimeSpan OpenCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
-    private const int CheckWorkers = 4;
-    private readonly OpenCheckWorkerBudget _checkWorkers = new(CheckWorkers);
+    private readonly OpeningCheckRunner _checkRunner = new(4);
     private readonly OpenOperationLifetime _openOperation = new();
     public bool IsLaunching { get => _opening.Launching; private set { if (_opening.Launching != value) { _opening.Launching = value; Raise(nameof(IsLaunching)); } RaiseCommands(); } }
     public bool IsChecking { get => _opening.Checking; private set { if (_opening.Checking != value) { _opening.Checking = value; Raise(nameof(IsChecking)); } RaiseCommands(); } }
@@ -80,56 +79,13 @@ public sealed partial class MainViewModel
         OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token));
     }
 
-    private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it, IOpenStateDetector detector)
-    {
-        if (it is null) return (new Item(m.ItemId, ItemType.File, "(missing item " + m.ItemId + ")", ""), m.Launch, new(PreflightState.Unsupported, "the saved item record is missing from the catalog"), OpenState.NotOpen);
-        var f = PreflightRules.CheckForm(it, m.Launch) ?? _preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
-        var dup = f.State != PreflightState.Ready ? OpenState.Unknown : detector.Detect(it, m.Launch);
-        return (it, m.Launch, f, dup);
-    }
-
-    /// <summary>Checks run on at most <see cref="CheckWorkers"/> background workers, never on the caller's thread, with one overall deadline. A newer Open, a
+    /// <summary>Checks run on at most four background workers, never on the caller's thread, with one overall deadline. A newer Open, a
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
     private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
     {
-        var detector = _detector is IOpenSnapshotSource ? new NoOpenStateDetection() : _detector;
-        var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
-        var publication = new CheckResultPublication<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>(snapshot.Count);
-        var next = -1;
-        // Publication is the fault-ownership handoff. Before it Guard owns delivery;
-        // afterwards report promptly even if another worker or launch is still blocked.
-        void ObserveFault(Exception error)
-        {
-            if (publication.ObserveFault(error) is { } late) ReportLate(late);
-        }
-        Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
-        {
-            try { while (!stop.Token.IsCancellationRequested)
-            {
-                var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
-                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, detector); publication.Record(i, r); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
-                { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); publication.Record(i, r); }
-                catch (Exception e) { ObserveFault(e); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
-            } }
-            finally { _checkWorkers.Release(); }
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        var workers = new List<Task>();
-        for (int i = 0; i < Math.Min(CheckWorkers, snapshot.Count); i++)
-        {
-            if (!_checkWorkers.TryAcquire()) break;
-            workers.Add(Worker());
-        }
-        var all = Task.WhenAll(workers);
-        await Task.WhenAny(all, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true);
-        // Observe infrastructure faults too, without competing for pre-publication
-        // error delivery. This fallback waits for all workers: only errors caught
-        // by a worker's Evaluate catch are guaranteed prompt late reporting.
-        _ = all.ContinueWith(t => ObserveFault(t.Exception!.GetBaseException()), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-        var (done, f0) = publication.Publish();
-        if (f0 is not null) ExceptionDispatchInfo.Capture(f0).Throw();
+        var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, OpenCheckTimeout, token, ReportLate).ConfigureAwait(true);
         if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
-        stop.Cancel();
+        stop();
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
         for (int i = 0; i < snapshot.Count; i++)
         {
