@@ -1,0 +1,67 @@
+# Code ownership guide
+
+This guide describes the staged refactor branch, not a released build. The draft PR stack is not merged into dev or main. Each stage still needs its own merge decision.
+
+## Start with an action
+
+| Change you want | Start here | Keep out of this class |
+| --- | --- | --- |
+| New workspace input, dirty state or preview | `src/StartApp.Presentation/WorkspaceCreateDraft.cs` | Saving, navigation and notifications |
+| Existing workspace details draft | `WorkspaceDetailsDraft.cs` in the same folder | Picking another workspace or writing storage |
+| Item edit draft and captured identity | `ItemEditSession.cs` | Retargeting to current selection during save |
+| Saved/staged address edit state | `AddressEditSession.cs` | Store writes and staged-row writes |
+| Saved/staged open-with state | `OpenWithSession.cs` | Launching and setting Windows defaults |
+| Card design originals and draft | `CardDesignSession.cs` | Saving and unsaved-exit decisions |
+| Category editor draft/warning state | `CategoryEditSession.cs` | Catalog mutations |
+| Resource picker type/search/open state | `ResourcePickerSession.cs` | Binding collections and writes |
+| Resource picker sorting/filtering/usage | `ResourcePickerQuery.cs` | Session state |
+| Scan cancellation and stale results | `CaptureScanLifetime.cs` | Scan adapter and UI publication |
+| Opening cancellation and generations | `OpenOperationLifetime.cs` | Launch and check policy |
+| Blocking preflight worker ceiling | `OpenCheckWorkerBudget.cs` | Resetting capacity when a worker times out |
+| Toast state and stale auto-hide identity | `ToastSession.cs` | Timer and dispatcher |
+| Inline validation routing | `FieldErrorSession.cs` | Validation rules and translated messages |
+| Unsaved dialog and deferred continuation | `UnsavedExitSession.cs` | Save/discard ordering |
+| Command registration/invalidation order | `CommandRegistry.cs` | Execute/can-execute policy |
+| Window subscription lifetime | `src/StartApp.App/WindowSessionSubscriptions.cs` | View rendering |
+| Default dialog focus transition | `DialogFocusSession.cs` in the App folder | WPF focus eligibility |
+| Row context-menu geometry | `WindowPopupPlacement.cs` in the App folder | Popup opening and dispatcher ordering |
+
+## The host is still a host
+
+`MainViewModel` remains the public binding surface and workflow coordinator. Its partial files are one class, not independent objects. Files named `ItemEditorViewModel.cs`, `AddressEditorViewModel.cs`, `CardDesignViewModel.cs`, `CategoryManagerViewModel.cs` and `ResourcePickerViewModel.cs` adapt the independent owners to the existing public properties and commands.
+
+A state owner has no repository, window or MainViewModel reference. The host keeps persistence, validation, notifications and cross-form decisions. Moving fields into an owner is a boundary, not a claim that all workflow orchestration has already been separated.
+
+`OpeningExecutionViewModel.cs` still coordinates asynchronous checks and launches. `CaptureFlowViewModel.cs` still coordinates scan publication, staging, duplicate decisions and capture saves. `MainViewModel.cs` still coordinates navigation, storage reload and save/discard ordering. These are remaining larger boundaries.
+
+## Follow one saved item edit
+
+1. The public command calls `BeginItemEdit` in `ItemEditorViewModel.cs`.
+2. The host refuses replacing an open dirty editor, then captures workspace and instance identity into `ItemEditSession`.
+3. Draft setters publish the same public binding notifications and command invalidation as before.
+4. Save validates the captured identity against the current snapshot, then checks it again inside the storage mutation.
+5. Only a successful save closes the form. A missing record keeps the draft instead of silently targeting another item.
+
+For staged addresses and open-with defaults, the target is a staged row. Those writes remain staged until the capture save. The state owners treat these target references as opaque.
+
+## Cancellation is not an undo
+
+- An opening generation rejects stale publication. Cancelling a launch stops later requests, not requests already sent.
+- A blocked preflight worker keeps its capacity slot until its `finally` block finishes.
+- A timed-out capture worker stays outstanding until it returns. A new generation does not free that slot.
+- Opening and capture lifetimes deliberately have different source-disposal rules. Do not replace one with the other without reviewing late-worker behavior.
+- The unsaved continuation is consumed before invocation, so reentry or an exception cannot execute the same continuation twice.
+
+## Where to test
+
+- Each presentation owner has a matching `*Tests.cs` in `tests/StartApp.Presentation.Tests/`.
+- `tests/StartApp.App.Session.Tests/` compiles the exact production subscription, focus and placement source without WPF, then tests state/order/geometry directly.
+- Existing integration tests exercise public MainViewModel commands, saved/staged paths and error handling. Run the contracts for the affected workflow, not an unrelated full suite.
+- `tests/StartApp.Platform.Windows.Tests/MenuBindingSourceTests.cs` checks XAML popup bindings and the call into the extracted geometry. A source contract is not rendered visual proof.
+- `tests/StartApp.CaptureRefactorCapture/` runs actual production MainWindow/XAML against a synthetic store.
+
+## Visual evidence has a boundary
+
+The capture fixture covers nine capture states. Its additional same-process comparison requires zero differing pixels between the original Grid and extracted view inside one window/session. The independent baseline-repeat and baseline/candidate gates also require exact equality, without masks or tolerance.
+
+Repeated independent baseline runs have differed at a small number of glyph-edge pixels. One run passed, others failed the control. A red control does not prove a product regression and does not prove equivalence. It remains unresolved. Do not treat the shared-process gate as a substitute for that control, or the capture screenshots as proof of every dialog/menu/focus path.
