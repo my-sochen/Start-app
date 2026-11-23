@@ -77,6 +77,12 @@ internal static class Program
     {
         await Settle(window);
         var width=(int)Math.Ceiling(window.ActualWidth);var height=(int)Math.Ceiling(window.ActualHeight);
+        // Prime WPF glyph caches before taking the compared frame. Keep a hard exact baseline-repeat gate.
+        for (var i=0;i<3;i++)
+        {
+            var warm=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);warm.Render(window);
+            await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(80);
+        }
         var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);image.Render(window);
         var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(output,name+".png")))png.Save(f);
         // Native desktop screenshot as separate evidence: includes actual window/composition and focus.
