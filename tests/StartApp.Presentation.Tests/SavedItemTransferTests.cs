@@ -135,4 +135,19 @@ public class SavedItemTransferTests
         Assert.True(vm.AddSavedItemToList(global, GlobalListKind.Whitelist, true)); Assert.Empty(repo.Load().CaptureBlacklist.Where(e => !e.IsDefault));
         Assert.Single(repo.Load().CaptureWhitelist); Assert.Single(repo.Load().GlobalItems);
     }
+    [Theory]
+    [InlineData(false,GlobalListKind.GlobalItems)] [InlineData(true,GlobalListKind.GlobalItems)]
+    [InlineData(false,GlobalListKind.Whitelist)] [InlineData(true,GlobalListKind.Whitelist)]
+    [InlineData(false,GlobalListKind.Blacklist)] [InlineData(true,GlobalListKind.Blacklist)]
+    public void Changed_store_is_reported_without_throwing_or_overwriting(bool newer,GlobalListKind destination)
+    {
+        var path=Path.Combine(Path.GetTempPath(),"transfer-error-"+Guid.NewGuid(),"store.json");
+        using var repo=new JsonStore(path);var vm=Setup(repo);var source=vm.SavedTransferFromDetail(vm.Items.Single())!;
+        var bytes=newer?"{\"schemaVersion\":999}":"not json";File.WriteAllText(path,bytes);
+        Assert.False(vm.AddSavedItemToList(source,destination));
+        Assert.True(vm.ReadOnly);Assert.False(vm.SavedItemTransferAllowed);Assert.True(vm.ToastVisible);
+        Assert.Contains("האייטם לא נוסף",vm.ToastMessage);Assert.NotEmpty(vm.ToastTechnicalDetails);
+        Assert.Equal("",vm.SavedItemListConflict);Assert.Equal(bytes,File.ReadAllText(path));
+        Assert.False(vm.AddSavedItemToList(source,destination));Assert.Equal(bytes,File.ReadAllText(path));
+    }
 }

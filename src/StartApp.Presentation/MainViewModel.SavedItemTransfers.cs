@@ -53,6 +53,13 @@ public sealed partial class MainViewModel
         }
         catch (ArgumentException e) when (e.Message is Catalog.WhitelistConflictError or Catalog.BlacklistConflictError)
         { SavedItemListConflict = e.Message; return false; }
+        catch (Exception e) when (e is StoreCorruptException or StoreTooNewException)
+        {
+            ReadOnly = true;
+            Status = e.Message;
+            ShowToast("האייטם לא נוסף. קובץ הנתונים אינו ניתן לעריכה והושאר ללא שינוי.", true, e.Message);
+            return false;
+        }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.IO.IOException or UnauthorizedAccessException or StoreLockedException)
         { Status = e.Message; ShowToast("האייטם לא נוסף. הנתונים לא השתנו.", true, e.Message); return false; }
     }
