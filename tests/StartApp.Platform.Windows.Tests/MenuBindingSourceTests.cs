@@ -13,7 +13,7 @@ public class MenuBindingSourceTests
         for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
         {
             var p = Path.Combine(dir.FullName, "src", "StartApp.App", "MainWindow.xaml");
-            if (File.Exists(p)) return File.ReadAllText(p);
+            if (File.Exists(p)) return File.ReadAllText(p) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","CaptureView.xaml"));
         }
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
@@ -72,7 +72,11 @@ public class MenuBindingSourceTests
         Assert.Contains("ShowItemActions(anchor, allRow, detail)",code);
         var actions=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"AllItemsView.xaml.cs"));
         Assert.Contains("vm.AddItemToEnvironments(row, ids)",actions);
-        Assert.Contains("vm.ItemActionWorkspaces(row, true).Count > 0",actions);
+        Assert.Contains("menu.Items.Add(BuildSavedItemAddMenu(vm, source))",actions);
+        var submenu=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"SavedItemAddMenu.cs"));
+        Assert.Contains("selectedEnvironment.IsEnabled = vm.SavedItemDestinations(source).Count > 0",submenu);
+        Assert.Contains("destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind)",submenu);
+        foreach(var destination in new[]{"GlobalListKind.Blacklist","GlobalListKind.Whitelist","GlobalListKind.GlobalItems"}) Assert.Contains(destination,submenu);
         // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
         Assert.Contains("popupSize.Height + 18",code);
         Assert.Contains("Math.Max(8, anchorY - safeH)",code);
@@ -110,6 +114,7 @@ public class MenuBindingSourceTests
     {
         var xaml=Xaml(); Assert.Contains("Click=\"ToggleStaged_Click\"",xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
+        code += File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"CaptureView.xaml.cs"));
         Assert.Contains("row.IsEditing != editing",code); Assert.Contains("!vm.StagedRows.Contains(row)",code);
         Assert.Contains("ReferenceEquals(host.DataContext, row)",code);
         Assert.Contains("FindStagedRevealTarget(host, row, editing)",code);

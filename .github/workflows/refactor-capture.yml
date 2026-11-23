@@ -1,0 +1,53 @@
+name: refactor-capture
+on:
+  push:
+    branches: [refactor/capture-flow]
+permissions:
+  contents: read
+jobs:
+  capture-equivalence:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 52d0d5b35ab7d6610493ef866b9447ef5a6dd874
+          path: baseline
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Focused capture, staging, transfer and source contracts
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests/StartApp.Presentation.Tests.csproj -c Release --filter "FullyQualifiedName~CaptureAsyncScanTests|FullyQualifiedName~CaptureViewModelTests|FullyQualifiedName~StagedItemActionsTests|FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~CreateFormBrowserRetentionTests|FullyQualifiedName~CreateFormDesignTests|FullyQualifiedName~ViewSourceIntegrityTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Platform.Windows.Tests/StartApp.Platform.Windows.Tests.csproj -c Release --filter "FullyQualifiedName~MenuBindingSourceTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Identical harness against before and after product XAML
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          Copy-Item tests/StartApp.CaptureRefactorCapture baseline/tests/StartApp.CaptureRefactorCapture -Recurse
+          foreach ($variant in @('before','after')) {
+            $root = if ($variant -eq 'before') { 'baseline' } else { '.' }
+            $project = Join-Path $root 'tests/StartApp.CaptureRefactorCapture/StartApp.CaptureRefactorCapture.csproj'
+            dotnet build $project -c Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary = Join-Path $PWD (Join-Path $root 'tests/StartApp.CaptureRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe')
+            $output = Join-Path $PWD "evidence/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw "$variant timeout" }
+            if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant capture failed" }
+          }
+      - name: Exact pixel and behavior comparison
+        shell: pwsh
+        run: |
+          python -m pip install pillow
+          python .github/e2e/compare-capture-refactor.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: capture-refactor-before-after
+          path: evidence/
+          retention-days: 7
