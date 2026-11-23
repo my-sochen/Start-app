@@ -29,8 +29,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force evidence | Out-Null
           Copy-Item tests/StartApp.CaptureRefactorCapture baseline/tests/StartApp.CaptureRefactorCapture -Recurse
-          foreach ($variant in @('before','after')) {
-            $root = if ($variant -eq 'before') { 'baseline' } else { '.' }
+          foreach ($variant in @('before','before-repeat','after')) {
+            $root = if ($variant -ne 'after') { 'baseline' } else { '.' }
             $project = Join-Path $root 'tests/StartApp.CaptureRefactorCapture/StartApp.CaptureRefactorCapture.csproj'
             dotnet build $project -c Release
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

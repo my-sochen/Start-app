@@ -4,6 +4,15 @@ from PIL import Image, ImageChops
 root = Path('evidence')
 images = sorted(p.name for p in (root / 'before').glob('*.png') if '-desktop' not in p.name)
 assert len(images) == 9, f'Expected 9 fixed states, found {images}'
+# A baseline repeat is an exactness control, not permission to ignore unstable pixels.
+control = []
+for name in images:
+    first = Image.open(root / 'before' / name).convert('RGBA')
+    second = Image.open(root / 'before-repeat' / name).convert('RGBA')
+    count = sum(any(p) for p in ImageChops.difference(first, second).getdata()) if first.size == second.size else -1
+    control.append(dict(state=name, different_pixels=count))
+(root / 'baseline-repeat-comparison.json').write_text(json.dumps(control, indent=2))
+assert all(r['different_pixels'] == 0 for r in control), f'Baseline is not deterministic: {control}'
 results = []
 for name in images:
     before = Image.open(root / 'before' / name).convert('RGBA')

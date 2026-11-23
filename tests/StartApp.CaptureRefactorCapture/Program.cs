@@ -28,6 +28,8 @@ internal static class Program
     {
         if (args.Length != 1 || Directory.Exists(args[0])) return 2;
         var output = Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
+        // Use the same deterministic WPF software renderer for both products. No text/layout overrides.
+        System.Windows.Interop.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         var app = new Application();
         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml") });
         var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(), null, _ => throw new Exception("Unexpected browser"))) { Width=960, Height=650, Left=12, Top=12 };
@@ -42,7 +44,6 @@ internal static class Program
                 vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; await Settle(window);
                 Check("New capture has fixed three selected rows",vm.CaptureRows.Count==3 && vm.CaptureRows.All(r=>r.IsChecked));
                 vm.NewName="New captured environment"; await Take(window,output,"01-new-form");
-                vm.ExitWithoutSavingCommand.CanExecute(null);
                 // New-form name is unsaved; clear it before ordinary close.
                 vm.NewName="";vm.CaptureCloseCommand.Execute(null); Check("Close new capture",!vm.CaptureOpen);
                 vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;await Take(window,output,"02-pick-environment");
