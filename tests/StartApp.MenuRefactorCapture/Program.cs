@@ -40,7 +40,8 @@ internal static class Program
         var code=0;var results=new List<object>();
         async Task Save(string name,ContextMenu menu,MenuItem? submenu=null)
         {
-            await Settle(window);Keyboard.ClearFocus();FocusManager.SetFocusedElement(menu,null);await Settle(window);
+            await Settle(window);
+            if(!menu.IsOpen)throw new Exception("Menu closed before capture:"+name);
             FrameworkElement target=submenu?.Template.FindName("PART_Popup",submenu) is System.Windows.Controls.Primitives.Popup p?(FrameworkElement)p.Child:menu;
             var width=(int)Math.Ceiling(target.ActualWidth);var height=(int)Math.Ceiling(target.ActualHeight);
             if(width<=0||height<=0)throw new Exception("Empty menu: "+name);

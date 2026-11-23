@@ -71,7 +71,7 @@ internal sealed class ActionMenu
         // Do not anchor below the whole expanded editor or a partly scrolled-out row.
         // Compute the final popup origin inside the owner, then express it relative to the host.
         var origin = host.TransformToAncestor(_owner).Transform(new Point(0, 0));
-        // A just-materialized (virtualized) row can report _owner.ActualHeight 0 here; fall back to the 32 dip offset.
+        // A just-materialized (virtualized) row can report ActualHeight 0 here; fall back to the 32 dip offset.
         var anchorY = WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, _owner.ActualHeight);
         menu.MaxHeight = Math.Max(0, _owner.ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, _owner.ActualWidth - 16);

@@ -38,3 +38,7 @@ Refactor branches only. No merge into dev/main, no release or publish. Preserve 
 -Run https://github.com/my-sochen/Start-app/actions/runs/45274588666
 -Evidence https://github.com/my-sochen/Start-app/actions/runs/45274588666/artifacts/14865834957
 -Completed-feature report sent to parent. Next menu reuse, then buttons alongside it.
+
+## Shared menu component
+-Draft129head93af878: shared owner-bound opening/placement and entry builders extracted, preserving two anchoring policies and special left-opening. Local actual build+7menu source contractsPASS.
+-First Windows fixture stopped on baseline before any candidate comparison: clearing menu focus closed the popup before PointToScreen. Fix fixture by leaving open menu focus untouched, not product logic.
