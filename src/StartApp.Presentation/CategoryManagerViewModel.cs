@@ -40,11 +40,11 @@ public sealed partial class MainViewModel
         // TwoWay SelectedItem binding pushes null back into the view model; restoring while the list is momentarily
         // empty leaves the combo visibly blank (seen on the create form). Rebuild diff-wise instead so an unchanged
         // selection never gets a Reset, and still capture/restore for the removed-item (rename/delete) case.
-        var keepNew = _workspaceCreate.Category; var keepEdit = _editCategory;
+        var keepNew = _workspaceCreate.Category; var keepEdit = _workspaceDetails.Category;
         for (var i = CategoryChoices.Count - 1; i >= 0; i--) if (!cats.Contains(CategoryChoices[i])) CategoryChoices.RemoveAt(i);
         foreach (var c in cats) if (!CategoryChoices.Contains(c)) CategoryChoices.Add(c);
         _workspaceCreate.Category = keepNew; Raise(nameof(NewWorkspaceCategory)); Raise(nameof(CreateDirty));
-        _editCategory = keepEdit; Raise(nameof(EditCategory)); RaiseDirty();
+        _workspaceDetails.Category = keepEdit; Raise(nameof(EditCategory)); RaiseDirty();
         var w = _current.Workspaces.FirstOrDefault(x => x.Id == _categoryEdit.WorkspaceId);
         CurrentCategoryName = w?.EffectiveCategory ?? Workspace.DefaultCategory;
     }
