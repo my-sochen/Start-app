@@ -1,0 +1,53 @@
+name: refactor-shared-action-menu
+on:
+  push:
+    branches: [refactor/shared-action-menu]
+permissions:
+  contents: read
+jobs:
+  menu-contract-and-pixels:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 3e0806bcfba571fcaf000f6bf570c2b1ebe806ba
+          path: baseline
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Targeted window and menu contracts
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.App.Session.Tests/StartApp.App.Session.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Platform.Windows.Tests/StartApp.Platform.Windows.Tests.csproj -c Release --filter FullyQualifiedName~MenuBindingSourceTests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actual before repeat and after menu fixtures
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          Copy-Item tests/StartApp.MenuRefactorCapture baseline/tests/StartApp.MenuRefactorCapture -Recurse
+          foreach ($variant in @('before','before-repeat','after')) {
+            $root = if ($variant -eq 'after') { '.' } else { 'baseline' }
+            $project=Join-Path $root 'tests/StartApp.MenuRefactorCapture/StartApp.MenuRefactorCapture.csproj'
+            dotnet build $project -c Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary=Join-Path $PWD (Join-Path $root 'tests/StartApp.MenuRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe')
+            $output=Join-Path $PWD "evidence/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw "$variant timeout" }
+            if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant capture failed" }
+          }
+      - name: Strict menu geometry entries and pixels
+        shell: pwsh
+        run: |
+          python -m pip install pillow
+          python .github/e2e/compare-menu-refactor.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: menu-refactor-before-after
+          path: evidence/
+          retention-days: 7

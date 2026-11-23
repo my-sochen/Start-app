@@ -30,3 +30,11 @@ Refactor branches only. No merge into dev/main, no release or publish. Preserve 
 -a795cc0adds restored-shared comparison and collects every overlay failure before throwing. Same strict any-pixel gate; no product change. Local compilePASS. Windows pending.
 - a795cc0Windows result: all13visible overlays reached.12are exact; only open-with frame05differs4pixels initially. Restoring the original shared frame then matches the plain Border exactly and differs from its own initial image by the same4pixels. That rules against a persistent class-dependent rendering difference in this fixture, but first-exposure/reparent cause needs a direct self-control.
 -60950cfadds that shared-to-same-shared control before any class substitution, logs equal-invalidation comparison separately, and adds actual notice/conflict/new-workspace prompt windows. Local compilePASS. Windows pending. Initial gate remains red if any initial pixel differs.
+-60950cfWindows self-control: open-with4pixels occur when reparenting the SAME shared frame before introducing any plain Border. Equal-invalidation shared/plain0. All13overlays reached. Notice exact. Conflict1glyph-edge pixel remains; restored shared matches plain, so first/second invalidation/control order needs checking. New-workspace1810pixels are actual focused-input border/caret loss on reparent, visually inspected.
+-3e0806bclears posted loaded focus and records a second same-shared invalidation; gate unchanged. Local compilePASS; Windows pending.
+
+## Dialog surface complete
+-3e0806bWindows PASS: all initial/shared/plain/self/repeat/restored pixel controls0across9capture states,13visible overlays and3prompt fixtures.9cross-process comparisons and baseline repeat also0in this run. Posted focus settling was the harness issue; product unchanged. Scope remains frame/synthetic fixture, not all workflows.
+-Run https://github.com/my-sochen/Start-app/actions/runs/45274588666
+-Evidence https://github.com/my-sochen/Start-app/actions/runs/45274588666/artifacts/14865834957
+-Completed-feature report sent to parent. Next menu reuse, then buttons alongside it.

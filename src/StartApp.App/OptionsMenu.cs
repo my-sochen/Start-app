@@ -53,13 +53,6 @@ public partial class MainWindow
         if (chosen == true) vm.SetDefaultWorkspace(picker.ChosenWorkspaceId);
     }
 
-    private static MenuItem CommandItem(string header, System.Windows.Input.ICommand command) =>
-        new() { Header = header, Command = command };
-
-    private static MenuItem ActionItem(string header, Action action)
-    {
-        var item = new MenuItem { Header = header };
-        item.Click += (_, _) => action();
-        return item;
-    }
+    private static MenuItem CommandItem(string header,System.Windows.Input.ICommand command)=>ActionMenu.Command(header,command);
+    private static MenuItem ActionItem(string header,Action action)=>ActionMenu.Action(header,action);
 }
