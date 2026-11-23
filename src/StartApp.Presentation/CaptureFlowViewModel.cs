@@ -48,12 +48,7 @@ public sealed partial class MainViewModel
     public TimeSpan ScanTimeout { get; set; } = TimeSpan.FromSeconds(10);
     /// <summary>Anti-flicker floor so the scanning state is actually visible (and steady) on fast scans.</summary>
     public TimeSpan ScanMinVisible { get; set; } = TimeSpan.FromMilliseconds(700);
-    private int _scanGen;
-    private CancellationTokenSource? _scanCts;
-    /// <summary>Background Scan() calls that have not returned yet (hung or just slow). A stuck COM/UIA call cannot be aborted, only
-    /// abandoned - so abandonment is bounded: while <see cref="MaxOpenScans"/> scans have not come back, no new one starts.</summary>
-    private int _openScans;
-    private const int MaxOpenScans = 1;
+    private readonly CaptureScanLifetime _captureScan = new();
     /// <summary>Without ticked rows the button adds everything; with ticked rows it becomes הוסף נבחרים (settled).</summary>
     public string CaptureAddLabel
     {
@@ -149,38 +144,36 @@ public sealed partial class MainViewModel
     }
     /// <summary>Background scan: bounded by <see cref="ScanTimeout"/>, cancelled by X or superseded by a newer scan (late results are
     /// discarded, never applied), with a visible scanning state. Unexpected faults are not swallowed: they reach <see cref="UnexpectedError"/>.
-    /// Unlike the open flow there is no Guard generation here; <see cref="_scanGen"/> plays that role for scans.</summary>
+    /// Unlike the open flow there is no Guard generation here; <see cref="CaptureScanLifetime"/> plays that role for scans.</summary>
     private async Task RunScanAsync(bool checkedByDefault)
     {
-        var gen = ++_scanGen;
-        try { _scanCts?.Cancel(); } catch (ObjectDisposedException) { }
-        _scanCts?.Dispose(); var cts = new CancellationTokenSource(); _scanCts = cts;
+        var (gen, cts) = _captureScan.Begin();
         IsScanning = true; Status = "Scanning open items...";
         CaptureScan scan;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        if (Volatile.Read(ref _openScans) >= MaxOpenScans)
+        if (_captureScan.HasOutstandingScan)
         {
             scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Earlier scans never came back (a stuck call cannot be aborted), so no new scan was started; items can still be added by hand" });
         }
         else
         {
-            Interlocked.Increment(ref _openScans);
-            try { scan = await CaptureScanning.BoundedAsync(_capturer, ScanTimeout, cts.Token, () => Interlocked.Decrement(ref _openScans)); }
+            _captureScan.WorkerStarted();
+            try { scan = await CaptureScanning.BoundedAsync(_capturer, ScanTimeout, cts.Token, _captureScan.WorkerReturned); }
             catch (OperationCanceledException) { return; } // X or a newer scan: nothing to apply
             catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or NotSupportedException)
             { scan = new CaptureScan(Array.Empty<CapturedItem>(), new[] { "Scan failed: " + e.GetType().Name }); }
             catch (Exception e)
             {
-                if (gen == _scanGen) { IsScanning = false; Status = "Scan stopped by an unexpected error: " + e.GetType().Name; }
+                if (_captureScan.IsCurrent(gen)) { IsScanning = false; Status = "Scan stopped by an unexpected error: " + e.GetType().Name; }
                 var h = UnexpectedError; if (h is null) throw; h(e); return;
             }
         }
-        if (gen != _scanGen || cts.IsCancellationRequested) return;
+        if (!_captureScan.IsCurrent(gen) || cts.IsCancellationRequested) return;
         var floor = ScanMinVisible - sw.Elapsed;
         if (floor > TimeSpan.Zero)
         {
             try { await Task.Delay(floor, cts.Token); } catch (OperationCanceledException) { return; }
-            if (gen != _scanGen) return;
+            if (!_captureScan.IsCurrent(gen)) return;
         }
         var surviving = scan.Items.Where(i => !GlobalEnvRules.IsBlacklisted(_current.CaptureBlacklist, i)).ToList();
         foreach (var i in GlobalEnvRules.WhitelistPins(_current.CaptureWhitelist, surviving).Concat(surviving)) CaptureRows.Add(new CaptureRow(i, checkedByDefault, OnCaptureCheckChanged));
@@ -340,7 +333,7 @@ public sealed partial class MainViewModel
     /// <summary>X: the capture list is dropped; opening capture again scans what is open at that moment. What was already saved stays saved.</summary>
     private void ResetCapture()
     {
-        _scanGen++; try { _scanCts?.Cancel(); } catch (ObjectDisposedException) { } // a scan still in flight is discarded, never applied
+        _captureScan.CancelAndInvalidate(); // a scan still in flight is discarded, never applied
         IsScanning = false;
         CaptureRows.Clear(); CaptureNotes.Clear(); StagedRows.Clear(); CaptureDupChoices.Clear(); CaptureWorkspaceItems.Clear(); _dupSingle = null; _capWsId = "";
         CaptureDupGroupPending = false; CaptureSearch = "";
