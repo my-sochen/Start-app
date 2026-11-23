@@ -17,13 +17,15 @@ public partial class MainWindow
         var menu = new MenuItem { Header = "הוסף ל...", Tag = "saved-add-submenu", IsEnabled = source is not null && vm.SavedItemTransferAllowed };
         if (source is null) return menu;
         menu.Items.Add(ActionItem("סביבה חדשה", () => ShowItemDialog(new NewWorkspaceFromItemWindow(vm, source))));
-        menu.Items.Add(ActionItem("סביבה נבחרת", () =>
+        var selectedEnvironment = ActionItem("סביבה נבחרת", () =>
         {
             var destinations = vm.SavedItemDestinations(source);
             if (destinations.Count == 0) { ShowItemDialog(SavedItemPromptWindow.Notice("אין סביבות זמינות", "כל הסביבות כבר מכילות אייטם באותו סוג וכתובת. אפשר ליצור סביבה חדשה.")); return; }
             var picker = new ItemWorkspacePickerWindow(destinations, source.Name, "share");
             if (ShowItemDialog(picker) == true) vm.AddSavedItemToWorkspaces(source, picker.ChosenWorkspaceIds);
-        }));
+        });
+        selectedEnvironment.IsEnabled = vm.SavedItemDestinations(source).Count > 0;
+        menu.Items.Add(selectedEnvironment);
         void Add(GlobalListKind kind)
         {
             if (vm.AddSavedItemToList(source, kind)) return;
@@ -31,9 +33,15 @@ public partial class MainWindow
             if (conflict.Length != 0 && ShowItemDialog(SavedItemPromptWindow.Conflict(conflict)) == true)
                 vm.AddSavedItemToList(source, kind, confirmedMove: true);
         }
-        menu.Items.Add(ActionItem("רשימה שחורה", () => Add(GlobalListKind.Blacklist)));
-        menu.Items.Add(ActionItem("רשימה לבנה", () => Add(GlobalListKind.Whitelist)));
-        menu.Items.Add(ActionItem("סביבה גלובלית", () => Add(GlobalListKind.GlobalItems)));
+        void AddDestination(string label, GlobalListKind kind)
+        {
+            var destination = ActionItem(label, () => Add(kind));
+            destination.IsEnabled = !vm.SavedItemListAlreadyContains(source, kind);
+            menu.Items.Add(destination);
+        }
+        AddDestination("רשימה שחורה", GlobalListKind.Blacklist);
+        AddDestination("רשימה לבנה", GlobalListKind.Whitelist);
+        AddDestination("סביבה גלובלית", GlobalListKind.GlobalItems);
         return menu;
     }
 }

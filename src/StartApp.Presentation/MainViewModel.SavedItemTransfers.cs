@@ -21,6 +21,7 @@ public sealed partial class MainViewModel
     }
     public bool SavedItemTransferAllowed => !CaptureOpen && ItemActionsAllowed && !GlobalConflictOpen && !UnsavedOpen && !DetailsDirty && !CreateDirty && !DesignDirty;
     public IReadOnlyList<Workspace> SavedItemDestinations(SavedItemTransfer source) => SavedItemTransferService.Destinations(_current, source);
+    public bool SavedItemListAlreadyContains(SavedItemTransfer source, GlobalListKind destination) => SavedItemTransferService.ListContains(_current, source, destination);
     private void RefreshAfterSavedTransfer()
     {
         RefreshItems(); RefreshGlobalEnvRows();

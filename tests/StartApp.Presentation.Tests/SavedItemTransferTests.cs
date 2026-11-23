@@ -29,8 +29,8 @@ public class SavedItemTransferTests
     {
         using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
         var id = ""; repo.Mutate(c => id = c.CreateWorkspace("target").Id); vm.Reload();
-        Assert.Equal(id, Assert.Single(vm.SavedItemDestinations(source)).Id);
-        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { id })); Assert.Empty(vm.SavedItemDestinations(source));
+        Assert.Contains(vm.SavedItemDestinations(source), w => w.Id == id);
+        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { id })); Assert.Equal(source.WorkspaceId, Assert.Single(vm.SavedItemDestinations(source)).Id);
         Assert.False(vm.AddSavedItemToWorkspaces(source, new[] { id })); Assert.Single(repo.Load().Workspaces.Single(w => w.Id == id).Items);
     }
     [Fact] public void Stale_source_rejected_without_creating_new_environment()
@@ -77,11 +77,11 @@ public class SavedItemTransferTests
         Assert.DoesNotContain(new Catalog(repo.Load()).GlobalEntries(first),e=>e.Target==source.Target);
         Assert.Single(new Catalog(repo.Load()).GlobalEntries(second).Where(e=>e.Target==source.Target));
     }
-    [Fact] public void Multiple_destinations_are_all_or_nothing_when_one_is_duplicate()
+    [Fact] public void Multiple_destinations_are_all_or_nothing_when_one_is_missing()
     {
         using var repo=Repo();var vm=Setup(repo);var source=vm.SavedTransferFromDetail(vm.Items.Single())!;var empty="";
         repo.Mutate(c=>empty=c.CreateWorkspace("empty").Id);vm.Reload();
-        Assert.False(vm.AddSavedItemToWorkspaces(source,new[]{empty,source.WorkspaceId!}));Assert.Empty(repo.Load().Workspaces.Single(w=>w.Id==empty).Items);
+        Assert.False(vm.AddSavedItemToWorkspaces(source,new[]{empty,"missing-destination"}));Assert.Empty(repo.Load().Workspaces.Single(w=>w.Id==empty).Items);
     }
 
     [Fact] public void Capture_blocks_all_saved_transfer_mutations_even_with_prior_source_snapshot()
@@ -97,6 +97,28 @@ public class SavedItemTransferTests
         var saved = repo.Load(); Assert.Equal(2, saved.Workspaces.Count);
         Assert.Empty(saved.Workspaces.Single(w => w.Id == empty).Items); Assert.Empty(saved.GlobalItems); Assert.Empty(saved.CaptureWhitelist);
         Assert.Empty(saved.CaptureBlacklist.Where(e => !e.IsDefault));
+    }
+
+    [Fact] public void Source_environment_remains_eligible_and_receives_independent_copy()
+    {
+        using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
+        Assert.Equal(source.WorkspaceId, Assert.Single(vm.SavedItemDestinations(source)).Id);
+        Assert.True(vm.AddSavedItemToWorkspaces(source, new[] { source.WorkspaceId! }));
+        var members = repo.Load().Workspaces.Single().Items; Assert.Equal(2, members.Count);
+        Assert.NotEqual(members[0].Id, members[1].Id); Assert.Equal(members[0].Name, members[1].Name);
+        Assert.Equal(members[0].Description, members[1].Description); Assert.Equal(members[0].Launch, members[1].Launch);
+    }
+    [Theory]
+    [InlineData(GlobalListKind.GlobalItems)]
+    [InlineData(GlobalListKind.Whitelist)]
+    [InlineData(GlobalListKind.Blacklist)]
+    public void Already_present_global_destination_is_reported_for_disabled_menu(GlobalListKind kind)
+    {
+        using var repo = Repo(); var vm = Setup(repo); var source = vm.SavedTransferFromDetail(vm.Items.Single())!;
+        Assert.False(vm.SavedItemListAlreadyContains(source, kind)); Assert.True(vm.AddSavedItemToList(source, kind));
+        Assert.True(vm.SavedItemListAlreadyContains(source, kind));
+        var changedName = source with { Name = "different display name" }; Assert.True(vm.SavedItemListAlreadyContains(changedName, kind));
+        var changedTarget = source with { Target = "https://example.com/another" }; Assert.False(vm.SavedItemListAlreadyContains(changedTarget, kind));
     }
 
 }
