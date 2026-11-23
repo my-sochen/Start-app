@@ -62,45 +62,26 @@ function Mouse($name){$e=Wait $name $CT::Button;$r=$e.Current.BoundingRectangle;
 function Context($name){$e=Wait $name $CT::Button;$e.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');Start-Sleep -Milliseconds 250}
 $env:STARTAPP_CRASHLOG='1'
 try{
- Scenario '16-invalid-edit-restart' {
-  Click 'Review one';Click 'Edit item';Text 'Edit item target' 'javascript:alert(1)';Click 'Save item edit';StopApp;StartApp;Click 'Review one'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;$m=@(($o.workspaces|Where-Object id -eq 'one').items|Where-Object id -eq 'm1')[0];$target=$o.items.PSObject.Properties[$m.itemId].Value.target
-  Record 'Edited javascript target persists after restart' ($target -eq 'javascript:alert(1)') $target;Shot '16-invalid-edit-after-restart';Copy-Item $store "$out/16-invalid-store.json"
- }
- Scenario '17-global-schema-validation' {
-  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add global item';Text 'Global entry name' 'Script URI sample';Text 'Global entry target' 'javascript:alert(1)';Click 'Confirm global add';StopApp;StartApp;Mouse 'Options menu';Menu 'סביבה גלובלית';Shot '17-global-restarted';Copy-Item $store "$out/17-global-store.json"
-  Record 'Invalid global URI survives restart' ((Get-Content $store -Raw) -like '*javascript:alert(1)*') 'Stored and reloaded, never executed'
- }
- Scenario '18-all-items-selected-scope' {
-  Mouse 'Options menu';Menu 'אייטמים';Context 'Shared sample';Menu 'ערוך';[void](Wait 'Choose item environments');Shot '18-picker-default'
-  Record 'All-items picker initially confirms disabled' (-not (Wait 'Confirm item workspace choice' $CT::Button).Current.IsEnabled) 'No environments should be selected automatically'
-  $row=Wait 'Review one' $CT::ListItem;$row.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select();Click 'Confirm item workspace choice';Text 'Selected item name' 'Batch one only';Click 'Save selected item edit'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'All-items edit applies only selected environment' ((($o.workspaces|Where-Object id -eq 'one').items|Where-Object id -eq 'm1').name -eq 'Batch one only' -and -not (($o.workspaces|Where-Object id -eq 'two').items|Where-Object id -eq 'm3').name) 'Identical copies, only Review one chosen';Shot '18-batch-result'
- }
- Scenario '19-local-delete' {
-  Click 'Review one';Context 'Shared sample';Menu 'מחיקה';Shot '19-delete-after-menu';Dump '19-delete-after-menu';Copy-Item $store "$out/19-delete-store.json"
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Delete in workspace preserves other copy' (@(($o.workspaces|Where-Object id -eq 'two').items|Where-Object itemId -eq 'site').Count -eq 1) 'Local deletion, inspect evidence for confirm/undo'
- }
- Scenario '20-default-replace' {
-  Click 'Review one';Click 'Toggle default workspace';Click 'Back to workspaces';Click 'Review two';Click 'Toggle default workspace';Shot '20-default-replace';[void](Wait 'Cancel default-env replace');Click 'Cancel default-env replace'
-  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Cancel default replacement keeps original' ($o.defaultWorkspaceId -eq 'one') "default=$($o.defaultWorkspaceId)"
-  Click 'Toggle default workspace';Click 'Confirm default-env replace';StopApp;StartApp;$o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Default replacement persists' ($o.defaultWorkspaceId -eq 'two') "default=$($o.defaultWorkspaceId)";Shot '20-default-restart'
- }
- Scenario '21-whitelist-staging' {
-  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add whitelist item';Text 'Global entry name' 'Priority sample';Text 'Global entry target' 'https://example.com/priority';Click 'Confirm global add';Click 'Back to workspaces';Click 'Review one';$before=Get-Content $store -Raw;Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 8
-  $list=Wait 'Open now list';$boxes=$list.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::CheckBox)));$sample=@($boxes|Where-Object{$_.Current.Name -like '*Priority sample*'})[0]
-  Record 'Whitelist offered while not actually open' ($null -ne $sample) 'Global page says priority even when not open; actual runtime behavior'
-  if($sample){$sample.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle();Click 'Add selected capture items';Shot '21-staged';Click 'Close capture';Shot '21-staged-guard';Dump '21-staged-guard';Record 'Staged capture close guard' ($null -ne (Find 'Back to editing')) 'Draft has an added row but not saved';Record 'Capture draft not persisted before save' ((Get-Content $store -Raw) -ceq $before) 'Synthetic whitelist staged item'}
- }
- Scenario '22-missing-only-open-results' {
+ Scenario '24-missing-results' {
   StopApp;$o=Get-Content $store -Raw|ConvertFrom-Json;($o.workspaces|Where-Object id -eq 'one').items=@(($o.workspaces|Where-Object id -eq 'one').items|Where-Object itemId -eq 'missing');$o|ConvertTo-Json -Depth 10|Set-Content $store;StartApp
-  Click 'Review one';Click 'שגר';Click 'Confirm opening selection';[void](Wait 'Notification');Shot '22-missing-toast';Dump '22-missing-toast';Click 'Back to workspaces';Mouse 'Options menu';Menu 'תוצאות הפתיחה האחרונות';Shot '22-missing-results';Dump '22-missing-results'
-  Record 'Missing-file pipeline returned without launchable resources' $true 'Only a synthetic nonexistent file selected; no browser/program/file can be opened'
+  Click 'Review one';Click 'שגר';Click 'Confirm opening selection';[void](Wait 'Dismiss notification');Click 'Last opening results';Shot '24-missing-results';Dump '24-missing-results';Record 'Missing file results available' ($null -ne (Find 'Opening results')) 'No launchable resource in scenario; inspect plain-language result'
  }
- Scenario '23-scroll-small-create' {
-  [void][ReviewWin]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,12,12,720,400,0x40);Click 'New workspace button'
-  Text 'Workspace name' 'Small viewport sample';$sw=[Diagnostics.Stopwatch]::StartNew();$found=$false
-  foreach($sc in $win.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::Pane)))){try{$sp=$sc.GetCurrentPattern([Windows.Automation.ScrollPattern]::Pattern);if($sp.Current.VerticallyScrollable){$sp.SetScrollPercent(-1,100);$found=$true}}catch{}}
-  Shot '23-min-create-bottom';Dump '23-min-create-bottom';Record 'Create action reachable at min viewport' ($null -ne (Find 'Create workspace' $CT::Button)) "scrollAttempt=$found"
+ Scenario '25-context-delete' {
+  Click 'Review one';$anchor=Wait 'Edit item' $CT::Button;$anchor.SetFocus();[Windows.Forms.SendKeys]::SendWait('+{F10}');Start-Sleep -Milliseconds 250
+  $mi=$A::RootElement.FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,'מחיקה')))
+  if(-not $mi){throw 'Deletion menu not opened from row edit anchor'}
+  $mi.SetFocus();[Windows.Forms.SendKeys]::SendWait('{ENTER}');Start-Sleep -Milliseconds 250;Shot '25-delete-outcome';Dump '25-delete-outcome';Copy-Item $store "$out/25-delete-store.json"
+  $o=Get-Content $store -Raw|ConvertFrom-Json;Record 'Local deletion leaves other environment copy' (@(($o.workspaces|Where-Object id -eq 'two').items|Where-Object itemId -eq 'site').Count -eq 1) 'First sample row deletion';Record 'Item removed immediately' (@(($o.workspaces|Where-Object id -eq 'one').items|Where-Object itemId -eq 'site').Count -eq 0) 'Check screenshot for confirm or undo'
+ }
+ Scenario '26-locked-write' {
+  StopApp;$before=Get-Content $store -Raw;$held=[IO.File]::Open("$store.lock",[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+  try{StartApp;Click 'Review one';Text 'Workspace name' 'Locked save attempt';Click 'Save workspace details';Shot '26-locked-save';Dump '26-locked-save';Record 'Failed locked save preserves disk data' ((Get-Content $store -Raw) -ceq $before) 'Second process holds writer lock';Record 'Failed locked save leaves draft visible' ((Value 'Workspace name') -eq 'Locked save attempt') 'Prevent silent draft loss'}finally{StopApp;$held.Dispose()}
+ }
+ Scenario '27-staged-save-restart' {
+  Mouse 'Options menu';Menu 'סביבה גלובלית';Click 'Add whitelist item';Text 'Global entry name' 'Saved staged sample';Text 'Global entry target' 'https://example.com/staged';Click 'Confirm global add';Click 'Back to workspaces';Click 'Review one';Click 'Add from open items';[void](Wait 'Open now list');Start-Sleep -Seconds 7
+  $list=Wait 'Open now list';$boxes=$list.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::CheckBox)));$sample=@($boxes|Where-Object{$_.Current.Name -like '*Saved staged sample*'})[0];if(-not $sample){throw 'Synthetic whitelist candidate missing'};$sample.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle();Click 'Add selected capture items';Click 'Capture save';StopApp;StartApp;Click 'Review one';Shot '27-staged-restarted';$o=Get-Content $store -Raw|ConvertFrom-Json;$targets=@(($o.workspaces|Where-Object id -eq 'one').items|ForEach-Object{$o.items.PSObject.Properties[$_.itemId].Value.target});Record 'Saved staged item survives restart' ($targets -contains 'https://example.com/staged') ($targets -join ',')
+ }
+ Scenario '28-type-confusion' {
+  Click 'Review one';Click '+ הוסף אייטם';Text 'Item target' 'https://example.com/wrong-type';Text 'Item name' 'Pasted website';Click 'Add';Shot '28-pasted-url';Dump '28-pasted-url';Copy-Item $store "$out/28-type-store.json";$o=Get-Content $store -Raw|ConvertFrom-Json;$it=@($o.items.PSObject.Properties.Value|Where-Object target -eq 'https://example.com/wrong-type')[0];Record 'Pasted web URL item type' ($it.type -eq 'link') "actualType=$($it.type)" 
  }
 }finally{StopApp;Flush;if(Test-Path "$storeDir/crash.log"){Copy-Item "$storeDir/crash.log" "$out/crash.log"};Get-ChildItem $out|Select-Object Name,Length}
