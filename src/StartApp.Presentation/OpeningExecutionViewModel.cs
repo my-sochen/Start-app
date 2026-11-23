@@ -51,7 +51,7 @@ public sealed partial class MainViewModel
     /// <summary>Overall time allowed for the pre-open checks. Items still unchecked after this are reported as "could not be checked", never as fine.</summary>
     public TimeSpan OpenCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
     private const int CheckWorkers = 4;
-    private int _activeCheckWorkers;
+    private readonly OpenCheckWorkerBudget _checkWorkers = new(CheckWorkers);
     private int _generation; private CancellationTokenSource? _checkCts; private bool _isChecking;
     private CancellationTokenSource? _launchCts; private bool _isLaunching;
     public bool IsLaunching { get => _isLaunching; private set { Set(ref _isLaunching, value); RaiseCommands(); } }
@@ -121,12 +121,12 @@ public sealed partial class MainViewModel
                 { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); lock (gate) { if (!published) results[i] = r; } }
                 catch (Exception e) { ObserveFault(e); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
             } }
-            finally { Interlocked.Decrement(ref _activeCheckWorkers); }
+            finally { _checkWorkers.Release(); }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var workers = new List<Task>();
         for (int i = 0; i < Math.Min(CheckWorkers, snapshot.Count); i++)
         {
-            if (Interlocked.Increment(ref _activeCheckWorkers) > CheckWorkers) { Interlocked.Decrement(ref _activeCheckWorkers); break; }
+            if (!_checkWorkers.TryAcquire()) break;
             workers.Add(Worker());
         }
         var all = Task.WhenAll(workers);
