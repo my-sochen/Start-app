@@ -155,7 +155,7 @@ public partial class MainWindow : Window
         // Compute the final popup origin inside the owner, then express it relative to the host.
         var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));
         // A just-materialized (virtualized) row can report ActualHeight 0 here; fall back to the 32 dip offset.
-        var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight > 0 ? host.ActualHeight : 32), 8, Math.Max(8, ActualHeight - 8));
+        var anchorY = WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, ActualHeight);
         menu.MaxHeight = Math.Max(0, ActualHeight - 16);
         menu.MaxWidth = Math.Max(0, ActualWidth - 16);
         // ContextMenuService overrides PlacementTarget/Placement for keyboard and mouse opens, and for the
@@ -168,14 +168,9 @@ public partial class MainWindow : Window
         {
             // popupSize at callback time can under-measure the final rendered height (measured 22.11: 173 vs
             // a final 187 UIA rect), so flip/clamp against an 18px-padded height - under-flipping overflows.
-            var safeH = popupSize.Height + 18;
-            var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
-            var y = anchorY + safeH <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - safeH);
-            // Never overflow the window bottom (approved 22.11): even a popup taller than the space below
-            // AND above the anchor clamps back inside the window.
-            var maxY = Math.Max(8, ActualHeight - 8 - safeH);
-            if (y > maxY) y = maxY;
-            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
+            var offset = WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width,
+                popupSize.Width, popupSize.Height, anchorY, ActualWidth, ActualHeight);
+            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(offset.X, offset.Y),
                 System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
         });
         capturedMenu.Dispatcher.BeginInvoke(new System.Action(() =>

@@ -78,8 +78,11 @@ public class MenuBindingSourceTests
         Assert.Contains("destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind)",submenu);
         foreach(var destination in new[]{"GlobalListKind.Blacklist","GlobalListKind.Whitelist","GlobalListKind.GlobalItems"}) Assert.Contains(destination,submenu);
         // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
-        Assert.Contains("popupSize.Height + 18",code);
-        Assert.Contains("Math.Max(8, anchorY - safeH)",code);
+        Assert.Contains("WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, ActualHeight)",code);
+        Assert.Contains("WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width",code);
+        var placement=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"WindowPopupPlacement.cs"));
+        Assert.Contains("popupHeight + 18",placement);
+        Assert.Contains("Math.Max(8, anchorY - safeHeight)",placement);
         // Context menus are re-placed on the next dispatcher tick after any open: ContextMenuService
         // overrides the placement for keyboard/mouse opens, so the anchored/clamped Custom placement is
         // re-applied post-open (reopen) where it always wins.
