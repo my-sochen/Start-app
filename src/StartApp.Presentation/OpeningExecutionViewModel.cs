@@ -23,7 +23,7 @@ public sealed partial class MainViewModel
     /// <summary>The open panel (with Cancel) is visible while a decision is pending AND while checking or launching, so the user can always cancel.</summary>
     public bool ShowOpenPanel => _isChecking || _isLaunching;
 
-    private void ClearPending() { if (IsChecking) { _checkCts?.Cancel(); _generation++; IsChecking = false; } if (IsLaunching) _launchCts?.Cancel(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
+    private void ClearPending() { if (IsChecking) { _openOperation.CancelCheckAndInvalidate(); IsChecking = false; } if (IsLaunching) _openOperation.CancelLaunch(); _pendingOpen = null; SelectionPending = false; ReopenChoices.Clear(); OpenProblems.Clear(); Raise(nameof(OpenDecisionPending)); RaiseCommands(); }
 
 
     /// <summary>לחיצה על שם האייטם: opens that one item after the same honest preflight the full open uses; the report line
@@ -52,8 +52,8 @@ public sealed partial class MainViewModel
     public TimeSpan OpenCheckTimeout { get; set; } = TimeSpan.FromSeconds(10);
     private const int CheckWorkers = 4;
     private readonly OpenCheckWorkerBudget _checkWorkers = new(CheckWorkers);
-    private int _generation; private CancellationTokenSource? _checkCts; private bool _isChecking;
-    private CancellationTokenSource? _launchCts; private bool _isLaunching;
+    private readonly OpenOperationLifetime _openOperation = new();
+    private bool _isChecking, _isLaunching;
     public bool IsLaunching { get => _isLaunching; private set { Set(ref _isLaunching, value); RaiseCommands(); } }
     public bool IsChecking { get => _isChecking; private set { Set(ref _isChecking, value); RaiseCommands(); } }
     /// <summary>The running (or last) check-and-open operation. UI code never waits on it; tests await it.</summary>
@@ -77,9 +77,9 @@ public sealed partial class MainViewModel
     private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
     {
         SelectionPending = false; _pendingOpen = null; ReopenChoices.Clear();
-        _checkCts?.Cancel(); _checkCts = new CancellationTokenSource(); var gen = ++_generation;
+        var (gen, token) = _openOperation.BeginCheck();
         IsChecking = true;
-        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, _checkCts.Token));
+        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token));
     }
 
     private (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it, IOpenStateDetector detector)
@@ -145,7 +145,7 @@ public sealed partial class MainViewModel
             if (f0 is not null) reported = true; // Guard owns delivery, including no-subscriber rethrow.
         }
         if (f0 is not null) ExceptionDispatchInfo.Capture(f0).Throw();
-        if (gen != _generation || token.IsCancellationRequested) return;
+        if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
         stop.Cancel();
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
         for (int i = 0; i < snapshot.Count; i++)
@@ -168,7 +168,7 @@ public sealed partial class MainViewModel
                 observationStop.Cancel(); observed = new NoOpenStateDetection();
                 _ = observation.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
             }
-            if (gen != _generation || token.IsCancellationRequested) return;
+            if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
             plan = plan.Select(p => (p.Item, p.Launch, p.Finding, p.Finding.State == PreflightState.Ready ? observed.Detect(p.Item, p.Launch) : OpenState.Unknown)).ToList();
         }
         IsChecking = false;
@@ -200,7 +200,7 @@ public sealed partial class MainViewModel
         var plan = _pendingOpen!;
         var declined = ReopenChoices.Where(x => !x.IsChecked).Select(x => x.PlanIndex).ToHashSet();
         _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); RaiseCommands();
-        var gen = ++_generation; OpenTask = Guard(gen, LaunchAsync(plan, declined));
+        var gen = _openOperation.NextGeneration(); OpenTask = Guard(gen, LaunchAsync(plan, declined));
     }
 
     /// <summary>The last unexpected error from a worker after the preflight deadline publication, with no <see cref="UnexpectedError"/> subscriber.
@@ -223,7 +223,7 @@ public sealed partial class MainViewModel
         try { await t; }
         catch (Exception e)
         {
-            if (gen == _generation) { IsChecking = false; IsLaunching = false; Status = "Open stopped by an unexpected error: " + e.GetType().Name + ". See the report for what was already sent."; }
+            if (_openOperation.IsCurrent(gen)) { IsChecking = false; IsLaunching = false; Status = "Open stopped by an unexpected error: " + e.GetType().Name + ". See the report for what was already sent."; }
             var h = UnexpectedError;
             if (h is null) throw;
             h(e);
@@ -236,7 +236,7 @@ public sealed partial class MainViewModel
     /// and are reported. A start call that is blocked in the OS cannot be interrupted; only the single launch worker is ever held by it.</summary>
     private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null)
     {
-        _launchCts = new CancellationTokenSource(); var cts = _launchCts; IsLaunching = true;
+        var cts = _openOperation.BeginLaunch(); IsLaunching = true;
         var results = new List<OpeningResult>(); Exception? fault = null;
         await Task.Run(() =>
         {
