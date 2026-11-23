@@ -90,4 +90,17 @@ public class ReviewInputTests
         Assert.Single(c.Store.CaptureWhitelist); Assert.Empty(c.Store.CaptureBlacklist.Where(e=>!e.IsDefault));
     }
 
+    [Fact] public void Saved_website_editor_and_batch_reject_non_web_target_without_mutation()
+    {
+        using var repo=Repo(); var vm=new MainViewModel(repo,new NotImplementedLauncher());
+        vm.NewName="work"; vm.CreateWorkspaceCommand.Execute(null); vm.NewTarget="https://example.com/"; vm.AddItemCommand.Execute(null);
+        var row=vm.Items.Single(); vm.EditAddressCommand.Execute(row); vm.EditItemTarget="javascript:alert(1)";vm.SaveItemEditCommand.Execute(null);
+        Assert.True(vm.ItemEditOpen); Assert.Equal(Catalog.WebsiteTargetError,vm.ItemEditError);
+        Assert.Equal("https://example.com/",repo.Load().Items.Values.Single().Target);
+        vm.EditItemTarget="https://example.com/"; vm.CancelItemEditCommand.Execute(null);
+        var all=vm.AllItemFromDetail(vm.Items.Single())!;var targets=vm.ItemActionTargets(all,new[]{vm.Selected!.Id});
+        Assert.False(vm.SaveSelectedItemEdits(all,targets,null,null,"file:///C:/sample"));Assert.Equal(Catalog.WebsiteTargetError,vm.Status);
+        Assert.Equal("https://example.com/",repo.Load().Items.Values.Single().Target);
+    }
+
 }

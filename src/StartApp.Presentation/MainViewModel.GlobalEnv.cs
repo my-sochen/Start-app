@@ -25,7 +25,7 @@ public sealed partial class MainViewModel
     }
 
     private bool _globalConflictOpen;
-    public bool GlobalConflictOpen { get => _globalConflictOpen; private set => Set(ref _globalConflictOpen, value); }
+    public bool GlobalConflictOpen { get => _globalConflictOpen; private set { Set(ref _globalConflictOpen, value); RaiseCommands(); } }
     private string _globalConflictMessage = "";
     public string GlobalConflictMessage { get => _globalConflictMessage; private set => Set(ref _globalConflictMessage, value); }
     public ICommand CloseGlobalConflictCommand { get; private set; } = null!;
