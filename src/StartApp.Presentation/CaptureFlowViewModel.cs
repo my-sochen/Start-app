@@ -30,7 +30,8 @@ public sealed partial class MainViewModel
     public ObservableCollection<string> CaptureNotes { get; } = new();
     public ObservableCollection<Workspace> CaptureWorkspaceResults { get; } = new();
     public ObservableCollection<CaptureExistingRow> CaptureWorkspaceItems { get; } = new();
-    public ObservableCollection<StagedRow> StagedRows { get; } = new();
+    private readonly StagedItemCollection<StagedRow> _stagedItems = new(row => row.Group);
+    public ObservableCollection<StagedRow> StagedRows => _stagedItems.Rows;
     private readonly CaptureDuplicateSession<CaptureRow, DupChoice> _captureDuplicates = new();
     public ObservableCollection<DupChoice> CaptureDupChoices => _captureDuplicates.Choices;
     private CaptureStage _captureStage = CaptureStage.None; private string _capWsId = "";
@@ -232,11 +233,7 @@ public sealed partial class MainViewModel
     /// group; at the group's edge it does nothing (same boundary rule as Catalog.MoveInstance).</summary>
     private void MoveStaged(StagedRow row, int delta)
     {
-        var i = StagedRows.IndexOf(row); if (i < 0 || delta == 0) return;
-        var g = row.Group; var step = Math.Sign(delta); var j = i + step;
-        while (j >= 0 && j < StagedRows.Count && StagedRows[j].Group != g) j += step;
-        if (j < 0 || j >= StagedRows.Count) return;
-        StagedRows.Move(i, j); RaiseCommands();
+        if (_stagedItems.MoveWithinGroup(row, delta)) RaiseCommands();
     }
     /// <summary>פתח באמצעות on a staged row: the same popup a saved item gets, but a chosen default lands on the staged
     /// row's open-with field (written to the store only on שמור) and Go opens the item straight from the staged values.</summary>
