@@ -88,7 +88,7 @@ public sealed partial class MainViewModel
         if (_current.DefaultWorkspaceId == workspaceId) return;
         if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
         {
-            _pendingDefaultId = workspaceId;
+            _defaultWorkspace.PendingId = workspaceId;
             DefaultConfirmOpen = true;
             Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice)); Raise(nameof(DefaultConfirmTitle)); Raise(nameof(DefaultConfirmAcceptLabel)); RaiseCommands();
             return;
@@ -96,26 +96,26 @@ public sealed partial class MainViewModel
         ApplyDefaultWorkspace(workspaceId);
     }
 
-    private string? _pendingDefaultId;
+    private readonly DefaultWorkspaceSession _defaultWorkspace = new();
     private string DefaultName(string? id) => id is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == id) is { } w ? w.Name : "";
 
     /// <summary>Replace-confirm dialog state (approved dialog 22.11): open flag, dynamic body naming the current and
     /// candidate workspaces, and the blue notice naming the candidate.</summary>
-    public bool DefaultConfirmOpen { get; private set; }
-    public string DefaultConfirmTitle => _pendingDefaultId is null ? "להסיר את ברירת המחדל?" : "כבר מוגדרת סביבת ברירת מחדל";
-    public string DefaultConfirmAcceptLabel => _pendingDefaultId is null ? "כן, הסר ברירת מחדל" : "כן, הגדר כברירת מחדל";
-    public string DefaultConfirmBody => _pendingDefaultId is null
+    public bool DefaultConfirmOpen { get => _defaultWorkspace.IsOpen; private set => _defaultWorkspace.IsOpen = value; }
+    public string DefaultConfirmTitle => _defaultWorkspace.Title;
+    public string DefaultConfirmAcceptLabel => _defaultWorkspace.AcceptLabel;
+    public string DefaultConfirmBody => _defaultWorkspace.PendingId is null
         ? $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר ללא ברירת מחדל?"
-        : $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_pendingDefaultId)}'?";
-    public string DefaultConfirmNotice => _pendingDefaultId is null
+        : $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_defaultWorkspace.PendingId)}'?";
+    public string DefaultConfirmNotice => _defaultWorkspace.PendingId is null
         ? "אחרי האישור הנקודה הירוקה תוסר ולא תיפתח אף סביבה עם הפעלת המחשב. אפשר להגדיר ברירת מחדל שוב בכל עת."
-        : $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_pendingDefaultId)}', והיא זו שתיפתח עם הפעלת המחשב.";
+        : $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_defaultWorkspace.PendingId)}', והיא זו שתיפתח עם הפעלת המחשב.";
 
     /// <summary>Dialog confirm: move the green badge and fire the existing ~3s toast.</summary>
     public ICommand ConfirmDefaultReplaceCommand => _confirmDefaultReplace ??= Cmd(_ =>
     {
         if (!DefaultConfirmOpen || ReadOnly) return;
-        var id = _pendingDefaultId;
+        var id = _defaultWorkspace.PendingId;
         CloseDefaultConfirm();
         ApplyDefaultWorkspace(id);
     }, _ => !ReadOnly);
@@ -127,8 +127,7 @@ public sealed partial class MainViewModel
 
     private void CloseDefaultConfirm()
     {
-        _pendingDefaultId = null;
-        DefaultConfirmOpen = false;
+        _defaultWorkspace.Close();
         Raise(nameof(DefaultConfirmOpen)); RaiseCommands();
     }
 
