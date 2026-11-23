@@ -50,7 +50,8 @@ internal static class Program
                         await Click(Children<Button>(w).Single(b=>ReferenceEquals(b.Command,command)&&b.IsVisible),w);
                     }
                     Check(vm.ReadOnly&&vm.ToastVisible&&vm.ToastPersistent,"Not fail closed");Check(File.ReadAllText(path)==bytes,"Store changed");
-                    var details=Children<TextBox>(w).Single(t=>t.IsReadOnly&&t.Text==vm.ToastTechnicalDetails);var expander=Children<Expander>(w).Single(e=>e.IsAncestorOf(details));expander.IsExpanded=true;await Idle(w);
+                    var notification=Children<Border>(w).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Notification");var expander=Children<Expander>(notification).Single();expander.IsExpanded=true;await Idle(w);
+                    var details=Children<TextBox>(expander).Single(t=>t.IsReadOnly&&t.Text==vm.ToastTechnicalDetails);
                     Check(details.IsVisible,"Technical details not visible");await Click(Children<Button>(w).Single(b=>ReferenceEquals(b.Command,vm.CopyTechnicalDetailsCommand)&&b.IsVisible),w);
                     Check(Clipboard.GetText()==vm.ToastTechnicalDetails,"Actual clipboard mismatch");if(!newer)Check(vm.ToastTechnicalDetails.Contains(Directory.GetFiles(Path.GetDirectoryName(path)!,"store.json.diag-*").Single()),"Copy path missing");
                     var png=new PngBitmapEncoder();var image=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(w);png.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(args[0],name+".png")))png.Save(f);
