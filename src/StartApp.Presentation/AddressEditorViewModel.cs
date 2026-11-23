@@ -67,7 +67,7 @@ public sealed partial class MainViewModel
     }
     private void CloseAddressEdit()
     {
-        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _exitAction = () => AddressEditOpen = false; UnsavedOpen = true; return; }
+        if (AddressEditDirty) { MarkUnsavedHost(false, false, true); _unsavedExit.Continuation = () => AddressEditOpen = false; UnsavedOpen = true; return; }
         AddressEditOpen = false;
     }
 

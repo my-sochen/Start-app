@@ -37,7 +37,7 @@ public sealed partial class MainViewModel
     private void ShowAllItems()
     {
         void Show() { ItemEditOpen = false; AddressEditOpen = false; OpenWithOpen = false; InCreate = false; InDetails = false; InSettings = false; InGlobalEnv = false; _allItemsSearch = ""; Raise(nameof(AllItemsSearch)); RefreshAllItems(); InAllItems = true; }
-        if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty || CreateDirty) { MarkUnsavedHost(InCreate && CreateDirty, ItemEditDirty, AddressEditDirty, DesignDirty); _exitAction = Show; UnsavedOpen = true; return; }
+        if (DetailsDirty || ItemEditDirty || AddressEditDirty || DesignDirty || CreateDirty) { MarkUnsavedHost(InCreate && CreateDirty, ItemEditDirty, AddressEditDirty, DesignDirty); _unsavedExit.Continuation = Show; UnsavedOpen = true; return; }
         Show();
     }
     private void RefreshAllItems()

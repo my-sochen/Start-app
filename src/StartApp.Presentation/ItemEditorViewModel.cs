@@ -62,7 +62,7 @@ public sealed partial class MainViewModel
     }
     private void CancelItemEdit()
     {
-        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _exitAction = () => ItemEditOpen = false; UnsavedOpen = true; return; }
+        if (ItemEditDirty) { MarkUnsavedHost(false, true, false); _unsavedExit.Continuation = () => ItemEditOpen = false; UnsavedOpen = true; return; }
         ItemEditOpen = false;
     }
 }
