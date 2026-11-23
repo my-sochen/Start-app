@@ -24,6 +24,7 @@ internal static class Program
             new(ItemType.Program,"Editor",@"C:\RefactorFixture\editor.exe") }, Array.Empty<string>());
     }
     private static readonly List<object> Results = new();
+    private static readonly List<object> SameProcess = new();
     [STAThread] private static int Main(string[] args)
     {
         if (args.Length != 1 || Directory.Exists(args[0])) return 2;
@@ -61,11 +62,17 @@ internal static class Program
                 window.Width=720;window.Height=400;vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;vm.CapturePickWorkspaceCommand.Execute(workspace);
                 await Take(window,output,"09-minimum-size");
                 vm.CaptureCloseCommand.Execute(null);
+                File.WriteAllText(Path.Combine(output,"same-process.json"),JsonSerializer.Serialize(SameProcess));
                 File.WriteAllText(Path.Combine(output,"results.json"),JsonSerializer.Serialize(Results,new JsonSerializerOptions{WriteIndented=true}));
             } catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}
             finally {window.Close();app.Shutdown(code);}
         };
         app.Run(window);return code;
+    }
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for(var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)
+        {var child=VisualTreeHelper.GetChild(root,i);yield return child;foreach(var next in Descendants(child))yield return next;}
     }
     private static async Task Settle(Window window)
     {
@@ -89,6 +96,20 @@ internal static class Program
             previous=pixels;await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(80);
         }
         if(steady<3 || image is null)throw new Exception("WPF frame never became exactly stable: "+name);
+        // In candidate only, compare original baseline Grid against extracted UserControl inside the
+        // SAME actual MainWindow and VM, sharing glyph caches. Baseline assembly run has no CaptureView.
+        var capture = Descendants(window).OfType<FrameworkElement>().FirstOrDefault(e => e.GetType().FullName == "StartApp.App.CaptureView");
+        if(capture?.Parent is System.Windows.Controls.Panel parent)
+        {
+            var index=parent.Children.IndexOf(capture);var baseline=new CaptureBaselineGrid();
+            parent.Children.RemoveAt(index);parent.Children.Insert(index,baseline);await Settle(window);
+            var original=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);original.Render(window);
+            var firstPixels=new byte[width*height*4];var secondPixels=new byte[firstPixels.Length];image.CopyPixels(firstPixels,width*4,0);original.CopyPixels(secondPixels,width*4,0);
+            var count=0;for(var p=0;p<firstPixels.Length;p+=4)if(!firstPixels.AsSpan(p,4).SequenceEqual(secondPixels.AsSpan(p,4)))count++;
+            SameProcess.Add(new { state=name, different_pixels=count });
+            var originalPng=new PngBitmapEncoder();originalPng.Frames.Add(BitmapFrame.Create(original));using(var f=File.Create(Path.Combine(output,name+"-original-grid.png")))originalPng.Save(f);
+            parent.Children.RemoveAt(index);parent.Children.Insert(index,capture);await Settle(window);
+        }
         var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(output,name+".png")))png.Save(f);
         // Native desktop screenshot as separate evidence: includes actual window/composition and focus.
         var point=window.PointToScreen(new System.Windows.Point(0,0));

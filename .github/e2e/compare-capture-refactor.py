@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from PIL import Image, ImageChops
 root = Path('evidence')
-images = sorted(p.name for p in (root / 'before').glob('*.png') if '-desktop' not in p.name)
+images = sorted(p.name for p in (root / 'before').glob('*.png') if '-desktop' not in p.name and '-original-grid' not in p.name)
 assert len(images) == 9, f'Expected 9 fixed states, found {images}'
 # A baseline repeat is an exactness control, not permission to ignore unstable pixels.
 control = []
