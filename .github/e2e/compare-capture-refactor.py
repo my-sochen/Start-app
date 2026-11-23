@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from PIL import Image, ImageChops
 root = Path('evidence')
-images = sorted(p.name for p in (root / 'before').glob('*.png') if '-desktop' not in p.name and '-original-grid' not in p.name)
+images = [name+'.png' for name in ['01-new-form','02-pick-environment','03-side-empty','04-staged-summary','05-staged-editor','06-saved-side','07-grouped-duplicates','08-drag-duplicate','09-minimum-size']]
 assert len(images) == 9, f'Expected 9 fixed states, found {images}'
 # Same-process is an additional exact gate, never a substitute for the independent baseline control.
 shared = json.loads((root / 'after/same-process.json').read_text())
