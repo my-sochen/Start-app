@@ -5,29 +5,25 @@ namespace StartApp.Presentation;
 public sealed partial class MainViewModel
 {
     // ---- open-with popup (פופאפ פתח באמצעות): browser for a site, program for a file; per-instance הגדר כברירת מחדל ----
-    public bool OpenWithOpen { get => _openWithOpen; private set { Set(ref _openWithOpen, value); RaiseCommands(); } }
-    private bool _openWithOpen;
-    private ItemRow? _openWithRow;
-    private StagedRow? _openWithStaged;
-    /// <summary>Which program the popup asks for: a browser for a site, a program for a file/folder.</summary>
-    public string OpenWithLabel => _openWithRow?.Type == nameof(ItemType.Link) || _openWithStaged?.Type == ItemType.Link ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
-    public string OpenWithProgram { get => _openWithProgram; set { Set(ref _openWithProgram, value ?? ""); RaiseCommands(); } }
-    private string _openWithProgram = "";
-    /// <summary>הגדר כברירת מחדל: save the choice for THIS instance only (never a Windows default, never other workspaces).</summary>
-    public bool OpenWithSetDefault { get => _openWithSetDefault; set => Set(ref _openWithSetDefault, value); }
-    private bool _openWithSetDefault;
+    private readonly OpenWithSession<ItemRow, StagedRow> _openWith = new();
+    public bool OpenWithOpen { get => _openWith.IsOpen; private set { if (_openWith.IsOpen != value) { _openWith.IsOpen = value; Raise(nameof(OpenWithOpen)); } RaiseCommands(); } }
+    /// <summary>A site asks for a browser; files and folders ask for a program.</summary>
+    public string OpenWithLabel => _openWith.SavedTarget?.Type == nameof(ItemType.Link) || _openWith.StagedTarget?.Type == ItemType.Link ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
+    public string OpenWithProgram { get => _openWith.Program; set { var program = value ?? ""; if (_openWith.Program != program) { _openWith.Program = program; Raise(nameof(OpenWithProgram)); } RaiseCommands(); } }
+    /// <summary>Save the choice for this instance only, never a Windows default or other workspaces.</summary>
+    public bool OpenWithSetDefault { get => _openWith.SetDefault; set { if (_openWith.SetDefault != value) { _openWith.SetDefault = value; Raise(nameof(OpenWithSetDefault)); } } }
     private void BeginOpenWith(ItemRow row)
     {
         if (row.Type == nameof(ItemType.Program)) { Status = "Open with does not apply to a program item (it is the program)"; return; }
         var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
-        _openWithRow = row; _openWithStaged = null;
+        _openWith.SavedTarget = row; _openWith.StagedTarget = null;
         OpenWithProgram = m?.Launch?.Browser ?? m?.Launch?.OpenWith ?? "";
         OpenWithSetDefault = m?.Launch is not null;
         OpenWithOpen = true; Raise(nameof(OpenWithLabel));
     }
     private void OpenWithGo()
     {
-        if (_openWithStaged is { } sg)
+        if (_openWith.StagedTarget is { } sg)
         {
             var prog2 = OpenWithProgram.Trim();
             LaunchConfig? cfg2 = prog2.Length == 0 ? null : sg.Type == ItemType.Link ? new LaunchConfig(Browser: prog2) : new LaunchConfig(OpenWith: prog2);
@@ -37,8 +33,8 @@ public sealed partial class MainViewModel
             OpenOneCore(sg.Name, stagedItem, cfg2);
             return;
         }
-        if (_openWithRow is null) return;
-        var row = _openWithRow; var prog = OpenWithProgram.Trim();
+        if (_openWith.SavedTarget is null) return;
+        var row = _openWith.SavedTarget; var prog = OpenWithProgram.Trim();
         LaunchConfig? cfg = prog.Length == 0 ? null : row.Type == nameof(ItemType.Link) ? new LaunchConfig(Browser: prog) : new LaunchConfig(OpenWith: prog);
         if (OpenWithSetDefault && !Apply(c => c.SetLaunch(Selected!.Id, row.InstanceId, cfg))) return;
         OpenWithOpen = false;

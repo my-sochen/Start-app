@@ -251,12 +251,12 @@ public sealed partial class MainViewModel
     /// row's open-with field (written to the store only on שמור) and Go opens the item straight from the staged values.</summary>
     private void BeginOpenWithStaged(StagedRow row)
     {
-        _openWithRow = null; _openWithStaged = row;
+        _openWith.SavedTarget = null; _openWith.StagedTarget = row;
         OpenWithProgram = row.OpenWith;
         OpenWithSetDefault = row.OpenWith.Trim().Length > 0;
         OpenWithOpen = true; Raise(nameof(OpenWithLabel));
     }
-    private void CloseOpenWith() { OpenWithOpen = false; _openWithRow = null; _openWithStaged = null; }
+    private void CloseOpenWith() { OpenWithOpen = false; _openWith.ClearTargets(); }
     private bool SaveStaged()
     {
         var wsId = _capWsId; var staged = StagedRows.ToList();
