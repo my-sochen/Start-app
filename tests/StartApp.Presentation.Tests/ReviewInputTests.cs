@@ -53,6 +53,7 @@ public class ReviewInputTests
         using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.OpenGlobalEnvCommand.Execute(null);
         foreach(var kind in new[]{first,second}) { vm.StartGlobalAddCommand.Execute(kind); vm.NewEntryTypeIndex=0;vm.NewEntryName="same";vm.NewEntryTarget="https://example.com/same";vm.ConfirmGlobalAddCommand.Execute(null); }
         Assert.True(vm.GlobalConflictOpen); Assert.Equal(second, vm.AddingKind);
+        Assert.True(vm.MoveGlobalConflictCommand.CanExecute(null)); Assert.True(vm.CloseGlobalConflictCommand.CanExecute(null));
         Assert.Single(repo.Load().CaptureWhitelist.Concat(repo.Load().CaptureBlacklist).Where(e => e.Target == "https://example.com/same"));
         Assert.Equal("https://example.com/same", vm.NewEntryTarget);
         vm.CloseGlobalConflictCommand.Execute(null);
@@ -117,6 +118,15 @@ public class ReviewInputTests
         Assert.True(vm.AddressEditOpen);Assert.Equal(Catalog.WebsiteTargetError,vm.AddressError);Assert.Equal("https://example.com/capture",staged.Target);
         vm.EditAddress=staged.Target;vm.CloseAddressEditCommand.Execute(null);staged.Target="data:text/html,test";vm.CaptureSaveCommand.Execute(null);
         Assert.Equal(Catalog.WebsiteTargetError,staged.TargetError);Assert.True(staged.IsEditing);Assert.Empty(repo.Load().Workspaces.Single().Items);
+    }
+
+    [Fact] public void Confirmation_moves_the_snapshot_not_an_unconfirmed_replacement_draft()
+    {
+        using var repo=Repo();repo.Mutate(c=>c.AddGlobalEntry(GlobalListKind.Whitelist,ItemType.Link,"same","https://example.com/first"));
+        var vm=new MainViewModel(repo,new NotImplementedLauncher());vm.OpenGlobalEnvCommand.Execute(null);vm.StartGlobalAddCommand.Execute(GlobalListKind.Blacklist);
+        vm.NewEntryTypeIndex=0;vm.NewEntryName="same";vm.NewEntryTarget="https://example.com/first";vm.ConfirmGlobalAddCommand.Execute(null);
+        vm.NewEntryTarget="https://example.com/unconfirmed";vm.MoveGlobalConflictCommand.Execute(null);
+        Assert.Contains(repo.Load().CaptureBlacklist,e=>e.Target=="https://example.com/first");Assert.DoesNotContain(repo.Load().CaptureBlacklist,e=>e.Target.Contains("unconfirmed"));
     }
 
 }
