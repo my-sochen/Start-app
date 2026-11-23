@@ -1,0 +1,29 @@
+name: adversarial-product-review
+on:
+  push:
+    branches: [qa/adversarial-product-review]
+permissions:
+  contents: read
+jobs:
+  runtime-review:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build exact dev app with review harness only
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Adversarial product behavior review, synthetic data only
+        shell: pwsh
+        run: ./.github/e2e/adversarial-product-review.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: adversarial-product-review-evidence
+          path: product-review/
+          retention-days: 7
