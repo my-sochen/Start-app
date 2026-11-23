@@ -76,21 +76,22 @@ public sealed partial class MainViewModel
             try {
                 var saved = _repo.Mutate(c => c.MoveGlobalEntry(move.Kind, move.Type, move.Name, move.Target));
                 Show(saved); RefreshGlobalEnvRows(); _pendingGlobalMove = null; GlobalConflictOpen = false; AddingKind = null; GlobalEnvError = "";
-            } catch (Exception e) when (e is ArgumentException or InvalidOperationException) { GlobalEnvError = e.Message; GlobalConflictOpen = false; }
+            } catch (Exception e) when (IsGlobalStoreFailure(e)) { ReportGlobalStoreFailure(e); }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException) { GlobalEnvError = e.Message; GlobalConflictOpen = false; }
         }, _ => GlobalConflictOpen && _pendingGlobalMove != null && !ReadOnly);
         OpenGlobalEnvCommand = Cmd(_ => { InAllItems = false; InSettings = false; RefreshGlobalEnvRows(); InGlobalEnv = true; }, _ => !_inGlobalEnv);
-        CloseGlobalEnvCommand = Cmd(_ => { InGlobalEnv = false; AddingKind = null; GlobalEnvError = ""; }, _ => _inGlobalEnv);
-        StartGlobalAddCommand = Cmd(p => { if (p is GlobalListKind k) { AddingKind = k; NewEntryName = ""; NewEntryTarget = ""; NewEntryTypeIndex = k == GlobalListKind.Blacklist ? 1 : 0; GlobalEnvError = ""; } }, _ => _inGlobalEnv);
-        ConfirmGlobalAddCommand = Cmd(_ => ConfirmGlobalAdd(), _ => _addingKind != null && !string.IsNullOrWhiteSpace(_newEntryName) && !string.IsNullOrWhiteSpace(_newEntryTarget));
+        CloseGlobalEnvCommand = Cmd(_ => { InGlobalEnv = false; AddingKind = null; GlobalEnvError = ""; }, _ => _inGlobalEnv && !ReadOnly);
+        StartGlobalAddCommand = Cmd(p => { if (p is GlobalListKind k) { AddingKind = k; NewEntryName = ""; NewEntryTarget = ""; NewEntryTypeIndex = k == GlobalListKind.Blacklist ? 1 : 0; GlobalEnvError = ""; } }, _ => _inGlobalEnv && !ReadOnly);
+        ConfirmGlobalAddCommand = Cmd(_ => ConfirmGlobalAdd(), _ => !ReadOnly && _addingKind != null && !string.IsNullOrWhiteSpace(_newEntryName) && !string.IsNullOrWhiteSpace(_newEntryTarget));
         CancelGlobalAddCommand = Cmd(_ => { AddingKind = null; GlobalEnvError = ""; }, _ => _addingKind != null);
-        RemoveGlobalEntryCommand = Cmd(p => { if (p is GlobalEntryRow row) RemoveGlobalEntry(row); }, p => p is GlobalEntryRow);
+        RemoveGlobalEntryCommand = Cmd(p => { if (p is GlobalEntryRow row) RemoveGlobalEntry(row); }, p => !ReadOnly && p is GlobalEntryRow);
     }
 
     private static ItemType GlobalEntryType(int index) => index switch { 0 => ItemType.Link, 1 => ItemType.Program, 2 => ItemType.File, _ => ItemType.Folder };
 
     private void ConfirmGlobalAdd()
     {
-        if (_addingKind is not { } kind) return;
+        if (ReadOnly || _addingKind is not { } kind) return;
         try
         {
             var saved = _repo.Mutate(c => c.AddGlobalEntry(kind, GlobalEntryType(_newEntryTypeIndex), _newEntryName, _newEntryTarget));
@@ -98,6 +99,7 @@ public sealed partial class MainViewModel
             RefreshGlobalEnvRows();
             AddingKind = null;
         }
+        catch (Exception e) when (IsGlobalStoreFailure(e)) { ReportGlobalStoreFailure(e); }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {
             GlobalEnvError = "לא ניתן להוסיף: " + e.Message;
@@ -108,9 +110,25 @@ public sealed partial class MainViewModel
 
     private void RemoveGlobalEntry(GlobalEntryRow row)
     {
-        var saved = _repo.Mutate(c => c.RemoveGlobalEntry(row.Kind, row.Id));
-        Show(saved);
-        RefreshGlobalEnvRows();
+        if (ReadOnly) return;
+        try
+        {
+            var saved = _repo.Mutate(c => c.RemoveGlobalEntry(row.Kind, row.Id));
+            Show(saved);
+            RefreshGlobalEnvRows();
+        }
+        catch (Exception e) when (IsGlobalStoreFailure(e)) { ReportGlobalStoreFailure(e); }
+    }
+
+    private static bool IsGlobalStoreFailure(Exception error) => error is StoreCorruptException or StoreTooNewException
+        or System.IO.IOException or UnauthorizedAccessException or StoreLockedException;
+
+    private void ReportGlobalStoreFailure(Exception error)
+    {
+        if (error is StoreCorruptException or StoreTooNewException) ReadOnly = true;
+        GlobalEnvError = "השינוי לא נשמר. קובץ הנתונים הושאר ללא שינוי.";
+        Status = error.Message;
+        ShowToast(GlobalEnvError, true, StoreErrorDetails(error));
     }
 
     /// <summary>--autostart (logon via the installer's Run key): opens every פריט סביבה גלובלית through the same honest
