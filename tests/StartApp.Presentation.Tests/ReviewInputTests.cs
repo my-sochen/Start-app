@@ -103,4 +103,20 @@ public class ReviewInputTests
         Assert.Equal("https://example.com/",repo.Load().Items.Values.Single().Target);
     }
 
+    private sealed class WebsiteCapturer : IOpenItemCapturer
+    {
+        public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.Link,"captured","https://example.com/capture")},Array.Empty<string>());
+    }
+    [Fact] public void Staged_website_address_and_inline_save_reject_unsupported_schemes()
+    {
+        using var repo=Repo();var vm=new MainViewModel(repo,new NotImplementedLauncher(),capturer:new WebsiteCapturer()){ScanMinVisible=TimeSpan.Zero};
+        vm.NewName="work";vm.CreateWorkspaceCommand.Execute(null);vm.BackCommand.Execute(null);vm.CaptureExistingCommand.Execute(null);
+        Assert.True(vm.CurrentScan!.Wait(TimeSpan.FromSeconds(15)));vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single());
+        vm.CaptureRows.Single().IsChecked=true;vm.CaptureAddCommand.Execute(null);var staged=vm.StagedRows.Single();
+        vm.StagedEditAddressCommand.Execute(staged);vm.EditAddress="ftp://example.com/file";vm.SaveAddressCommand.Execute(null);
+        Assert.True(vm.AddressEditOpen);Assert.Equal(Catalog.WebsiteTargetError,vm.AddressError);Assert.Equal("https://example.com/capture",staged.Target);
+        vm.EditAddress=staged.Target;vm.CloseAddressEditCommand.Execute(null);staged.Target="data:text/html,test";vm.CaptureSaveCommand.Execute(null);
+        Assert.Equal(Catalog.WebsiteTargetError,staged.TargetError);Assert.True(staged.IsEditing);Assert.Empty(repo.Load().Workspaces.Single().Items);
+    }
+
 }
