@@ -14,7 +14,11 @@ using StartApp.Presentation;
 /// <summary>Capture-only drag/drop and staged editor focus. DataContext stays the shared workspace session.</summary>
 public partial class CaptureBaselineGrid : Grid
 {
-    public CaptureBaselineGrid() => InitializeComponent();
+    public CaptureBaselineGrid(ResourceDictionary windowResources)
+    {
+        Resources.MergedDictionaries.Add(windowResources);
+        InitializeComponent();
+    }
     private void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
     {
         if (Window.GetWindow(this) is MainWindow owner) InvokeOwnerMenu(owner, sender, e);

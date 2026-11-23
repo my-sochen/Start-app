@@ -101,7 +101,7 @@ internal static class Program
         var capture = Descendants(window).OfType<FrameworkElement>().FirstOrDefault(e => e.GetType().FullName == "StartApp.App.CaptureView");
         if(capture?.Parent is System.Windows.Controls.Panel parent)
         {
-            var index=parent.Children.IndexOf(capture);var baseline=new CaptureBaselineGrid();
+            var index=parent.Children.IndexOf(capture);var baseline=new CaptureBaselineGrid(window.Resources);
             parent.Children.RemoveAt(index);parent.Children.Insert(index,baseline);await Settle(window);
             var original=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);original.Render(window);
             var firstPixels=new byte[width*height*4];var secondPixels=new byte[firstPixels.Length];image.CopyPixels(firstPixels,width*4,0);original.CopyPixels(secondPixels,width*4,0);
