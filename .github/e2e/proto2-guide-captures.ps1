@@ -113,12 +113,44 @@ try {
  if(-not $settings){throw 'Published Settings window did not open.'}
  Shot '06-update-settings.png' 'Published proto.2 Settings window as shipped. No update check, download or preference change was requested.' ([IntPtr]$settings.Current.NativeWindowHandle)
  $settings.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+ function MenuItem($name) {
+  $condition=New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ProcessIdProperty,$p.Id)),(New-Object $PC($A::NameProperty,$name)),(New-Object $PC($A::ControlTypeProperty,$CT::MenuItem)))
+  $sw=[Diagnostics.Stopwatch]::StartNew()
+  do{$e=$A::RootElement.FindFirst($TS::Descendants,$condition);if($e){return $e};Start-Sleep -Milliseconds 100}while($sw.Elapsed.TotalSeconds -lt 10)
+  throw "Menu item missing: $name"
+ }
+ function OpenCapture($mode) {
+  Click 'Capture'
+  $mi=MenuItem $mode
+  $mi.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  [void](WaitNamed 'Open now list')
+  $sw=[Diagnostics.Stopwatch]::StartNew()
+  do {
+   $scan=Named 'סורק מה פתוח עכשיו...'
+   if(-not $scan -or $scan.Current.IsOffscreen){break}
+   Start-Sleep -Milliseconds 150
+  }while($sw.Elapsed.TotalSeconds -lt 40)
+  if($scan -and -not $scan.Current.IsOffscreen){throw 'Capture scan never completed.'}
+ }
+ OpenCapture 'סביבה חדשה'
+ Shot '07-capture-new.png' 'Published proto.2 capture into a new workspace: original creation form and genuine fresh-runner scan. No program or folder was opened for this view.'
+ Click 'Close capture'
+ OpenCapture 'סביבה קיימת'
+ Click 'Pick workspace Sample project';[void](WaitNamed 'Added items not saved yet')
+ Shot '08-capture-draft.png' 'Published proto.2 capture/draft screen for Sample project: saved sample items on the left and genuine fresh-runner capture list on the right. No captured item is added or saved; the draft may be empty.'
+ Click 'Close capture'
+ $title=Button 'Sample project'
+ if(-not $title){throw 'Sample card unavailable for context menu.'}
+ $title.SetFocus();[System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+ [void](MenuItem 'הצג')
+ Shot '09-workspace-context-menu.png' 'Published proto.2 workspace right-click context menu, opened through its equivalent Shift+F10 gesture. No menu command is executed.'
+ [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
  $null=$p.CloseMainWindow();$p.WaitForExit(5000)|Out-Null;if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}
  $after=TreeHashes
  if(($before|ConvertTo-Json -Depth 4 -Compress) -cne ($after|ConvertTo-Json -Depth 4 -Compress)){throw 'Extracted release files changed during the capture run.'}
  $provenance.extractedFilesUnchanged=$true
  $provenance.status='pass'
- 'PASS: exact published ZIP, hash verified, six app-only screenshots, sample data only, no binary changes.' | Set-Content (Join-Path $out 'RESULT.txt')
+ 'PASS: exact published ZIP, hash verified, nine app-only screenshots, sample data only, no binary changes.' | Set-Content (Join-Path $out 'RESULT.txt')
 } catch {
  $provenance.status='fail';$provenance.error="$($_.Exception.Message)"
  $_ | Out-String | Set-Content (Join-Path $out 'ERROR.txt')
