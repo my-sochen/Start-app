@@ -88,23 +88,23 @@ public sealed partial class MainViewModel
         _ => "הפריט או צורת הפתיחה אינם נתמכים. עדכנו את הכתובת או את התוכנה שנבחרה."
     };
 
-    private string _inlineError = "", _inlineHost = "";
-    public string InlineError { get => _inlineError; private set => Set(ref _inlineError, value); }
+    private readonly FieldErrorSession _fieldError = new();
+    public string InlineError { get => _fieldError.Message; private set { if (_fieldError.Message != value) { _fieldError.Message = value; Raise(nameof(InlineError)); } } }
     private void FieldError(string host, string message, string technical)
     {
-        _inlineHost = host; InlineError = message;
+        _fieldError.Host = host; InlineError = message;
         foreach (var n in new[] { nameof(AddItemError), nameof(CreateError), nameof(DetailsError), nameof(ItemEditError), nameof(AddressError), nameof(DesignError), nameof(CategoryError) }) Raise(n);
         // Diagnostic compatibility only. Field errors do not create a second toast.
         _status = technical; Raise(nameof(Status));
     }
     private void ClearFieldErrors() => FieldError("", "", "");
-    public string AddItemError => _inlineHost == "add" ? InlineError : "";
-    public string CreateError => _inlineHost == "create" ? InlineError : "";
-    public string DetailsError => _inlineHost == "details" ? InlineError : "";
-    public string ItemEditError => _inlineHost == "item" ? InlineError : "";
-    public string AddressError => _inlineHost == "address" ? InlineError : "";
-    public string DesignError => _inlineHost == "design" ? InlineError : "";
-    public string CategoryError => _inlineHost == "category" ? InlineError : "";
+    public string AddItemError => _fieldError.ForHost("add");
+    public string CreateError => _fieldError.ForHost("create");
+    public string DetailsError => _fieldError.ForHost("details");
+    public string ItemEditError => _fieldError.ForHost("item");
+    public string AddressError => _fieldError.ForHost("address");
+    public string DesignError => _fieldError.ForHost("design");
+    public string CategoryError => _fieldError.ForHost("category");
 
     private void SaveFailure(string technical, string? message = null)
     {
