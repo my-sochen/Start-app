@@ -58,7 +58,17 @@ public class PreflightTests
     [InlineData(ItemType.File,"relative\\a.txt")]
     public void UnsupportedNeverLaunched_AdapterNotConsulted(ItemType t,string target)
     {
-        using var repo=Repo((t,target)); var l=new FakeLauncher(); var pf=new FakePreflight(Ready); var vm=new MainViewModel(repo,l,pf,new FixedDetector(OpenState.Open));
+        // This exercises defense in depth for unsupported records already on disk.
+        // New-input APIs correctly reject unsupported websites before preflight, so seed
+        // the stored record directly without weakening either validation or assertions.
+        using var repo = Repo();
+        repo.Mutate(c =>
+        {
+            var item = new Item("stored-unsupported", t, target, target);
+            c.Store.Items.Add(item.Id, item);
+            c.AddToWorkspace(c.Store.Workspaces.Single().Id, item.Id);
+        });
+        var l=new FakeLauncher(); var pf=new FakePreflight(Ready); var vm=new MainViewModel(repo,l,pf,new FixedDetector(OpenState.Open));
         SelectAndCheck(vm); Assert.Equal(0,pf.Calls); Assert.Empty(l.Launched); Assert.False(vm.OpenDecisionPending); Assert.Equal(OpeningOutcome.Skipped,Assert.Single(vm.LastOpeningResults).Outcome);
     }
     [Theory] [InlineData("http://example.com")] [InlineData("https://example.com/a?b=c")]
