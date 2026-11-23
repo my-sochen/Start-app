@@ -9,8 +9,16 @@ public static class GuideWin {
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int w,int ht,uint f);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr c);
+ [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h,int a,out Rect r,int size);
+ [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb,IntPtr l);
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+ delegate bool EnumProc(IntPtr h,IntPtr l);
+ public static IntPtr[] Windows(uint pid) {var hs=new System.Collections.Generic.List<IntPtr>();EnumWindows((h,l)=>{uint p;GetWindowThreadProcessId(h,out p);if(p==pid&&IsWindowVisible(h))hs.Add(h);return true;},IntPtr.Zero);return hs.ToArray();}
 }
 '@
+[void][GuideWin]::SetThreadDpiAwarenessContext([IntPtr](-4))
 $out = Join-Path $PWD 'proto2-captures'
 New-Item -ItemType Directory -Force $out | Out-Null
 $tag = 'v0.1.0-proto.2'
@@ -65,14 +73,16 @@ try {
  while ($deadline.Elapsed.TotalSeconds -lt 30) { $p.Refresh(); if ($p.MainWindowHandle -ne 0) { break }; if($p.HasExited){throw 'Published app exited before showing a window.'};Start-Sleep -Milliseconds 150 }
  if ($p.MainWindowHandle -eq 0) { throw 'Published app window was not ready.' }
  $win=$A::FromHandle($p.MainWindowHandle)
- [void][GuideWin]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,30,30,1100,800,0x40)
+ [void][GuideWin]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,20,20,940,650,0x40)
  function Named($name,$scope=$win) { $scope.FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,$name))) }
  function Button($name,$scope=$win) { $scope.FindFirst($TS::Descendants,(New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::NameProperty,$name)),(New-Object $PC($A::ControlTypeProperty,$CT::Button))))) }
  function WaitNamed($name,$scope=$win) { $sw=[Diagnostics.Stopwatch]::StartNew(); do { $e=Named $name $scope; if($e){return $e};Start-Sleep -Milliseconds 100 } while($sw.Elapsed.TotalSeconds -lt 15);throw "Control did not appear: $name" }
  function Click($name) { $b=Button $name; if(-not $b -or -not $b.Current.IsEnabled){throw "Button unavailable: $name"};$b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 250 }
  function Shot($file,$explanation,$handle=$p.MainWindowHandle) {
   [void][GuideWin]::SetForegroundWindow($handle);[void][GuideWin]::SetCursorPos(0,0);Start-Sleep -Milliseconds 500
-  $r=New-Object GuideWin+Rect;[void][GuideWin]::GetWindowRect($handle,[ref]$r)
+  $r=New-Object GuideWin+Rect;if([GuideWin]::DwmGetWindowAttribute($handle,9,[ref]$r,16) -ne 0){throw 'Cannot determine visible app frame.'}
+  $screen=[System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  if($r.L -lt $screen.Left -or $r.T -lt $screen.Top -or $r.R -gt $screen.Right -or $r.B -gt $screen.Bottom){throw 'App frame extends outside usable desktop. Refusing clipped screenshot.'}
   if($r.R-$r.L -le 0 -or $r.B-$r.T -le 0){throw 'No valid app window rectangle.'}
   $bmp=New-Object Drawing.Bitmap ($r.R-$r.L),($r.B-$r.T);$g=[Drawing.Graphics]::FromImage($bmp)
   try{$g.CopyFromScreen($r.L,$r.T,0,0,$bmp.Size);$bmp.Save((Join-Path $out $file),[Drawing.Imaging.ImageFormat]::Png)}finally{$g.Dispose();$bmp.Dispose()}
@@ -95,8 +105,9 @@ try {
  Click 'Settings'
  $settings=$null;$wait=[Diagnostics.Stopwatch]::StartNew()
  while($wait.Elapsed.TotalSeconds -lt 15 -and -not $settings){
-  $windows=$A::RootElement.FindAll($TS::Children,(New-Object $PC($A::ProcessIdProperty,$p.Id)))
-  foreach($w in $windows){if($w.Current.NativeWindowHandle -ne $p.MainWindowHandle -and $w.Current.ControlType -eq $CT::Window){$settings=$w;break}}
+  foreach($h in [GuideWin]::Windows([uint32]$p.Id)){
+   if($h -ne $p.MainWindowHandle){$candidate=$A::FromHandle($h);if($candidate.Current.Name -eq 'Settings window' -or $candidate.Current.Name -eq 'הגדרות'){$settings=$candidate;break}}
+  }
   if(-not $settings){Start-Sleep -Milliseconds 100}
  }
  if(-not $settings){throw 'Published Settings window did not open.'}
