@@ -175,6 +175,7 @@ public sealed partial class MainViewModel : ObservableBase
     public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
     {
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
+        _categoryEdit.PropertyChanged += OnCategorySessionChanged;
         InitCaptureCommands();
         InitGlobalEnvCommands();
         InitAllItemsCommands();
@@ -222,7 +223,7 @@ public sealed partial class MainViewModel : ObservableBase
         ClosePickerCommand = Cmd(_ => PickerOpen = false, _ => PickerOpen);
         PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && !ReadOnly);
         AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !ReadOnly && NewCategoryName.Length > 0);
-        BeginRenameCategoryCommand = Cmd(p => { _renameOld = ((CategoryRow)p!).Name; RenameCategoryText = _renameOld; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        BeginRenameCategoryCommand = Cmd(p => { _categoryEdit.RenameOriginalName = ((CategoryRow)p!).Name; RenameCategoryText = _categoryEdit.RenameOriginalName; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
         SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !ReadOnly && RenameCategoryText.Length > 0);
         CancelRenameCategoryCommand = Cmd(_ => RenameCategoryOpen = false, _ => RenameCategoryOpen);
         DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
