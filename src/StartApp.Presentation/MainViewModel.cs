@@ -242,7 +242,7 @@ public sealed partial class MainViewModel : ObservableBase
                 if (ItemEditDirty) { Status = "Not deleted: save or cancel the open edit of this item first"; return; }
                 ItemEditOpen = false;
             }
-            if (AddressEditOpen && row.InstanceId == _addressInstId)
+            if (AddressEditOpen && row.InstanceId == _addressEdit.InstanceId)
             {
                 if (AddressEditDirty) { Status = "Not deleted: save or cancel the open address edit of this item first"; return; }
                 AddressEditOpen = false;
