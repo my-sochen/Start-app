@@ -7,7 +7,7 @@
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close open with" ToolTip="Close"/>
                         <TextBlock Text="פתח באמצעות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
-                    <TextBlock Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                    <TextBlock FlowDirection="RightToLeft" Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
                     <TextBox Text="{Binding OpenWithProgram, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Program path"/>
                     <CheckBox HorizontalAlignment="Right" Content="הגדר כברירת מחדל" IsChecked="{Binding OpenWithSetDefault}" Margin="0,6,0,0" AutomationProperties.Name="Set as default"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
