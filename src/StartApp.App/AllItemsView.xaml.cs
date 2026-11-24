@@ -73,7 +73,11 @@ public partial class MainWindow
         if (row.Type != "Program" && !row.MixedTypes)
         {
             if (detail is not null) menu.Items.Add(new MenuItem { Header = "פתח באמצעות", Command = vm.OpenWithCommand, CommandParameter = detail });
-            else menu.Items.Add(ActionItem("פתח באמצעות", () => Act("openwith")));
+            else {
+                var openWith = ActionItem("פתח באמצעות", () => Act("openwith"));
+                openWith.IsEnabled = row.Type != "Folder" && !vm.ReadOnly;
+                menu.Items.Add(openWith);
+            }
         }
         var source = detail is null ? vm.SavedTransferFromAll(row) : vm.SavedTransferFromDetail(detail);
         menu.Items.Add(BuildSavedItemAddMenu(vm, source));

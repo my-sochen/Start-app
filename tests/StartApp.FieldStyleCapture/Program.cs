@@ -18,14 +18,14 @@ using TextBox = System.Windows.Controls.TextBox;
 using ComboBox = System.Windows.Controls.ComboBox;
 
 // Same source and synthetic data against immutable dev and candidate on one Windows runner.
-internal static class Program
+internal static partial class Program
 {
     [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     private static readonly List<object> Focus = new();
     private static readonly List<object> Checks = new();
     [STAThread] private static int Main(string[] args)
     {
-        if (args.Length != 1 || Directory.Exists(args[0])) return 2;
+        if (args.Length is <1 or >2 || Directory.Exists(args[0])) return 2;
         var output = Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
         RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -64,6 +64,7 @@ internal static class Program
                 await Take(editor,output,"07-single-editor");
                 await TabsFrom(editor,"single-editor","Edit item name",5);await FocusedTake(editor,output,"08-single-keyboard-focus");
                 await Popup(editor,Descendants(editor).OfType<ComboBox>().Single(),output,"09-single-open-with",Check);
+                if(args.Length==2 && args[1]=="other") Other(editor,Descendants(editor).OfType<ComboBox>().Single(),output,"single",Check);
                 Input(editor,"Edit item description").IsEnabled=false;await Take(editor,output,"10-single-disabled");
                 Check("Single draft unchanged by focus",!editorVm.ItemEditDirty);editor.Close();
                 var all=editorVm.AllItemFromDetail(row)!;
@@ -73,7 +74,9 @@ internal static class Program
                 await Take(batch,output,"11-batch-editor");
                 await TabsFrom(batch,"batch-editor","Selected item name",5);await FocusedTake(batch,output,"12-batch-keyboard-focus");
                 await Popup(batch,Descendants(batch).OfType<ComboBox>().Single(),output,"13-batch-open-with",Check);
+                if(args.Length==2 && args[1]=="other") Other(batch,Descendants(batch).OfType<ComboBox>().Single(),output,"batch",Check);
                 Input(batch,"Selected item description").IsEnabled=false;await Take(batch,output,"14-batch-disabled");batch.Close();
+                if(args.Length==2 && args[1]=="other") await Files(shell,output,Check);
                 File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));
                 File.WriteAllText(Path.Combine(output,"focus.json"),JsonSerializer.Serialize(Focus));
             }catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}

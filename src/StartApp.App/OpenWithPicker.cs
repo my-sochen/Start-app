@@ -1,25 +1,29 @@
 using System.IO;
+using StartApp.Platform.Windows;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 namespace StartApp.App;
 
-/// <summary>Launch selection with real installed paths, the system default, and a file chooser.</summary>
+/// <summary>Launch selection with installed paths and the system default. Custom choices are deferred in beta.</summary>
 public static class OpenWithPicker
 {
     public sealed record Choice(string Label, string Value) { public override string ToString() => Label; }
-    private const string FolderDefaultHint = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
+    private const string FolderDefaultHint = "פתח באמצעות אינו זמין לתיקיות בגרסת הבטא.";
     private const string Browse = "\u0001browse";
     public static readonly DependencyProperty DefaultLabelProperty = DependencyProperty.RegisterAttached("DefaultLabel", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("ברירת המחדל של Windows", Changed));
     public static string GetDefaultLabel(DependencyObject o) => (string)o.GetValue(DefaultLabelProperty);
     public static void SetDefaultLabel(DependencyObject o, string value) => o.SetValue(DefaultLabelProperty, value);
+    public static readonly DependencyProperty FileTargetProperty = DependencyProperty.RegisterAttached("FileTarget", typeof(string), typeof(OpenWithPicker), new PropertyMetadata(null, Changed));
+    public static string? GetFileTarget(DependencyObject o) => (string?)o.GetValue(FileTargetProperty);
+    public static void SetFileTarget(DependencyObject o, string? value) => o.SetValue(FileTargetProperty, value);
     public static readonly DependencyProperty PathProperty = DependencyProperty.RegisterAttached("Path", typeof(string), typeof(OpenWithPicker), new PropertyMetadata(null, Changed));
     public static readonly DependencyProperty WebsiteTargetProperty = DependencyProperty.RegisterAttached("WebsiteTarget", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("", Changed));
     public static string GetWebsiteTarget(DependencyObject o) => (string?)o.GetValue(WebsiteTargetProperty) ?? "";
     public static void SetWebsiteTarget(DependencyObject o, string value) => o.SetValue(WebsiteTargetProperty, value);
     [System.Runtime.InteropServices.DllImport("Shlwapi.dll", EntryPoint = "AssocQueryStringW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int AssocQueryString(uint flags, uint kind, string association, string? extra, System.Text.StringBuilder output, ref uint characters);
-    private static bool IsWebsite(ComboBox combo) => Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https");
+    private static bool IsWebsite(ComboBox combo) => GetFileTarget(combo) is null && Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https");
     private static string AssociationString(uint flags, uint kind, string association)
     {
         uint characters = 512;
@@ -55,10 +59,18 @@ public static class OpenWithPicker
     private static string DisplayDefault(ComboBox combo)
     {
         var fallback = GetDefaultLabel(combo);
-        if (!Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https")) return fallback;
+        if (GetFileTarget(combo) is not null || !Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https")) return fallback;
         // Read only the user's protocol association. Never change the stored launch path or system defaults.
         var name = AssociationString(0x1000 /* ASSOCF_IS_PROTOCOL */, 4 /* ASSOCSTR_FRIENDLYAPPNAME */, uri.Scheme);
         return string.IsNullOrWhiteSpace(name) ? fallback : name + " (ברירת מחדל)";
+    }
+    private static readonly DependencyProperty FileHandlersProperty = DependencyProperty.RegisterAttached("FileHandlers", typeof(IReadOnlyList<WindowsFileHandlers.Handler>), typeof(OpenWithPicker), new PropertyMetadata(null));
+    private static void FileDropdownOpened(object? sender, EventArgs e)
+    {
+        if (sender is not ComboBox combo || GetFileTarget(combo) is not { } target) return;
+        // Query once on demand, never while typing a target path or restoring a selection.
+        combo.SetValue(FileHandlersProperty, WindowsFileHandlers.ForTarget(target));
+        Populate(combo);
     }
     private static readonly DependencyProperty UpdatingProperty = DependencyProperty.RegisterAttached("Updating", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     private static readonly DependencyProperty HookedProperty = DependencyProperty.RegisterAttached("Hooked", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
@@ -70,7 +82,8 @@ public static class OpenWithPicker
         if (o is not ComboBox combo) return;
         if (GetDefaultLabel(combo) == "ללא") combo.ToolTip = FolderDefaultHint;
         else if (Equals(combo.ToolTip, FolderDefaultHint)) combo.ClearValue(FrameworkElement.ToolTipProperty);
-        if (!(bool)combo.GetValue(HookedProperty)) { combo.SetValue(HookedProperty, true); combo.SelectionChanged += Selected; }
+        if (!(bool)combo.GetValue(HookedProperty)) { combo.SetValue(HookedProperty, true); combo.SelectionChanged += Selected; combo.DropDownOpened += FileDropdownOpened; }
+        if (e.Property == FileTargetProperty) combo.ClearValue(FileHandlersProperty);
         Populate(combo);
     }
     private static void Populate(ComboBox combo)
@@ -81,6 +94,7 @@ public static class OpenWithPicker
             var current = GetPath(combo);
             var choices = new List<Choice> { new(DisplayDefault(combo), "") };
             void Add(string label, string path) { if (File.Exists(path) && !choices.Any(c => c.Value.Equals(path, StringComparison.OrdinalIgnoreCase))) choices.Add(new(label, path)); }
+            if (GetFileTarget(combo) is null)
             foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) }.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct())
             {
                 Add("Google Chrome", System.IO.Path.Combine(root, "Google", "Chrome", "Application", "chrome.exe"));
@@ -91,9 +105,11 @@ public static class OpenWithPicker
             {
                 foreach (var program in RegisteredSitePrograms(new Uri(GetWebsiteTarget(combo)).Scheme)) Add(program.Label, program.Value);
             }
+            else if (GetFileTarget(combo) is not null)
+                foreach (var handler in (IReadOnlyList<WindowsFileHandlers.Handler>?)combo.GetValue(FileHandlersProperty) ?? Array.Empty<WindowsFileHandlers.Handler>()) Add(handler.Label, handler.Path);
             else Add("Notepad", System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "notepad.exe"));
             if (current.Length > 0 && !choices.Any(c => c.Value.Equals(current, StringComparison.OrdinalIgnoreCase))) choices.Add(new(current, current));
-            choices.Add(new("בחירת תוכנה אחרת...", Browse));
+            choices.Add(new(IsWebsite(combo) || GetFileTarget(combo) is not null ? "אחר..." : "בחירת תוכנה אחרת...", Browse));
             combo.DisplayMemberPath = nameof(Choice.Label); combo.SelectedValuePath = nameof(Choice.Value); combo.ItemsSource = choices; combo.SelectedValue = current;
         }
         finally { combo.SetValue(UpdatingProperty, false); }
@@ -106,6 +122,14 @@ public static class OpenWithPicker
         if (path == Browse)
         {
             var website = IsWebsite(combo);
+            if (website || GetFileTarget(combo) is not null)
+            {
+                // Other is an action, not a saved launch preference. Restore selection before
+                // the modal message so binding and dirty state never see a sentinel value.
+                Populate(combo);
+                MessageBox.Show(Window.GetWindow(combo), "בקרוב", "פתח באמצעות", MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+                return;
+            }
             var picker = new OpenFileDialog { Title = website ? "בחירת תוכנה לפתיחת אתרים (http/https)" : "בחירת תוכנה לפתיחת האייטם", Filter = website ? "Programs (*.exe)|*.exe" : "Programs (*.exe)|*.exe|All files (*.*)|*.*", CheckFileExists = true };
             if (picker.ShowDialog(Window.GetWindow(combo)) != true) { Populate(combo); return; }
             path = picker.FileName;

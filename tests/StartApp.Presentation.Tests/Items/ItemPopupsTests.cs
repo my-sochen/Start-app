@@ -25,6 +25,29 @@ public class ItemPopupsTests
     private static void AddLink(MainViewModel vm, string url, string name)
     { vm.NewItemType = ItemType.Link; vm.NewTarget = url; vm.NewItemName = name; vm.AddItemCommand.Execute(null); }
 
+    [Fact] public void File_picker_context_updates_and_folder_field_is_disabled_without_hiding()
+    {
+        using var repo = new JsonStore(Tmp());
+        repo.Mutate(c=>{
+            var workspace=c.CreateWorkspace("types","","כללי").Id;
+            foreach(var type in new[]{ItemType.File,ItemType.Folder,ItemType.Link,ItemType.Program})
+                c.AddToWorkspace(workspace,c.GetOrAddItem(type,type.ToString(),type==ItemType.Link?"https://example.com/":@"C:\fixture.txt").Id);
+        });
+        var vm=new MainViewModel(repo,new RecordingLauncher());vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
+        foreach(var type in new[]{"File","Folder","Link","Program"}){
+            vm.EditItemCommand.Execute(vm.Items.Single(x=>x.Type==type));
+            Assert.Equal(type is "File" or "Link",vm.EditItemOpenWithEnabled);
+            Assert.Equal(type!="Program",vm.EditItemOpenWithApplicable);
+            Assert.Equal(type=="File"?@"C:\fixture.txt":null,vm.EditItemFileTarget);
+            Assert.Equal(type!="Folder",vm.OpenWithCommand.CanExecute(vm.Items.Single(x=>x.Type==type)));
+            Assert.False(vm.ItemEditDirty);vm.CancelItemEditCommand.Execute(null);
+        }
+        vm.EditItemCommand.Execute(vm.Items.Single(x=>x.Type=="File"));
+        var changes=new List<string?>();vm.PropertyChanged+=(_,e)=>changes.Add(e.PropertyName);
+        vm.EditItemTarget=@"C:\fixture.pdf";
+        Assert.Equal(@"C:\fixture.pdf",vm.EditItemFileTarget);Assert.Contains(nameof(vm.EditItemFileTarget),changes);
+    }
+
     [Fact] public void Full_editor_address_change_is_instance_local_for_a_website_too()
     {
         using var repo = new JsonStore(Tmp());

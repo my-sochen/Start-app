@@ -1,0 +1,35 @@
+name: beta-open-with-picker
+on:
+  push:
+    branches: [feat/open-with-coming-soon]
+permissions:
+  contents: read
+jobs:
+  targeted-picker:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Related source and editor contracts
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~SharedFieldStyleTests|FullyQualifiedName~ViewSourceIntegrityTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~StagedItemActionsTests'
+      - name: File command compatibility contracts
+        run: dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter FullyQualifiedName~WindowsFileHandlerTests
+      - name: Native picker and coming-soon interactions
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.FieldStyleCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.FieldStyleCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'picker-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'" other') -PassThru
+          if(-not $p.WaitForExit(120000)){$p.Kill($true);throw 'Picker fixture timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Picker fixture failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: open-with-picker-evidence
+          path: picker-evidence/
+          retention-days: 7

@@ -123,7 +123,7 @@ public sealed partial class MainViewModel
         StagedMoveUpCommand = Cmd(p => MoveStaged((StagedRow)p!, -1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedMoveDownCommand = Cmd(p => MoveStaged((StagedRow)p!, 1), p => p is StagedRow && IsCaptureSide && !ReadOnly);
         StagedEditAddressCommand = Cmd(p => BeginAddressEditStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && !ReadOnly && !ItemEditDirty && !AddressEditDirty);
-        StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow && IsCaptureSide && CaptureIdle && !ReadOnly);
+        StagedOpenWithCommand = Cmd(p => BeginOpenWithStaged((StagedRow)p!), p => p is StagedRow { OpenWithEnabled: true } && IsCaptureSide && CaptureIdle && !ReadOnly);
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _captureDuplicates.SingleTarget!; _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _captureDuplicates.SingleTarget != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); }, _ => _captureDuplicates.SingleTarget != null);
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _captureDuplicates.GroupPending);

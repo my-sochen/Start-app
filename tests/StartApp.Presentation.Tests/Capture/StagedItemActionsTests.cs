@@ -49,6 +49,19 @@ public class StagedItemActionsTests
         Assert.Equal(2, vm.StagedRows.Count);
     }
 
+    [Fact] public void Folder_open_with_is_disabled_but_visible_and_file_target_notifies()
+    {
+        var (vm,repo)=Make(out _);using var store=repo;StageTwo(vm);
+        var folder=vm.StagedRows.Single(x=>x.Type==ItemType.Folder);
+        Assert.True(folder.OpenWithApplicable);Assert.False(folder.OpenWithEnabled);
+        Assert.False(vm.StagedOpenWithCommand.CanExecute(folder));
+        var file=new MainViewModel.StagedRow(new CapturedItem(ItemType.File,"file",@"C:\a.txt"));
+        Assert.True(file.OpenWithEnabled);var changes=new List<string?>();file.PropertyChanged+=(_,e)=>changes.Add(e.PropertyName);
+        file.Target=@"C:\a.pdf";Assert.Equal(@"C:\a.pdf",file.FileTarget);Assert.Contains(nameof(file.FileTarget),changes);
+        var program=new MainViewModel.StagedRow(new CapturedItem(ItemType.Program,"program",@"C:\a.exe"));
+        Assert.False(program.OpenWithApplicable);Assert.False(program.OpenWithEnabled);
+    }
+
     [Fact] public void Explicit_editor_defaults_closed_and_row_selection_does_not_open_it()
     {
         var (vm, repo) = Make(out var launcher); using var _ = repo;

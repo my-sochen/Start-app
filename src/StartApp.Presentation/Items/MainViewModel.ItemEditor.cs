@@ -24,7 +24,9 @@ public sealed partial class MainViewModel
     public string EditingItemInstanceId => ItemEditOpen && _itemEdit.WorkspaceId == Selected?.Id ? _itemEdit.InstanceId : "";
     public string EditItemName { get => _itemEdit.Name; set { var text = value ?? ""; if (_itemEdit.Name != text) { _itemEdit.Name = text; Raise(nameof(EditItemName)); } Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
     public string EditItemDescription { get => _itemEdit.Description; set { var text = value ?? ""; if (_itemEdit.Description != text) { _itemEdit.Description = text; Raise(nameof(EditItemDescription)); } Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
-    public string EditItemTarget { get => _itemEdit.Target; set { var text = value ?? ""; if (_itemEdit.Target != text) { _itemEdit.Target = text; Raise(nameof(EditItemTarget)); } Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    public string EditItemTarget { get => _itemEdit.Target; set { var text = value ?? ""; if (_itemEdit.Target != text) { _itemEdit.Target = text; Raise(nameof(EditItemTarget)); Raise(nameof(EditItemFileTarget)); } Raise(nameof(ItemEditDirty)); RaiseCommands(); } }
+    public string? EditItemFileTarget => _itemEdit.Type == ItemType.File ? EditItemTarget : null;
+    public bool EditItemOpenWithEnabled => _itemEdit.Type is ItemType.File or ItemType.Link;
     public string EditItemOpenWithDefaultLabel => _itemEdit.Type == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
     public bool EditItemOpenWithApplicable => _itemEdit.Type != ItemType.Program;
     public string EditItemTargetLabel => _itemEdit.Type == ItemType.Link ? "כתובת האתר" : "נתיב";
@@ -36,7 +38,7 @@ public sealed partial class MainViewModel
         ClearFieldErrors();
         _itemEdit.CaptureOriginal(Selected?.Id ?? "", row.InstanceId, row.Name, row.Description, row.Target, Enum.Parse<ItemType>(row.Type));
         var membership = Selected?.Items.FirstOrDefault(m => (m.Id ?? m.ItemId) == row.InstanceId);
-        _itemEdit.OriginalOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _itemEdit.OriginalOpenWith; Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemOpenWithDefaultLabel)); Raise(nameof(EditItemTargetLabel));
+        _itemEdit.OriginalOpenWith = membership?.Launch?.Browser ?? membership?.Launch?.OpenWith ?? ""; EditItemOpenWith = _itemEdit.OriginalOpenWith; Raise(nameof(EditItemFileTarget)); Raise(nameof(EditItemOpenWithApplicable)); Raise(nameof(EditItemOpenWithEnabled)); Raise(nameof(EditItemOpenWithDefaultLabel)); Raise(nameof(EditItemTargetLabel));
         EditItemName = _itemEdit.OriginalName; EditItemDescription = _itemEdit.OriginalDescription; EditItemTarget = _itemEdit.OriginalTarget;
         ItemEditOpen = true; Raise(nameof(EditingItemInstanceId));
     }

@@ -22,11 +22,13 @@ public sealed partial class MainViewModel
         public string Label => "Added: " + OriginalName;
         public string Name { get => _name; set => Set(ref _name, value ?? ""); }
         public string Description { get => _description; set => Set(ref _description, value ?? ""); }
-        public string Target { get => _target; set { Set(ref _target, value ?? ""); Raise(nameof(TargetError)); } }
+        public string Target { get => _target; set { Set(ref _target, value ?? ""); Raise(nameof(TargetError)); Raise(nameof(FileTarget)); } }
         public string TargetError => Catalog.ValidateInputTarget(Type, Target) ?? "";
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
+        public string? FileTarget => Type == ItemType.File ? Target : null;
+        public bool OpenWithEnabled => Type is ItemType.File or ItemType.Link;
         public string OpenWithDefaultLabel => Type == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";
         public bool OpenWithApplicable => !IsProgram;
         public string TargetLabel => Type == ItemType.Link ? "כתובת האתר" : "נתיב";
