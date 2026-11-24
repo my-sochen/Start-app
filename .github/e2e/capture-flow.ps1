@@ -783,11 +783,11 @@ try {
   Shot 'side-by-side-drag-staged'
   $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row'
-  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
   Shot 'drag-duplicate-warning'
   $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row again'
-  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
   $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a normal second instance' ($c -eq 'ok' -and (@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) $c
   Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
   $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
@@ -878,7 +878,7 @@ try {
   $c = ClickBtn 'Pick workspace Cap A' 1000; Assert 'picked Cap A' ($c -eq 'ok') $c
   $namesBeforeSwitch = @(CheckNames)
   DragRowToStage '*capfolder*' 'folder row into Cap A'
-  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
+  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'כבר קיים בסביבה' 2)) ((Texts) -join ' | ')
   Shot '4c-after-drag-cap-a'
   Assert 'the dragged folder staged in Cap A with the capture default name' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c

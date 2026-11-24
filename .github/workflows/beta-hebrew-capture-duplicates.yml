@@ -14,7 +14,7 @@ jobs:
         with:
           dotnet-version: '10.0.404'
       - name: Related duplicate selection and source-browser contracts
-        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~CaptureDuplicateSessionTests|FullyQualifiedName~CreateFormBrowserRetentionTests'
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~CaptureDuplicateSessionTests|FullyQualifiedName~CreateFormBrowserRetentionTests|FullyQualifiedName~DuplicatePickerBrowserLabelTests'
       - name: Actual WPF Hebrew dialogs and button interactions
         shell: pwsh
         run: |
