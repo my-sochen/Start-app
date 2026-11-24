@@ -64,6 +64,14 @@ public static class OpenWithPicker
         var name = AssociationString(0x1000 /* ASSOCF_IS_PROTOCOL */, 4 /* ASSOCSTR_FRIENDLYAPPNAME */, uri.Scheme);
         return string.IsNullOrWhiteSpace(name) ? fallback : name + " (ברירת מחדל)";
     }
+    private static readonly DependencyProperty FileHandlersProperty = DependencyProperty.RegisterAttached("FileHandlers", typeof(IReadOnlyList<WindowsFileHandlers.Handler>), typeof(OpenWithPicker), new PropertyMetadata(null));
+    private static void FileDropdownOpened(object? sender, EventArgs e)
+    {
+        if (sender is not ComboBox combo || GetFileTarget(combo) is not { } target) return;
+        // Query once on demand, never while typing a target path or restoring a selection.
+        combo.SetValue(FileHandlersProperty, WindowsFileHandlers.ForTarget(target));
+        Populate(combo);
+    }
     private static readonly DependencyProperty UpdatingProperty = DependencyProperty.RegisterAttached("Updating", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     private static readonly DependencyProperty HookedProperty = DependencyProperty.RegisterAttached("Hooked", typeof(bool), typeof(OpenWithPicker), new PropertyMetadata(false));
     public static string GetPath(DependencyObject o) => (string?)o.GetValue(PathProperty) ?? "";
@@ -74,7 +82,8 @@ public static class OpenWithPicker
         if (o is not ComboBox combo) return;
         if (GetDefaultLabel(combo) == "ללא") combo.ToolTip = FolderDefaultHint;
         else if (Equals(combo.ToolTip, FolderDefaultHint)) combo.ClearValue(FrameworkElement.ToolTipProperty);
-        if (!(bool)combo.GetValue(HookedProperty)) { combo.SetValue(HookedProperty, true); combo.SelectionChanged += Selected; }
+        if (!(bool)combo.GetValue(HookedProperty)) { combo.SetValue(HookedProperty, true); combo.SelectionChanged += Selected; combo.DropDownOpened += FileDropdownOpened; }
+        if (e.Property == FileTargetProperty) combo.ClearValue(FileHandlersProperty);
         Populate(combo);
     }
     private static void Populate(ComboBox combo)
@@ -97,7 +106,7 @@ public static class OpenWithPicker
                 foreach (var program in RegisteredSitePrograms(new Uri(GetWebsiteTarget(combo)).Scheme)) Add(program.Label, program.Value);
             }
             else if (GetFileTarget(combo) is not null)
-                foreach (var handler in WindowsFileHandlers.ForTarget(GetFileTarget(combo)!)) Add(handler.Label, handler.Path);
+                foreach (var handler in (IReadOnlyList<WindowsFileHandlers.Handler>?)combo.GetValue(FileHandlersProperty) ?? Array.Empty<WindowsFileHandlers.Handler>()) Add(handler.Label, handler.Path);
             else Add("Notepad", System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "notepad.exe"));
             if (current.Length > 0 && !choices.Any(c => c.Value.Equals(current, StringComparison.OrdinalIgnoreCase))) choices.Add(new(current, current));
             choices.Add(new(IsWebsite(combo) || GetFileTarget(combo) is not null ? "אחר..." : "בחירת תוכנה אחרת...", Browse));

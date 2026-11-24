@@ -66,6 +66,10 @@ internal static partial class Program
         var combo=new ComboBox();
         OpenWithPicker.SetFileTarget(combo,@"C:\fixture.txt");
         OpenWithPicker.SetPath(combo,"");
+        var host=new Window{Title="File Open with probe",Width=520,Height=180,Content=combo,Owner=window};
+        combo.Style=(Style)Application.Current.FindResource("OpenWithDropdown");host.Show();await Idle(host);
+        check("File discovery deferred until dropdown opens",combo.Items.Count==2);
+        combo.IsDropDownOpen=true;await Idle(host);combo.IsDropDownOpen=false;
         var entries=combo.Items.Cast<OpenWithPicker.Choice>().ToArray();
         check("File choices include Windows default",entries[0].Value=="");
         check("File choices include Other",entries[^1].Label=="אחר...");
@@ -80,8 +84,6 @@ internal static partial class Program
         check("Empty file target has no browser fallback",combo.Items.Count==2);
         OpenWithPicker.SetPath(combo,@"C:\Legacy\saved.exe");
         check("Existing custom path is preserved",OpenWithPicker.GetPath(combo)==@"C:\Legacy\saved.exe" && combo.Items.Cast<OpenWithPicker.Choice>().Any(x=>x.Value==@"C:\Legacy\saved.exe"));
-        var host=new Window{Title="File Open with probe",Width=520,Height=180,Content=combo,Owner=window};
-        combo.Style=(Style)Application.Current.FindResource("OpenWithDropdown");host.Show();await Idle(host);
         await Take(host,output,"file-picker");Other(host,combo,output,"file",check);host.Close();
     }
     private sealed class PickerCapturer : IOpenItemCapturer

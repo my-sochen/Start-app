@@ -15,12 +15,12 @@ public static class WindowsFileHandlers
     [SupportedOSPlatform("windows")]
     public static IReadOnlyList<Handler> ForTarget(string target)
     {
-        var extension = Path.GetExtension(target);
-        if (string.IsNullOrWhiteSpace(extension)) return Array.Empty<Handler>();
         var result = new List<Handler>();
         IEnumAssocHandlers? handlers = null;
         try
         {
+            var extension = Path.GetExtension(target);
+            if (string.IsNullOrWhiteSpace(extension)) return result;
             if (SHAssocEnumHandlers(extension, 1 /* recommended */, out handlers) != 0 || handlers is null) return result;
             while (handlers.Next(1, out var handler, out var fetched) == 0 && fetched == 1)
             {
@@ -33,12 +33,19 @@ public static class WindowsFileHandlers
                     handler.GetUIName(out var label);
                     if (!result.Any(x => x.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) result.Add(new(string.IsNullOrWhiteSpace(label) ? Path.GetFileNameWithoutExtension(path) : label, path));
                 }
-                finally { Marshal.ReleaseComObject(handler); }
+                finally { Release(handler); }
             }
         }
-        catch (Exception error) when (error is COMException or UnauthorizedAccessException or IOException or ArgumentException) { }
-        finally { if (handlers is not null) Marshal.ReleaseComObject(handlers); }
+        catch (Exception error) when (error is not (OutOfMemoryException or StackOverflowException or AccessViolationException)) { }
+        finally { if (handlers is not null) Release(handlers); }
         return result;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void Release(object instance)
+    {
+        try { Marshal.ReleaseComObject(instance); }
+        catch (Exception error) when (error is COMException or InvalidComObjectException or ArgumentException) { }
     }
 
     private static string AssociationCommand(string executable)
