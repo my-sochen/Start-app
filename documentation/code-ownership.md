@@ -1,6 +1,6 @@
 # Code ownership guide
 
-This guide describes the staged refactor branch, not a released build. The draft PR stack is not merged into dev or main. Each stage still needs its own merge decision.
+This guide describes the staged refactor branch, not a released build. The draft PR stack is not merged into dev or main. The dedicated integration PR now gathers the stages. Its merge still needs the owner's separate decision.
 
 ## Start with an action
 
@@ -34,15 +34,15 @@ This guide describes the staged refactor branch, not a released build. The draft
 
 ## The host is still a host
 
-`MainViewModel` remains the public binding surface and workflow coordinator. Its partial files are one class, not independent objects. Files named `Items/ItemEditorViewModel.cs`, `Items/AddressEditorViewModel.cs`, `Workspaces/CardDesignViewModel.cs`, `Workspaces/CategoryManagerViewModel.cs` and `Items/ResourcePickerViewModel.cs` adapt the independent owners to the existing public properties and commands.
+`MainViewModel` remains the public binding surface and workflow coordinator. Its partial files are one class, not independent objects. Files named `Items/MainViewModel.ItemEditor.cs`, `Items/MainViewModel.AddressEditor.cs`, `Workspaces/MainViewModel.CardDesign.cs`, `Workspaces/MainViewModel.CategoryManager.cs` and `Items/MainViewModel.ResourcePicker.cs` adapt the independent owners to the existing public properties and commands.
 
 A state owner has no repository, window or MainViewModel reference. The host keeps persistence, validation, notifications and cross-form decisions. Moving fields into an owner is a boundary, not a claim that all workflow orchestration has already been separated.
 
-`Opening/OpeningExecutionViewModel.cs` still coordinates asynchronous checks and launches. `Capture/CaptureFlowViewModel.cs` still coordinates scan publication, staging, duplicate decisions and capture saves. `Shell/MainViewModel.cs` still coordinates navigation, storage reload and save/discard ordering. These are remaining larger boundaries.
+`Opening/MainViewModel.OpeningExecution.cs` still coordinates asynchronous checks and launches. `Capture/MainViewModel.Capture.cs` still coordinates scan publication, staging, duplicate decisions and capture saves. `Shell/MainViewModel.cs` still coordinates navigation, storage reload and save/discard ordering. These are remaining larger boundaries.
 
 ## Follow one saved item edit
 
-1. The public command calls `BeginItemEdit` in `Items/ItemEditorViewModel.cs`.
+1. The public command calls `BeginItemEdit` in `Items/MainViewModel.ItemEditor.cs`.
 2. The host refuses replacing an open dirty editor, then captures workspace and instance identity into `ItemEditSession`.
 3. Draft setters publish the same public binding notifications and command invalidation as before.
 4. Save validates the captured identity against the current snapshot, then checks it again inside the storage mutation.
@@ -60,7 +60,7 @@ For staged addresses and open-with defaults, the target is a staged row. Those w
 
 ## Follow a check deadline
 
-1. `Opening/OpeningExecutionViewModel.cs` creates one `CheckResultPublication` per check run.
+1. `Opening/MainViewModel.OpeningExecution.cs` creates one `CheckResultPublication` per check run.
 2. Workers record by original item index. Expected environmental failures become findings; unexpected faults enter the first-fault handoff.
 3. At the deadline, `Publish` takes a detached snapshot under the same lock used by workers. A later worker cannot change it.
 4. A fault already present belongs to `Guard`. The first fault arriving after handoff is returned to the late-error callback once, without waiting for another blocked worker.
@@ -82,4 +82,6 @@ For staged addresses and open-with defaults, the target is a staged row. Those w
 
 The capture fixture covers nine capture states. Its additional same-process comparison requires zero differing pixels between the original Grid and extracted view inside one window/session. The independent baseline-repeat and baseline/candidate gates also require exact equality, without masks or tolerance.
 
-Repeated independent baseline runs have differed at a small number of glyph-edge pixels. One run passed, others failed the control. A red control does not prove a product regression and does not prove equivalence. It remains unresolved. Do not treat the shared-process gate as a substitute for that control, or the capture screenshots as proof of every dialog/menu/focus path.
+The integration run45350576134 compared against actual dev4e3ae7bf:25capture/frame/prompt states,10menus and24button variants matched exactly, including independent baseline repeats. Earlier glyph-cache/focus fixture diagnostics are historical, not an unresolved gate in that run. This finite evidence does not prove every dialog/menu/focus path.
+
+Feature partials use MainViewModel.Feature.cs names because they belong to the same binding host, not separate view-model objects. OpeningCheckResult names the internal preflight publication payload; the launch coordinator explicitly maps it into its unchanged launch plan.

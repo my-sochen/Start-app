@@ -5,6 +5,8 @@ namespace StartApp.Presentation;
 
 /// <summary>Owns bounded blocking preflight workers and their deadline publication.
 /// Worker capacity lasts until actual return, even after timeout/cancellation. No UI, store or launch access.</summary>
+internal readonly record struct OpeningCheckResult(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup);
+
 public sealed class OpeningCheckRunner
 {
     private readonly int _capacity;
@@ -15,13 +17,13 @@ public sealed class OpeningCheckRunner
         _workers = new(capacity);
     }
 
-    public async Task<((Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)?[] Results, Action Stop)> RunAsync(
+    internal async Task<(OpeningCheckResult?[] Results, Action Stop)> RunAsync(
         List<(Membership M, Item? Item)> snapshot, IItemPreflight? preflight, IOpenStateDetector detector,
         TimeSpan timeout, CancellationToken token, Action<Exception> reportLate)
     {
         var effectiveDetector = detector is IOpenSnapshotSource ? new NoOpenStateDetection() : detector;
         var stop = CancellationTokenSource.CreateLinkedTokenSource(token); // deliberately not disposed: a late worker may still call stop.Cancel(), and the parent token source is per operation, so nothing outlives the operation // the deadline stops workers from taking NEW items; a call already running finishes by itself
-        var publication = new CheckResultPublication<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>(snapshot.Count);
+        var publication = new CheckResultPublication<OpeningCheckResult>(snapshot.Count);
         var next = -1;
         // Publication is the fault-ownership handoff. Before it Guard owns delivery;
         // afterwards report promptly even if another worker or launch is still blocked.
@@ -31,15 +33,42 @@ public sealed class OpeningCheckRunner
         }
         Task Worker() => Task.Factory.StartNew(() => // dedicated threads: these calls block, and must not starve the thread pool (or the deadline timer)
         {
-            try { while (!stop.Token.IsCancellationRequested)
+            try
             {
-                var i = Interlocked.Increment(ref next); if (i >= snapshot.Count) return;
-                try { var r = Evaluate(snapshot[i].M, snapshot[i].Item, preflight, effectiveDetector); publication.Record(i, r); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
-                { var r = (snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, snapshot[i].M.ItemId, ""), snapshot[i].M.Launch, new PreflightFinding(PreflightState.Unavailable, e.GetType().Name), OpenState.Unknown); publication.Record(i, r); }
-                catch (Exception e) { ObserveFault(e); stop.Cancel(); return; } // a programming bug is not "unavailable": stop and surface it
-            } }
-            finally { _workers.Release(); }
+                while (!stop.Token.IsCancellationRequested)
+                {
+                    var index = Interlocked.Increment(ref next);
+                    if (index >= snapshot.Count)
+                    {
+                        return;
+                    }
+
+                    var row = snapshot[index];
+                    try
+                    {
+                        var result = Evaluate(row.M, row.Item, preflight, effectiveDetector);
+                        publication.Record(index, result);
+                    }
+                    catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+                    {
+                        var item = row.Item ?? new Item(row.M.ItemId, ItemType.File, row.M.ItemId, "");
+                        var finding = new PreflightFinding(PreflightState.Unavailable, error.GetType().Name);
+                        var result = new OpeningCheckResult(item, row.M.Launch, finding, OpenState.Unknown);
+                        publication.Record(index, result);
+                    }
+                    catch (Exception error)
+                    {
+                        // A programming bug is not "unavailable": stop and surface it.
+                        ObserveFault(error);
+                        stop.Cancel();
+                        return;
+                    }
+                }
+            }
+            finally
+            {
+                _workers.Release();
+            }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var workers = new List<Task>();
         for (int i = 0; i < Math.Min(_capacity, snapshot.Count); i++)
@@ -58,12 +87,24 @@ public sealed class OpeningCheckRunner
         return (done, stop.Cancel);
     }
 
-    private static (Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup) Evaluate(Membership m, Item? it, IItemPreflight? preflight, IOpenStateDetector detector)
+    private static OpeningCheckResult Evaluate(Membership membership, Item? item, IItemPreflight? preflight, IOpenStateDetector detector)
     {
-        if (it is null) return (new Item(m.ItemId, ItemType.File, "(missing item " + m.ItemId + ")", ""), m.Launch, new(PreflightState.Unsupported, "the saved item record is missing from the catalog"), OpenState.NotOpen);
-        var f = PreflightRules.CheckForm(it, m.Launch) ?? preflight?.Check(it, m.Launch) ?? new(PreflightState.Ready);
-        var dup = f.State != PreflightState.Ready ? OpenState.Unknown : detector.Detect(it, m.Launch);
-        return (it, m.Launch, f, dup);
-    }
+        if (item is null)
+        {
+            var missing = new Item(membership.ItemId, ItemType.File, "(missing item " + membership.ItemId + ")", "");
+            var unsupported = new PreflightFinding(PreflightState.Unsupported, "the saved item record is missing from the catalog");
+            return new OpeningCheckResult(missing, membership.Launch, unsupported, OpenState.NotOpen);
+        }
 
+        var finding = PreflightRules.CheckForm(item, membership.Launch)
+            ?? preflight?.Check(item, membership.Launch)
+            ?? new PreflightFinding(PreflightState.Ready);
+        var duplicate = OpenState.Unknown;
+        if (finding.State == PreflightState.Ready)
+        {
+            duplicate = detector.Detect(item, membership.Launch);
+        }
+
+        return new OpeningCheckResult(item, membership.Launch, finding, duplicate);
+    }
 }

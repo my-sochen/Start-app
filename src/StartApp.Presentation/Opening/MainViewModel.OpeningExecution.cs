@@ -90,7 +90,7 @@ public sealed partial class MainViewModel
         for (int i = 0; i < snapshot.Count; i++)
         {
             var r = done[i];
-            if (r is { } ok) plan.Add(ok);
+            if (r is { } ok) plan.Add((ok.Item, ok.Launch, ok.Finding, ok.Dup));
             else plan.Add((snapshot[i].Item ?? new Item(snapshot[i].M.ItemId, ItemType.File, "פריט חסר", ""), snapshot[i].M.Launch, new(PreflightState.Unavailable, "check did not finish in time"), OpenState.Unknown));
         }
         // A detector timeout means Unknown, never failed preflight. Observe only items already found Ready,
