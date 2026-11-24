@@ -1,0 +1,19 @@
+name: test-capture-view-layer-contract
+on:
+  push:
+    branches: [test/capture-view-layer-contract]
+permissions:
+  contents: read
+jobs:
+  structure-contracts:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Overlay structure and mutation discrimination
+        run: python tests/update-notifier/test_overlay_rows.py
+      - name: Catalog notifier source contracts
+        run: python tests/update-notifier/test_catalog_contract.py
