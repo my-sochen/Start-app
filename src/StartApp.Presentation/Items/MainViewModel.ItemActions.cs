@@ -1,7 +1,48 @@
+using System.Windows.Input;
 using StartApp.Core;
 namespace StartApp.Presentation;
 public sealed partial class MainViewModel
 {
+    /// <summary>העתק כתובת/קישור/נתיב from the row actions: direct copy, no popup. The view puts the target on the clipboard.</summary>
+    public ICommand CopyAddressCommand { get; private set; } = null!;
+    /// <summary>הזז למעלה / הזז למטה: reorder this instance inside its display group.</summary>
+    public ICommand MoveItemUpCommand { get; private set; } = null!;
+    public ICommand MoveItemDownCommand { get; private set; } = null!;
+    public ICommand RemoveItemCommand { get; private set; } = null!;
+
+    private void InitCopyAddressCommand()
+    {
+        CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
+    }
+
+    private void InitItemReorderCommands()
+    {
+        MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
+        MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
+    }
+
+    private void InitRemoveItemCommand()
+    {
+        RemoveItemCommand = Cmd(p =>
+        {
+            var row = (ItemRow)p!;
+            // Deleting the very row whose inline editor is open: a dirty editor wins - the delete is refused
+            // with a clear status instead of stranding the edit on a missing instance (PR19 review). A clean
+            // editor just closes before the delete.
+            if (ItemEditOpen && row.InstanceId == _itemEdit.InstanceId)
+            {
+                if (ItemEditDirty) { Status = "Not deleted: save or cancel the open edit of this item first"; return; }
+                ItemEditOpen = false;
+            }
+            if (AddressEditOpen && row.InstanceId == _addressEdit.InstanceId)
+            {
+                if (AddressEditDirty) { Status = "Not deleted: save or cancel the open address edit of this item first"; return; }
+                AddressEditOpen = false;
+            }
+            Apply(c => c.RemoveInstance(Selected!.Id, row.InstanceId));
+        }, p => !ReadOnly && Selected != null && p is ItemRow);
+    }
+
     public sealed record ItemActionTarget(string ItemId, string WorkspaceId, string InstanceId, string WorkspaceName, string Name, string Description, string Target, ItemType Type, LaunchConfig? Launch);
     public AllItemRow? AllItemFromDetail(ItemRow row)
     {

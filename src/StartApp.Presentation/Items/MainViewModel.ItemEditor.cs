@@ -1,9 +1,23 @@
+using System.Windows.Input;
 using StartApp.Core;
 
 namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>עריכה from the row: opens the item edit form (טופס עריכת אייטם) for that one instance.</summary>
+    public ICommand EditItemCommand { get; private set; } = null!;
+    public ICommand SaveItemEditCommand { get; private set; } = null!;
+    /// <summary>ביטול in the item edit form: closes immediately when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CancelItemEditCommand { get; private set; } = null!;
+
+    private void InitItemEditorCommands()
+    {
+        EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
+        SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
+        CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
+    }
+
     // ---- item edit form (טופס עריכת אייטם): per-instance name and description of one instance ----
     private readonly ItemEditSession _itemEdit = new();
     public bool ItemEditOpen { get => _itemEdit.IsOpen; private set { if (_itemEdit.IsOpen != value) { _itemEdit.IsOpen = value; Raise(nameof(ItemEditOpen)); } Raise(nameof(EditingItemInstanceId)); RaiseCommands(); } }

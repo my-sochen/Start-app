@@ -1,9 +1,26 @@
+using System.Windows.Input;
 using StartApp.Core;
 
 namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>עריכת כתובת from the row actions: opens the dedicated address popup (פופאפ עריכת כתובת).</summary>
+    public ICommand EditAddressCommand { get; private set; } = null!;
+    public ICommand SaveAddressCommand { get; private set; } = null!;
+    /// <summary>The copy button inside the address popup: copies the full value as currently shown.</summary>
+    public ICommand CopyFullAddressCommand { get; private set; } = null!;
+    /// <summary>The popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CloseAddressEditCommand { get; private set; } = null!;
+
+    private void InitAddressEditorCommands()
+    {
+        EditAddressCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
+        SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
+        CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
+        CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
+    }
+
     // ---- address popup (פופאפ עריכת כתובת): full address, editable, copy button, save applies to this instance only ----
     private readonly AddressEditSession<StagedRow> _addressEdit = new();
     public bool AddressEditOpen

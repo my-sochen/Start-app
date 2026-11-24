@@ -1,0 +1,45 @@
+name: refactor-feature-command-ownership
+on:
+  push:
+    branches: [refactor/feature-command-ownership]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dialog-coverage-and-capture:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ec59bf95f6b8a148213404a3cd5642de82e17b8d
+          path: baseline
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Enabled and disabled shared button variants
+        if: always()
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.ButtonRefactorCapture){Remove-Item baseline/tests/StartApp.ButtonRefactorCapture -Recurse -Force}
+          Copy-Item tests/StartApp.ButtonRefactorCapture baseline/tests/StartApp.ButtonRefactorCapture -Recurse
+          foreach ($variant in @('before','before-repeat','after')) {
+            $root = if ($variant -eq 'after') { '.' } else { 'baseline' }
+            $project=Join-Path $root 'tests/StartApp.ButtonRefactorCapture/StartApp.ButtonRefactorCapture.csproj'
+            dotnet build $project -c Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary=Join-Path $PWD (Join-Path $root 'tests/StartApp.ButtonRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe')
+            $output=Join-Path $PWD "evidence/buttons-$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw "$variant timeout" }
+            if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant button capture failed" }
+          }
+          python -m pip install pillow
+          python .github/e2e/compare-button-refactor.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: capture-refactor-before-after
+          path: evidence/
+          retention-days: 7

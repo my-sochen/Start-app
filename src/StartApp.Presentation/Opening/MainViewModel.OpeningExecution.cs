@@ -11,8 +11,8 @@ public sealed partial class MainViewModel
     private readonly OpeningSessionState _opening = new();
 
 
-    public ICommand ConfirmOpenAnywayCommand { get; }
-    public ICommand CancelOpenCommand { get; }
+    public ICommand ConfirmOpenAnywayCommand { get; private set; } = null!;
+    public ICommand CancelOpenCommand { get; private set; } = null!;
     /// <summary>Per-item problems found before opening; the user decides. Empty when nothing is pending.</summary>
     public ObservableCollection<string> OpenProblems { get; } = new();
     /// <summary>Per-item outcome of the last open (one line per item).</summary>
