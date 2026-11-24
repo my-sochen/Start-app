@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Runtime.Versioning;
 
 namespace StartApp.Platform.Windows;
 
@@ -11,6 +12,7 @@ public static class WindowsFileHandlers
 {
     public sealed record Handler(string Label, string Path);
 
+    [SupportedOSPlatform("windows")]
     public static IReadOnlyList<Handler> ForTarget(string target)
     {
         var extension = Path.GetExtension(target);

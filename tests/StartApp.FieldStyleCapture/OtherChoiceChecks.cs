@@ -37,6 +37,22 @@ internal static partial class Program
             check(type+" batch open-with enabled state",Descendants(batch).OfType<ComboBox>().Single().IsEnabled==(type=="File"));
             await Take(batch,output,type.ToLowerInvariant()+"-batch-editor");batch.Close();
         }
+        var captureVm=new MainViewModel(store,new NotImplementedLauncher(),capturer:new PickerCapturer()){ScanMinVisible=TimeSpan.Zero};
+        window.DataContext=captureVm;captureVm.CaptureExistingCommand.Execute(null);await captureVm.CurrentScan!;
+        captureVm.CapturePickWorkspaceCommand.Execute(captureVm.Workspaces.Single());
+        captureVm.CaptureAddCommand.Execute(null);
+        foreach(var staged in captureVm.StagedRows.ToArray()){
+            captureVm.EditStagedCommand.Execute(staged);await Idle(window);
+            var field=Descendants(window).OfType<ComboBox>().Single(x=>x.IsVisible && ReferenceEquals(x.DataContext,staged));
+            check(staged.Type+" capture field enabled state",field.IsEnabled==(staged.Type==ItemType.File));
+            await Take(window,output,staged.Type.ToString().ToLowerInvariant()+"-capture-editor");
+            if(staged.Type==ItemType.File){
+                check("Capture file target binding",OpenWithPicker.GetFileTarget(field)==staged.Target);
+                staged.Target=@"C:\fixture.pdf";await Idle(window);
+                check("Capture file target change refreshes picker",OpenWithPicker.GetFileTarget(field)==staged.Target);
+                Other(window,field,output,"capture-file",check);
+            }
+        }
         var combo=new ComboBox();
         OpenWithPicker.SetFileTarget(combo,@"C:\fixture.txt");
         OpenWithPicker.SetPath(combo,"");
@@ -50,11 +66,17 @@ internal static partial class Program
         // An unknown type must not acquire an invented Chrome/Notepad fallback.
         OpenWithPicker.SetFileTarget(combo,@"C:\fixture.startapp_unknown_20261124");
         check("Unknown extension has only default and Other",combo.Items.Count==2);
+        OpenWithPicker.SetFileTarget(combo,"");
+        check("Empty file target has no browser fallback",combo.Items.Count==2);
         OpenWithPicker.SetPath(combo,@"C:\Legacy\saved.exe");
         check("Existing custom path is preserved",OpenWithPicker.GetPath(combo)==@"C:\Legacy\saved.exe" && combo.Items.Cast<OpenWithPicker.Choice>().Any(x=>x.Value==@"C:\Legacy\saved.exe"));
         var host=new Window{Title="File Open with probe",Width=520,Height=180,Content=combo,Owner=window};
         combo.Style=(Style)Application.Current.FindResource("OpenWithDropdown");host.Show();await Idle(host);
         await Take(host,output,"file-picker");Other(host,combo,output,"file",check);host.Close();
+    }
+    private sealed class PickerCapturer : IOpenItemCapturer
+    {
+        public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.File,"Captured file",@"C:\capture.txt"),new CapturedItem(ItemType.Folder,"Captured folder",@"C:\Capture")},Array.Empty<string>());
     }
     private static void Other(Window window,ComboBox combo,string output,string name,Action<string,bool> check)
     {

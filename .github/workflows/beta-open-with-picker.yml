@@ -14,7 +14,7 @@ jobs:
         with:
           dotnet-version: '10.0.404'
       - name: Related source and editor contracts
-        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~SharedFieldStyleTests|FullyQualifiedName~ViewSourceIntegrityTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~SavedItemTransferTests'
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~SharedFieldStyleTests|FullyQualifiedName~ViewSourceIntegrityTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~SavedItemTransferTests|FullyQualifiedName~StagedItemActionsTests'
       - name: File command compatibility contracts
         run: dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter FullyQualifiedName~WindowsFileHandlerTests
       - name: Native picker and coming-soon interactions

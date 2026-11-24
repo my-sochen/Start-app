@@ -5,11 +5,11 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 namespace StartApp.App;
 
-/// <summary>Launch selection with installed paths and the system default. Website custom choices are deferred in beta.</summary>
+/// <summary>Launch selection with installed paths and the system default. Custom choices are deferred in beta.</summary>
 public static class OpenWithPicker
 {
     public sealed record Choice(string Label, string Value) { public override string ToString() => Label; }
-    private const string FolderDefaultHint = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
+    private const string FolderDefaultHint = "פתח באמצעות אינו זמין לתיקיות בגרסת הבטא.";
     private const string Browse = "\u0001browse";
     public static readonly DependencyProperty DefaultLabelProperty = DependencyProperty.RegisterAttached("DefaultLabel", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("ברירת המחדל של Windows", Changed));
     public static string GetDefaultLabel(DependencyObject o) => (string)o.GetValue(DefaultLabelProperty);
@@ -59,7 +59,7 @@ public static class OpenWithPicker
     private static string DisplayDefault(ComboBox combo)
     {
         var fallback = GetDefaultLabel(combo);
-        if (!Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https")) return fallback;
+        if (GetFileTarget(combo) is not null || !Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https")) return fallback;
         // Read only the user's protocol association. Never change the stored launch path or system defaults.
         var name = AssociationString(0x1000 /* ASSOCF_IS_PROTOCOL */, 4 /* ASSOCSTR_FRIENDLYAPPNAME */, uri.Scheme);
         return string.IsNullOrWhiteSpace(name) ? fallback : name + " (ברירת מחדל)";

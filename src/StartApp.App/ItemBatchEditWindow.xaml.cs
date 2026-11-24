@@ -29,7 +29,7 @@ public partial class ItemBatchEditWindow : Window
         if (row.Type == "Program") { OpenWithField.Visibility = Visibility.Collapsed; Grid.SetColumn(NameField, 0); Grid.SetColumnSpan(NameField, 3); }
         OpenWithInput.IsEnabled = ClearLaunch.IsEnabled = row.Type is "File" or "Link"; OpenWithPicker.SetPath(OpenWithInput, _program);
         OpenWithInput.ToolTip = row.Type == "Program" ? "לא חל על אייטם תוכנה: האייטם הוא התוכנה עצמה" : "בחר תוכנה מותקנת או תוכנה אחרת. ברירת המחדל של Windows אינה משנה את הגדרות המחשב.";
-        if (row.Type == "Folder") OpenWithInput.ToolTip = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
+        if (row.Type == "Folder") OpenWithInput.ToolTip = "פתח באמצעות אינו זמין לתיקיות בגרסת הבטא.";
         ClearLaunch.Visibility = programs.Length > 1 && row.Type is "File" or "Link" ? Visibility.Visible : Visibility.Collapsed;
         ClearDescription.Visibility = descriptions.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
         TargetLabel.Text = row.Type == "Link" ? "כתובת האתר" : "נתיב";
