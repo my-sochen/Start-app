@@ -76,6 +76,7 @@ internal static partial class Program
                 await Popup(batch,Descendants(batch).OfType<ComboBox>().Single(),output,"13-batch-open-with",Check);
                 if(args.Length==2 && args[1]=="other") Other(batch,Descendants(batch).OfType<ComboBox>().Single(),output,"batch",Check);
                 Input(batch,"Selected item description").IsEnabled=false;await Take(batch,output,"14-batch-disabled");batch.Close();
+                if(args.Length==2 && args[1]=="other") await Files(shell,output,Check);
                 File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));
                 File.WriteAllText(Path.Combine(output,"focus.json"),JsonSerializer.Serialize(Focus));
             }catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}

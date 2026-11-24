@@ -27,10 +27,10 @@ public partial class ItemBatchEditWindow : Window
             ClearLaunch.Content = "ללא תוכנה חלופית בכל הסביבות שנבחרו";
         }
         if (row.Type == "Program") { OpenWithField.Visibility = Visibility.Collapsed; Grid.SetColumn(NameField, 0); Grid.SetColumnSpan(NameField, 3); }
-        OpenWithInput.IsEnabled = ClearLaunch.IsEnabled = row.Type != "Program"; OpenWithPicker.SetPath(OpenWithInput, _program);
+        OpenWithInput.IsEnabled = ClearLaunch.IsEnabled = row.Type is "File" or "Link"; OpenWithPicker.SetPath(OpenWithInput, _program);
         OpenWithInput.ToolTip = row.Type == "Program" ? "לא חל על אייטם תוכנה: האייטם הוא התוכנה עצמה" : "בחר תוכנה מותקנת או תוכנה אחרת. ברירת המחדל של Windows אינה משנה את הגדרות המחשב.";
         if (row.Type == "Folder") OpenWithInput.ToolTip = "ללא תוכנה חלופית: התיקייה נפתחת כרגיל דרך Windows. אפשר לבחור תוכנה אחרת.";
-        ClearLaunch.Visibility = programs.Length > 1 && row.Type != "Program" ? Visibility.Visible : Visibility.Collapsed;
+        ClearLaunch.Visibility = programs.Length > 1 && row.Type is "File" or "Link" ? Visibility.Visible : Visibility.Collapsed;
         ClearDescription.Visibility = descriptions.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
         TargetLabel.Text = row.Type == "Link" ? "כתובת האתר" : "נתיב";
         TitleLabel.Text = "עריכת אייטם: " + row.Name; CaptionLabel.Text = "אייטמים · " + row.Name + " · עריכה";
@@ -47,6 +47,7 @@ public partial class ItemBatchEditWindow : Window
         Scope.Inlines.Add(new System.Windows.Documents.Run("העריכה תחול רק על העותקים הזהים לחלוטין בסביבות שנבחרו; עותק ששונה בו אפילו פרט אחד לא ישתנה. רק שדות שתשנה יוחלו - מה שלא תיגע בו יישאר כמו שהוא בכל סביבה."));
         if (targets.Select(t => t.WorkspaceId).Distinct().Count() < 2) Scope.Visibility = Visibility.Collapsed;
         if (row.Type == "Link") OpenWithPicker.SetWebsiteTarget(OpenWithInput, row.Target);
+        if (row.Type == "File") OpenWithPicker.SetFileTarget(OpenWithInput, row.Target);
         NameInput.Text = _name; DescriptionInput.Text = _description; TargetInput.Text = _target; _ready = true;
         PreviewKeyDown += (_, e) =>
         {
@@ -63,6 +64,7 @@ public partial class ItemBatchEditWindow : Window
     {
         if (!_ready) return;
         if (_row.Type == "Link" && ReferenceEquals(sender, TargetInput)) OpenWithPicker.SetWebsiteTarget(OpenWithInput, TargetInput.Text);
+        if (_row.Type == "File" && ReferenceEquals(sender, TargetInput)) OpenWithPicker.SetFileTarget(OpenWithInput, TargetInput.Text);
         SaveButton.IsEnabled = Dirty;
     }
     private void ClearDescription_Changed(object sender, RoutedEventArgs e) { if (!_ready) return; DescriptionInput.IsEnabled = ClearDescription.IsChecked != true; SaveButton.IsEnabled = Dirty; }
