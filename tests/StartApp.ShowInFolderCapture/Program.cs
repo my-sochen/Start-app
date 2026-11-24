@@ -8,6 +8,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Application = System.Windows.Application;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Button = System.Windows.Controls.Button;
 using StartApp.App;
 using StartApp.Core;
 using StartApp.Platform.Windows;
@@ -71,7 +74,9 @@ internal static class Program
                 Check("Revealing never saves draft",before==JsonSerializer.Serialize(repo.Load())&&vm.CaptureDirty);
                 // Real Explorer adapter separately: COM inspection confirms the selected shell item's path.
                 var real=new WindowsFileRevealer();Check("Real Explorer adapter reports success",real.Reveal(file).Status==RevealStatus.Revealed);
-                var selected=false;for(var i=0;i<20&&!selected;i++){await Task.Delay(250);selected=ExplorerSelected(file);}
+                var selected=false;for(var i=0;i<60&&!selected;i++){await Task.Delay(250);selected=ExplorerSelected(file);}
+                Desktop(output);
+                File.WriteAllText(Path.Combine(output,"explorer-processes.json"),JsonSerializer.Serialize(System.Diagnostics.Process.GetProcessesByName("explorer").Select(p=>new{p.Id,p.MainWindowTitle,p.MainWindowHandle})));
                 Check("Explorer actually selects exact spaced Unicode file",selected);
                 await Take(window,output,"capture-window");
                 File.WriteAllText(Path.Combine(output,"real-explorer.txt"),"Confirmed exact selected file through Shell.Application windows: "+file);
@@ -84,6 +89,13 @@ internal static class Program
     {
         object? shell=null,windows=null;
         try{shell=Activator.CreateInstance(Type.GetTypeFromProgID("Shell.Application")!);dynamic s=shell!;windows=s.Windows();dynamic ws=windows;for(var i=0;i<ws.Count;i++){object? w=null,document=null,items=null;try{w=ws.Item(i);dynamic win=w;document=win.Document;dynamic doc=document!;items=doc.SelectedItems();dynamic selected=items;for(var j=0;j<selected.Count;j++){object? item=null;try{item=selected.Item(j);dynamic value=item;if(string.Equals((string)value.Path,path,StringComparison.OrdinalIgnoreCase))return true;}finally{Release(item);}}}catch(COMException){}finally{Release(items);Release(document);Release(w);}}return false;}finally{Release(windows);Release(shell);}
+    }
+    private static void Desktop(string output)
+    {
+        var bounds=System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+        using var image=new System.Drawing.Bitmap(bounds.Width,bounds.Height);
+        using(var g=System.Drawing.Graphics.FromImage(image))g.CopyFromScreen(bounds.Left,bounds.Top,0,0,image.Size);
+        image.Save(Path.Combine(output,"explorer-desktop.png"),System.Drawing.Imaging.ImageFormat.Png);
     }
     private static void Release(object? value){if(value is not null&&Marshal.IsComObject(value))Marshal.ReleaseComObject(value);}
     private static ContextMenu OpenMenu()=>PresentationSource.CurrentSources.Cast<PresentationSource>().Select(x=>x.RootVisual).OfType<DependencyObject>().SelectMany(x=>new[]{x}.Concat(Descendants(x))).OfType<ContextMenu>().First(x=>x.IsOpen);
