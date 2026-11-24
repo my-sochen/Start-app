@@ -1,4 +1,4 @@
-<DockPanel x:Class="StartApp.App.WorkspaceDetailsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" Margin="32,22,32,22" Visibility="{Binding InDetails, Converter={StaticResource B2V}}">
+<DockPanel x:Class="StartApp.App.WorkspaceDetailsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" Margin="32,22,32,22">
     <DockPanel.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
         <local:DetailsGroupConverter x:Key="DetailsGroup"/>

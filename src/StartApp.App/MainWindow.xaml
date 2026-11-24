@@ -333,7 +333,7 @@
             <local:CreateWorkspaceView x:Name="CreateView" Visibility="{Binding InCreate, Converter={StaticResource B2V}}"/>
 
             <!-- ============ DETAILS: פרטי סביבה ============ -->
-            <local:WorkspaceDetailsView x:Name="DetailsView"/>
+            <local:WorkspaceDetailsView x:Name="DetailsView" Visibility="{Binding InDetails, Converter={StaticResource B2V}}"/>
             <!-- Progress is nonmodal; completed results are opened only by explicit user choice. -->
             <StackPanel Grid.Row="1" Margin="8,0,8,8">
                 <StackPanel Visibility="{Binding ShowOpenPanel, Converter={StaticResource B2V}}" Orientation="Horizontal">
