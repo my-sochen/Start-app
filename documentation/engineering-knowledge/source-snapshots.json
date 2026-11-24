@@ -1,0 +1,94 @@
+[
+  {
+    "repo": "PrismLibrary/Prism",
+    "sha": "4e7f7ddad3f1ff6f64165e157820dcf986e0f74f",
+    "date": "2020-12-28T15:13:29Z",
+    "commit_url": "https://github.com/PrismLibrary/Prism/commit/4e7f7ddad3f1ff6f64165e157820dcf986e0f74f",
+    "files": [
+      "src/Prism.Core/Commands/DelegateCommandBase.cs"
+    ]
+  },
+  {
+    "repo": "reactiveui/ReactiveUI",
+    "sha": "963666ac751d83561e8b549a184cc2d1f95b0c9d",
+    "date": "2020-12-18T06:07:55Z",
+    "commit_url": "https://github.com/reactiveui/ReactiveUI/commit/963666ac751d83561e8b549a184cc2d1f95b0c9d",
+    "files": [
+      "src/ReactiveUI/ReactiveCommand/ReactiveCommand.cs"
+    ]
+  },
+  {
+    "repo": "lbugnion/mvvmlight",
+    "sha": "4cbf77ca6fbe91f83cece8fbf288b166c54202c5",
+    "date": "2018-12-16T18:06:54Z",
+    "commit_url": "https://github.com/lbugnion/mvvmlight/commit/4cbf77ca6fbe91f83cece8fbf288b166c54202c5",
+    "files": [
+      "GalaSoft.MvvmLight/GalaSoft.MvvmLight (PCL)/ObservableObject.cs"
+    ]
+  },
+  {
+    "repo": "icsharpcode/AvalonEdit",
+    "sha": "a046e2dcb90e867982f7dc3ac2589b91d6326a42",
+    "date": "2020-12-21T10:55:48Z",
+    "commit_url": "https://github.com/icsharpcode/AvalonEdit/commit/a046e2dcb90e867982f7dc3ac2589b91d6326a42",
+    "files": [
+      "ICSharpCode.AvalonEdit/Document/UndoStack.cs"
+    ]
+  },
+  {
+    "repo": "MahApps/MahApps.Metro",
+    "sha": "bbab412af829c9b565fdfdbfd7aeacd9a30805f3",
+    "date": "2020-12-18T14:34:48Z",
+    "commit_url": "https://github.com/MahApps/MahApps.Metro/commit/bbab412af829c9b565fdfdbfd7aeacd9a30805f3",
+    "files": [
+      "src/MahApps.Metro/Controls/Dialogs/DialogManager.cs"
+    ]
+  },
+  {
+    "repo": "ButchersBoy/Dragablz",
+    "sha": "da7a4e58e1986b59fade3805f3777e6acb3e8fc5",
+    "date": "2020-10-27T07:52:03Z",
+    "commit_url": "https://github.com/ButchersBoy/Dragablz/commit/da7a4e58e1986b59fade3805f3777e6acb3e8fc5",
+    "files": [
+      "Dragablz/InterTabController.cs",
+      "Dragablz/IInterTabClient.cs"
+    ]
+  },
+  {
+    "repo": "Fody/PropertyChanged",
+    "sha": "dd75f34f31e0b232a2665a21b8313f6c3c12f2b7",
+    "date": "2020-12-29T05:16:55Z",
+    "commit_url": "https://github.com/Fody/PropertyChanged/commit/dd75f34f31e0b232a2665a21b8313f6c3c12f2b7",
+    "files": [
+      "PropertyChanged.Fody/DependsOnDataAttributeReader.cs",
+      "Tests/AttributeReaders/DependsOnDataAttributeReaderTests.cs"
+    ]
+  },
+  {
+    "repo": "App-vNext/Polly",
+    "sha": "52968c25f2e13e2708898174c15aafc9cb915020",
+    "date": "2020-05-02T11:42:54Z",
+    "commit_url": "https://github.com/App-vNext/Polly/commit/52968c25f2e13e2708898174c15aafc9cb915020",
+    "files": [
+      "src/Polly/Bulkhead/AsyncBulkheadEngine.cs"
+    ]
+  },
+  {
+    "repo": "serilog/serilog",
+    "sha": "e890a3dc5a77c1ae782f7104ee51f5874d55bf45",
+    "date": "2020-12-10T23:17:45Z",
+    "commit_url": "https://github.com/serilog/serilog/commit/e890a3dc5a77c1ae782f7104ee51f5874d55bf45",
+    "files": [
+      "src/Serilog/Core/Sinks/SafeAggregateSink.cs"
+    ]
+  },
+  {
+    "repo": "JamesNK/Newtonsoft.Json",
+    "sha": "0cf47a4687f50c1e0fb46c0f8048531d0faaf978",
+    "date": "2020-12-14T21:53:46Z",
+    "commit_url": "https://github.com/JamesNK/Newtonsoft.Json/commit/0cf47a4687f50c1e0fb46c0f8048531d0faaf978",
+    "files": [
+      "Src/Newtonsoft.Json/Serialization/JsonSerializerInternalReader.cs"
+    ]
+  }
+]
