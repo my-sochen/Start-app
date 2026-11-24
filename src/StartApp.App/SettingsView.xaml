@@ -101,7 +101,7 @@
                         <TextBlock x:Name="StatusLine" Style="{StaticResource HintText}" Margin="14,0,14,4" Text="{Binding Status}"
                                    AutomationProperties.Name="Update status line"/>
                         <Border BorderBrush="#e8ecf2" BorderThickness="0,1,0,0" Margin="0,4,0,0">
-                            <TextBlock Style="{StaticResource HintText}" Margin="14,8" LineHeight="20" TextAlignment="Right"
+                            <TextBlock Style="{StaticResource HintText}" Margin="14,8" LineHeight="20" TextAlignment="Left"
                                        Text="האפליקציה בודקת עדכונים פעם אחת בכל הפעלה, בלי להפריע לעבודה, ומציגה הודעה רק כשקיימת גרסה שאושרה להפצה. אין התקנה אוטומטית: העדכון מותקן רק בלחיצה שלך. בלחיצה על עדכן עכשיו האפליקציה מורידה את הגרסה המלאה, נסגרת לכמה שניות, מתעדכנת ונפתחת מחדש מעצמה; הנתונים וההגדרות נשמרים בצד; דילוג על גרסאות ביניים מוביל ישירות לעדכנית ביותר; ללא חיבור לאינטרנט האפליקציה ממשיכה לעבוד כרגיל."
                                        AutomationProperties.Name="Update behavior note"/>
                         </Border>
