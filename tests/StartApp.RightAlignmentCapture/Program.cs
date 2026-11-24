@@ -26,6 +26,7 @@ internal static class Program
   void Check(string n,bool ok){checks.Add(new{name=n,ok});if(!ok)throw new Exception(n);}
   void Prose(Window w){foreach(var t in Tree(w).OfType<TextBlock>().Where(t=>t.IsVisible&&t.Text.Any(c=>c>='א'&&c<='ת')&&t.TextWrapping==TextWrapping.Wrap))Check(w.GetType().Name+" prose right: "+t.Name,t.TextAlignment==TextAlignment.Right);}
   shell.ContentRendered+=async(_,_)=>{try{
+   var diag=new Window{Width=500,Height=240,Title="Alignment calibration"};var stack=new StackPanel();foreach(var flow in new[]{FlowDirection.LeftToRight,FlowDirection.RightToLeft})foreach(var align in new[]{TextAlignment.Left,TextAlignment.Right})stack.Children.Add(new TextBlock{Text=flow+" / "+align+": טקסט בעברית לבדיקה.",FlowDirection=flow,TextAlignment=align,Margin=new Thickness(8),Background=Brushes.White});diag.Content=stack;diag.Show();await Take(diag,output,"00-alignment-calibration");diag.Close();
    vm.OpenSettingsCommand.Execute(null);await Take(shell,output,"01-settings");Prose(shell);vm.CloseSettingsCommand.Execute(null);
    vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;await Take(shell,output,"02-capture-picker");Prose(shell);vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single());vm.CaptureAddCommand.Execute(null);await Take(shell,output,"03-capture-staged");Prose(shell);vm.CaptureSaveCommand.Execute(null);vm.CaptureCloseCommand.Execute(null);
    // Isolated editor VM avoids MainWindow's modal event subscribers.
