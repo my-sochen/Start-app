@@ -5,6 +5,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Application=System.Windows.Application;
+using TextBox=System.Windows.Controls.TextBox;
+using FlowDirection=System.Windows.FlowDirection;
 using StartApp.App;
 using StartApp.Core;
 using StartApp.Presentation;
@@ -12,9 +15,9 @@ using StartApp.Storage.Json;
 
 internal static class Program
 {
- sealed class Capture:IOpenItemCapturer { public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.Link,"אתר הפרויקט","https://example.com/"),new CapturedItem(ItemType.File,"מסמך הפרויקט",@"C:\Project files\שלום.txt")},Array.Empty<string>()); }
+ sealed class Capture:IOpenItemCapturer { public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.Link,"אתר ללכידה","https://capture.example.com/"),new CapturedItem(ItemType.File,"מסמך הפרויקט",@"C:\Project files\שלום.txt")},Array.Empty<string>()); }
  static IEnumerable<DependencyObject> Tree(DependencyObject x){yield return x;for(int i=0;i<VisualTreeHelper.GetChildrenCount(x);i++)foreach(var c in Tree(VisualTreeHelper.GetChild(x,i)))yield return c;}
- static async Task Take(Window w,string output,string name){w.UpdateLayout();await w.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(250);var b=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);b.Render(w);var p=new PngBitmapEncoder();p.Frames.Add(BitmapFrame.Create(b));using var f=File.Create(Path.Combine(output,name+".png"));p.Save(f);}
+ static async Task Take(Window w,string output,string name){w.UpdateLayout();await w.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(250);var point=w.PointToScreen(new System.Windows.Point());using(var image=new System.Drawing.Bitmap((int)w.ActualWidth,(int)w.ActualHeight)){using(var graphics=System.Drawing.Graphics.FromImage(image))graphics.CopyFromScreen((int)point.X,(int)point.Y,0,0,image.Size);image.Save(Path.Combine(output,name+"-screen.png"));}var b=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);b.Render(w);var p=new PngBitmapEncoder();p.Frames.Add(BitmapFrame.Create(b));using var f=File.Create(Path.Combine(output,name+".png"));p.Save(f);}
  [STAThread]static int Main(string[] args)
  {
   var output=Path.GetFullPath(args.Single());Directory.CreateDirectory(output);var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml")});
