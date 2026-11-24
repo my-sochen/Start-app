@@ -72,6 +72,7 @@ public class FeatureCommandOwnershipTests
             "FocusAddCommand",
             "OpenItemCommand",
             "CopyAddressCommand",
+            "ShowInFolderCommand",
             "EditItemCommand",
             "SaveItemEditCommand",
             "CancelItemEditCommand",

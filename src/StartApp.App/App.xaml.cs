@@ -21,7 +21,7 @@ public partial class App : Application
             CrashLogger.Attach(Path.Combine(dir, "crash.log"), this); // evidence only; never marks anything handled
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
-        var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
+        var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()), fileRevealer: new WindowsFileRevealer());
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
         new MainWindow { DataContext = vm }.Show();

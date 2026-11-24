@@ -28,6 +28,7 @@
 
     <!-- Approved 22.11 menu look (pixel-exact mocks): white surface, #C9D0DC border, 5px radius, shadow -->
     <Style TargetType="ContextMenu">
+        <Setter Property="FlowDirection" Value="RightToLeft"/>
         <Setter Property="Background" Value="White"/>
         <Setter Property="BorderBrush" Value="#C9D0DC"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -52,7 +53,9 @@
 
     <!-- MenuItem: hot row #EEF2FA, ✓ in the icon column, ▶ submenu arrow at the row edge (#7A8496), disabled #9AA1AD -->
     <GridLength x:Key="MenuIconColumnWidth">24</GridLength>
-    <Style TargetType="MenuItem">
+    <Style x:Key="SharedMenuItem" TargetType="MenuItem">
+        <Setter Property="FlowDirection" Value="RightToLeft"/>
+        <Setter Property="HorizontalContentAlignment" Value="Right"/>
         <Setter Property="Foreground" Value="#414856"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="MinHeight" Value="30"/>
@@ -73,16 +76,16 @@
                             </Border>
                         </Popup>
                         <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Margin="1,0">
-                            <Grid>
+                            <Grid FlowDirection="LeftToRight">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="{DynamicResource MenuIconColumnWidth}"/>
-                                    <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="{DynamicResource MenuIconColumnWidth}"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="Check" Grid.Column="0" Text="✓" FontSize="12" Foreground="{TemplateBinding Foreground}"
+                                <TextBlock x:Name="Check" Grid.Column="2" Text="✓" FontSize="12" Foreground="{TemplateBinding Foreground}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
-                                <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}" VerticalAlignment="Center" Margin="2,6,8,6"/>
-                                <Path x:Name="Arrow" Grid.Column="2" Data="M0,0 L5,4 L0,8 Z" Fill="#7A8496" Stretch="None"
+                                <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}" HorizontalAlignment="Right" FlowDirection="RightToLeft" VerticalAlignment="Center" Margin="2,6,8,6"/>
+                                <Path x:Name="Arrow" Grid.Column="0" Data="M5,0 L0,4 L5,8 Z" Fill="#7A8496" Stretch="None"
                                       Margin="4,0,6,0" VerticalAlignment="Center" Visibility="Collapsed"/>
                             </Grid>
                         </Border>
@@ -105,6 +108,8 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style TargetType="MenuItem" BasedOn="{StaticResource SharedMenuItem}"/>
 
     <Style TargetType="Separator">
         <Setter Property="Template">
