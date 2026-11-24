@@ -15,6 +15,7 @@ using StartApp.Storage.Json;
 
 internal static class Program
 {
+ sealed class Source(bool fail=false):IApprovedUpdateSource { public Task<ApprovedUpdate?> ReadAsync(CancellationToken token)=>fail?throw new System.Net.Http.HttpRequestException("fixture"):Task.FromResult<ApprovedUpdate?>(new("1.0.1",new string('a',40),new string('b',64))); }
  sealed class Capture:IOpenItemCapturer { public CaptureScan Scan()=>new(new[]{new CapturedItem(ItemType.Link,"אתר ללכידה","https://capture.example.com/"),new CapturedItem(ItemType.File,"מסמך הפרויקט",@"C:\Project files\שלום.txt")},Array.Empty<string>()); }
  static IEnumerable<DependencyObject> Tree(DependencyObject x){yield return x;for(int i=0;i<VisualTreeHelper.GetChildrenCount(x);i++)foreach(var c in Tree(VisualTreeHelper.GetChild(x,i)))yield return c;}
  static async Task Take(Window w,string output,string name){w.WindowStartupLocation=WindowStartupLocation.Manual;w.Left=0;w.Top=0;w.Topmost=true;w.Activate();w.UpdateLayout();await w.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);await Task.Delay(250);var point=w.PointToScreen(new System.Windows.Point());using(var image=new System.Drawing.Bitmap((int)w.ActualWidth,(int)w.ActualHeight)){using(var graphics=System.Drawing.Graphics.FromImage(image))graphics.CopyFromScreen((int)point.X,(int)point.Y,0,0,image.Size);image.Save(Path.Combine(output,name+"-screen.png"));}var b=new RenderTargetBitmap((int)w.ActualWidth,(int)w.ActualHeight,96,96,PixelFormats.Pbgra32);b.Render(w);var p=new PngBitmapEncoder();p.Frames.Add(BitmapFrame.Create(b));using var f=File.Create(Path.Combine(output,name+".png"));p.Save(f);w.Topmost=false;}
@@ -39,6 +40,10 @@ internal static class Program
    vm.OpenAllItemsCommand.Execute(null);await Take(shell,output,"08-all-items");Prose(shell);vm.CloseAllItemsCommand.Execute(null);
    vm.SetDefaultWorkspace(vm.Workspaces.Single().Id);vm.SetDefaultWorkspace(null);await Take(shell,output,"09-default-confirm");Prose(shell);vm.CancelDefaultReplaceCommand.Execute(null);
    var promptType=typeof(MainWindow).Assembly.GetType("StartApp.App.SavedItemPromptWindow")!;var prompt=(Window)Activator.CreateInstance(promptType,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic,null,new object[]{"הפריט נמצא ברשימה הנגדית","הפריט יועבר לרשימה המבוקשת רק לאחר אישור.","העבר לרשימה המבוקשת",false},null)!;prompt.Show();await Take(prompt,output,"10-saved-item-prompt");Prose(prompt);prompt.Hide();
+   var newType=typeof(MainWindow).Assembly.GetType("StartApp.App.NewWorkspaceFromItemWindow")!;var newWindow=(Window)Activator.CreateInstance(newType,new object[]{editVm,new SavedItemTransfer(ItemType.Link,"אתר הפרויקט","https://example.com/","",null)})!;newWindow.Show();await Take(newWindow,output,"11-new-workspace");Prose(newWindow);newWindow.Hide();
+   vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());await Take(shell,output,"12-workspace-details");Prose(shell);vm.OpenPickerCommand.Execute(null);await Take(shell,output,"13-resource-picker");Prose(shell);vm.ClosePickerCommand.Execute(null);
+   foreach(var failed in new[]{false,true}){using var updates=new UpdateViewModel(new Source(failed),"1.0.0",_=>throw new Exception("Unexpected browser"));await updates.CheckAsync();var host=new Window{Width=shell.Width,Height=shell.Height,Content=new SettingsView{DataContext=updates}};host.Show();await Take(host,output,failed?"15-settings-failure":"14-settings-available");Prose(host);host.Hide();}
+
   }catch(Exception e){code=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}finally{File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(checks,new JsonSerializerOptions{WriteIndented=true}));app.Shutdown(code);}};app.Run(shell);return code;
  }
 }
