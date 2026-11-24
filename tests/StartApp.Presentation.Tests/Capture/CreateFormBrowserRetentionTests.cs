@@ -249,8 +249,8 @@ public class DuplicatePickerBrowserLabelTests
         vm.CaptureAddCommand.Execute(null); // nothing ticked -> all rows; duplicate identity stays Type+Target, so both are offered again
         Assert.Equal(2, vm.CaptureDupChoices.Count);
         var labels = vm.CaptureDupChoices.Select(c => c.Label).ToList();
-        Assert.Contains("Add again: example.com  (Edge)", labels);
-        Assert.Contains("Add again: example.com  (Chrome)", labels);
+        Assert.Contains("הוסף שוב: example.com  (Edge)", labels);
+        Assert.Contains("הוסף שוב: example.com  (Chrome)", labels);
         Assert.Equal(2, labels.Distinct().Count()); // the Chrome row can be picked knowingly (P2)
     }
 
@@ -268,6 +268,6 @@ public class DuplicatePickerBrowserLabelTests
         vm.CaptureExistingCommand.Execute(null); ScanDone(vm);
         vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single(w => w.Name == "existing"));
         vm.CaptureAddCommand.Execute(null);
-        Assert.Equal("Add again: example.com", vm.CaptureDupChoices.Single().Label); // no invented browser, no trailing spaces
+        Assert.Equal("הוסף שוב: example.com", vm.CaptureDupChoices.Single().Label); // no invented browser, no trailing spaces
     }
 }

@@ -353,11 +353,11 @@
         <!-- duplicate warning for ONE dragged item -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CaptureDupSinglePending, Converter={StaticResource B2V}}" Background="#66000000">
             <local:DialogFrame MinWidth="320" MaxWidth="480">
-                <StackPanel>
+                <StackPanel FlowDirection="RightToLeft">
                     <TextBlock Text="{Binding CaptureDupSingleMessage}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Add anyway" Command="{Binding ConfirmCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicate add anyway"/>
-                        <Button Content="Cancel" Command="{Binding CancelCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
+                        <Button Content="הוסף בכל זאת" Command="{Binding ConfirmCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicate add anyway"/>
+                        <Button Content="ביטול" Command="{Binding CancelCaptureDupSingleCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicate cancel"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>
@@ -366,15 +366,15 @@
         <!-- ONE grouped dialog for the duplicates of an add-all / add-selected -->
         <Grid Grid.RowSpan="3" Visibility="{Binding CaptureDupGroupPending, Converter={StaticResource B2V}}" Background="#66000000">
             <local:DialogFrame MinWidth="340" MaxWidth="520">
-                <StackPanel>
-                    <TextBlock Text="Already in this workspace" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
-                    <TextBlock Text="Tick the ones you want to add again as separate instances." TextWrapping="Wrap" Margin="0,0,0,6"/>
+                <StackPanel FlowDirection="RightToLeft">
+                    <TextBlock Text="הפריטים האלה כבר קיימים בסביבה" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,6"/>
+                    <TextBlock Text="סמן את הפריטים שברצונך להוסיף שוב. כל פריט יתווסף כעותק נפרד." TextWrapping="Wrap" Margin="0,0,0,6"/>
                     <ItemsControl ItemsSource="{Binding CaptureDupChoices}">
                         <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Label}" AutomationProperties.Name="{Binding Label}" Margin="0,2"/></DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <Button Content="Add ticked" Command="{Binding ConfirmCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicates add ticked"/>
-                        <Button Content="Skip duplicates" Command="{Binding CancelCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
+                        <Button Content="הוסף מסומנים" Command="{Binding ConfirmCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Capture duplicates add ticked"/>
+                        <Button Content="דלג על הכפילויות" Command="{Binding CancelCaptureDupGroupCommand}" Style="{StaticResource CompactActionButton}" Margin="8,0,0,0" AutomationProperties.Name="Capture duplicates skip"/>
                     </StackPanel>
                 </StackPanel>
             </local:DialogFrame>

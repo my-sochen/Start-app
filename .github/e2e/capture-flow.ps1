@@ -794,13 +794,13 @@ try {
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
-  Assert 'grouped duplicate dialog shown' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'Add again: capfolder*')) ((CheckNames) -join ' | ')
+  Assert 'grouped duplicate dialog shown' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'הוסף שוב: capfolder*')) ((CheckNames) -join ' | ')
   Shot 'duplicate-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
   Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
-  $dup = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
+  $dup = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
   Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
 
@@ -820,7 +820,7 @@ try {
   Assert 'nothing ticked before save-and-exit (tick state does not leak between sections)' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
   $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
-  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'Add again: *')) ((CheckNames) -join ' | ')
+  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'הוסף שוב: *')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
   Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'Unsaved changes' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
   $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
@@ -842,17 +842,17 @@ try {
   $stagedAll = @(StagedNames)
   Assert 'add-all staged the non-duplicate terminal at once' ($stagedAll -contains 'Windows Terminal Host') ($stagedAll -join ' | ')
   Assert 'duplicates not staged before the dialog choice' (($stagedAll -notcontains 'capfolder') -and ($stagedAll -notcontains 'Notepad')) ($stagedAll -join ' | ')
-  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'Add again: capfolder*')) -and ($null -ne (CheckByLike 'Add again: Notepad*'))) ((CheckNames) -join ' | ')
-  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'Add again: *Terminal*')) ((CheckNames) -join ' | ')
+  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'הוסף שוב: capfolder*')) -and ($null -ne (CheckByLike 'הוסף שוב: Notepad*'))) ((CheckNames) -join ' | ')
+  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'הוסף שוב: *Terminal*')) ((CheckNames) -join ' | ')
   Assert 'add-all changed nothing in the store' ((StoreJson) -eq $storeBeforeAll) ''
   Shot 'add-all-grouped-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip both duplicates' ($c -eq 'ok') $c
   Assert 'non-duplicates stay staged after skipping' (@(StagedNames) -contains 'Windows Terminal Host') ((StagedNames) -join ' | ')
   foreach ($sn in @(StagedNames)) { $c = ClickBtn "Remove added $sn" 800; Assert "remove staged $sn before the selective pass" ($c -eq 'ok') $c }
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
-  Assert 'grouped dialog again for the selective pass' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  $dupF = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
+  Assert 'grouped dialog again for the selective pass' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupF = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
   $stagedNow = @(StagedRowRecords)
   $foldersNow = @($stagedNow | Where-Object { $_.Address -like '*capfolder*' })
@@ -900,8 +900,8 @@ try {
   Assert 'the capture list is identical after switching workspaces' ((@(CheckNames) -join '|') -eq ($namesBeforeSwitch -join '|')) ((CheckNames) -join ' | ')
   $folderTick = CheckByLike '*capfolder*'; [void](ToggleEl $folderTick 'folder tick for re-add'); Start-Sleep -Milliseconds 400
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
-  Assert 'duplicate dialog for the re-add' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  $dupR = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
+  Assert 'duplicate dialog for the re-add' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupR = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
   Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
@@ -950,7 +950,7 @@ try {
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep staging' ($c -eq 'ok') $c
   $storeBeforeDeep = StoreJson
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
-  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'Already in this workspace' 5) -and $null -ne (CheckByLike 'Add again: capfolder*') -and $null -eq (CheckByLike 'Add again: *example*')) ((CheckNames) -join ' | ')
+  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) -and $null -ne (CheckByLike 'הוסף שוב: capfolder*') -and $null -eq (CheckByLike 'הוסף שוב: *example*')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
   $deepStaged = @(StagedAddrsDeep)
   $expectDeep = @('*WindowsTerminal.exe*', '*example.com*', '*example.org*', '*example.net*')   # msedge.exe is excluded from every capture by the seeded global blacklist (approved 22.11)
@@ -979,8 +979,8 @@ try {
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
-  Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'Add again:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
+  Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the four ticked duplicates (deep removal)' ($c -eq 'ok') $c
   $deep2 = @(StagedAddrsDeep)
   Assert 'deep removal: four duplicate rows staged beyond the viewport' (($deep2.Count -eq 4) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
@@ -1333,11 +1333,11 @@ try {
         [void](ToggleEl $edgeRow 'tick the (Edge) row for the selective add'); Start-Sleep -Milliseconds 200
         [void](ToggleEl $chromeRow2 'tick the (Chrome) row for the selective add'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'הוסף נבחרים' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
-        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'Add again: example.com*(Edge)')) -and ($null -ne (CheckByLike 'Add again: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
-        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'Add again: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'הוסף שוב: example.com*(Edge)')) -and ($null -ne (CheckByLike 'הוסף שוב: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
         Shot 'dup-two-browser-choices'
-        $chromeDup = CheckByLike 'Add again: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
+        $chromeDup = CheckByLike 'הוסף שוב: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
         Assert 'DUP-2BROWSER: exactly the Chrome duplicate staged' ((@(StagedNames) -join '|') -eq 'example.com') ((StagedNames) -join ' | ')
         $c = ClickBtn 'Capture save' 1500; Assert 'save the Chrome duplicate (dup two-browser)' ($c -eq 'ok') $c

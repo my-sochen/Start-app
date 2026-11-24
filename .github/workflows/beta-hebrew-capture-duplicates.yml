@@ -1,0 +1,33 @@
+name: beta-hebrew-capture-duplicates
+on:
+  push:
+    branches: [feat/hebrew-capture-duplicates]
+permissions:
+  contents: read
+jobs:
+  targeted-hebrew-dialogs:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Related duplicate selection and source-browser contracts
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~CaptureDuplicateSessionTests|FullyQualifiedName~CreateFormBrowserRetentionTests'
+      - name: Actual WPF Hebrew dialogs and button interactions
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.HebrewCaptureDuplicates -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.HebrewCaptureDuplicates/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'hebrew-duplicates-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Hebrew duplicate fixture timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Hebrew duplicate fixture failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: hebrew-duplicates-evidence
+          path: hebrew-duplicates-evidence/
+          retention-days: 7
