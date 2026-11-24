@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 namespace StartApp.App;
 
-/// <summary>Launch selection with real installed paths, the system default, and a file chooser.</summary>
+/// <summary>Launch selection with installed paths and the system default. Website custom choices are deferred in beta.</summary>
 public static class OpenWithPicker
 {
     public sealed record Choice(string Label, string Value) { public override string ToString() => Label; }
@@ -93,7 +93,7 @@ public static class OpenWithPicker
             }
             else Add("Notepad", System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "notepad.exe"));
             if (current.Length > 0 && !choices.Any(c => c.Value.Equals(current, StringComparison.OrdinalIgnoreCase))) choices.Add(new(current, current));
-            choices.Add(new("בחירת תוכנה אחרת...", Browse));
+            choices.Add(new(IsWebsite(combo) ? "אחר..." : "בחירת תוכנה אחרת...", Browse));
             combo.DisplayMemberPath = nameof(Choice.Label); combo.SelectedValuePath = nameof(Choice.Value); combo.ItemsSource = choices; combo.SelectedValue = current;
         }
         finally { combo.SetValue(UpdatingProperty, false); }
@@ -106,6 +106,14 @@ public static class OpenWithPicker
         if (path == Browse)
         {
             var website = IsWebsite(combo);
+            if (website)
+            {
+                // Other is an action, not a saved launch preference. Restore selection before
+                // the modal message so binding and dirty state never see a sentinel value.
+                Populate(combo);
+                MessageBox.Show(Window.GetWindow(combo), "בקרוב", "פתח באמצעות", MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+                return;
+            }
             var picker = new OpenFileDialog { Title = website ? "בחירת תוכנה לפתיחת אתרים (http/https)" : "בחירת תוכנה לפתיחת האייטם", Filter = website ? "Programs (*.exe)|*.exe" : "Programs (*.exe)|*.exe|All files (*.*)|*.*", CheckFileExists = true };
             if (picker.ShowDialog(Window.GetWindow(combo)) != true) { Populate(combo); return; }
             path = picker.FileName;
