@@ -21,7 +21,7 @@
         <Style x:Key="HintText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="#667388"/>
-            <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FlowDirection" Value="RightToLeft"/><Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FlowDirection" Value="RightToLeft"/><Setter Property="TextAlignment" Value="Left"/>
         </Style>
     </UserControl.Resources>
     <Grid>
@@ -71,10 +71,10 @@
                                        FlowDirection="LeftToRight" AutomationProperties.Name="Installed version value"/>
                             <TextBlock Text="גרסה נוכחית" HorizontalAlignment="Right" FontSize="13" Foreground="#222833"/>
                         </DockPanel>
-                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="14,8" MinHeight="46" x:Name="UncheckedNotice" Background="#F4F6F9" BorderBrush="#D3DBEA" AutomationProperties.Name="Updates not verified notice"><TextBlock x:Name="UncheckedText" FlowDirection="RightToLeft" TextAlignment="Right" VerticalAlignment="Center" FontSize="12" Foreground="#626B79" TextWrapping="Wrap"/></Border>
+                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="14,8" MinHeight="46" x:Name="UncheckedNotice" Background="#F4F6F9" BorderBrush="#D3DBEA" AutomationProperties.Name="Updates not verified notice"><TextBlock x:Name="UncheckedText" FlowDirection="RightToLeft" TextAlignment="Left" VerticalAlignment="Center" FontSize="12" Foreground="#626B79" TextWrapping="Wrap"/></Border>
                         <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpToDateNotice"
                                 Background="#eef7f3" BorderBrush="#cbded6" AutomationProperties.Name="Up to date notice">
-                            <TextBlock Text="המערכת מעודכנת. אין עדכון זמין כרגע." FlowDirection="RightToLeft" TextAlignment="Right" FontSize="12" Foreground="#2e6556" TextWrapping="Wrap"/>
+                            <TextBlock Text="המערכת מעודכנת. אין עדכון זמין כרגע." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#2e6556" TextWrapping="Wrap"/>
                         </Border>
                         <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpdateNotice"
                                 Background="#eef3fd" BorderBrush="#b9cae8" Visibility="Collapsed"
