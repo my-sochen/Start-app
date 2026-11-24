@@ -1,0 +1,167 @@
+name: pr137-exact-head
+on:
+  push:
+    branches: [test/pr137-exact-head]
+permissions:
+  contents: read
+jobs:
+  dialog-coverage-and-capture:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 648d57f44a56abf348f360d2800238f47c437420
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 55a29eb652310da4de12e458be9faf4649d39e46
+          path: baseline
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Verify immutable reviewed source head
+        shell: pwsh
+        run: |
+          $head=git rev-parse HEAD
+          if($head -ne '648d57f44a56abf348f360d2800238f47c437420'){throw 'Wrong source revision'}
+          Write-Host "Verified source HEAD $head"
+      - name: Full solution at reviewed head
+        run: dotnet test StartApp.slnx -c Release --logger 'trx;LogFilePrefix=pr137'
+      - name: Shared field and view contracts
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~SharedFieldStyleTests|FullyQualifiedName~ViewSourceIntegrityTests|FullyQualifiedName~CreateForm|FullyQualifiedName~DetailsViewModelTests|FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~SavedItemTransferTests'
+      - name: Direct WPF session contracts
+        run: dotnet test tests/StartApp.App.Session.Tests -c Release
+      - name: Image comparison dependency
+        run: python -m pip install pillow
+      - name: Build actual WPF app
+        run: dotnet build src/StartApp.App -c Release
+      - name: Native store error regressions
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.StoreErrorUiCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.StoreErrorUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'store-error-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Store fixture timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Store fixture failed'}
+      - name: Real application screenshots for owner review
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.UserReviewCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.UserReviewCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'user-review-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'" feature-views-20261124') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Screenshot timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Screenshot failed'}
+      - name: Identical harness against before and after product XAML
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          if(Test-Path baseline/tests/StartApp.CaptureRefactorCapture){Remove-Item baseline/tests/StartApp.CaptureRefactorCapture -Recurse -Force}
+          Copy-Item tests/StartApp.CaptureRefactorCapture baseline/tests/StartApp.CaptureRefactorCapture -Recurse
+          foreach ($variant in @('before','before-repeat','after')) {
+            $root = if ($variant -ne 'after') { 'baseline' } else { '.' }
+            $project = Join-Path $root 'tests/StartApp.CaptureRefactorCapture/StartApp.CaptureRefactorCapture.csproj'
+            dotnet build $project -c Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary = Join-Path $PWD (Join-Path $root 'tests/StartApp.CaptureRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe')
+            $output = Join-Path $PWD "evidence/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw "$variant timeout" }
+            if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant capture failed" }
+          }
+      - name: Exact pixel and behavior comparison
+        shell: pwsh
+        run: |
+          python -m pip install pillow
+          python .github/e2e/compare-capture-refactor.py
+      - name: Enabled and disabled shared button variants
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.ButtonRefactorCapture){Remove-Item baseline/tests/StartApp.ButtonRefactorCapture -Recurse -Force}
+          Copy-Item tests/StartApp.ButtonRefactorCapture baseline/tests/StartApp.ButtonRefactorCapture -Recurse
+          foreach ($variant in @('before','before-repeat','after')) {
+            $root = if ($variant -eq 'after') { '.' } else { 'baseline' }
+            $project=Join-Path $root 'tests/StartApp.ButtonRefactorCapture/StartApp.ButtonRefactorCapture.csproj'
+            dotnet build $project -c Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $binary=Join-Path $PWD (Join-Path $root 'tests/StartApp.ButtonRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe')
+            $output=Join-Path $PWD "evidence/buttons-$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw "$variant timeout" }
+            if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant button capture failed" }
+          }
+          python .github/e2e/compare-button-refactor.py
+      - name: Actual dev baseline menu comparison
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.MenuRefactorCapture){Remove-Item baseline/tests/StartApp.MenuRefactorCapture -Recurse -Force}
+          Copy-Item tests/StartApp.MenuRefactorCapture baseline/tests/StartApp.MenuRefactorCapture -Recurse
+          foreach($variant in @('before','before-repeat','after')) {
+            $root=if($variant -eq 'after'){'.'}else{'baseline'}
+            dotnet build "$root/tests/StartApp.MenuRefactorCapture" -c Release
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+            $binary=Join-Path $PWD "$root/tests/StartApp.MenuRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe"
+            $output=Join-Path $PWD "evidence/menus/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Menu timeout'}
+            if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Menu fixture failed'}
+          }
+          python .github/e2e/compare-menu-refactor.py evidence/menus
+      - name: Feature views real keyboard focus and exact destination pixels
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.FeatureViewCapture){Remove-Item baseline/tests/StartApp.FeatureViewCapture -Recurse -Force}
+          Copy-Item tests/StartApp.FeatureViewCapture baseline/tests/StartApp.FeatureViewCapture -Recurse
+          foreach($variant in @('before','before-repeat','after')) {
+            $root=if($variant -eq 'after'){'.'}else{'baseline'}
+            dotnet build "$root/tests/StartApp.FeatureViewCapture" -c Release
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+            $binary=Join-Path $PWD "$root/tests/StartApp.FeatureViewCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe"
+            $output=Join-Path $PWD "evidence/feature-views/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Feature view timeout'}
+            if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Feature view fixture failed'}
+          }
+          python .github/e2e/compare-feature-views.py
+      - name: Native fields selectors editor variants and keyboard focus
+        if: always()
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.FieldStyleCapture){Remove-Item baseline/tests/StartApp.FieldStyleCapture -Recurse -Force}
+          Copy-Item tests/StartApp.FieldStyleCapture baseline/tests/StartApp.FieldStyleCapture -Recurse
+          foreach($variant in @('before','before-repeat','after')) {
+            $root=if($variant -eq 'after'){'.'}else{'baseline'}
+            dotnet build "$root/tests/StartApp.FieldStyleCapture" -c Release
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+            $binary=Join-Path $PWD "$root/tests/StartApp.FieldStyleCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe"
+            $output=Join-Path $PWD "evidence/field-styles/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Fields timeout'}
+            if($p.ExitCode -ne 0){if(Test-Path "$output/error.txt"){Get-Content "$output/error.txt"};throw 'Fields fixture failed'}
+          }
+          python .github/e2e/compare-field-styles.py
+      - name: Window overlay and extracted source contracts
+        if: always()
+        run: python tests/update-notifier/test_overlay_rows.py
+      - name: Collect owner review and store evidence
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          if(Test-Path user-review-evidence){Copy-Item user-review-evidence evidence/user-review -Recurse}
+          if(Test-Path store-error-evidence){Copy-Item store-error-evidence evidence/store-errors -Recurse}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: pr137-exact-head-full-evidence
+          path: evidence/
+          retention-days: 7
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: pr137-full-test-results
+          path: '**/TestResults/*.trx'
+          retention-days: 7
