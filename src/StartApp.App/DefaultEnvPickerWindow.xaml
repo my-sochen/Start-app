@@ -24,7 +24,7 @@
             </DockPanel>
 
             <TextBlock Grid.Row="1" Text="בחירת סביבת ברירת מחדל" FontSize="22" FontWeight="SemiBold" Foreground="#222833" TextAlignment="Right"/>
-            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" FlowDirection="RightToLeft" TextAlignment="Left" FontSize="13" Foreground="#626B79" LineHeight="24">
+            <TextBlock Grid.Row="2" Margin="0,8,0,14" TextWrapping="Wrap" FlowDirection="RightToLeft" TextAlignment="Right" FontSize="13" Foreground="#626B79" LineHeight="24">
                 <Run Text="הסביבה שנבחרה תסומן בנקודה הירוקה במסך הבית ותיפתח אוטומטית עם הפעלת המחשב."/><LineBreak/>
                 <Run Text="לחיצה על שורה בוחרת וסוגרת את החלון."/>
             </TextBlock>

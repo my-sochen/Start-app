@@ -19,6 +19,10 @@
     <local:HasItemsToBoolConverter x:Key="HasItemsToBool"/>
     <local:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibility"/>
 
+    <!-- Hebrew UI text aligns right without mirroring its structural host.
+         Technical values keep their explicit local LTR/left overrides. -->
+    <Style TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right"/></Style>
+
     <!-- Approved 22.11 menu look (pixel-exact mocks): white surface, #C9D0DC border, 5px radius, shadow -->
     <Style TargetType="ContextMenu">
         <Setter Property="Background" Value="White"/>

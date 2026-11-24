@@ -1,0 +1,31 @@
+name: hebrew-right-alignment
+on:
+  push:
+    branches: [fix/hebrew-right-alignment]
+permissions:
+  contents: read
+jobs:
+  targeted-hebrew-dialogs:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Actual WPF screens and alignment contracts
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.RightAlignmentCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.RightAlignmentCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'right-alignment-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Hebrew duplicate fixture timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Hebrew duplicate fixture failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: right-alignment-evidence
+          path: right-alignment-evidence/
+          retention-days: 7
