@@ -23,7 +23,7 @@
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel>
                                     <!-- sites also show the address under the name (settled); other types show the name only -->
-                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis">
+                                    <TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextTrimming="CharacterEllipsis" TextAlignment="Left" FlowDirection="LeftToRight">
                                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
                                             <DataTrigger Binding="{Binding Type}" Value="Link"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
                                         </Style.Triggers></Style></TextBlock.Style>

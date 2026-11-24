@@ -24,7 +24,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="70"/><ColumnDefinition Width="*"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
                     <Button Content="הסרה" Style="{StaticResource GlobalSecondaryButton}" Command="{Binding DataContext.RemoveGlobalEntryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="Remove global entry"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" FlowDirection="LeftToRight" Foreground="#667388" FontFamily="Arial" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" FlowDirection="LeftToRight" Foreground="#667388" FontFamily="Arial" FontSize="12" VerticalAlignment="Center" Margin="12,0"/ TextAlignment="Left">
                     <StackPanel Grid.Column="2" Orientation="Horizontal" FlowDirection="RightToLeft" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Border Width="30" Height="30" CornerRadius="6" Background="#EEF2F9" BorderBrush="#D9E0EF" BorderThickness="1" VerticalAlignment="Center">
                             <local:TargetIcon Target="{Binding Target}" ItemType="{Binding Entry.Type}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
