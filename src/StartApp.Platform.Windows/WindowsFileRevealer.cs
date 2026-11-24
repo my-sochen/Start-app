@@ -10,7 +10,7 @@ public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<s
     private readonly IFileSystemProbe _probe = probe ?? new FileSystemProbe();
     private readonly Action<string> _select = select ?? SelectInExplorer;
 
-    public RevealResult Reveal(string path)
+    private RevealResult RequestReveal(string path)
     {
         if (!ValidPath(path)) return new(RevealStatus.Invalid);
         var found = _probe.Probe(path);
@@ -20,6 +20,27 @@ public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<s
         try { _select(path); return new(RevealStatus.Revealed); }
         catch (Exception e) when (e is COMException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
         { return new(RevealStatus.Unavailable, e.GetType().Name + ": " + e.Message); }
+    }
+
+    public async Task<RevealResult> RevealAsync(string path)
+    {
+        var request = RequestReveal(path);
+        if (request.Status != RevealStatus.Revealed || select is not null) return request;
+        var retried = false;
+        // Yield to the UI while Explorer starts. Once its folder is ready, retry selection once.
+        // Never navigate elsewhere, run the entry, or send an unbounded series of shell requests.
+        for (var i = 0; i < 40; i++)
+        {
+            if (ExplorerSelection.Contains(path, out var folderReady)) return request;
+            if (folderReady && !retried)
+            {
+                retried = true;
+                request = RequestReveal(path);
+                if (request.Status != RevealStatus.Revealed) return request;
+            }
+            await Task.Delay(150);
+        }
+        return new(RevealStatus.Unavailable, "Explorer did not confirm the selected item.");
     }
 
     // Only explicit drive/UNC file paths. Refuse shell names, device paths, streams, traversal and

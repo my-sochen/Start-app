@@ -9,10 +9,20 @@ public sealed partial class MainViewModel
     public ICommand ShowInFolderCommand { get; private set; } = null!;
 
     public static bool HasContainingFolder(string type) => type is nameof(ItemType.File) or nameof(ItemType.Program);
+    public Task? CurrentReveal { get; private set; }
+    private bool _revealing;
     private void InitShowInFolderCommand() => ShowInFolderCommand = Cmd(p =>
     {
-        if (_fileRevealer is null || !TryRevealTarget(p, out var target)) return;
-        var result = _fileRevealer.Reveal(target);
+        if (_revealing || _fileRevealer is null || !TryRevealTarget(p, out var target)) return;
+        CurrentReveal = RevealInFolderAsync(target);
+    }, p => !_revealing && _fileRevealer is not null && TryRevealTarget(p, out _));
+
+    private async Task RevealInFolderAsync(string target)
+    {
+        _revealing = true; RaiseCommands();
+        RevealResult result;
+        try { result = await _fileRevealer!.RevealAsync(target); }
+        finally { _revealing = false; RaiseCommands(); }
         if (result.Status == RevealStatus.Revealed) return;
         var message = result.Status switch
         {
@@ -21,7 +31,7 @@ public sealed partial class MainViewModel
             _ => "לא ניתן להציג את הפריט בתיקייה כרגע."
         };
         ShowToast(message, true, result.Detail);
-    }, p => _fileRevealer is not null && TryRevealTarget(p, out _));
+    }
 
     // Resolve live rows on every invocation, not a stale menu snapshot. Revealing never writes the store,
     // launches the item, commits an editor or changes its open-with/default program.

@@ -23,7 +23,7 @@ internal static class Program
     private sealed class RecordingRevealer : IFileRevealer
     {
         public List<string> Calls=new();
-        public RevealResult Reveal(string path) {Calls.Add(path);return new(RevealStatus.Revealed);}
+        public Task<RevealResult> RevealAsync(string path) {Calls.Add(path);return Task.FromResult(new RevealResult(RevealStatus.Revealed));}
     }
     private sealed class Capture(string file,string program) : IOpenItemCapturer
     {
@@ -74,10 +74,8 @@ internal static class Program
                 }
                 Check("Revealing never saves draft",before==JsonSerializer.Serialize(repo.Load())&&vm.CaptureDirty);
                 // Real Explorer adapter separately: COM inspection confirms the selected shell item's path.
-                var real=new WindowsFileRevealer();Check("Real Explorer adapter reports success",real.Reveal(file).Status==RevealStatus.Revealed);
-                var selected=false;for(var i=0;i<20&&!selected;i++){await Task.Delay(250);selected=ExplorerSelected(file);}
-                File.WriteAllText(Path.Combine(output,"first-selection.txt"),selected.ToString());
-                if(!selected){Check("Second reveal accepted after Explorer initialized",real.Reveal(file).Status==RevealStatus.Revealed);for(var i=0;i<20&&!selected;i++){await Task.Delay(250);selected=ExplorerSelected(file);}}
+                var real=new WindowsFileRevealer();Check("Real Explorer adapter confirms selection",(await real.RevealAsync(file)).Status==RevealStatus.Revealed);
+                var selected=ExplorerSelected(file);
                 Desktop(output);
                 File.WriteAllText(Path.Combine(output,"explorer-processes.json"),JsonSerializer.Serialize(System.Diagnostics.Process.GetProcessesByName("explorer").Select(p=>new{p.Id,p.MainWindowTitle,Handle=p.MainWindowHandle.ToInt64()})));
                 Check("Explorer actually selects exact spaced Unicode file",selected);

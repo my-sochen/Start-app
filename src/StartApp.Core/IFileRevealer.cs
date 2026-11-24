@@ -6,5 +6,5 @@ public sealed record RevealResult(RevealStatus Status, string? Detail = null);
 /// <summary>Shows a file/program in its containing folder, without opening or executing it.</summary>
 public interface IFileRevealer
 {
-    RevealResult Reveal(string path);
+    Task<RevealResult> RevealAsync(string path);
 }

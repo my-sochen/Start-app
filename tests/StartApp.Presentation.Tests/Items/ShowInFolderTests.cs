@@ -10,7 +10,7 @@ public class ShowInFolderTests
     {
         public List<string> Calls = new();
         public RevealStatus Result = RevealStatus.Revealed;
-        public RevealResult Reveal(string path) { Calls.Add(path); return new(Result,"fixture details"); }
+        public Task<RevealResult> RevealAsync(string path) { Calls.Add(path); return Task.FromResult(new RevealResult(Result,"fixture details")); }
     }
     private sealed class FixedCapture : IOpenItemCapturer
     {
