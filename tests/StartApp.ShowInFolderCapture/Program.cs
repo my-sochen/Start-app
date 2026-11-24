@@ -77,7 +77,7 @@ internal static class Program
                 var real=new WindowsFileRevealer();Check("Real Explorer adapter reports success",real.Reveal(file).Status==RevealStatus.Revealed);
                 var selected=false;for(var i=0;i<60&&!selected;i++){await Task.Delay(250);selected=ExplorerSelected(file);}
                 Desktop(output);
-                File.WriteAllText(Path.Combine(output,"explorer-processes.json"),JsonSerializer.Serialize(System.Diagnostics.Process.GetProcessesByName("explorer").Select(p=>new{p.Id,p.MainWindowTitle,p.MainWindowHandle})));
+                File.WriteAllText(Path.Combine(output,"explorer-processes.json"),JsonSerializer.Serialize(System.Diagnostics.Process.GetProcessesByName("explorer").Select(p=>new{p.Id,p.MainWindowTitle,Handle=p.MainWindowHandle.ToInt64()})));
                 Check("Explorer actually selects exact spaced Unicode file",selected);
                 await Take(window,output,"capture-window");
                 File.WriteAllText(Path.Combine(output,"real-explorer.txt"),"Confirmed exact selected file through Shell.Application windows: "+file);

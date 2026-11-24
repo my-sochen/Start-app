@@ -35,15 +35,27 @@ public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<s
 
     private static void SelectInExplorer(string path)
     {
-        IntPtr pidl = IntPtr.Zero;
+        IntPtr item = IntPtr.Zero, folder = IntPtr.Zero, selection = IntPtr.Zero;
         try
         {
-            Marshal.ThrowExceptionForHR(SHParseDisplayName(path, IntPtr.Zero, out pidl, 0, out _));
-            // With cidl=0, the full item PIDL selects that item in its parent folder.
-            Marshal.ThrowExceptionForHR(SHOpenFolderAndSelectItems(pidl, 0, IntPtr.Zero, 0));
+            Marshal.ThrowExceptionForHR(SHParseDisplayName(path, IntPtr.Zero, out item, 0, out _));
+            var parent = Path.GetDirectoryName(path)!;
+            Marshal.ThrowExceptionForHR(SHParseDisplayName(parent, IntPtr.Zero, out folder, 0, out _));
+            // Supply the parent folder plus a child-relative ID. Some Explorer versions open
+            // the parent but fail to select when given only a full item with cidl=0.
+            selection = Marshal.AllocCoTaskMem(IntPtr.Size);
+            Marshal.WriteIntPtr(selection, ILFindLastID(item));
+            Marshal.ThrowExceptionForHR(SHOpenFolderAndSelectItems(folder, 1, selection, 0));
         }
-        finally { if (pidl != IntPtr.Zero) Marshal.FreeCoTaskMem(pidl); }
+        finally
+        {
+            if (selection != IntPtr.Zero) Marshal.FreeCoTaskMem(selection);
+            if (folder != IntPtr.Zero) Marshal.FreeCoTaskMem(folder);
+            if (item != IntPtr.Zero) Marshal.FreeCoTaskMem(item);
+        }
     }
+    [DllImport("shell32.dll")]
+    private static extern IntPtr ILFindLastID(IntPtr pidl);
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHParseDisplayName(string name, IntPtr bind, out IntPtr pidl, uint attributes, out uint foundAttributes);
     [DllImport("shell32.dll")]
