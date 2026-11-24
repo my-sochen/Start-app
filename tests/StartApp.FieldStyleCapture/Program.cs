@@ -101,8 +101,19 @@ internal static class Program
     }
     private static async Task Render(FrameworkElement element,string output,string name)
     {
-        await element.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
-        var bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
+        // Popup text can complete font rendering after IsOpen/layout. Require exact steady
+        // pixels, just as full-window evidence does, without tolerances or masked regions.
+        RenderTargetBitmap? bitmap=null;byte[]? previous=null;var steady=0;
+        for(var attempt=0;attempt<40;attempt++) {
+            await element.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+            await Task.Delay(120);
+            bitmap=new RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),(int)Math.Ceiling(element.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(element);
+            var pixels=new byte[bitmap.PixelWidth*bitmap.PixelHeight*4];bitmap.CopyPixels(pixels,bitmap.PixelWidth*4,0);
+            steady=previous is not null && previous.AsSpan().SequenceEqual(pixels)?steady+1:0;
+            if(steady>=6)break;
+            previous=pixels;
+        }
+        if(steady<6 || bitmap is null)throw new Exception("Unstable element: "+name);
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using var f=File.Create(Path.Combine(output,name+".png"));encoder.Save(f);
     }
     private static void Key(byte key) { keybd_event(key, 0, 0, UIntPtr.Zero); keybd_event(key, 0, 2, UIntPtr.Zero); }
