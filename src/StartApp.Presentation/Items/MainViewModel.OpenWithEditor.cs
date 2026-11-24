@@ -1,9 +1,23 @@
+using System.Windows.Input;
 using StartApp.Core;
 
 namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>פתח באמצעות from the row actions: opens the open-with popup (פופאפ פתח באמצעות).</summary>
+    public ICommand OpenWithCommand { get; private set; } = null!;
+    /// <summary>פתח in the open-with popup: opens with the chosen program now and saves it when הגדר כברירת מחדל is checked.</summary>
+    public ICommand OpenWithGoCommand { get; private set; } = null!;
+    public ICommand CloseOpenWithCommand { get; private set; } = null!;
+
+    private void InitOpenWithEditorCommands()
+    {
+        OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        CloseOpenWithCommand = Cmd(_ => CloseOpenWith(), _ => OpenWithOpen);
+    }
+
     // ---- open-with popup (פופאפ פתח באמצעות): browser for a site, program for a file; per-instance הגדר כברירת מחדל ----
     private readonly OpenWithSession<ItemRow, StagedRow> _openWith = new();
     public bool OpenWithOpen { get => _openWith.IsOpen; private set { if (_openWith.IsOpen != value) { _openWith.IsOpen = value; Raise(nameof(OpenWithOpen)); } RaiseCommands(); } }

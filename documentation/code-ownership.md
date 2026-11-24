@@ -85,3 +85,7 @@ The capture fixture covers nine capture states. Its additional same-process comp
 The integration run45350576134 compared against actual dev4e3ae7bf:25capture/frame/prompt states,10menus and24button variants matched exactly, including independent baseline repeats. Earlier glyph-cache/focus fixture diagnostics are historical, not an unresolved gate in that run. This finite evidence does not prove every dialog/menu/focus path.
 
 Feature partials use MainViewModel.Feature.cs names because they belong to the same binding host, not separate view-model objects. OpeningCheckResult names the internal preflight publication payload; the launch coordinator explicitly maps it into its unchanged launch plan.
+
+## Feature command ownership
+
+Command declarations and initialization live with their feature partials. The shell constructor calls these initializers in the original interleaved registration order; do not group them by feature without reviewing notification-order behavior. FeatureCommandOwnershipTests records the complete dev command surface and invalidation order. The shell still owns shared navigation and save/discard coordination. These partials remain one class.

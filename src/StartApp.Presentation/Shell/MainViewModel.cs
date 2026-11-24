@@ -31,11 +31,8 @@ public sealed partial class MainViewModel : ObservableBase
     private readonly CommandRegistry _commands = new();
     private RelayCommand Cmd(Action<object?> run, Func<object?, bool> can) => _commands.Add(run, can);
     private void RaiseCommands() { _commands.RaiseAll(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); Raise(nameof(CanBackToOpeningSelection)); }
-    public ICommand CreateWorkspaceCommand { get; }
     /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
     public ICommand OpenDetailsCommand { get; }
-    /// <summary>שגר from a card in the overview: opens that workspace's items without navigating.</summary>
-    public ICommand OpenWorkspaceForCommand { get; }
     /// <summary>הוסף אייטם from the card's actions menu: opens the details screen and focuses the add form.</summary>
     public ICommand AddItemToCommand { get; }
     public ICommand BackCommand { get; }
@@ -46,91 +43,21 @@ public sealed partial class MainViewModel : ObservableBase
     public ICommand ExitWithoutSavingCommand { get; }
     /// <summary>Unsaved-changes exit dialog: X, back to editing with nothing lost.</summary>
     public ICommand CloseUnsavedCommand { get; }
-    /// <summary>The הוסף אייטם button in the empty state; the view focuses the add form.</summary>
-    public ICommand FocusAddCommand { get; }
     public event Action? FocusAddRequested;
     /// <summary>The empty-workspace dialog's button that leads to the details screen (to add items).</summary>
     public ICommand GoToDetailsCommand { get; }
-    public ICommand RemoveItemCommand { get; }
-    /// <summary>לחיצה על שם האייטם בשורה פותחת אותו (spec שורה של אייטם).</summary>
-    public ICommand OpenItemCommand { get; }
-    /// <summary>העתק כתובת/קישור/נתיב from the row actions: direct copy, no popup. The view puts the target on the clipboard.</summary>
-    public ICommand CopyAddressCommand { get; }
     public event Action<string>? CopyAddressRequested;
-    /// <summary>עריכה from the row: opens the item edit form (טופס עריכת אייטם) for that one instance.</summary>
-    public ICommand EditItemCommand { get; }
-    public ICommand SaveItemEditCommand { get; }
-    /// <summary>עריכת כתובת from the row actions: opens the dedicated address popup (פופאפ עריכת כתובת).</summary>
-    public ICommand EditAddressCommand { get; }
-    public ICommand SaveAddressCommand { get; }
-    /// <summary>The copy button inside the address popup: copies the full value as currently shown.</summary>
-    public ICommand CopyFullAddressCommand { get; }
-    /// <summary>The popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
-    public ICommand CloseAddressEditCommand { get; }
-    /// <summary>פתח באמצעות from the row actions: opens the open-with popup (פופאפ פתח באמצעות).</summary>
-    public ICommand OpenWithCommand { get; }
-    /// <summary>פתח in the open-with popup: opens with the chosen program now and saves it when הגדר כברירת מחדל is checked.</summary>
-    public ICommand OpenWithGoCommand { get; }
-    public ICommand CloseOpenWithCommand { get; }
-    /// <summary>עצב כרטיס from the card actions menu: opens the design popup (פופאפ עיצוב כרטיס) for that workspace.</summary>
-    public ICommand DesignCardCommand { get; }
-    /// <summary>ערוך קטגוריה from the card actions menu: opens the category popup (פופאפ עריכת קטגוריה) for that workspace.</summary>
-    public ICommand EditCategoryPopupCommand { get; }
-    /// <summary>העלאת תמונה in the design popup: the view opens a file picker and sets DesignImagePath.</summary>
-    public ICommand PickImageCommand { get; }
     public event Action? PickImageRequested;
-    /// <summary>Create-form design (optional image/color at creation, spec Nov 12 morning): the view opens the same file
-    /// dialog as עצב כרטיס and assigns NewWorkspaceImagePath.</summary>
-    public ICommand PickCreateImageCommand { get; }
     public event Action? PickCreateImageRequested;
-    public ICommand RemoveCreateImageCommand { get; }
-    public ICommand ApplyCreatePaletteColorCommand { get; }
-    /// <summary>הסרת תמונה in the design popup: back to the color-as-background look (takes effect on save).</summary>
-    public ICommand RemoveImageCommand { get; }
-    /// <summary>A preset swatch in the design popup: applies that color to the preview (saved only via Save).</summary>
-    public ICommand ApplyPaletteColorCommand { get; }
-    public ICommand SaveDesignCommand { get; }
-    /// <summary>The design popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
-    public ICommand CloseDesignCommand { get; }
-    /// <summary>Selecting a category in the popup assigns it to the workspace immediately.</summary>
-    public ICommand PickCategoryCommand { get; }
-    public ICommand AddCategoryCommand { get; }
-    /// <summary>Starts renaming a custom category (built-ins never offer this).</summary>
-    public ICommand BeginRenameCategoryCommand { get; }
-    public ICommand SaveRenameCategoryCommand { get; }
-    public ICommand CancelRenameCategoryCommand { get; }
-    /// <summary>Deletes a custom category; with assigned workspaces this opens the warning first.</summary>
-    public ICommand DeleteCategoryCommand { get; }
-    public ICommand CloseCategoryPopupCommand { get; }
-    /// <summary>With several assigned workspaces, this button shows the list of them inside the warning.</summary>
-    public ICommand ShowCategoryDeleteListCommand { get; }
-    public ICommand ConfirmCategoryDeleteCommand { get; }
-    public ICommand CancelCategoryDeleteCommand { get; }
-    /// <summary>בחר מסביבות קיימות in the add form: opens the existing-resource picker (settled Nov 11).</summary>
-    public ICommand OpenPickerCommand { get; }
-    /// <summary>One of the four type buttons in the picker (תוכנות / אתרים / קבצים / תיקיות).</summary>
-    public ICommand PickTypeCommand { get; }
-    /// <summary>Choosing a resource returns to the add form with its address filled; local name/description stay the user's to set before adding.</summary>
-    public ICommand PickResourceCommand { get; }
-    public ICommand ClosePickerCommand { get; }
-    /// <summary>הזז למעלה / הזז למטה: reorder this instance inside its display group.</summary>
-    public ICommand MoveItemUpCommand { get; }
-    public ICommand MoveItemDownCommand { get; }
     /// <summary>שיתוף לסביבה אחרת is shown in the actions menu only when another workspace exists (the settled display condition);
     /// its popup is still undefined (הפרטים טרם הוגדרו), so the entry stays disabled.</summary>
     public bool HasOtherWorkspaces => Workspaces.Count > 1;
-    /// <summary>ביטול in the item edit form: closes immediately when untouched, otherwise asks via the unsaved-exit dialog.</summary>
-    public ICommand CancelItemEditCommand { get; }
-    public ICommand OpenWorkspaceCommand { get; }
-    public ICommand AddItemCommand { get; }
     /// <summary>Duplicate-add confirmation: visible while an add waits for the user to approve a second instance of the same target.</summary>
     public bool DuplicatePending => _manualAdd.DuplicatePending;
     private readonly ManualAddSession _manualAdd = new();
     /// <summary>Text shown next to the duplicate confirm/cancel buttons.</summary>
     public string DuplicateMessage { get => _manualAdd.DuplicateMessage; private set { if (_manualAdd.DuplicateMessage != value) { _manualAdd.DuplicateMessage = value; Raise(nameof(DuplicateMessage)); } } }
 
-    public ICommand ConfirmDuplicateCommand { get; }
-    public ICommand CancelDuplicateCommand { get; }
     /// <summary>Set instead of opening when the workspace has no items (the spec's דיאלוג סביבת עבודה ריקה).</summary>
     public bool EmptyWorkspaceOpen { get => _emptyOpen; private set { Set(ref _emptyOpen, value); RaiseCommands(); } }
     private bool _emptyOpen;
@@ -179,83 +106,35 @@ public sealed partial class MainViewModel : ObservableBase
         InitGlobalEnvCommands();
         InitAllItemsCommands();
         InitOpeningCommands();
-        CreateWorkspaceCommand = Cmd(_ => Create(), _ => !ReadOnly && !string.IsNullOrWhiteSpace(NewName));
-        // No workspace deletion: the user explicitly rejected it from the card actions (Nov 11); the menu is
-        // הצג / שגר / הוסף אייטם / עצב כרטיס / ערוך קטגוריה only. Catalog.DeleteWorkspace stays unexposed.
+        // Feature initializers stay interleaved to preserve the existing command notification order.
+        InitWorkspaceCreateCommands();
+        // Workspace deletion remains unexposed; this is navigation only.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
-        // owner decision 22.11 17:15: deploy is never enabled for an empty workspace, in any view.
-        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace w && w.Items.Count > 0 && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        InitWorkspaceCardOpeningCommand();
         AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
         ExitWithoutSavingCommand = Cmd(_ => { UnsavedOpen = false; if (UnsavedForCapture) { DiscardCaptureChanges(); } else if (UnsavedForItemEdit) { ItemEditOpen = false; } else if (UnsavedForAddress) { AddressEditOpen = false; } else if (UnsavedForCreate) { ResetCreateForm(); } else if (UnsavedForDesign) { DesignEditOpen = false; } else { _workspaceDetails.SuppressDirty = true; LoadDetails(); _workspaceDetails.SuppressDirty = false; } _unsavedExit.Continue(); }, _ => UnsavedOpen);
         CloseUnsavedCommand = Cmd(_ => { UnsavedOpen = false; _unsavedExit.ClearContinuation(); }, _ => UnsavedOpen);
-        FocusAddCommand = Cmd(_ => FocusAddRequested?.Invoke(), _ => InDetails);
-        OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        CopyAddressCommand = Cmd(p => { CopyAddressRequested?.Invoke(((ItemRow)p!).Target); Status = "Address copied"; }, p => p is ItemRow);
-        EditItemCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
-        SaveItemEditCommand = Cmd(_ => SaveItemEdit(), _ => ItemEditOpen && ItemEditDirty && !ReadOnly);
-        CancelItemEditCommand = Cmd(_ => CancelItemEdit(), _ => ItemEditOpen);
-        EditAddressCommand = Cmd(p => BeginItemEdit((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !ItemEditDirty && !AddressEditDirty);
-        SaveAddressCommand = Cmd(_ => SaveAddress(), _ => AddressEditOpen && AddressEditDirty && !ReadOnly);
-        CopyFullAddressCommand = Cmd(_ => { CopyAddressRequested?.Invoke(EditAddress); Status = "Address copied"; }, _ => AddressEditOpen);
-        CloseAddressEditCommand = Cmd(_ => CloseAddressEdit(), _ => AddressEditOpen);
-        OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
-        OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        CloseOpenWithCommand = Cmd(_ => CloseOpenWith(), _ => OpenWithOpen);
-        MoveItemUpCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, -1)), p => !ReadOnly && Selected != null && p is ItemRow);
-        MoveItemDownCommand = Cmd(p => Apply(c => c.MoveInstance(Selected!.Id, ((ItemRow)p!).InstanceId, 1)), p => !ReadOnly && Selected != null && p is ItemRow);
-        DesignCardCommand = Cmd(p => BeginDesign((Workspace)p!), p => p is Workspace && !ReadOnly);
-        PickImageCommand = Cmd(_ => PickImageRequested?.Invoke(), _ => DesignEditOpen && !ReadOnly);
-        PickCreateImageCommand = Cmd(_ => PickCreateImageRequested?.Invoke(), _ => !ReadOnly);
-        RemoveCreateImageCommand = Cmd(_ => NewWorkspaceImagePath = "", _ => NewWorkspaceImagePath.Length > 0 && !ReadOnly);
-        ApplyCreatePaletteColorCommand = Cmd(p => NewWorkspaceColor = (string)p!, p => p is string && !ReadOnly);
-        RemoveImageCommand = Cmd(_ => DesignImagePath = "", _ => DesignEditOpen && DesignImagePath.Length > 0);
-        ApplyPaletteColorCommand = Cmd(p => DesignColor = (string)p!, p => p is string && DesignEditOpen && !ReadOnly);
-        SaveDesignCommand = Cmd(_ => SaveDesign(), _ => DesignEditOpen && DesignDirty && !ReadOnly);
-        CloseDesignCommand = Cmd(_ => CloseDesign(), _ => DesignEditOpen);
-        EditCategoryPopupCommand = Cmd(p => BeginCategoryEdit((Workspace)p!), p => p is Workspace && !ReadOnly);
-        OpenPickerCommand = Cmd(_ => OpenPicker(), _ => InDetails && Selected != null && !ReadOnly);
-        PickTypeCommand = Cmd(p => { PickerType = (ItemType)p!; RefreshPicker(); }, p => p is ItemType);
-        PickResourceCommand = Cmd(p => PickResource((PickerRow)p!), p => p is PickerRow);
-        ClosePickerCommand = Cmd(_ => PickerOpen = false, _ => PickerOpen);
-        PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && !ReadOnly);
-        AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !ReadOnly && NewCategoryName.Length > 0);
-        BeginRenameCategoryCommand = Cmd(p => { _categoryEdit.RenameOriginalName = ((CategoryRow)p!).Name; RenameCategoryText = _categoryEdit.RenameOriginalName; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
-        SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !ReadOnly && RenameCategoryText.Length > 0);
-        CancelRenameCategoryCommand = Cmd(_ => RenameCategoryOpen = false, _ => RenameCategoryOpen);
-        DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
-        CloseCategoryPopupCommand = Cmd(_ => CloseCategoryPopup(), _ => CategoryEditOpen);
-        ShowCategoryDeleteListCommand = Cmd(_ => CategoryDeleteListShown = true, _ => CategoryDeletePending && !CategoryDeleteListShown);
-        ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !ReadOnly);
-        CancelCategoryDeleteCommand = Cmd(_ => CancelCategoryDelete("Category deletion cancelled, nothing was changed"), _ => CategoryDeletePending);
-        RemoveItemCommand = Cmd(p =>
-        {
-            var row = (ItemRow)p!;
-            // Deleting the very row whose inline editor is open: a dirty editor wins - the delete is refused
-            // with a clear status instead of stranding the edit on a missing instance (PR19 review). A clean
-            // editor just closes before the delete.
-            if (ItemEditOpen && row.InstanceId == _itemEdit.InstanceId)
-            {
-                if (ItemEditDirty) { Status = "Not deleted: save or cancel the open edit of this item first"; return; }
-                ItemEditOpen = false;
-            }
-            if (AddressEditOpen && row.InstanceId == _addressEdit.InstanceId)
-            {
-                if (AddressEditDirty) { Status = "Not deleted: save or cancel the open address edit of this item first"; return; }
-                AddressEditOpen = false;
-            }
-            Apply(c => c.RemoveInstance(Selected!.Id, row.InstanceId));
-        }, p => !ReadOnly && Selected != null && p is ItemRow);
-        AddItemCommand = Cmd(_ => AddItem(), _ => !ReadOnly && Selected != null && NewTarget.Length > 0);
-        ConfirmDuplicateCommand = Cmd(_ => { _manualAdd.DuplicatePending = false; DuplicateMessage = ""; AddItem(force: true); }, _ => _manualAdd.DuplicatePending);
-        CancelDuplicateCommand = Cmd(_ => ClearDup("Add cancelled, nothing was added"), _ => _manualAdd.DuplicatePending);
+        InitManualAddFocusCommand();
+        InitSingleItemOpeningCommand();
+        InitCopyAddressCommand();
+        InitItemEditorCommands();
+        InitAddressEditorCommands();
+        InitOpenWithEditorCommands();
+        InitItemReorderCommands();
+        InitCardDesignEntryCommands();
+        InitWorkspaceCreateDesignCommands();
+        InitCardDesignEditCommands();
+        InitCategoryEntryCommand();
+        InitResourcePickerCommands();
+        InitCategoryEditCommands();
+        InitRemoveItemCommand();
+        InitManualAddCommands();
         CloseEmptyWorkspaceCommand = Cmd(_ => EmptyWorkspaceOpen = false, _ => _emptyOpen);
         GoToDetailsCommand = Cmd(_ => { EmptyWorkspaceOpen = false; if (Selected != null) { LoadDetails(); InDetails = true; } }, _ => _emptyOpen && Selected != null);
-        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _opening.PendingPlan != null);
-        CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _opening.PendingPlan != null || IsChecking || IsLaunching);
+        InitWorkspaceOpeningCommands();
         Reload();
     }
 

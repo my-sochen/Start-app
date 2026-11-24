@@ -41,6 +41,29 @@ public sealed record OpeningResult(Item Item, OpeningOutcome Outcome, string Mes
 
 public sealed partial class MainViewModel
 {
+    /// <summary>שגר from a card in the overview: opens that workspace's items without navigating.</summary>
+    public ICommand OpenWorkspaceForCommand { get; private set; } = null!;
+    /// <summary>לחיצה על שם האייטם בשורה פותחת אותו (spec שורה של אייטם).</summary>
+    public ICommand OpenItemCommand { get; private set; } = null!;
+    public ICommand OpenWorkspaceCommand { get; private set; } = null!;
+
+    private void InitWorkspaceCardOpeningCommand()
+    {
+        OpenWorkspaceForCommand = Cmd(p => { Selected = (Workspace)p!; Open(); }, p => p is Workspace w && w.Items.Count > 0 && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+    }
+
+    private void InitSingleItemOpeningCommand()
+    {
+        OpenItemCommand = Cmd(p => OpenOne((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+    }
+
+    private void InitWorkspaceOpeningCommands()
+    {
+        OpenWorkspaceCommand = Cmd(_ => Open(), _ => Selected is { Items.Count: > 0 } && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
+        ConfirmOpenAnywayCommand = Cmd(_ => ConfirmOpen(), _ => _opening.PendingPlan != null);
+        CancelOpenCommand = Cmd(_ => { ClearPending(); }, _ => SelectionPending || _opening.PendingPlan != null || IsChecking || IsLaunching);
+    }
+
     public ObservableCollection<OpeningChoice> OpeningChoices { get; } = new();
     public ObservableCollection<ReopenChoice> ReopenChoices { get; } = new();
     public ObservableCollection<OpeningResult> LastOpeningResults { get; } = new();

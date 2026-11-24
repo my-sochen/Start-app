@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections.ObjectModel;
 using StartApp.Core;
 
@@ -5,6 +6,22 @@ namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>בחר מסביבות קיימות in the add form: opens the existing-resource picker (settled Nov 11).</summary>
+    public ICommand OpenPickerCommand { get; private set; } = null!;
+    /// <summary>One of the four type buttons in the picker (תוכנות / אתרים / קבצים / תיקיות).</summary>
+    public ICommand PickTypeCommand { get; private set; } = null!;
+    /// <summary>Choosing a resource returns to the add form with its address filled; local name/description stay the user's to set before adding.</summary>
+    public ICommand PickResourceCommand { get; private set; } = null!;
+    public ICommand ClosePickerCommand { get; private set; } = null!;
+
+    private void InitResourcePickerCommands()
+    {
+        OpenPickerCommand = Cmd(_ => OpenPicker(), _ => InDetails && Selected != null && !ReadOnly);
+        PickTypeCommand = Cmd(p => { PickerType = (ItemType)p!; RefreshPicker(); }, p => p is ItemType);
+        PickResourceCommand = Cmd(p => PickResource((PickerRow)p!), p => p is PickerRow);
+        ClosePickerCommand = Cmd(_ => PickerOpen = false, _ => PickerOpen);
+    }
+
     // ---- existing-resource picker (בחר מסביבות קיימות, settled Nov 11): items only, four type buttons, the ORIGINAL
     // resource name (never an instance's local name), search, and sorting by the number of workspaces containing that
     // exact address. Choosing fills the add form's address; the local name/description stay for the user before adding. ----

@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections.ObjectModel;
 using StartApp.Core;
 
@@ -5,6 +6,42 @@ namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>ערוך קטגוריה from the card actions menu: opens the category popup (פופאפ עריכת קטגוריה) for that workspace.</summary>
+    public ICommand EditCategoryPopupCommand { get; private set; } = null!;
+    /// <summary>Selecting a category in the popup assigns it to the workspace immediately.</summary>
+    public ICommand PickCategoryCommand { get; private set; } = null!;
+    public ICommand AddCategoryCommand { get; private set; } = null!;
+    /// <summary>Starts renaming a custom category (built-ins never offer this).</summary>
+    public ICommand BeginRenameCategoryCommand { get; private set; } = null!;
+    public ICommand SaveRenameCategoryCommand { get; private set; } = null!;
+    public ICommand CancelRenameCategoryCommand { get; private set; } = null!;
+    /// <summary>Deletes a custom category; with assigned workspaces this opens the warning first.</summary>
+    public ICommand DeleteCategoryCommand { get; private set; } = null!;
+    public ICommand CloseCategoryPopupCommand { get; private set; } = null!;
+    /// <summary>With several assigned workspaces, this button shows the list of them inside the warning.</summary>
+    public ICommand ShowCategoryDeleteListCommand { get; private set; } = null!;
+    public ICommand ConfirmCategoryDeleteCommand { get; private set; } = null!;
+    public ICommand CancelCategoryDeleteCommand { get; private set; } = null!;
+
+    private void InitCategoryEntryCommand()
+    {
+        EditCategoryPopupCommand = Cmd(p => BeginCategoryEdit((Workspace)p!), p => p is Workspace && !ReadOnly);
+    }
+
+    private void InitCategoryEditCommands()
+    {
+        PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && !ReadOnly);
+        AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !ReadOnly && NewCategoryName.Length > 0);
+        BeginRenameCategoryCommand = Cmd(p => { _categoryEdit.RenameOriginalName = ((CategoryRow)p!).Name; RenameCategoryText = _categoryEdit.RenameOriginalName; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !ReadOnly && RenameCategoryText.Length > 0);
+        CancelRenameCategoryCommand = Cmd(_ => RenameCategoryOpen = false, _ => RenameCategoryOpen);
+        DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        CloseCategoryPopupCommand = Cmd(_ => CloseCategoryPopup(), _ => CategoryEditOpen);
+        ShowCategoryDeleteListCommand = Cmd(_ => CategoryDeleteListShown = true, _ => CategoryDeletePending && !CategoryDeleteListShown);
+        ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !ReadOnly);
+        CancelCategoryDeleteCommand = Cmd(_ => CancelCategoryDelete("Category deletion cancelled, nothing was changed"), _ => CategoryDeletePending);
+    }
+
     // ---- category popup (פופאפ עריכת קטגוריה, settled Nov 11): assign from the managed list; custom add/rename/delete with
     // the settled deletion warning (one workspace shown directly; several behind a list button; confirm moves them to כללי) ----
     /// <summary>One row in the category popup: built-ins expose no edit/delete (their commands guard on IsBuiltIn).</summary>

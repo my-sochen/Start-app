@@ -1,9 +1,36 @@
+using System.Windows.Input;
 using StartApp.Core;
 
 namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
+    /// <summary>עצב כרטיס from the card actions menu: opens the design popup (פופאפ עיצוב כרטיס) for that workspace.</summary>
+    public ICommand DesignCardCommand { get; private set; } = null!;
+    /// <summary>העלאת תמונה in the design popup: the view opens a file picker and sets DesignImagePath.</summary>
+    public ICommand PickImageCommand { get; private set; } = null!;
+    /// <summary>הסרת תמונה in the design popup: back to the color-as-background look (takes effect on save).</summary>
+    public ICommand RemoveImageCommand { get; private set; } = null!;
+    /// <summary>A preset swatch in the design popup: applies that color to the preview (saved only via Save).</summary>
+    public ICommand ApplyPaletteColorCommand { get; private set; } = null!;
+    public ICommand SaveDesignCommand { get; private set; } = null!;
+    /// <summary>The design popup's X: closes silently when untouched, otherwise asks via the unsaved-exit dialog.</summary>
+    public ICommand CloseDesignCommand { get; private set; } = null!;
+
+    private void InitCardDesignEntryCommands()
+    {
+        DesignCardCommand = Cmd(p => BeginDesign((Workspace)p!), p => p is Workspace && !ReadOnly);
+        PickImageCommand = Cmd(_ => PickImageRequested?.Invoke(), _ => DesignEditOpen && !ReadOnly);
+    }
+
+    private void InitCardDesignEditCommands()
+    {
+        RemoveImageCommand = Cmd(_ => DesignImagePath = "", _ => DesignEditOpen && DesignImagePath.Length > 0);
+        ApplyPaletteColorCommand = Cmd(p => DesignColor = (string)p!, p => p is string && DesignEditOpen && !ReadOnly);
+        SaveDesignCommand = Cmd(_ => SaveDesign(), _ => DesignEditOpen && DesignDirty && !ReadOnly);
+        CloseDesignCommand = Cmd(_ => CloseDesign(), _ => DesignEditOpen);
+    }
+
     // ---- card design popup (פופאפ עיצוב כרטיס, settled Nov 11): per-workspace color and background image, with a live
     // preview in the view, a save button on any change, and the shared unsaved-exit dialog on X ----
     private readonly CardDesignSession _cardDesign = new();
