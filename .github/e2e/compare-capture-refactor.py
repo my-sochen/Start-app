@@ -3,10 +3,11 @@ from pathlib import Path
 from PIL import Image, ImageChops
 root = Path('evidence')
 images = [name+'.png' for name in ['01-new-form','02-pick-environment','03-side-empty','04-staged-summary','05-staged-editor','06-saved-side','07-grouped-duplicates','08-drag-duplicate','09-minimum-size']]
-assert len(images) == 9, f'Expected 9 fixed states, found {images}'
+images += ['frame-'+str(i).zfill(2)+'.png' for i in range(1,14)] + ['prompt-notice.png','prompt-conflict.png','prompt-new-workspace.png']
+capture_names=set(images[:9])
 # Same-process is an additional exact gate, never a substitute for the independent baseline control.
 shared = json.loads((root / 'after/same-process.json').read_text())
-assert len(shared) == 9 and {r['state'] + '.png' for r in shared} == set(images), shared
+assert len(shared) == 9 and {r['state'] + '.png' for r in shared} == capture_names, shared
 assert all(r['different_pixels'] == 0 for r in shared), shared
 print('9 original-Grid versus extracted-view states exactly match in one process', flush=True)
 # A baseline repeat is an exactness control, not permission to ignore unstable pixels.

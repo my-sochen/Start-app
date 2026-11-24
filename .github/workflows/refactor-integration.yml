@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: actions/checkout@v7.0.1
         with:
-          ref: 1400b8f662e77604d9c7de9871389d820846b698
+          ref: 4e3ae7bf718c8e1ad7d7b51c853c53142a64214c
           path: baseline
       - uses: actions/setup-dotnet@v6.1.0
         with:
@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force evidence | Out-Null
-          Remove-Item baseline/tests/StartApp.CaptureRefactorCapture -Recurse -Force
+          if(Test-Path baseline/tests/StartApp.CaptureRefactorCapture){Remove-Item baseline/tests/StartApp.CaptureRefactorCapture -Recurse -Force}
           Copy-Item tests/StartApp.CaptureRefactorCapture baseline/tests/StartApp.CaptureRefactorCapture -Recurse
           foreach ($variant in @('before','before-repeat','after')) {
             $root = if ($variant -ne 'after') { 'baseline' } else { '.' }
@@ -66,6 +66,7 @@ jobs:
           python -m pip install pillow
           python .github/e2e/compare-capture-refactor.py
       - name: Enabled and disabled shared button variants
+        if: always()
         shell: pwsh
         run: |
           Copy-Item tests/StartApp.ButtonRefactorCapture baseline/tests/StartApp.ButtonRefactorCapture -Recurse
@@ -81,6 +82,23 @@ jobs:
             if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw "$variant button capture failed" }
           }
           python .github/e2e/compare-button-refactor.py
+      - name: Actual dev baseline menu comparison
+        if: always()
+        shell: pwsh
+        run: |
+          if(Test-Path baseline/tests/StartApp.MenuRefactorCapture){Remove-Item baseline/tests/StartApp.MenuRefactorCapture -Recurse -Force}
+          Copy-Item tests/StartApp.MenuRefactorCapture baseline/tests/StartApp.MenuRefactorCapture -Recurse
+          foreach($variant in @('before','before-repeat','after')) {
+            $root=if($variant -eq 'after'){'.'}else{'baseline'}
+            dotnet build "$root/tests/StartApp.MenuRefactorCapture" -c Release
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+            $binary=Join-Path $PWD "$root/tests/StartApp.MenuRefactorCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe"
+            $output=Join-Path $PWD "evidence/menus/$variant"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+            if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Menu timeout'}
+            if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Menu fixture failed'}
+          }
+          python .github/e2e/compare-menu-refactor.py evidence/menus
       - name: Collect owner review and store evidence
         if: always()
         shell: pwsh

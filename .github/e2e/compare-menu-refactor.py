@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 from PIL import Image, ImageChops
-root=Path('evidence')
+import sys
+root=Path(sys.argv[1] if len(sys.argv)>1 else 'evidence')
 rows=[]
 for variant in ['before-repeat','after']:
     assert json.loads((root/'before/menus.json').read_text())==json.loads((root/variant/'menus.json').read_text()),f'Menu geometry or entries differ:{variant}'

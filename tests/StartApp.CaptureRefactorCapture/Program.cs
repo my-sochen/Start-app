@@ -66,11 +66,11 @@ internal static class Program
                 vm.CaptureCloseCommand.Execute(null);
                 // Candidate-only coverage of each actual dialog frame. These are visual fixture states,
                 // not workflow/permission claims; ordinary capture states above still run identically.
-                if (typeof(MainWindow).Assembly.GetType("StartApp.App.DialogFrame") is not null)
                 {
                     window.Width=960; window.Height=650; await Settle(window);
-                    var cards=Descendants(window).OfType<Border>().Where(e=>e.GetType().FullName=="StartApp.App.DialogFrame").ToList();
-                    var roots=cards.Select(c=>c.Parent).OfType<UIElement>().Distinct().ToList();
+                    var names=new[]{"CaptureDupSinglePending","CaptureDupGroupPending","EmptyWorkspaceOpen","DefaultConfirmOpen","AddressEditOpen","OpenWithOpen","PickerOpen","DesignEditOpen","CategoryEditOpen","UnsavedOpen","SelectionPending","OpenDecisionPending","LastResultsOpen"};
+                    var roots=names.Select(name=>Descendants(window).OfType<Grid>().Single(g=>System.Windows.Data.BindingOperations.GetBinding(g,UIElement.VisibilityProperty)?.Path?.Path==name)).Cast<UIElement>().ToList();
+                    var cards=roots.Select(r=>((Grid)r).Children.OfType<Border>().Single()).ToList();
                     var originalVisibility=roots.Select(r=>r.Visibility).ToArray();
                     foreach(var root in roots)root.SetCurrentValue(UIElement.VisibilityProperty,Visibility.Collapsed);
                     for(var i=0;i<cards.Count;i++)
