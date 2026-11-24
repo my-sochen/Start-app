@@ -1,6 +1,7 @@
 <local:DialogFrame x:Class="StartApp.App.ResourcePickerView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" MinWidth="460">
     <local:DialogFrame.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
+        <local:ItemTypeNameConverter x:Key="ItemTypeName"/>
     </local:DialogFrame.Resources>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
@@ -11,7 +12,7 @@
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate><DataTemplate>
                             <Button Padding="10,2" Margin="0,0,4,0" Command="{Binding DataContext.PickTypeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                    Content="{Binding}" AutomationProperties.Name="Picker type"/>
+                                    Content="{Binding Converter={StaticResource ItemTypeName}}" AutomationProperties.Name="Picker type"/>
                         </DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBox Text="{Binding PickerSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Search resources" ToolTip="Search"/>
