@@ -129,6 +129,8 @@
     <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FieldBorder" Property="BorderBrush" Value="#315CC5"/></Trigger></ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
+<!-- Compact editor variant preserves its original sizing, padding and alignment. -->
+<Style x:Key="CompactItemInput" TargetType="TextBox" BasedOn="{StaticResource DetailsInput}"><Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="FontSize" Value="14"/><Setter Property="BorderBrush" Value="#C5CDDB"/><Setter Property="Padding" Value="10,6"/><Setter Property="Margin" Value="0,4,0,10"/><Setter Property="TextAlignment" Value="Right"/></Style>
 <Style x:Key="DetailsCombo" TargetType="ComboBox">
    <Setter Property="MinHeight" Value="38"/><Setter Property="FontSize" Value="15"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">

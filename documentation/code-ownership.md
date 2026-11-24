@@ -93,3 +93,6 @@ Command declarations and initialization live with their feature partials. The sh
 ## Main window feature views
 
 WorkspaceDetailsView owns the existing DockPanel layout and local add-form focus; MainWindow forwards its focus-add callback. AddressEditorView, OpenWithEditorView, ResourcePickerView, CardDesignEditorView and CategoryEditorView derive directly from DialogFrame, so extraction adds no wrapper/presenter. MainWindow keeps the original overlay grids, visibility, ordering and focus coordination. Feature views inherit the same MainViewModel DataContext. Window-ancestor bindings and contextual row-menu dispatch still reach the owning MainWindow. DialogFrame is now inheritable only to name these existing feature surfaces.
+
+### Reused fields and selectors
+Ordinary workspace creation aliases the existing DetailsInput, DetailsCombo and DetailsLabel styles. Single and selected-item editors share CompactItemInput, based on DetailsInput with the original compact overrides. OpenWithDropdown remains a separate variant: popup part naming, keyboard focus, selection direction, spacing and disabled opacity differ from DetailsCombo and are intentional. No implicit application-wide input style is introduced.
