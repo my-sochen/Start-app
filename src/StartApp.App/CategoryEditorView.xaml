@@ -32,7 +32,7 @@
                     </ListBox>
                     <DockPanel Margin="0,8,0,0">
                         <Button DockPanel.Dock="Right" Content="הוסף קטגוריה" Command="{Binding AddCategoryCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Add category"/>
-                        <TextBox Text="{Binding NewCategoryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="New category name" ToolTip="Name of a new custom category"/>
+                        <TextBox TextAlignment="Right" Text="{Binding NewCategoryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="New category name" ToolTip="Name of a new custom category"/>
                     </DockPanel>
                     <!-- rename a custom category -->
                     <StackPanel Margin="0,8,0,0" Visibility="{Binding RenameCategoryOpen, Converter={StaticResource B2V}}">
@@ -40,7 +40,7 @@
                         <DockPanel Margin="0,4,0,0">
                             <Button DockPanel.Dock="Right" Content="בטל" Command="{Binding CancelRenameCategoryCommand}" Padding="8,2" Margin="4,0,0,0"/>
                             <Button DockPanel.Dock="Right" Content="שמור" Command="{Binding SaveRenameCategoryCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Save category rename"/>
-                            <TextBox Text="{Binding RenameCategoryText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Rename category text"/>
+                            <TextBox TextAlignment="Right" Text="{Binding RenameCategoryText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Rename category text"/>
                         </DockPanel>
                     </StackPanel>
                     <!-- deletion warning: one workspace shown directly; several behind a list button (settled Nov 11) -->
