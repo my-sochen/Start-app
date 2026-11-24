@@ -54,6 +54,7 @@ internal static partial class Program
         foreach(var staged in captureVm.StagedRows.ToArray()){
             captureVm.EditStagedCommand.Execute(staged);await Idle(window);
             var field=Descendants(window).OfType<ComboBox>().Single(x=>x.IsVisible && ReferenceEquals(x.DataContext,staged));
+            field.BringIntoView();await Idle(window);
             check(staged.Type+" capture field enabled state",field.IsEnabled==(staged.Type==ItemType.File));
             await Take(window,output,staged.Type.ToString().ToLowerInvariant()+"-capture-editor");
             if(staged.Type==ItemType.File){
