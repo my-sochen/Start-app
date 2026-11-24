@@ -1,0 +1,32 @@
+name: pr136-exact-head
+on:
+  push:
+    branches: [test/pr136-exact-head]
+permissions:
+  contents: read
+jobs:
+  exact-head-solution-and-wpf:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: a4aff254ca1db0e33a95721367c334af8376990a
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Verify exact reviewed commit
+        shell: pwsh
+        run: |
+          $head=git rev-parse HEAD
+          if($head -ne 'a4aff254ca1db0e33a95721367c334af8376990a'){throw 'Wrong source revision'}
+          Write-Host "Verified source HEAD $head"
+      - name: Full solution at reviewed head
+        run: dotnet test StartApp.slnx -c Release --logger 'trx;LogFilePrefix=pr136'
+      - name: Direct WPF session tests at reviewed head
+        run: dotnet test tests/StartApp.App.Session.Tests -c Release
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: pr136-exact-head-test-results
+          path: '**/TestResults/*.trx'
+          retention-days: 7
