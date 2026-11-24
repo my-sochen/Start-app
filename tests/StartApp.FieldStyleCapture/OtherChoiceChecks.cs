@@ -24,7 +24,9 @@ internal static partial class Program
         var vm = new MainViewModel(store,new NotImplementedLauncher());
         vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
         foreach(var type in new[]{"File","Folder"}){
-            var row=vm.Items.Single(x=>x.Type==type);vm.EditItemCommand.Execute(row);
+            var row=vm.Items.Single(x=>x.Type==type);
+            check(type+" saved row open-with action enabled state",vm.OpenWithCommand.CanExecute(row)==(type=="File"));
+            vm.EditItemCommand.Execute(row);
             var editor=new ItemEditWindow(vm);editor.Show();await Idle(editor);
             var picker=Descendants(editor).OfType<ComboBox>().Single();
             check(type+" single open-with enabled state",picker.IsEnabled==(type=="File"));
@@ -37,6 +39,14 @@ internal static partial class Program
             check(type+" batch open-with enabled state",Descendants(batch).OfType<ComboBox>().Single().IsEnabled==(type=="File"));
             await Take(batch,output,type.ToLowerInvariant()+"-batch-editor");batch.Close();
         }
+        window.DataContext=vm;await Idle(window);
+        var folderRow=vm.Items.Single(x=>x.Type=="Folder");
+        var folderElement=Descendants(window).OfType<Grid>().Single(x=>ReferenceEquals(x.DataContext,folderRow) && x.ContextMenu is not null);
+        var folderMenu=folderElement.ContextMenu!;folderMenu.PlacementTarget=folderElement;folderMenu.DataContext=folderRow;
+        folderMenu.IsOpen=true;await Idle(window);
+        var folderAction=folderMenu.Items.OfType<System.Windows.Controls.MenuItem>().Single(x=>Equals(x.Header,"פתח באמצעות"));
+        check("Folder saved row menu visible and disabled",folderAction.IsVisible && !folderAction.IsEnabled);
+        await Render(folderMenu,output,"folder-saved-row-menu");folderMenu.IsOpen=false;
         var captureVm=new MainViewModel(store,new NotImplementedLauncher(),capturer:new PickerCapturer()){ScanMinVisible=TimeSpan.Zero};
         window.DataContext=captureVm;captureVm.CaptureExistingCommand.Execute(null);await captureVm.CurrentScan!;
         captureVm.CapturePickWorkspaceCommand.Execute(captureVm.Workspaces.Single());

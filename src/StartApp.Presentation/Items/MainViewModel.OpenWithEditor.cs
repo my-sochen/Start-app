@@ -13,7 +13,7 @@ public sealed partial class MainViewModel
 
     private void InitOpenWithEditorCommands()
     {
-        OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow);
+        OpenWithCommand = Cmd(p => BeginOpenWith((ItemRow)p!), p => !ReadOnly && Selected != null && p is ItemRow { Type: not "Folder" });
         OpenWithGoCommand = Cmd(_ => OpenWithGo(), _ => OpenWithOpen && !ReadOnly && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CloseOpenWithCommand = Cmd(_ => CloseOpenWith(), _ => OpenWithOpen);
     }
@@ -28,6 +28,7 @@ public sealed partial class MainViewModel
     public bool OpenWithSetDefault { get => _openWith.SetDefault; set { if (_openWith.SetDefault != value) { _openWith.SetDefault = value; Raise(nameof(OpenWithSetDefault)); } } }
     private void BeginOpenWith(ItemRow row)
     {
+        if (row.Type == nameof(ItemType.Folder)) return;
         if (row.Type == nameof(ItemType.Program)) { Status = "Open with does not apply to a program item (it is the program)"; return; }
         var m = Selected!.Items.FirstOrDefault(x => (x.Id ?? x.ItemId) == row.InstanceId);
         _openWith.SavedTarget = row; _openWith.StagedTarget = null;

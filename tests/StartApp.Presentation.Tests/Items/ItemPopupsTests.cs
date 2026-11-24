@@ -39,6 +39,7 @@ public class ItemPopupsTests
             Assert.Equal(type is "File" or "Link",vm.EditItemOpenWithEnabled);
             Assert.Equal(type!="Program",vm.EditItemOpenWithApplicable);
             Assert.Equal(type=="File"?@"C:\fixture.txt":null,vm.EditItemFileTarget);
+            Assert.Equal(type!="Folder",vm.OpenWithCommand.CanExecute(vm.Items.Single(x=>x.Type==type)));
             Assert.False(vm.ItemEditDirty);vm.CancelItemEditCommand.Execute(null);
         }
         vm.EditItemCommand.Execute(vm.Items.Single(x=>x.Type=="File"));
