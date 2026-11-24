@@ -22,7 +22,7 @@ public sealed partial class MainViewModel
         /// <summary>Same site captured in two browsers produces two same-name duplicate rows (identity stays Type+Target,
         /// settled); the browser suffix - the same one the scan list shows - is what lets the user tell them apart here.
         /// Without it both read 'Add again: example.com' and the Chrome one cannot be picked knowingly (P2, Trello ObGZE66t).</summary>
-        public string Label => "Add again: " + Row.Name + Row.BrowserSuffix;
+        public string Label => "הוסף שוב: " + Row.Name + Row.BrowserSuffix;
         public bool IsChecked { get => _checked; set => Set(ref _checked, value); }
     }
 
@@ -127,7 +127,7 @@ public sealed partial class MainViewModel
         ConfirmCaptureDupSingleCommand = Cmd(_ => { var r = _captureDuplicates.SingleTarget!; _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); Stage(r); }, _ => _captureDuplicates.SingleTarget != null);
         CancelCaptureDupSingleCommand = Cmd(_ => { _captureDuplicates.SingleTarget = null; Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); }, _ => _captureDuplicates.SingleTarget != null);
         ConfirmCaptureDupGroupCommand = Cmd(_ => { foreach (var c in CaptureDupChoices.Where(c => c.IsChecked).ToList()) Stage(c.Row); CaptureDupChoices.Clear(); CaptureDupGroupPending = false; }, _ => _captureDuplicates.GroupPending);
-        CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "Duplicates not added"; }, _ => _captureDuplicates.GroupPending);
+        CancelCaptureDupGroupCommand = Cmd(_ => { CaptureDupChoices.Clear(); CaptureDupGroupPending = false; Status = "הכפילויות לא נוספו"; }, _ => _captureDuplicates.GroupPending);
     }
     private void OnCaptureCheckChanged() { Raise(nameof(CaptureAddLabel)); Raise(nameof(CaptureSelectionText)); }
     private void StartCapture(CaptureStage stage, bool checkedByDefault, string? wsId = null)
@@ -212,7 +212,7 @@ public sealed partial class MainViewModel
         if (!IsCaptureSide || !CaptureIdle) return;
         if (IsCaptureDuplicate(r))
         {
-            _captureDuplicates.SingleTarget = r; CaptureDupSingleMessage = $"'{r.Name}' is already in this workspace (or already added here). Add it again as a separate instance?";
+            _captureDuplicates.SingleTarget = r; CaptureDupSingleMessage = $"הפריט '{r.Name}' כבר קיים בסביבה או ברשימת הפריטים שנוספו. להוסיף אותו שוב כעותק נפרד?";
             Raise(nameof(CaptureDupSinglePending)); RaiseCommands(); return;
         }
         Stage(r);
@@ -225,7 +225,7 @@ public sealed partial class MainViewModel
         var dups = rows.Where(IsCaptureDuplicate).ToList();
         foreach (var r in rows.Except(dups)) Stage(r);
         if (dups.Count > 0) { CaptureDupChoices.Clear(); foreach (var d in dups) CaptureDupChoices.Add(new DupChoice(d)); CaptureDupGroupPending = true; }
-        Status = $"{rows.Count - dups.Count} added on screen, not saved yet" + (dups.Count > 0 ? $"; {dups.Count} already in the workspace need your choice" : "");
+        Status = $"נוספו {rows.Count - dups.Count} פריטים למסך, השינויים עדיין לא נשמרו" + (dups.Count > 0 ? $"; {dups.Count} פריטים כבר קיימים בסביבה וממתינים לבחירתך" : "");
     }
     /// <summary>Staged reorder mirrors the details screen: הזז swaps with the next staged row IN THE SAME display
     /// group; at the group's edge it does nothing (same boundary rule as Catalog.MoveInstance).</summary>
