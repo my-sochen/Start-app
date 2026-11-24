@@ -5,7 +5,7 @@
     </local:DialogFrame.Resources>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close resource picker" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding ClosePickerCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close resource picker" ToolTip="סגור"/>
                         <TextBlock Text="בחר מסביבות קיימות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <ItemsControl ItemsSource="{Binding PickerTypes}" HorizontalAlignment="Right">
@@ -15,7 +15,7 @@
                                     Content="{Binding Converter={StaticResource ItemTypeName}}" AutomationProperties.Name="Picker type"/>
                         </DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBox Text="{Binding PickerSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Search resources" ToolTip="Search"/>
+                    <TextBox Text="{Binding PickerSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Search resources" ToolTip="חיפוש"/>
                     <ListBox HorizontalContentAlignment="Stretch" ItemsSource="{Binding PickerRows}" MaxHeight="200" Margin="0,6,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Resource list">
                         <ListBox.ItemTemplate><DataTemplate>
                             <DockPanel>
