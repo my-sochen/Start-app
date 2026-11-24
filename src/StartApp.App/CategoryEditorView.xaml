@@ -4,7 +4,7 @@
     </local:DialogFrame.Resources>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close category popup" ToolTip="סגור"/>
                         <TextBlock Text="ערוך קטגוריה" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='קטגוריה נוכחית: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
@@ -32,7 +32,7 @@
                     </ListBox>
                     <DockPanel Margin="0,8,0,0">
                         <Button DockPanel.Dock="Right" Content="הוסף קטגוריה" Command="{Binding AddCategoryCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Add category"/>
-                        <TextBox TextAlignment="Right" Text="{Binding NewCategoryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="New category name" ToolTip="Name of a new custom category"/>
+                        <TextBox TextAlignment="Right" Text="{Binding NewCategoryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="New category name" ToolTip="שם הקטגוריה המותאמת החדשה"/>
                     </DockPanel>
                     <!-- rename a custom category -->
                     <StackPanel Margin="0,8,0,0" Visibility="{Binding RenameCategoryOpen, Converter={StaticResource B2V}}">
@@ -47,7 +47,7 @@
                     <Border Margin="0,8,0,0" BorderBrush="DarkOrange" BorderThickness="1" Padding="8"
                             Visibility="{Binding CategoryDeletePending, Converter={StaticResource B2V}}">
                         <StackPanel>
-                            <TextBlock Text="{Binding CategoryDeleteMessage}" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding CategoryDeleteMessage}" TextWrapping="Wrap" FlowDirection="RightToLeft"/>
                             <!-- shown only for several assigned workspaces: with one, the warning shows it directly (the list is already visible) -->
                             <Button Content="הצג רשימה" Command="{Binding ShowCategoryDeleteListCommand}" Padding="8,2" Margin="0,6,0,0" HorizontalAlignment="Left"
                                     AutomationProperties.Name="Show assigned workspaces">

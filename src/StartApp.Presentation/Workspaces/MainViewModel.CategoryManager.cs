@@ -111,8 +111,8 @@ public sealed partial class MainViewModel
         _categoryEdit.DeleteCategoryName = row.Name;
         CategoryDeleteWorkspaces.Clear(); foreach (var w in used) CategoryDeleteWorkspaces.Add(w.Name);
         CategoryDeleteMessage = used.Count == 1
-            ? $"The workspace '{used[0].Name}' uses the category '{row.Name}'. Delete it and move the workspace to {Workspace.DefaultCategory}?"
-            : $"{used.Count} workspaces use the category '{row.Name}'. Delete it and move them to {Workspace.DefaultCategory}?";
+            ? $"סביבת העבודה '{used[0].Name}' משויכת לקטגוריה '{row.Name}'. למחוק את הקטגוריה ולהעביר את סביבת העבודה לקטגוריה {Workspace.DefaultCategory}?"
+            : $"{used.Count} סביבות עבודה משויכות לקטגוריה '{row.Name}'. למחוק את הקטגוריה ולהעביר אותן לקטגוריה {Workspace.DefaultCategory}?";
         CategoryDeleteListShown = used.Count == 1; // one workspace is shown directly; several sit behind the list button
         CategoryDeletePending = true;
     }

@@ -14,7 +14,7 @@ jobs:
         with:
           dotnet-version: '10.0.404'
       - name: Targeted popup text regressions
-        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~StagedItemActionsTests"
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~ItemPopupsTests|FullyQualifiedName~StagedItemActionsTests|FullyQualifiedName~WorkspaceCardTests|FullyQualifiedName~CategoryEditSessionTests"
       - name: Actual WPF screens and alignment contracts
         shell: pwsh
         run: |

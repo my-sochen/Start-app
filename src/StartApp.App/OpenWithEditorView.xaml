@@ -4,7 +4,7 @@
     </local:DialogFrame.Resources>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,6">
-                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close open with" ToolTip="Close"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close open with" ToolTip="סגור"/>
                         <TextBlock Text="פתח באמצעות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBlock FlowDirection="RightToLeft" Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
