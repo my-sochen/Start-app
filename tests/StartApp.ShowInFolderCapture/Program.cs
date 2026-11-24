@@ -52,13 +52,21 @@ internal static class Program
                     // Same dispatcher path as real row ContextMenuOpening, including shared menu construction.
                     typeof(MainWindow).GetMethod("ShowItemActions",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(window,new object?[]{Descendants(host).OfType<Button>().First(),vm.AllItemFromDetail(row)!,row});await Idle(window);
                     var menu=OpenMenu();var action=menu.Items.OfType<MenuItem>().SingleOrDefault(x=>Equals(x.Header,"הצג בתיקייה"));
+                    Check(row.Type+" saved menu RTL",menu.FlowDirection==FlowDirection.RightToLeft);
                     Check(row.Type+" saved menu eligibility",(action is not null)==(row.Type is "File" or "Program"));
                     if(action is not null){Check(row.Type+" action enabled",action.IsEnabled);await Take(menu,output,row.Type+"-saved-menu");((IInvokeProvider)new MenuItemAutomationPeer(action).GetPattern(PatternInterface.Invoke)).Invoke();await Idle(window);Check(row.Type+" action sends exact path",adapter.Calls.Last()==row.Target);}
                     menu.IsOpen=false;
                 }
+                var caption=Descendants(window).OfType<Button>().Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Options menu");
+                typeof(MainWindow).GetMethod("OptionsMenu_Click",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(window,new object[]{caption,new RoutedEventArgs()});await Idle(window);
+                Check("Caption options menu RTL",OpenMenu().FlowDirection==FlowDirection.RightToLeft);await Take(OpenMenu(),output,"caption-options-menu");OpenMenu().IsOpen=false;
                 vm.OpenAllItemsCommand.Execute(null);await Idle(window);var all=vm.AllItemRows.Single(r=>r.Type=="File");
                 var anchor=Descendants(window).OfType<Button>().First(x=>x.IsVisible);window.ShowAllItemActions(anchor,all);await Idle(window);
-                Check("All items shared menu has action",OpenMenu().Items.OfType<MenuItem>().Any(x=>Equals(x.Header,"הצג בתיקייה")));await Take(OpenMenu(),output,"all-items-menu");OpenMenu().IsOpen=false;
+                Check("All items shared menu has action",OpenMenu().Items.OfType<MenuItem>().Any(x=>Equals(x.Header,"הצג בתיקייה")));await Take(OpenMenu(),output,"all-items-menu");
+                var submenu=OpenMenu().Items.OfType<MenuItem>().Single(x=>Equals(x.Header,"הוסף ל..."));submenu.IsSubmenuOpen=true;await Idle(window);
+                var popup=(System.Windows.Controls.Primitives.Popup)submenu.Template.FindName("PART_Popup",submenu);
+                Check("Shared submenu RTL",submenu.FlowDirection==FlowDirection.RightToLeft);await Take((FrameworkElement)popup.Child,output,"all-items-add-submenu");
+                submenu.IsSubmenuOpen=false;OpenMenu().IsOpen=false;
                 vm.CloseAllItemsCommand.Execute(null);vm.CaptureExistingCommand.Execute(null);await vm.CurrentScan!;vm.CapturePickWorkspaceCommand.Execute(vm.Workspaces.Single());
                 // Stage four independent fixture rows directly through the capture's normal duplicate confirmation.
                 vm.CaptureAddCommand.Execute(null);if(vm.CaptureDupGroupPending){foreach(var c in vm.CaptureDupChoices)c.IsChecked=true;vm.ConfirmCaptureDupGroupCommand.Execute(null);}await Idle(window);
@@ -68,6 +76,7 @@ internal static class Program
                     var host=Descendants(window).OfType<StackPanel>().Single(x=>ReferenceEquals(x.DataContext,row)&&x.ContextMenu is not null);host.BringIntoView();await Idle(window);
                     var menu=host.ContextMenu!;menu.PlacementTarget=host;menu.DataContext=row;menu.IsOpen=true;await Idle(window);
                     var action=menu.Items.OfType<MenuItem>().Single(x=>Equals(x.Header,"הצג בתיקייה"));
+                    Check(row.Type+" staged menu RTL",menu.FlowDirection==FlowDirection.RightToLeft);
                     Check(row.Type+" staged menu eligibility",action.IsVisible==(row.Type is ItemType.File or ItemType.Program));
                     if(action.IsVisible){Check(row.Type+" staged enabled",action.IsEnabled);await Take(menu,output,row.Type+"-staged-menu");((IInvokeProvider)new MenuItemAutomationPeer(action).GetPattern(PatternInterface.Invoke)).Invoke();await Idle(window);Check(row.Type+" staged exact path",adapter.Calls.Last()==row.Target);}
                     menu.IsOpen=false;

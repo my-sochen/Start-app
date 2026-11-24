@@ -107,7 +107,7 @@
                                                 <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.EditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                 <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
-                                                    <MenuItem.Style><Style TargetType="MenuItem"><Style.Triggers>
+                                                    <MenuItem.Style><Style TargetType="MenuItem" BasedOn="{StaticResource SharedMenuItem}"><Style.Triggers>
                                                         <!-- a program item IS the program; open-with does not apply to it -->
                                                         <DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
                                                     </Style.Triggers></Style></MenuItem.Style>
