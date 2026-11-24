@@ -20,7 +20,7 @@ public class ViewSourceIntegrityTests
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
 
-    [Fact] public void MainWindow_xaml_is_well_formed_xml() => XDocument.Parse(ViewSource());
+    [Fact] public void MainWindow_xaml_is_well_formed_xml() { XDocument.Parse(ViewSource()); XDocument.Parse(ViewSource("CaptureView.xaml")); }
 
     [Fact] public void MainWindow_xaml_has_no_unsubstituted_generator_tokens()
     {
@@ -31,7 +31,7 @@ public class ViewSourceIntegrityTests
 
     [Fact] public void Both_create_forms_have_a_real_palette_control()
     {
-        Assert.Contains("ApplyCreatePaletteColorCommand", ViewSource()); // capture create
+        Assert.Contains("ApplyCreatePaletteColorCommand", ViewSource("CaptureView.xaml")); // capture create
         var ordinary = ViewSource("CreateWorkspaceView.xaml");
         XDocument.Parse(ordinary);
         Assert.Contains("ApplyCreatePaletteColorCommand", ordinary);
