@@ -100,7 +100,7 @@
        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
       </TextBlock>
       <StackPanel Orientation="Horizontal">
-       <Button Content="צור סביבה" Command="{Binding CreateWorkspaceCommand}" Style="{StaticResource PrimaryActionButton}" MinHeight="38" Padding="16,8" AutomationProperties.Name="Create workspace"/>
+       <Button Content="צור סביבה" Command="{Binding CreateWorkspaceCommand}" Style="{StaticResource DialogPrimaryButton}" MinHeight="38" Padding="16,8" AutomationProperties.Name="Create workspace"/>
        <Button Content="ביטול" Click="Cancel_Click" Style="{StaticResource HomeToolbarButton}" MinHeight="38" MinWidth="68" Margin="8,0,0,0"/>
       </StackPanel>
      </StackPanel>

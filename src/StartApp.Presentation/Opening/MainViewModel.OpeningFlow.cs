@@ -41,15 +41,12 @@ public sealed record OpeningResult(Item Item, OpeningOutcome Outcome, string Mes
 
 public sealed partial class MainViewModel
 {
-    private bool _singleOpening;
     public ObservableCollection<OpeningChoice> OpeningChoices { get; } = new();
     public ObservableCollection<ReopenChoice> ReopenChoices { get; } = new();
     public ObservableCollection<OpeningResult> LastOpeningResults { get; } = new();
-    private bool _selectionPending;
-    public bool SelectionPending { get => _selectionPending; private set { Set(ref _selectionPending, value); RaiseCommands(); } }
-    public bool CanBackToOpeningSelection => OpenDecisionPending && !_singleOpening;
-    private bool _resultsOpen;
-    public bool LastResultsOpen { get => _resultsOpen; private set { Set(ref _resultsOpen, value); RaiseCommands(); } }
+    public bool SelectionPending { get => _opening.SelectionPending; private set { if (_opening.SelectionPending != value) { _opening.SelectionPending = value; Raise(nameof(SelectionPending)); } RaiseCommands(); } }
+    public bool CanBackToOpeningSelection => _opening.CanBackToSelection;
+    public bool LastResultsOpen { get => _opening.ResultsOpen; private set { if (_opening.ResultsOpen != value) { _opening.ResultsOpen = value; Raise(nameof(LastResultsOpen)); } RaiseCommands(); } }
     public bool HasLastOpeningResults => LastOpeningResults.Count > 0;
     public ICommand ConfirmSelectionCommand { get; private set; } = null!;
     public ICommand BackToOpeningSelectionCommand { get; private set; } = null!;
@@ -58,14 +55,12 @@ public sealed partial class MainViewModel
     public ICommand DismissToastCommand { get; private set; } = null!;
     public ICommand ToastDetailsCommand { get; private set; } = null!;
     public ICommand CopyTechnicalDetailsCommand { get; private set; } = null!;
-    private string _toast = "", _technical = "";
-    private bool _toastVisible, _toastPersistent;
-    private int _toastGeneration;
-    public string ToastMessage { get => _toast; private set => Set(ref _toast, value); }
-    public string ToastTechnicalDetails { get => _technical; private set => Set(ref _technical, value); }
-    public bool ToastVisible { get => _toastVisible; private set => Set(ref _toastVisible, value); }
-    public bool ToastHasOpeningResults { get; private set; }
-    public bool ToastPersistent { get => _toastPersistent; private set => Set(ref _toastPersistent, value); }
+    private readonly ToastSession _toastSession = new();
+    public string ToastMessage { get => _toastSession.Message; private set { if (_toastSession.Message != value) { _toastSession.Message = value; Raise(nameof(ToastMessage)); } } }
+    public string ToastTechnicalDetails { get => _toastSession.TechnicalDetails; private set { if (_toastSession.TechnicalDetails != value) { _toastSession.TechnicalDetails = value; Raise(nameof(ToastTechnicalDetails)); } } }
+    public bool ToastVisible { get => _toastSession.Visible; private set { if (_toastSession.Visible != value) { _toastSession.Visible = value; Raise(nameof(ToastVisible)); } } }
+    public bool ToastHasOpeningResults { get => _toastSession.HasOpeningResults; private set => _toastSession.HasOpeningResults = value; }
+    public bool ToastPersistent { get => _toastSession.Persistent; private set { if (_toastSession.Persistent != value) { _toastSession.Persistent = value; Raise(nameof(ToastPersistent)); } } }
     private bool _saveFailed;
     public bool SaveBlocked => ReadOnly || _saveFailed;
     public string SaveBlockedMessage => ReadOnly ? "השמירה חסומה: לא ניתן לקרוא את קובץ הנתונים בבטחה. הקובץ לא שונה. בדקו הרשאות ותקינות ואז פתחו את התוכנה מחדש." : "השמירה לא הצליחה והשינויים לא נשמרו. בדקו הרשאות וזמינות של קובץ הנתונים ונסו לשמור שוב.";
@@ -74,39 +69,31 @@ public sealed partial class MainViewModel
     {
         ConfirmSelectionCommand = Cmd(_ => StartSelectedCheck(OpeningChoices.Where(x => x.IsChecked).Select(x =>
             (x.Membership, x.Item is null ? null : x.Item with { Name = x.Name })).ToList()), _ => SelectionPending && OpeningChoices.Any(x => x.IsChecked));
-        BackToOpeningSelectionCommand = Cmd(_ => { _pendingOpen = null; ReopenChoices.Clear(); OpenProblems.Clear(); SelectionPending = true; RaiseCommands(); }, _ => CanBackToOpeningSelection);
+        BackToOpeningSelectionCommand = Cmd(_ => { _opening.PendingPlan = null; ReopenChoices.Clear(); OpenProblems.Clear(); SelectionPending = true; RaiseCommands(); }, _ => CanBackToOpeningSelection);
         ShowLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = true, _ => HasLastOpeningResults);
         CloseLastOpeningResultsCommand = Cmd(_ => LastResultsOpen = false, _ => LastResultsOpen);
-        DismissToastCommand = Cmd(_ => { ToastVisible = false; _toastGeneration++; }, _ => ToastVisible);
+        DismissToastCommand = Cmd(_ => { ToastVisible = false; _toastSession.NextGeneration(); }, _ => ToastVisible);
         ToastDetailsCommand = Cmd(_ => { ToastVisible = false; LastResultsOpen = ToastHasOpeningResults && HasLastOpeningResults; }, _ => ToastHasOpeningResults && HasLastOpeningResults);
         CopyTechnicalDetailsCommand = Cmd(p => CopyAddressRequested?.Invoke(p as string ?? ""), p => p is string);
     }
 
-    private static string SkipExplanation(PreflightFinding f) => f.State switch
-    {
-        PreflightState.Missing => "לא נמצא בכתובת השמורה. בדקו את הכתובת ונסו שוב.",
-        PreflightState.Unavailable => "לא ניתן היה לבדוק את הפריט בגלל גישה או זמן המתנה. לא נפתח; בדקו הרשאות ונסו שוב.",
-        PreflightState.NeedsDecision => "הפריט דורש בדיקה נוספת לפני פתיחה. בדקו את הכתובת והתוכנה שנבחרה.",
-        _ => "הפריט או צורת הפתיחה אינם נתמכים. עדכנו את הכתובת או את התוכנה שנבחרה."
-    };
-
-    private string _inlineError = "", _inlineHost = "";
-    public string InlineError { get => _inlineError; private set => Set(ref _inlineError, value); }
+    private readonly FieldErrorSession _fieldError = new();
+    public string InlineError { get => _fieldError.Message; private set { if (_fieldError.Message != value) { _fieldError.Message = value; Raise(nameof(InlineError)); } } }
     private void FieldError(string host, string message, string technical)
     {
-        _inlineHost = host; InlineError = message;
+        _fieldError.Host = host; InlineError = message;
         foreach (var n in new[] { nameof(AddItemError), nameof(CreateError), nameof(DetailsError), nameof(ItemEditError), nameof(AddressError), nameof(DesignError), nameof(CategoryError) }) Raise(n);
         // Diagnostic compatibility only. Field errors do not create a second toast.
         _status = technical; Raise(nameof(Status));
     }
     private void ClearFieldErrors() => FieldError("", "", "");
-    public string AddItemError => _inlineHost == "add" ? InlineError : "";
-    public string CreateError => _inlineHost == "create" ? InlineError : "";
-    public string DetailsError => _inlineHost == "details" ? InlineError : "";
-    public string ItemEditError => _inlineHost == "item" ? InlineError : "";
-    public string AddressError => _inlineHost == "address" ? InlineError : "";
-    public string DesignError => _inlineHost == "design" ? InlineError : "";
-    public string CategoryError => _inlineHost == "category" ? InlineError : "";
+    public string AddItemError => _fieldError.ForHost("add");
+    public string CreateError => _fieldError.ForHost("create");
+    public string DetailsError => _fieldError.ForHost("details");
+    public string ItemEditError => _fieldError.ForHost("item");
+    public string AddressError => _fieldError.ForHost("address");
+    public string DesignError => _fieldError.ForHost("design");
+    public string CategoryError => _fieldError.ForHost("category");
 
     private void SaveFailure(string technical, string? message = null)
     {
@@ -116,7 +103,7 @@ public sealed partial class MainViewModel
 
     private void ShowToast(string message, bool persistent, string? technical = null, bool opening = false)
     {
-        var gen = ++_toastGeneration;
+        var gen = _toastSession.NextGeneration();
         ToastHasOpeningResults = opening; Raise(nameof(ToastHasOpeningResults));
         ToastMessage = message; ToastTechnicalDetails = technical ?? ""; ToastPersistent = persistent; ToastVisible = true;
         RaiseCommands();
@@ -125,7 +112,7 @@ public sealed partial class MainViewModel
     private async Task HideToastLater(int gen)
     {
         await Task.Delay(TimeSpan.FromSeconds(3));
-        if (_toastGeneration == gen) ToastVisible = false;
+        if (_toastSession.IsCurrent(gen)) ToastVisible = false;
     }
     private void PresentLegacyStatus(string value)
     {

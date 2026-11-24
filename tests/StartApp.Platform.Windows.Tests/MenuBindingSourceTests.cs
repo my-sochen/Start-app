@@ -13,7 +13,7 @@ public class MenuBindingSourceTests
         for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
         {
             var p = Path.Combine(dir.FullName, "src", "StartApp.App", "MainWindow.xaml");
-            if (File.Exists(p)) return File.ReadAllText(p);
+            if (File.Exists(p)) return File.ReadAllText(p) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","CaptureView.xaml"));
         }
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
@@ -77,9 +77,13 @@ public class MenuBindingSourceTests
         Assert.Contains("selectedEnvironment.IsEnabled = vm.SavedItemDestinations(source).Count > 0",submenu);
         Assert.Contains("destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind)",submenu);
         foreach(var destination in new[]{"GlobalListKind.Blacklist","GlobalListKind.Whitelist","GlobalListKind.GlobalItems"}) Assert.Contains(destination,submenu);
+        code+=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"Components","ActionMenu.cs"));
         // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
-        Assert.Contains("popupSize.Height + 18",code);
-        Assert.Contains("Math.Max(8, anchorY - safeH)",code);
+        Assert.Contains("WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, _owner.ActualHeight)",code);
+        Assert.Contains("WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width",code);
+        var placement=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"WindowPopupPlacement.cs"));
+        Assert.Contains("popupHeight + 18",placement);
+        Assert.Contains("Math.Max(8, anchorY - safeHeight)",placement);
         // Context menus are re-placed on the next dispatcher tick after any open: ContextMenuService
         // overrides the placement for keyboard/mouse opens, so the anchored/clamped Custom placement is
         // re-applied post-open (reopen) where it always wins.
@@ -114,6 +118,7 @@ public class MenuBindingSourceTests
     {
         var xaml=Xaml(); Assert.Contains("Click=\"ToggleStaged_Click\"",xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
+        code += File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"CaptureView.xaml.cs"));
         Assert.Contains("row.IsEditing != editing",code); Assert.Contains("!vm.StagedRows.Contains(row)",code);
         Assert.Contains("ReferenceEquals(host.DataContext, row)",code);
         Assert.Contains("FindStagedRevealTarget(host, row, editing)",code);

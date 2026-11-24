@@ -3,8 +3,8 @@ on:
   pull_request:
     branches: [dev]
     paths:
-      - 'src/StartApp.Presentation/MainViewModel.cs'
-      - 'tests/StartApp.Presentation.Tests/UnexpectedErrorTests.cs'
+      - 'src/StartApp.Presentation/Shell/MainViewModel.cs'
+      - 'tests/StartApp.Presentation.Tests/Opening/UnexpectedErrorTests.cs'
       - '.github/workflows/reporting-handoff-windows.yml'
 permissions:
   contents: read

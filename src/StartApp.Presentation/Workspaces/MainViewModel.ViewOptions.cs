@@ -11,13 +11,7 @@ namespace StartApp.Presentation;
 /// does not exist yet); content-item filtering offers the actual items of one type across all workspaces.</summary>
 public sealed partial class MainViewModel
 {
-    private ViewSort _currentSort = ViewSort.RecentEntries;
-    private CardSizeOption _cardSize = CardSizeOption.Medium;
-    private ViewTemplate _template = ViewTemplate.Cards;
-    private string _filterContainsText = "";
-    private string? _filterItemId; private string _filterItemLabel = ""; private string _filterItemName = "";
-    private readonly HashSet<string> _filterCategories = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _filterColors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WorkspaceViewSession _workspaceView = new();
 
     /// <summary>The sorted and filtered projection of <see cref="Workspaces"/> shown on the home overview.</summary>
     public ObservableCollection<Workspace> DisplayWorkspaces { get; } = new();
@@ -26,20 +20,24 @@ public sealed partial class MainViewModel
     /// <summary>Custom card colors currently in use, offered under "לפי צבע".</summary>
     public ObservableCollection<string> FilterColorOptions { get; } = new();
 
-    public ViewSort CurrentSort { get => _currentSort; set { Set(ref _currentSort, value); ApplyView(); } }
-    public CardSizeOption CurrentCardSize { get => _cardSize; set => Set(ref _cardSize, value); }
-    public ViewTemplate CurrentTemplate { get => _template; set => Set(ref _template, value); }
+    public ViewSort CurrentSort { get => _workspaceView.Sort; set { SetViewCurrentSort(value); ApplyView(); } }
+    public CardSizeOption CurrentCardSize { get => _workspaceView.CardSize; set => SetViewCurrentCardSize(value); }
+    public ViewTemplate CurrentTemplate { get => _workspaceView.Template; set => SetViewCurrentTemplate(value); }
+    private void SetViewCurrentSort(ViewSort value) { if (_workspaceView.Sort != value) { _workspaceView.Sort = value; Raise(nameof(CurrentSort)); } }
+    private void SetViewCurrentCardSize(CardSizeOption value) { if (_workspaceView.CardSize != value) { _workspaceView.CardSize = value; Raise(nameof(CurrentCardSize)); } }
+    private void SetViewCurrentTemplate(ViewTemplate value) { if (_workspaceView.Template != value) { _workspaceView.Template = value; Raise(nameof(CurrentTemplate)); } }
+    private void SetViewFilterContainsText(string value) { if (_workspaceView.ContainsText != value) { _workspaceView.ContainsText = value; Raise(nameof(FilterContainsText)); } }
     /// <summary>סינון "מכיל...": free text; environments containing it stay (bonus item, approved as a good idea 02:34:10).</summary>
-    public string FilterContainsText { get => _filterContainsText; set { Set(ref _filterContainsText, value); ApplyView(); } }
+    public string FilterContainsText { get => _workspaceView.ContainsText; set { SetViewFilterContainsText(value); ApplyView(); } }
 
-    public bool HasActiveFilters => _filterCategories.Count > 0 || _filterColors.Count > 0 || _filterItemId != null || _filterContainsText.Trim().Length > 0;
+    public bool HasActiveFilters => _workspaceView.HasActiveFilters;
     /// <summary>Live counter on the filter bar, e.g. "מוצגת 2 מתוך 6".</summary>
     public string FilteredCountText => $"מוצגת {DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
     /// <summary>Single-content-filter state (approved mock home-filter-program): the bar switches to the short form
     /// "מסונן: סביבות שמכילות X · N מתוך M" + "✕ ניקוי סינון" instead of chips.</summary>
-    public bool IsSingleContentFilter => _filterItemId != null && _filterCategories.Count == 0 && _filterColors.Count == 0 && _filterContainsText.Trim().Length == 0;
+    public bool IsSingleContentFilter => _workspaceView.IsSingleContentFilter;
     /// <summary>The pinned item's plain name for the short-form bar ("סביבות שמכילות Visual Studio Code").</summary>
-    public string SingleContentFilterName => _filterItemName;
+    public string SingleContentFilterName => _workspaceView.ItemName;
     /// <summary>Short counter for the single-filter form, e.g. "2 מתוך 6".</summary>
     public string SingleFilterCountText => $"{DisplayWorkspaces.Count} מתוך {Workspaces.Count}";
 
@@ -88,7 +86,7 @@ public sealed partial class MainViewModel
         if (_current.DefaultWorkspaceId == workspaceId) return;
         if (_current.DefaultWorkspaceId is { Length: > 0 } cur && cur != workspaceId)
         {
-            _pendingDefaultId = workspaceId;
+            _defaultWorkspace.PendingId = workspaceId;
             DefaultConfirmOpen = true;
             Raise(nameof(DefaultConfirmOpen)); Raise(nameof(DefaultConfirmBody)); Raise(nameof(DefaultConfirmNotice)); Raise(nameof(DefaultConfirmTitle)); Raise(nameof(DefaultConfirmAcceptLabel)); RaiseCommands();
             return;
@@ -96,26 +94,26 @@ public sealed partial class MainViewModel
         ApplyDefaultWorkspace(workspaceId);
     }
 
-    private string? _pendingDefaultId;
+    private readonly DefaultWorkspaceSession _defaultWorkspace = new();
     private string DefaultName(string? id) => id is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == id) is { } w ? w.Name : "";
 
     /// <summary>Replace-confirm dialog state (approved dialog 22.11): open flag, dynamic body naming the current and
     /// candidate workspaces, and the blue notice naming the candidate.</summary>
-    public bool DefaultConfirmOpen { get; private set; }
-    public string DefaultConfirmTitle => _pendingDefaultId is null ? "להסיר את ברירת המחדל?" : "כבר מוגדרת סביבת ברירת מחדל";
-    public string DefaultConfirmAcceptLabel => _pendingDefaultId is null ? "כן, הסר ברירת מחדל" : "כן, הגדר כברירת מחדל";
-    public string DefaultConfirmBody => _pendingDefaultId is null
+    public bool DefaultConfirmOpen { get => _defaultWorkspace.IsOpen; private set => _defaultWorkspace.IsOpen = value; }
+    public string DefaultConfirmTitle => _defaultWorkspace.Title;
+    public string DefaultConfirmAcceptLabel => _defaultWorkspace.AcceptLabel;
+    public string DefaultConfirmBody => _defaultWorkspace.PendingId is null
         ? $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר ללא ברירת מחדל?"
-        : $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_pendingDefaultId)}'?";
-    public string DefaultConfirmNotice => _pendingDefaultId is null
+        : $"הסביבה '{DefaultName(_current.DefaultWorkspaceId)}' מוגדרת כיום כברירת מחדל ונפתחת אוטומטית עם הפעלת המחשב.\nלהגדיר במקומה את '{DefaultName(_defaultWorkspace.PendingId)}'?";
+    public string DefaultConfirmNotice => _defaultWorkspace.PendingId is null
         ? "אחרי האישור הנקודה הירוקה תוסר ולא תיפתח אף סביבה עם הפעלת המחשב. אפשר להגדיר ברירת מחדל שוב בכל עת."
-        : $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_pendingDefaultId)}', והיא זו שתיפתח עם הפעלת המחשב.";
+        : $"אחרי האישור הנקודה הירוקה תעבור אל '{DefaultName(_defaultWorkspace.PendingId)}', והיא זו שתיפתח עם הפעלת המחשב.";
 
     /// <summary>Dialog confirm: move the green badge and fire the existing ~3s toast.</summary>
     public ICommand ConfirmDefaultReplaceCommand => _confirmDefaultReplace ??= Cmd(_ =>
     {
         if (!DefaultConfirmOpen || ReadOnly) return;
-        var id = _pendingDefaultId;
+        var id = _defaultWorkspace.PendingId;
         CloseDefaultConfirm();
         ApplyDefaultWorkspace(id);
     }, _ => !ReadOnly);
@@ -127,8 +125,7 @@ public sealed partial class MainViewModel
 
     private void CloseDefaultConfirm()
     {
-        _pendingDefaultId = null;
-        DefaultConfirmOpen = false;
+        _defaultWorkspace.Close();
         Raise(nameof(DefaultConfirmOpen)); RaiseCommands();
     }
 
@@ -179,44 +176,44 @@ public sealed partial class MainViewModel
     { ItemType.Link => "אתרים", ItemType.Folder => "תיקיות", ItemType.File => "קבצים", _ => "תוכנות" };
 
     /// <summary>The item the content filter is pinned to (null = no content filter), for the ✓ in the submenu.</summary>
-    public string? CurrentContentItemId => _filterItemId;
+    public string? CurrentContentItemId => _workspaceView.ItemId;
 
     private RelayCommand? _clearFilters;
     private RelayCommand? _removeChip;
     public ICommand ClearFiltersCommand => _clearFilters ??= Cmd(_ => ClearFilters(), _ => HasActiveFilters);
     public ICommand RemoveFilterChipCommand => _removeChip ??= Cmd(p => RemoveFilterChip((string)p!), p => p is string);
 
-    public bool IsCategoryFiltered(string category) => _filterCategories.Contains(category);
-    public bool IsColorFiltered(string color) => _filterColors.Contains(color);
+    public bool IsCategoryFiltered(string category) => _workspaceView.Categories.Contains(category);
+    public bool IsColorFiltered(string color) => _workspaceView.Colors.Contains(color);
 
     public void ToggleCategoryFilter(string category)
     {
-        if (!_filterCategories.Remove(category)) _filterCategories.Add(category);
+        if (!_workspaceView.Categories.Remove(category)) _workspaceView.Categories.Add(category);
         ApplyView();
     }
 
     public void ToggleColorFilter(string color)
     {
-        if (!_filterColors.Remove(color)) _filterColors.Add(color);
+        if (!_workspaceView.Colors.Remove(color)) _workspaceView.Colors.Add(color);
         ApplyView();
     }
 
     /// <summary>Filter to workspaces that contain this exact item (one item at a time, ✓, approved 02:37:27).</summary>
     public void SetContentItemFilter(Item? item)
     {
-        _filterItemId = item?.Id;
-        _filterItemLabel = item == null ? "" : ContentTypeLabel(item.Type) + ": " + item.Name;
-        _filterItemName = item?.Name ?? "";
+        _workspaceView.ItemId = item?.Id;
+        _workspaceView.ItemLabel = item == null ? "" : ContentTypeLabel(item.Type) + ": " + item.Name;
+        _workspaceView.ItemName = item?.Name ?? "";
         ApplyView();
     }
 
     /// <summary>Remove one active filter by its chip key; every other filter stays.</summary>
     public void RemoveFilterChip(string key)
     {
-        if (key.StartsWith("color:", StringComparison.OrdinalIgnoreCase)) _filterColors.Remove(key["color:".Length..]);
-        else if (key.StartsWith("cat:", StringComparison.Ordinal)) _filterCategories.Remove(key["cat:".Length..]);
-        else if (key == "item") { _filterItemId = null; _filterItemLabel = ""; _filterItemName = ""; }
-        else if (key == "contains") _filterContainsText = "";
+        if (key.StartsWith("color:", StringComparison.OrdinalIgnoreCase)) _workspaceView.Colors.Remove(key["color:".Length..]);
+        else if (key.StartsWith("cat:", StringComparison.Ordinal)) _workspaceView.Categories.Remove(key["cat:".Length..]);
+        else if (key == "item") { _workspaceView.ItemId = null; _workspaceView.ItemLabel = ""; _workspaceView.ItemName = ""; }
+        else if (key == "contains") _workspaceView.ContainsText = "";
         else return;
         Raise(nameof(FilterContainsText));
         ApplyView();
@@ -225,46 +222,19 @@ public sealed partial class MainViewModel
     /// <summary>✕ ניקוי הכל: clears every active filter at once.</summary>
     public void ClearFilters()
     {
-        _filterCategories.Clear(); _filterColors.Clear(); _filterItemId = null; _filterItemLabel = ""; _filterItemName = ""; _filterContainsText = "";
+        _workspaceView.Categories.Clear(); _workspaceView.Colors.Clear(); _workspaceView.ItemId = null; _workspaceView.ItemLabel = ""; _workspaceView.ItemName = ""; _workspaceView.ContainsText = "";
         Raise(nameof(FilterContainsText));
         ApplyView();
-    }
-
-    private static bool WorkspaceContains(Workspace w, Store s, string text)
-    {
-        bool Has(string? v) => v != null && v.Contains(text, StringComparison.OrdinalIgnoreCase);
-        if (Has(w.Name) || Has(w.Description)) return true;
-        foreach (var m in w.Items)
-            if (s.Items.TryGetValue(m.ItemId, out var it) && (Has(m.Name ?? it.Name) || Has(it.Target) || Has(m.Description ?? it.Description)))
-                return true;
-        return false;
     }
 
     /// <summary>Recompute DisplayWorkspaces (sort + active filters), the chips, the color options and the counter.
     /// Called from Show() after every load/save and from every view-option change.</summary>
     private void ApplyView()
     {
-        IEnumerable<Workspace> q = Workspaces;
-        if (_filterCategories.Count > 0) q = q.Where(w => _filterCategories.Contains(w.EffectiveCategory));
-        if (_filterColors.Count > 0) q = q.Where(w => w.Color != null && _filterColors.Contains(w.Color));
-        if (_filterItemId != null) q = q.Where(w => w.Items.Any(m => m.ItemId == _filterItemId));
-        var text = _filterContainsText.Trim();
-        if (text.Length > 0) q = q.Where(w => WorkspaceContains(w, _current, text));
-        q = _currentSort switch
-        {
-            ViewSort.CreationDate => q.OrderByDescending(w => w.CreatedAt ?? DateTime.MinValue),
-            ViewSort.ItemCount => q.OrderByDescending(w => w.Items.Count),
-            ViewSort.LaunchCount => q.OrderByDescending(w => w.LaunchCount),
-            ViewSort.Alphabetical => q.OrderBy(w => w.Name, StringComparer.CurrentCulture),
-            _ => q.OrderByDescending(w => w.LastOpenedAt ?? DateTime.MinValue),
-        };
+        var q = _workspaceView.Query(Workspaces, _current);
+        var text = _workspaceView.ContainsText.Trim();
         DisplayWorkspaces.Clear(); foreach (var w in q) DisplayWorkspaces.Add(w);
-
-        FilterChips.Clear();
-        foreach (var c in _filterColors.OrderBy(c => c, StringComparer.OrdinalIgnoreCase)) FilterChips.Add(new FilterChip("color:" + c, c, c));
-        foreach (var c in _filterCategories.OrderBy(c => c, StringComparer.CurrentCulture)) FilterChips.Add(new FilterChip("cat:" + c, c));
-        if (_filterItemId != null) FilterChips.Add(new FilterChip("item", _filterItemLabel));
-        if (text.Length > 0) FilterChips.Add(new FilterChip("contains", "מכיל: " + text));
+        FilterChips.Clear(); foreach (var chip in _workspaceView.Chips(text)) FilterChips.Add(chip);
 
         FilterColorOptions.Clear();
         foreach (var c in Workspaces.Select(w => w.Color).Where(c => !string.IsNullOrEmpty(c)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase))

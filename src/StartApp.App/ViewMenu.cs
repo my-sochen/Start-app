@@ -13,56 +13,9 @@ namespace StartApp.App;
 /// Selecting an item applies immediately; checkmarks mark the active choice in every dimension.</summary>
 public partial class MainWindow
 {
-    /// <summary>Dropdown anchored at the button it came from (approved 22.11): top-left under the button's
-    /// bottom-left like the approved menu mocks, flipping above the button or clamping inside the window when
-    /// it would otherwise overflow. Programmatic IsOpen opens used the MousePoint default before, so a
-    /// keyboard/UIA open detached the menu to the cursor instead of the button.</summary>
-    private ContextMenu NewAnchoredMenu(FrameworkElement target, ContextMenu? existing = null)
-    {
-        var menu = existing ?? new ContextMenu();
-        menu.PlacementTarget = target;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-        menu.RemoveHandler(MenuItem.SubmenuOpenedEvent, new RoutedEventHandler(OnAnchoredSubmenuOpened));
-        menu.AddHandler(MenuItem.SubmenuOpenedEvent, new RoutedEventHandler(OnAnchoredSubmenuOpened));
-        menu.MaxHeight = Math.Max(120, ActualHeight - 16);
-        menu.MaxWidth = Math.Max(120, ActualWidth - 16);
-        menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
-        {
-            var origin = target.TransformToAncestor(this).Transform(new Point(0, 0));
-            var x = Math.Clamp(origin.X, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
-            var y = origin.Y + targetSize.Height + 2;
-            if (y + popupSize.Height > ActualHeight - 8) y = Math.Max(8, origin.Y - popupSize.Height - 2);
-            y = Math.Min(y, Math.Max(8, ActualHeight - 8 - popupSize.Height));
-            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-        };
-        return menu;
-    }
-
-    private void OnAnchoredSubmenuOpened(object sender, RoutedEventArgs e)
-    {
-        if (e.OriginalSource is not MenuItem item || item.Template.FindName("PART_Popup", item) is not System.Windows.Controls.Primitives.Popup popup) return;
-        if (item.Tag as string == "saved-add-submenu")
-        {
-            popup.CustomPopupPlacementCallback = null;
-            popup.PlacementTarget = item;
-            popup.Placement = System.Windows.Controls.Primitives.PlacementMode.Left;
-            popup.HorizontalOffset = 0; popup.VerticalOffset = 0;
-            return;
-        }
-        popup.MaxWidth = Math.Max(120, ActualWidth - 16);
-        popup.MaxHeight = Math.Max(120, ActualHeight - 16);
-        popup.PlacementTarget = item;
-        popup.CustomPopupPlacementCallback = (size, targetSize, _) =>
-        {
-            var origin = PointFromScreen(item.PointToScreen(new Point(0, 0)));
-            var x = origin.X + targetSize.Width - 2;
-            if (x + size.Width > ActualWidth - 8) x = origin.X - size.Width + 2;
-            x = Math.Clamp(x, 8, Math.Max(8, ActualWidth - size.Width - 8));
-            var y = Math.Clamp(origin.Y - 5, 8, Math.Max(8, ActualHeight - size.Height - 8));
-            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-        };
-        popup.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-    }
+    private ActionMenu? _actionMenu;
+    private ActionMenu Menus => _actionMenu ??= new ActionMenu(this);
+    private ContextMenu NewAnchoredMenu(FrameworkElement target,ContextMenu? existing=null) => Menus.Anchor(target,existing);
 
     private void ViewMenu_Click(object sender, RoutedEventArgs e)
     {
@@ -150,12 +103,7 @@ public partial class MainWindow
         return item;
     }
 
-    private static MenuItem Choice(string header, bool on, Action apply, bool staysOpen = false)
-    {
-        var item = new MenuItem { Header = header, IsCheckable = true, IsChecked = on, StaysOpenOnClick = staysOpen };
-        item.Click += (_, _) => apply();
-        return item;
-    }
+    private static MenuItem Choice(string header,bool on,Action apply,bool staysOpen=false)=>ActionMenu.Choice(header,on,apply,staysOpen);
 
     /// <summary>Template and size changes re-template the already-generated cards.</summary>
     private ItemEditWindow? _itemEditWindow;
