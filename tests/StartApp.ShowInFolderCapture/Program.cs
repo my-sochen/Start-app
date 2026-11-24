@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using Application = System.Windows.Application;
 using MenuItem = System.Windows.Controls.MenuItem;
 using Button = System.Windows.Controls.Button;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 using StartApp.App;
 using StartApp.Core;
 using StartApp.Platform.Windows;
