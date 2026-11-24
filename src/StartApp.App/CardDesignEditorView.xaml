@@ -1,0 +1,50 @@
+<local:DialogFrame x:Class="StartApp.App.CardDesignEditorView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" MinWidth="440">
+    <local:DialogFrame.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V"/>
+        <local:ColorBrushConverter x:Key="ColorBrush"/>
+        <local:CardBrushConverter x:Key="CardBrush"/>
+        <local:FrameThicknessConverter x:Key="FrameThickness"/>
+    </local:DialogFrame.Resources>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseDesignCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close card design" ToolTip="Close"/>
+                        <TextBlock Text="עיצוב כרטיס" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <!-- preview: same color/frame rule as the card, bound to the unsaved values -->
+                    <TextBlock Text="{Binding DesignError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><local:PreviewBorder Height="90" CornerRadius="4" Margin="0,0,0,8" BorderBrush="{Binding DesignColor, Converter={StaticResource ColorBrush}}"
+                            AutomationProperties.Name="Card design preview">
+                        <local:PreviewBorder.BorderThickness>
+                            <Binding Path="DesignImagePath" Converter="{StaticResource FrameThickness}"/>
+                        </local:PreviewBorder.BorderThickness>
+                        <local:PreviewBorder.Background>
+                            <MultiBinding Converter="{StaticResource CardBrush}">
+                                <Binding Path="DesignColor"/>
+                                <Binding Path="DesignImagePath"/>
+                            </MultiBinding>
+                        </local:PreviewBorder.Background>
+                    </local:PreviewBorder>
+                    <TextBlock Text="צבע" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBox Text="{Binding DesignColor, UpdateSourceTrigger=PropertyChanged}" Width="90" AutomationProperties.Name="Card color" ToolTip="#RRGGBB"/>
+                        <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
+                                        Background="{Binding ., Converter={StaticResource ColorBrush}}"
+                                        Command="{Binding DataContext.ApplyPaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                        ToolTip="{Binding}"/>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <TextBlock Text="תמונת רקע" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                    <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove card image"/>
+                        <Button DockPanel.Dock="Right" Content="העלה תמונה" Command="{Binding PickImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Upload card image"/>
+                        <TextBox Text="{Binding DesignImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Card image path" ToolTip="Full path of the uploaded image"/>
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="שמור" Command="{Binding SaveDesignCommand}" Style="{StaticResource CompactActionButton}"
+                                Visibility="{Binding DesignDirty, Converter={StaticResource B2V}}" AutomationProperties.Name="Save card design"/>
+                    </StackPanel>
+                </StackPanel>
+            </local:DialogFrame>

@@ -13,7 +13,7 @@ public class MenuBindingSourceTests
         for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
         {
             var p = Path.Combine(dir.FullName, "src", "StartApp.App", "MainWindow.xaml");
-            if (File.Exists(p)) return File.ReadAllText(p) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","CaptureView.xaml"));
+            if (File.Exists(p)) return File.ReadAllText(p) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","CaptureView.xaml")) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","WorkspaceDetailsView.xaml"));
         }
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
