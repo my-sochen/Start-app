@@ -27,6 +27,7 @@ public sealed partial class MainViewModel
         public string OpenWith { get => _openWith; set => Set(ref _openWith, value ?? ""); }
         /// <summary>פתח באמצעות does not apply to a program item (it is the program) - the menu entry hides.</summary>
         public bool IsProgram => Type == ItemType.Program;
+        public bool HasContainingFolder => Type is ItemType.File or ItemType.Program;
         public string? FileTarget => Type == ItemType.File ? Target : null;
         public bool OpenWithEnabled => Type is ItemType.File or ItemType.Link;
         public string OpenWithDefaultLabel => Type == ItemType.Folder ? "ללא" : "ברירת המחדל של Windows";

@@ -71,6 +71,9 @@
                                         <StackPanel Margin="0,10" Focusable="True" KeyboardNavigation.IsTabStop="True" ToolTip="פעולות האייטם: קליק ימני, Menu או Shift+F10" ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Staged item row" FlowDirection="LeftToRight">
                                             <StackPanel.ContextMenu>
                                                         <ContextMenu>
+                                                            <MenuItem Header="הצג בתיקייה" Command="{Binding PlacementTarget.Tag.ShowInFolderCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
+                                                                <MenuItem.Style><Style TargetType="MenuItem"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasContainingFolder}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                                            </MenuItem>
                                                             <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.StagedCopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
                                                             <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.StagedEditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>

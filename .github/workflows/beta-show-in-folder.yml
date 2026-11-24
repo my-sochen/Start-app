@@ -1,0 +1,35 @@
+name: beta-show-in-folder
+on:
+  push:
+    branches: [feat/item-show-in-folder]
+permissions:
+  contents: read
+jobs:
+  targeted-reveal:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Reveal adapter safety and menu source contracts
+        run: dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter 'FullyQualifiedName~WindowsFileRevealerTests|FullyQualifiedName~MenuBindingSourceTests'
+      - name: Saved and staged reveal behavior
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~ShowInFolderTests|FullyQualifiedName~StagedItemActionsTests|FullyQualifiedName~ItemRowActionsTests'
+      - name: Actual WPF menus and real Explorer selection
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.ShowInFolderCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $binary=Join-Path $PWD 'tests/StartApp.ShowInFolderCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $output=Join-Path $PWD 'show-in-folder-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Show in folder fixture timeout'}
+          if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Show in folder fixture failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: show-in-folder-evidence
+          path: show-in-folder-evidence/
+          retention-days: 7

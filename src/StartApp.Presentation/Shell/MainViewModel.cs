@@ -98,8 +98,9 @@ public sealed partial class MainViewModel : ObservableBase
     public event Action? AppCloseApproved;
     public IReadOnlyList<ItemType> ItemTypes { get; } = new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder };
 
-    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null)
+    public MainViewModel(IStoreRepository repo, IItemLauncher launcher, IItemPreflight? preflight = null, IOpenStateDetector? detector = null, IOpenItemCapturer? capturer = null, IFileRevealer? fileRevealer = null)
     {
+        _fileRevealer = fileRevealer;
         _repo = repo; _launcher = launcher; _preflight = preflight; _detector = detector ?? new NoOpenStateDetection(); _capturer = capturer ?? new NoCapture();
         _categoryEdit.PropertyChanged += OnCategorySessionChanged;
         InitCaptureCommands();
@@ -120,6 +121,7 @@ public sealed partial class MainViewModel : ObservableBase
         InitManualAddFocusCommand();
         InitSingleItemOpeningCommand();
         InitCopyAddressCommand();
+        InitShowInFolderCommand();
         InitItemEditorCommands();
         InitAddressEditorCommands();
         InitOpenWithEditorCommands();

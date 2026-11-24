@@ -43,6 +43,8 @@ public partial class MainWindow
         if (DataContext is not MainViewModel vm) return;
         var menu = NewAnchoredMenu(target); menu.MinWidth = 190; menu.FlowDirection = FlowDirection.RightToLeft;
         menu.Items.Add(new MenuItem { Header = "פתח", Command = detail is null ? vm.OpenAllItemCommand : vm.OpenItemCommand, CommandParameter = detail is null ? row : detail });
+        if (!row.MixedTypes && MainViewModel.HasContainingFolder(row.Type))
+            menu.Items.Add(new MenuItem { Header = "הצג בתיקייה", Command = vm.ShowInFolderCommand, CommandParameter = detail is null ? row : detail });
         menu.Items.Add(ActionItem("העתק כתובת", () => Clipboard.SetText(row.Target)));
         void Act(string action)
         {
