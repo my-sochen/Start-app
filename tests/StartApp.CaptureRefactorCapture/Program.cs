@@ -100,6 +100,12 @@ internal static class Program
         };
         app.Run(window);return code;
     }
+    private static bool IsDialogFrame(Type? type)
+    {
+        for (; type is not null; type = type.BaseType)
+            if (type.FullName == "StartApp.App.DialogFrame") return true;
+        return false;
+    }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         for(var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)
@@ -132,7 +138,7 @@ internal static class Program
         if(steady<3 || image is null)throw new Exception("WPF frame never became exactly stable: "+name);
         // Independently compare the shared frame with its original Border shape in this exact
         // window/process. Copy every effective local frame value, move the same child, add no wrapper.
-        var frames = Descendants(window).OfType<Border>().Where(e => e.GetType().FullName == "StartApp.App.DialogFrame").ToList();
+        var frames = Descendants(window).OfType<Border>().Where(e => IsDialogFrame(e.GetType())).ToList();
         if (frames.Count > 0)
         {
             // No type substitution: measure whether first exposure survives its own reparent.

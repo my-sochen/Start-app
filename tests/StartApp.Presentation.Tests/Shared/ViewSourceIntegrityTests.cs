@@ -20,7 +20,22 @@ public class ViewSourceIntegrityTests
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
 
-    [Fact] public void MainWindow_xaml_is_well_formed_xml() { XDocument.Parse(ViewSource()); XDocument.Parse(ViewSource("CaptureView.xaml")); }
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("CaptureView.xaml")]
+    [InlineData("WorkspaceDetailsView.xaml")]
+    [InlineData("AddressEditorView.xaml")]
+    [InlineData("OpenWithEditorView.xaml")]
+    [InlineData("ResourcePickerView.xaml")]
+    [InlineData("CardDesignEditorView.xaml")]
+    [InlineData("CategoryEditorView.xaml")]
+    public void Product_views_are_well_formed_without_generator_tokens(string file)
+    {
+        var source = ViewSource(file);
+        XDocument.Parse(source);
+        Assert.DoesNotContain("'" + "''", source);
+        Assert.DoesNotContain("+ palette +", source);
+    }
 
     [Fact] public void MainWindow_xaml_has_no_unsubstituted_generator_tokens()
     {

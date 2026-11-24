@@ -7,7 +7,7 @@ namespace StartApp.App;
 /// <summary>Shared dialog surface without a template, presenter or extra visual/layout layer.
 /// Content, actions, overlay shade, focus and close rules remain at each call site.
 /// Dialog-specific dimensions, padding, border, corner and alignment can override these defaults.</summary>
-public sealed class DialogFrame : Border
+public class DialogFrame : Border
 {
     public DialogFrame()
     {

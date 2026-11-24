@@ -89,3 +89,7 @@ Feature partials use MainViewModel.Feature.cs names because they belong to the s
 ## Feature command ownership
 
 Command declarations and initialization live with their feature partials. The shell constructor calls these initializers in the original interleaved registration order; do not group them by feature without reviewing notification-order behavior. FeatureCommandOwnershipTests records the complete dev command surface and invalidation order. The shell still owns shared navigation and save/discard coordination. These partials remain one class.
+
+## Main window feature views
+
+WorkspaceDetailsView owns the existing DockPanel layout and local add-form focus; MainWindow forwards its focus-add callback. AddressEditorView, OpenWithEditorView, ResourcePickerView, CardDesignEditorView and CategoryEditorView derive directly from DialogFrame, so extraction adds no wrapper/presenter. MainWindow keeps the original overlay grids, visibility, ordering and focus coordination. Feature views inherit the same MainViewModel DataContext. Window-ancestor bindings and contextual row-menu dispatch still reach the owning MainWindow. DialogFrame is now inheritable only to name these existing feature surfaces.

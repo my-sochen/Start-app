@@ -71,14 +71,7 @@ public partial class MainWindow : Window
                 WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
         }
     }
-    private void OnFocusAddRequested()
-    {
-        DetailsAddForm.Visibility = Visibility.Visible;
-        DetailsAddForm.UpdateLayout();
-        TargetBox.BringIntoView();
-        TargetBox.Focus();
-    }
-    private void ShowDetailsAddForm_Click(object sender, RoutedEventArgs e) => OnFocusAddRequested();
+    private void OnFocusAddRequested() => DetailsView.FocusAddForm();
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
     private void OnAppCloseApproved() { _updateWindow.ApproveClose(); Close(); }
     private void OnPickImageRequested()
@@ -122,11 +115,11 @@ public partial class MainWindow : Window
             NewAnchoredMenu(button, menu).IsOpen = true;
         }
     }
-    private void CaptionTab_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    internal void CaptionTab_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     { if (sender is Control tab) tab.FocusVisualStyle = null; }
-    private void CaptionTab_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    internal void CaptionTab_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
-    private void CaptionTab_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    internal void CaptionTab_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
     private void UpdateDefaultDialogFocus() => _defaultDialogFocus.Update(_hooked?.DefaultConfirmOpen == true);
     private void DefaultConfirm_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
