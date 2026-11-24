@@ -21,6 +21,10 @@ using StartApp.Storage.Json;
 
 internal static class Program
 {
+    private sealed class GatedProbe(ManualResetEventSlim entered, ManualResetEventSlim release) : IFileSystemProbe
+    {
+        public ProbeResult Probe(string path) { entered.Set(); if(!release.Wait(TimeSpan.FromSeconds(10)))throw new TimeoutException();return new(ProbeKind.File); }
+    }
     private sealed class RecordingRevealer : IFileRevealer
     {
         public List<string> Calls=new();
@@ -83,12 +87,29 @@ internal static class Program
                     menu.IsOpen=false;
                 }
                 Check("Revealing never saves draft",before==JsonSerializer.Serialize(repo.Load())&&vm.CaptureDirty);
+                using(var entered=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())
+                {
+                    var blocked=new WindowsFileRevealer(new GatedProbe(entered,release),_=>{});
+                    var pending=blocked.RevealAsync(file);
+                    try
+                    {
+                        Check("Background shell worker entered",await Task.Run(()=>entered.Wait(TimeSpan.FromSeconds(5))));
+                        var heartbeat=false;await window.Dispatcher.InvokeAsync(()=>heartbeat=true,DispatcherPriority.Background);
+                        Check("WPF dispatcher responds while shell worker blocked",heartbeat&&!pending.IsCompleted);
+                        Check("Blocked operation rejects overlap",(await blocked.RevealAsync(file)).Status==RevealStatus.Unavailable);
+                    }
+                    finally{release.Set();}
+                    Check("Worker completes after blocked call released",(await pending).Status==RevealStatus.Revealed);
+                }
                 // Real Explorer adapter separately: COM inspection confirms the selected shell item's path.
                 var real=new WindowsFileRevealer();Check("Real Explorer adapter confirms selection",(await real.RevealAsync(file)).Status==RevealStatus.Revealed);
                 var selected=ExplorerSelected(file);
                 Desktop(output);
                 File.WriteAllText(Path.Combine(output,"explorer-processes.json"),JsonSerializer.Serialize(System.Diagnostics.Process.GetProcessesByName("explorer").Select(p=>new{p.Id,p.MainWindowTitle,Handle=p.MainWindowHandle.ToInt64()})));
                 Check("Explorer actually selects exact spaced Unicode file",selected);
+                var exe=Path.Combine(Path.GetDirectoryName(file)!,"fixture program.exe");
+                File.Copy(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"notepad.exe"),exe,true);
+                Check("Real EXE selection confirmed without executing it",(await real.RevealAsync(exe)).Status==RevealStatus.Revealed&&ExplorerSelected(exe));
                 await Take(window,output,"capture-window");
                 File.WriteAllText(Path.Combine(output,"real-explorer.txt"),"Confirmed exact selected file through Shell.Application windows: "+file);
             }

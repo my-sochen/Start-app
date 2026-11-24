@@ -14,7 +14,7 @@ jobs:
         with:
           dotnet-version: '10.0.404'
       - name: Reveal adapter safety and menu source contracts
-        run: dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter 'FullyQualifiedName~WindowsFileRevealerTests|FullyQualifiedName~MenuBindingSourceTests'
+        run: dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter 'FullyQualifiedName~WindowsFileRevealerTests|FullyQualifiedName~WindowsFileRevealerWorkerTests|FullyQualifiedName~MenuBindingSourceTests'
       - name: Saved and staged reveal behavior
         run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter 'FullyQualifiedName~ShowInFolderTests|FullyQualifiedName~StagedItemActionsTests|FullyQualifiedName~ItemRowActionsTests'
       - name: Actual WPF menus and real Explorer selection

@@ -4,9 +4,11 @@ using StartApp.Core;
 namespace StartApp.Platform.Windows;
 
 /// <summary>Uses a shell item ID, never a command line or file association. Shows the saved entry itself,
-/// including a shortcut/reparse entry, not its target. The caller must be on a COM-initialized STA (WPF UI).</summary>
-public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<string>? select = null) : IFileRevealer
+/// including a shortcut/reparse entry, not its target. Shell resources never leave the dedicated worker STA.</summary>
+public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<string>? select = null,
+    Func<string, (bool Selected, bool FolderReady)>? confirm = null) : IFileRevealer
 {
+    private int _active;
     private readonly IFileSystemProbe _probe = probe ?? new FileSystemProbe();
     private readonly Action<string> _select = select ?? SelectInExplorer;
 
@@ -22,26 +24,73 @@ public sealed class WindowsFileRevealer(IFileSystemProbe? probe = null, Action<s
         { return new(RevealStatus.Unavailable, e.GetType().Name + ": " + e.Message); }
     }
 
-    public async Task<RevealResult> RevealAsync(string path)
+    public Task<RevealResult> RevealAsync(string path)
+    {
+        // Do not clear this gate on an awaiter's timeout/abandonment. A blocked native call still
+        // owns this adapter until its worker returns and releases all resources on its own STA.
+        if (Interlocked.CompareExchange(ref _active, 1, 0) != 0)
+            return Task.FromResult(new RevealResult(RevealStatus.Unavailable, "Another reveal is still active."));
+        var completion = new TaskCompletionSource<RevealResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = new Thread(() =>
+        {
+            RevealResult result;
+            var initialized = false;
+            try
+            {
+                Marshal.ThrowExceptionForHR(CoInitializeEx(IntPtr.Zero, 2));
+                initialized = true;
+                result = RevealOnWorker(path);
+            }
+            catch (Exception e) { result = new(RevealStatus.Unavailable, e.GetType().Name + ": " + e.Message); }
+            finally
+            {
+                if (initialized) CoUninitialize();
+                Interlocked.Exchange(ref _active, 0);
+            }
+            completion.TrySetResult(result);
+        }) { IsBackground = true, Name = "StartApp Explorer reveal STA" };
+        try { worker.SetApartmentState(ApartmentState.STA); worker.Start(); }
+        catch (Exception e)
+        {
+            Interlocked.Exchange(ref _active, 0);
+            completion.TrySetResult(new(RevealStatus.Unavailable, e.GetType().Name + ": " + e.Message));
+        }
+        return completion.Task;
+    }
+
+    private RevealResult RevealOnWorker(string path)
     {
         var request = RequestReveal(path);
-        if (request.Status != RevealStatus.Revealed || select is not null) return request;
+        if (request.Status != RevealStatus.Revealed || (select is not null && confirm is null)) return request;
         var retried = false;
-        // Yield to the UI while Explorer starts. Once its folder is ready, retry selection once.
-        // Never navigate elsewhere, run the entry, or send an unbounded series of shell requests.
+        // These delays limit retries, not native call duration. All probing, shell calls, COM
+        // inspection and final COM releases stay on this background STA, never the WPF thread.
         for (var i = 0; i < 40; i++)
         {
-            if (ExplorerSelection.Contains(path, out var folderReady)) return request;
-            if (folderReady && !retried)
+            var state = Confirm(path);
+            if (state.Selected) return request;
+            if (state.FolderReady && !retried)
             {
                 retried = true;
                 request = RequestReveal(path);
                 if (request.Status != RevealStatus.Revealed) return request;
             }
-            await Task.Delay(150);
+            Thread.Sleep(150);
         }
         return new(RevealStatus.Unavailable, "Explorer did not confirm the selected item.");
     }
+
+    private (bool Selected, bool FolderReady) Confirm(string path)
+    {
+        if (confirm is not null) return confirm(path);
+        var selected = ExplorerSelection.Contains(path, out var ready);
+        return (selected, ready);
+    }
+
+    [DllImport("ole32.dll")]
+    private static extern int CoInitializeEx(IntPtr reserved, uint mode);
+    [DllImport("ole32.dll")]
+    private static extern void CoUninitialize();
 
     // Only explicit drive/UNC file paths. Refuse shell names, device paths, streams, traversal and
     // wildcard/control syntax rather than letting the shell reinterpret them. Never resolve PATH aliases.
