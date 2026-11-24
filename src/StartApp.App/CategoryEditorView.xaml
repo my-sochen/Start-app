@@ -7,7 +7,7 @@
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close category popup" ToolTip="Close"/>
                         <TextBlock Text="ערוך קטגוריה" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
-                    <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='Current: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='קטגוריה נוכחית: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
                     <ListBox HorizontalContentAlignment="Stretch" ItemsSource="{Binding CategoryRows}" MaxHeight="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Category list">
                         <ListBox.ItemTemplate><DataTemplate>
                             <DockPanel>
@@ -36,7 +36,7 @@
                     </DockPanel>
                     <!-- rename a custom category -->
                     <StackPanel Margin="0,8,0,0" Visibility="{Binding RenameCategoryOpen, Converter={StaticResource B2V}}">
-                        <TextBlock Text="Rename category" FontWeight="SemiBold"/>
+                        <TextBlock Text="שינוי שם הקטגוריה" FontWeight="SemiBold"/>
                         <DockPanel Margin="0,4,0,0">
                             <Button DockPanel.Dock="Right" Content="בטל" Command="{Binding CancelRenameCategoryCommand}" Padding="8,2" Margin="4,0,0,0"/>
                             <Button DockPanel.Dock="Right" Content="שמור" Command="{Binding SaveRenameCategoryCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Save category rename"/>
