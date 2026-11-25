@@ -37,9 +37,10 @@ internal static class Program
         var editor=Application.Current.Windows.OfType<AdvancedColorWindow>().Single();
         var boxes=Tree(editor).OfType<TextBox>().ToArray();
         var hex=boxes.Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Color hex");
-        hex.Focus(); hex.Text="#12ab34"; hex.Select(3,0);
-        typeof(AdvancedColorWindow).GetMethod("SyncText",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!.Invoke(null,new object[]{hex,"#12AB34"});
-        Check(name+" normalization keeps caret",hex.SelectionStart==3);
+        hex.Focus(); hex.Text="#12ab34"; hex.Select(3,1); hex.SelectedText="c";
+        Check(name+" actual mid-edit hex value",editor.ChosenColor=="#12CB34"&&hex.Text=="#12cb34");
+        Check(name+" actual mid-edit hex caret",hex.SelectionStart==4&&hex.SelectionLength==0);
+        hex.Text="#12ab34";
         Check(name+" lowercase normalizes chosen value",editor.ChosenColor=="#12AB34");
         await Shot(editor,output,name);
         var accept=Tree(editor).OfType<Button>().Single(x=>x.Content as string=="בחר צבע");
@@ -49,6 +50,10 @@ internal static class Program
         var red = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Red");
         var green = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Green");
         var blue = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Blue");
+        red.Focus(); red.Text="12"; red.Select(1,1); red.SelectedText="3";
+        Check(name+" RGB mid-edit caret",red.Text=="13"&&red.SelectionStart==2);
+        red.Text="013";
+        Check(name+" RGB leading zero normalization",red.Text=="13"&&editor.ChosenColor.StartsWith("#0D"));
         red.Text = "255"; green.Text = "128"; blue.Text = "0";
         Check(name+" RGB updates hex",editor.ChosenColor=="#FF8000"&&accept.IsEnabled);
         red.Text="256";Check(name+" invalid RGB disables",!accept.IsEnabled);red.Text="255";
@@ -75,6 +80,11 @@ internal static class Program
             timer.Start(); window.Show(); app.Run(); return 0;
         }
         window.ContentRendered+=async(_,_)=>{try{
+            vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!;
+            Check("empty capture has no selection",vm.NewWorkspaceColor==""&&!vm.CreateDirty);
+            await Editor(window,output,"empty-capture-editor-cancel",false);
+            Check("cancel from empty capture preserves empty selection",vm.NewWorkspaceColor==""&&!vm.CreateDirty&&repo.Load().AdvancedColorHistory.Count==0);
+            vm.CaptureCloseCommand.Execute(null); Check("empty capture closes without unsaved guard",!vm.CaptureOpen&&!vm.UnsavedOpen);
             vm.ShowCreateScreen();vm.NewName="טיוטת צבע";vm.NewWorkspaceDescription="התיאור נשאר בזמן בחירת צבע";
             window.Width=1280; window.UpdateLayout();
             Check("nine shared base colors",vm.DesignPalette.Count==9);

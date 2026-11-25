@@ -124,6 +124,29 @@ public class AdvancedColorTests
         vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); Assert.Empty(repo.Load().AdvancedColorHistory);
         vm.CaptureCreateCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory); Assert.Single(repo.Load().Workspaces);
     }
+    [Fact] public async Task Capture_without_selection_keeps_null_and_editor_cancel_cannot_add_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "no selection";
+        Assert.Equal("", vm.NewWorkspaceColor);
+        vm.CaptureCreateCommand.Execute(null);
+        Assert.Null(repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public void Regular_create_empty_selection_currently_saves_default_but_not_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        vm.ShowCreateScreen(); vm.NewName = "current default"; Assert.True(vm.InCreate); Assert.Equal("", vm.NewWorkspaceColor);
+        vm.CreateWorkspaceCommand.Execute(null);
+        // Characterizes current policy only, not a new product decision.
+        Assert.Equal("#7189BB", repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public async Task Capture_preset_click_must_save_non_default_color_without_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "green preset";
+        vm.ApplyCreatePaletteColorCommand.Execute("#8BAA9D"); Assert.Equal("#8BAA9D", vm.NewWorkspaceColor);
+        vm.CaptureCreateCommand.Execute(null); Assert.Equal("#8BAA9D", repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
     sealed class EmptyCapturer : IOpenItemCapturer { public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), Array.Empty<string>()); }
     [Fact] public void Category_catalog_save_does_not_commit_or_lose_pending_color_history()
     {

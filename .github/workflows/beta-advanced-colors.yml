@@ -1,7 +1,7 @@
 name: beta-advanced-colors
 on:
   push:
-    branches: [feat/advanced-color-picker]
+    branches: [feat/advanced-color-picker, test/advanced-color-coverage]
 permissions:
   contents: read
 jobs:
@@ -38,6 +38,11 @@ jobs:
           $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
           if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'Color capture timeout' }
           if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw 'Color capture failed' }
+      - name: Compile dormant capture regression fixture against current shared picker
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.CaptureRefactorCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Actual UIA consumer helper smoke
         shell: pwsh
         run: ./.github/e2e/workspace-colors-smoke.ps1
