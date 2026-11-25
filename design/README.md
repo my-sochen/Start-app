@@ -12,6 +12,6 @@ The actual current app logo sources remain in `src/StartApp.App/Assets/start-app
 
 ## Icon options
 
-The current selection is funnel concept 3 (window lights), transparent single purple, under `approved/icons/funnel-3-window-lights/`. The earlier purple-tile sources are superseded but preserved. Reconstructed drafts remain reference-only.
+The current selection is the blue traced UFO, under `approved/icons/blue-traced-ufo/`, with its original SVG and transparent 512px PNG plus generated ICO and PNG sizes. Funnel3 was a working idea, not final. All earlier icon files remain archived, superseded and not current.
 
 This archive does not feed app builds or replace any production asset.
