@@ -12,6 +12,6 @@ The actual current app logo sources remain in `src/StartApp.App/Assets/start-app
 
 ## Icon options
 
-The owner chose the purple tile with the white logo. Its unchanged delivered sources and preview are under `approved/icons/purple-tile-white-logo/`. Earlier reconstructed UFO drafts remain reference-only.
+The current selection is funnel concept 3 (window lights), transparent single purple, under `approved/icons/funnel-3-window-lights/`. The earlier purple-tile sources are superseded but preserved. Reconstructed drafts remain reference-only.
 
 This archive does not feed app builds or replace any production asset.
