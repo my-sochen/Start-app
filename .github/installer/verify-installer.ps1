@@ -38,7 +38,7 @@ try{
  InvokeName $w 'הבא|Next'
  Shot '02-progress' $w
  $until=[DateTime]::UtcNow.AddSeconds(90)
- do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'סיום|Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
+ do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'סיום|סיים|Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
  Check 'finish page reached' ([bool]$finish);Shot '03-finish' $w
  Check 'app waits for Finish' (-not (Get-Process StartApp.App -ErrorAction SilentlyContinue))
  ClickElement $finish;$p.WaitForExit(10000)|Out-Null
