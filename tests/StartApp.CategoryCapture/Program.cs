@@ -10,6 +10,8 @@ using StartApp.Presentation;
 using StartApp.Storage.Json;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
+using MenuItem = System.Windows.Controls.MenuItem;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 
 internal static class Program
 {
@@ -59,6 +61,24 @@ internal static class Program
             await Shot(window,output,"06-capture-category-picker");OpenViaPicker(window,vm,"create");vm.PickCategoryCommand.Execute(vm.CategoryRows.Single(x=>x.Name=="משחק"));
             await Shot(window,output,"07-capture-category-manager");vm.CloseCategoryPopupCommand.Execute(null);Check("capture selection stays draft",vm.NewWorkspaceCategory=="משחק"&&vm.CaptureOpen&&repo.Load().Workspaces.Count==2);
             await Shot(window,output,"08-capture-after-management");
+            vm.CaptureCloseCommand.Execute(null);if(vm.UnsavedOpen)vm.ExitWithoutSavingCommand.Execute(null);
+            vm.NewName="";vm.NewWorkspaceCategory=Workspace.DefaultCategory;
+            var view=Tree(window).OfType<Button>().Single(x=>x.Content as string=="תצוגה");
+            typeof(MainWindow).GetMethod("ViewMenu_Click",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(window,new object[]{view,new RoutedEventArgs()});
+            await window.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+            var menu=PresentationSource.CurrentSources.Cast<PresentationSource>().Where(x=>x.RootVisual!=null).SelectMany(x=>Tree(x.RootVisual)).OfType<ContextMenu>().Single(x=>x.IsOpen);
+            var filter=menu.Items.OfType<MenuItem>().Single(x=>x.Header as string=="סינון");filter.IsSubmenuOpen=true;
+            var categories=filter.Items.OfType<MenuItem>().Single(x=>x.Header as string=="לפי קטגוריה");categories.IsSubmenuOpen=true;
+            await Shot(window,output,"09-category-filter-management-entry");
+            var manage=categories.Items.OfType<MenuItem>().Single(x=>x.Header as string=="ניהול קטגוריות");
+            Check("filter management command bound",manage.Command==vm.ManageCategoriesCommand&&manage.Command.CanExecute(manage.CommandParameter));
+            menu.IsOpen=false;manage.Command!.Execute(manage.CommandParameter);await Shot(window,output,"10-filter-category-manager");
+            Check("filter management cannot assign",!vm.CategoryAssignmentAvailable&&!vm.PickCategoryCommand.CanExecute(vm.CategoryRows.First()));
+            vm.CloseCategoryPopupCommand.Execute(null);window.Width=720;window.Height=560;vm.ShowCreateScreen();
+            await Shot(window,output,"11-minimum-width-create-picker");
+            vm.LeaveCreateScreen();vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;
+            await Shot(window,output,"12-minimum-width-capture-picker");
+
         }catch(Exception e){exit=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}finally{
             File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));
             File.WriteAllText(Path.Combine(output,"manifest.json"),JsonSerializer.Serialize(new{head=Environment.GetEnvironmentVariable("GITHUB_SHA"),run=Environment.GetEnvironmentVariable("GITHUB_RUN_ID")}));app.Shutdown(exit);
