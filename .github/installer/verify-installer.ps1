@@ -35,10 +35,18 @@ try{
  # Inno custom task list does not expose TogglePattern/MSAA item state here.
  # Preserve pixels for manual verification; actual shortcut/launch side effects are asserted below.
  Shot '01-options' $w
- InvokeName $w 'הבא|Next'
+ $r=$w.Current.BoundingRectangle
+ $frames=Join-Path $out 'progress-frames';New-Item $frames -ItemType Directory -Force|Out-Null
+ $capture=Start-ThreadJob -ArgumentList @($frames,[int]$r.X,[int]$r.Y,[int]$r.Width,[int]$r.Height) -ScriptBlock {
+ param($folder,$x,$y,$width,$height)
+ Add-Type -AssemblyName System.Drawing
+ for($i=0;$i -lt 80;$i++){$b=New-Object Drawing.Bitmap($width,$height);$g=[Drawing.Graphics]::FromImage($b);$g.CopyFromScreen($x,$y,0,0,$b.Size);$b.Save((Join-Path $folder ("{0:D3}.png" -f $i)));$g.Dispose();$b.Dispose();Start-Sleep -Milliseconds 75}
+ }
+ InvokeName $w 'הבא|Next' 
  Shot '02-progress' $w
  $until=[DateTime]::UtcNow.AddSeconds(90)
  do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'סיום|סיים|Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
+ $capture|Wait-Job|Receive-Job
  Check 'finish page reached' ([bool]$finish);Shot '03-finish' $w
  Check 'app waits for Finish' (-not (Get-Process StartApp.App -ErrorAction SilentlyContinue))
  ClickElement $finish;$p.WaitForExit(10000)|Out-Null
