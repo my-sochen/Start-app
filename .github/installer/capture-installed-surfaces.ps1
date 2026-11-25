@@ -16,6 +16,7 @@ function FolderShot($path,$pattern,$name){
  [MouseInput]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle)|Out-Null
  Start-Sleep -Milliseconds 1500
  try{$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out "$name-ui.txt")}catch{}
+ if($name -eq '08-installed-files-folder'){foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$item=$sw.Document.Folder.ParseName('StartApp.App.exe');$sw.Document.SelectItem($item,29)}}catch{}};Start-Sleep -Seconds 1}
  Shot $name $window
  foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$sw.Quit()}}catch{}}
 }
@@ -36,10 +37,13 @@ try{
  try{
   Start-Process 'ms-settings:appsfeatures'
   $settings=FindSurface '^Settings$'
-  if($settings){[MouseInput]::SetForegroundWindow([IntPtr]$settings.Current.NativeWindowHandle)|Out-Null;Start-Sleep -Seconds 3;Shot '09-windows-settings-installed-apps' $settings;$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out '09-settings-ui.txt')}
+  if($settings){[MouseInput]::SetForegroundWindow([IntPtr]$settings.Current.NativeWindowHandle)|Out-Null;Start-Sleep -Seconds 3;
+   $until=[DateTime]::UtcNow.AddSeconds(60);$seen=$false
+   do{try{$all=$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition);$edit=$all|Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::Edit -and $_.Current.Name -match 'Search apps'}|Select-Object -First 1;if($edit){$value=$edit.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern);$value.SetValue('Start App')};$seen=[bool]($all|Where-Object {$_.Current.Name -eq 'Start App'}|Select-Object -First 1)}catch{};if(-not $seen){Start-Sleep -Seconds 2}}while(-not $seen -and [DateTime]::UtcNow -lt $until)
+   Shot '09-windows-settings-installed-apps' $settings;$settings.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out '09-settings-ui.txt')}
   else{'Windows Settings was not available on this hosted Windows image.'|Set-Content (Join-Path $out 'settings-unavailable.txt')}
  }catch{$_.ToString()|Set-Content (Join-Path $out 'settings-unavailable.txt')}
  Start-Process control.exe -ArgumentList 'appwiz.cpl'
  $programs=FindSurface 'Programs and Features'
- if($programs){[MouseInput]::SetForegroundWindow([IntPtr]$programs.Current.NativeWindowHandle)|Out-Null;Start-Sleep -Seconds 2;Shot '10-windows-programs-uninstall-list' $programs;$programs.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out '10-programs-ui.txt')}
+ if($programs){[MouseInput]::SetForegroundWindow([IntPtr]$programs.Current.NativeWindowHandle)|Out-Null;Start-Sleep -Seconds 2;try{$edits=$programs.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Edit)));$search=$edits|Where-Object {$_.Current.Name -match 'Search'}|Select-Object -First 1;if($search){$value=$search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern);$value.SetValue('Start App');$search.SetFocus();[Windows.Forms.SendKeys]::SendWait('{ENTER}');Start-Sleep -Seconds 2}}catch{};Shot '10-windows-programs-uninstall-list' $programs;$programs.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out '10-programs-ui.txt')}
 }catch{$_.ToString()|Set-Content (Join-Path $out 'surfaces-error.txt')}
