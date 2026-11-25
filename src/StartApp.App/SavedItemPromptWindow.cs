@@ -36,6 +36,6 @@ internal sealed class SavedItemPromptWindow : Window
         Content = new DialogFrame { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = body, Padding = new Thickness(28), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(201,208,220)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; DialogResult = false; } };
     }
-    internal static SavedItemPromptWindow Conflict(string message) => new("הפריט נמצא ברשימה הנגדית", message, "העבר לרשימה המבוקשת");
+    internal static SavedItemPromptWindow Conflict(string message) => new(StartApp.Presentation.MainViewModel.CaptureListConflictTitle(message), message, "העבר לרשימה המבוקשת");
     internal static SavedItemPromptWindow Notice(string title, string message) => new(title, message, "הבנתי", true);
 }
