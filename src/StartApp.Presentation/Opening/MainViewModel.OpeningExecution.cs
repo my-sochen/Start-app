@@ -37,7 +37,7 @@ public sealed partial class MainViewModel
     }
     private void OpenOneCore(string name, Item it, LaunchConfig? launch)
     {
-        ClearPending(); OpeningChoices.Clear(); _opening.SingleItem = true; _opening.WorkspaceId = "";
+        ClearPending(); DedicatedBrowserWindows = false; OpeningChoices.Clear(); _opening.SingleItem = true; _opening.WorkspaceId = "";
         var copy = it with { Name = name };
         StartSelectedCheck(new() { (new Membership(it.Id, Launch: launch), copy) });
     }
@@ -61,14 +61,14 @@ public sealed partial class MainViewModel
     {
         ClearPending();
         if (Selected!.Items.Count == 0) { EmptyWorkspaceOpen = true; return; }
-        _opening.WorkspaceId = Selected.Id; _opening.SingleItem = false;
+        _opening.WorkspaceId = Selected.Id; _opening.SingleItem = false; DedicatedBrowserWindows = false;
         OpeningChoices.Clear();
         foreach (var m in Selected.Items)
         {
             _current.Items.TryGetValue(m.ItemId, out var it);
             OpeningChoices.Add(new OpeningChoice(m, it, RaiseCommands));
         }
-        SelectionPending = true; RaiseCommands();
+        Raise(nameof(HasOpeningSites)); SelectionPending = true; RaiseCommands();
     }
 
     private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
@@ -174,7 +174,9 @@ public sealed partial class MainViewModel
     private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null)
     {
         var cts = _openOperation.BeginLaunch(); IsLaunching = true;
-        var (results, fault) = await OpeningLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true);
+        var (results, fault) = DedicatedBrowserWindows
+            ? await DedicatedWindowLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true)
+            : await OpeningLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true);
         OpenReport.Clear(); LastOpeningResults.Clear();
         foreach (var r in results.OrderBy(r => r.IsProblem ? 0 : 1)) { LastOpeningResults.Add(r); OpenReport.Add(r.Name + ": " + r.Message); }
         var sent = results.Count(r => r.Outcome == OpeningOutcome.RequestSent);
