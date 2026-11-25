@@ -33,7 +33,7 @@ jobs:
     - name: Publish app payload (same command as package-windows)
       shell: pwsh
       run: |
-        dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -nr:false -o installer/payload
+        dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -p:StartAppReleaseVersion=$env:APP_VERSION -p:StartAppSourceCommit=$env:GITHUB_SHA -nr:false -o installer/payload
         if ($LASTEXITCODE -ne 0) { exit 1 }
         if (-not (Test-Path installer/payload/StartApp.App.exe)) { 'payload exe missing'; exit 1 }
     - name: Install Inno Setup 6
