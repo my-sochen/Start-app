@@ -14,7 +14,7 @@ function Shot($name,$window=$null){
 }
 function UninstallWindow(){ $until=[DateTime]::UtcNow.AddSeconds(20);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Start App' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $until);throw 'uninstall window missing'}
 
-function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'התקנה.*Start App|Setup.*Start App|Start App.*Setup' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
+function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Setup.*Start App|Start App.*Setup' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
 function Buttons($w){return @($w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))))}
 function InvokeName($w,$regex){$b=Buttons $w|Where-Object {$_.Current.Name -match $regex -and $_.Current.IsEnabled}|Select-Object -First 1;if(-not $b){throw "button absent $regex"};ClickElement $b}
 $exe=(Get-ChildItem out/StartApp-Setup-*.exe|Select-Object -First 1).FullName
@@ -30,7 +30,7 @@ try{
  Start-Sleep -Milliseconds 500
  $all=$w.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
  $names=@($all|ForEach-Object {$_.Current.Name});$names|ConvertTo-Json|Set-Content (Join-Path $out 'first-page.json')
- $task=$all|Where-Object {$_.Current.Name -match 'קיצור|בסיום'}
+ $task=$all|Where-Object {$_.Current.Name -match 'desktop shortcut|setup finishes'}
  Check 'first page presents shortcut and launch options' ($task.Count -ge 2)
  # Inno custom task list does not expose TogglePattern/MSAA item state here.
  # Preserve pixels for manual verification; actual shortcut/launch side effects are asserted below.
@@ -42,10 +42,10 @@ try{
  Add-Type -AssemblyName System.Drawing
  for($i=0;$i -lt 80;$i++){$b=New-Object Drawing.Bitmap($width,$height);$g=[Drawing.Graphics]::FromImage($b);$g.CopyFromScreen($x,$y,0,0,$b.Size);$b.Save((Join-Path $folder ("{0:D3}.png" -f $i)));$g.Dispose();$b.Dispose();Start-Sleep -Milliseconds 75}
  }
- InvokeName $w 'הבא|Next' 
+ InvokeName $w 'Next' 
  Shot '02-progress' $w
  $until=[DateTime]::UtcNow.AddSeconds(90)
- do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'סיום|סיים|Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
+ do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
  $capture|Wait-Job|Receive-Job
  Check 'finish page reached' ([bool]$finish);Shot '03-finish' $w
  Check 'app waits for Finish' (-not (Get-Process StartApp.App -ErrorAction SilentlyContinue))
@@ -65,8 +65,8 @@ try{
  Check 'reinstall preserves data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
  Check 'reinstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  $un=Join-Path $target 'unins000.exe';$p=Start-Process $un -ArgumentList '/NORESTART' -PassThru
- $u=UninstallWindow;Shot '04-uninstall-confirm' $u;InvokeName $u 'כן|Yes'
- $until=[DateTime]::UtcNow.AddSeconds(60);do{Start-Sleep -Milliseconds 200;$u=UninstallWindow;$ok=Buttons $u|Where-Object {$_.Current.Name -match 'אישור|OK'}|Select-Object -First 1}while(-not $ok -and [DateTime]::UtcNow -lt $until)
+ $u=UninstallWindow;Shot '04-uninstall-confirm' $u;InvokeName $u 'Yes'
+ $until=[DateTime]::UtcNow.AddSeconds(60);do{Start-Sleep -Milliseconds 200;$u=UninstallWindow;$ok=Buttons $u|Where-Object {$_.Current.Name -match 'OK'}|Select-Object -First 1}while(-not $ok -and [DateTime]::UtcNow -lt $until)
  Check 'uninstall completion dialog' ([bool]$ok);Shot '05-uninstall-complete' $u;ClickElement $ok;$p.WaitForExit(10000)|Out-Null
  Check 'uninstall succeeds' ($p.ExitCode -eq 0)
  Check 'uninstall removes payload' (-not(Test-Path (Join-Path $target 'StartApp.App.exe')))

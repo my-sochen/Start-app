@@ -36,11 +36,11 @@ VersionInfoVersion=0.2.0.0
 MinVersion=10.0
 
 [Languages]
-Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "יצירת קיצור דרך על שולחן העבודה"; GroupDescription: "אפשרויות:"
-Name: "launchafter"; Description: "פתיחת התוכנה בסיום ההתקנה"; GroupDescription: "אפשרויות:"
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Options:"
+Name: "launchafter"; Description: "Launch Start App when setup finishes"; GroupDescription: "Options:"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -62,7 +62,7 @@ begin
   begin
     if not Exec(ExpandConstant('{app}\StartApp.App.exe'), '', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
     begin
-      MsgBox('לא ניתן לפתוח את Start App: ' + SysErrorMessage(ResultCode), mbError, MB_OK);
+      MsgBox('Unable to launch Start App: ' + SysErrorMessage(ResultCode), mbError, MB_OK);
       Result := False;
     end;
   end;
