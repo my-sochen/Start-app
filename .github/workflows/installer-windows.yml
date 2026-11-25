@@ -1,0 +1,70 @@
+name: installer-windows
+permissions:
+  contents: read
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  APP_VERSION: '0.2.0-beta.0'
+on:
+  push:
+    branches:
+    - feat/beta-installer-current
+    paths:
+    - installer/**
+    - .github/workflows/installer-windows.yml
+    - src/**
+    - .github/installer/**
+jobs:
+  installer:
+    # Same public-repo guard as package-windows.
+    if: github.event.repository.private == false
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7.0.1
+    - uses: actions/setup-dotnet@v6.1.0
+      with:
+        dotnet-version: '10.0.404'
+    - name: Parse-check the Inno script inputs exist
+      shell: pwsh
+      run: |
+        if (-not (Test-Path installer/StartApp.iss)) { 'installer script missing'; exit 1 }
+        'installer script present'
+    - name: Publish app payload (same command as package-windows)
+      shell: pwsh
+      run: |
+        dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:ContinuousIntegrationBuild=true -nr:false -o installer/payload
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        if (-not (Test-Path installer/payload/StartApp.App.exe)) { 'payload exe missing'; exit 1 }
+    - name: Install Inno Setup 6
+      shell: pwsh
+      run: choco install innosetup --no-progress -y
+    - name: Compile installer (Hebrew UI bundled with Inno)
+      shell: pwsh
+      run: |
+        & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' "/DAppVersion=$env:APP_VERSION" "/DSourceDir=$PWD\installer\payload" "installer\StartApp.iss"
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        $exe = Get-ChildItem out/StartApp-Setup-*.exe
+        if (-not $exe) { 'installer exe missing'; exit 1 }
+        $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+        "$hash  $($exe.Name)" | Out-File -Encoding ascii "$($exe.FullName).sha256"
+    - name: 'Smoke: installer is a valid Inno package'
+      shell: pwsh
+      run: |
+        $exe = (Get-ChildItem out/StartApp-Setup-*.exe).FullName
+        $bytes = [System.IO.File]::ReadAllBytes($exe)
+        if ($bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { 'missing MZ header'; exit 1 }
+        $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+        if ($text -notmatch 'Inno Setup') { 'missing Inno signature'; exit 1 }
+        'Inno signature OK'
+    - name: Installer UI and lifecycle checks
+      shell: pwsh
+      run: ./.github/installer/verify-installer.ps1
+    - uses: actions/upload-artifact@v7.0.2
+      if: always()
+      with:
+        name: StartApp-installer-candidate
+        path: |
+          out/StartApp-Setup-*.exe
+          out/StartApp-Setup-*.exe.sha256
+          installer-evidence/
