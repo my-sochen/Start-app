@@ -47,4 +47,18 @@ public class AdvancedColorTests
         vm.ToggleColorFilter("#123456"); Assert.Empty(vm.DisplayWorkspaces); Assert.True(vm.HasActiveFilters);
         vm.ToggleColorFilter("#123456"); Assert.Single(vm.DisplayWorkspaces);
     }
+    [Fact] public void Read_only_store_disables_advanced_color_and_cannot_mutate_draft()
+    {
+        using var repo = new ReadOnlyRepo(); var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        Assert.True(vm.ReadOnly); Assert.False(vm.CanChooseWorkspaceColor);
+        var choice = new AdvancedColorChoice("create", "#123456");
+        Assert.False(vm.ApplyAdvancedColorCommand.CanExecute(choice)); vm.ApplyAdvancedColorCommand.Execute(choice);
+        Assert.Equal("", vm.NewWorkspaceColor);
+    }
+    sealed class ReadOnlyRepo : IStoreRepository
+    {
+        public Store Load() => throw new StoreTooNewException(999, 6);
+        public Store Mutate(Action<Catalog> change) => throw new Exception("must not write");
+        public void Dispose() { }
+    }
 }
