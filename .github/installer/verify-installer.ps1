@@ -20,8 +20,8 @@ try{
  $task=$all|Where-Object {$_.Current.Name -match 'קיצור|בסיום'}
  Check 'first page presents shortcut and launch options' ($task.Count -ge 2)
  # Inno task lists expose checked state through MSAA; query the list items rather than assuming defaults from script.
- $taskItems=@($all|Where-Object {$_.Current.ControlType -eq [Windows.Automation.ControlType]::ListItem})
- $states=@();foreach($i in $taskItems){try{$pat=$i.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern);$states+=@{name=$i.Current.Name;state=$pat.Current.State}}catch{}}
+ $taskItems=@($all|Where-Object {$_.Current.Name -match 'יצירת קיצור|פתיחת התוכנה בסיום'})
+ $states=@();foreach($i in $taskItems){try{$toggle=$i.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern);$states+=@{name=$i.Current.Name;state=$(if($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::On){16}else{0})};continue}catch{};try{$pat=$i.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern);$states+=@{name=$i.Current.Name;state=$pat.Current.State}}catch{}}
  $states|ConvertTo-Json|Set-Content (Join-Path $out 'task-states.json')
  Check 'both task choices default checked' (($states|Where-Object {($_.state -band 16) -ne 0}).Count -ge 2)
  Shot '01-options'
