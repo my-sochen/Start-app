@@ -14,7 +14,7 @@ function Shot($name,$window=$null){
 }
 function UninstallWindow(){ $until=[DateTime]::UtcNow.AddSeconds(20);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Start App' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $until);throw 'uninstall window missing'}
 
-function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Setup.*Start App|Start App.*Setup' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
+function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Setup.*Start App|Start App.*Setup|Install Start App' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
 function Buttons($w){return @($w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))))}
 function InvokeName($w,$regex){$b=Buttons $w|Where-Object {$_.Current.Name -match $regex -and $_.Current.IsEnabled}|Select-Object -First 1;if(-not $b){throw "button absent $regex"};ClickElement $b}
 $exe=(Get-ChildItem out/StartApp-Setup-*.exe|Select-Object -First 1).FullName
@@ -42,8 +42,20 @@ try{
  Add-Type -AssemblyName System.Drawing
  for($i=0;$i -lt 80;$i++){$b=New-Object Drawing.Bitmap($width,$height);$g=[Drawing.Graphics]::FromImage($b);$g.CopyFromScreen($x,$y,0,0,$b.Size);$b.Save((Join-Path $folder ("{0:D3}.png" -f $i)));$g.Dispose();$b.Dispose();Start-Sleep -Milliseconds 75}
  }
- InvokeName $w 'Next' 
- Shot '02-progress' $w
+ InvokeName $w 'Next'
+ $untilDetails=[DateTime]::UtcNow.AddSeconds(10)
+ do{$details=Buttons $w|Where-Object {$_.Current.Name -eq 'Show details'}|Select-Object -First 1}while(-not $details -and [DateTime]::UtcNow -lt $untilDetails)
+ Check 'progress details starts collapsed' ([bool]$details)
+ Shot '02-progress-collapsed' $w
+ ClickElement $details
+ $untilDetails=[DateTime]::UtcNow.AddSeconds(10)
+ do{$hide=Buttons $w|Where-Object {$_.Current.Name -eq 'Hide details'}|Select-Object -First 1}while(-not $hide -and [DateTime]::UtcNow -lt $untilDetails)
+ Check 'details expands during install' ([bool]$hide)
+ Start-Sleep -Milliseconds 150
+ Shot '02-progress-expanded' $w
+ $names=@($w.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {$_.Current.Name})
+ $names|ConvertTo-Json|Set-Content (Join-Path $out 'details-expanded.json')
+
  $until=[DateTime]::UtcNow.AddSeconds(90)
  do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
  $capture|Wait-Job|Receive-Job
