@@ -124,6 +124,15 @@ public class AdvancedColorTests
         vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); Assert.Empty(repo.Load().AdvancedColorHistory);
         vm.CaptureCreateCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory); Assert.Single(repo.Load().Workspaces);
     }
+    [Fact] public async Task Unchosen_color_uses_theme_blue_in_create_capture_preview_without_rewriting_existing()
+    {
+        using var repo=Repo();repo.Mutate(c=>{c.CreateWorkspace("legacy none");var w=c.CreateWorkspace("legacy blue");c.SetCardDesign(w.Id,"#7189BB",null);});
+        var vm=new MainViewModel(repo,new NotImplementedLauncher(),capturer:new EmptyCapturer()){ScanMinVisible=TimeSpan.Zero};
+        vm.ShowCreateScreen();vm.NewName="ordinary";Assert.Equal(WorkspaceColors.Default,vm.CreatePreview.Color);vm.CreateWorkspaceCommand.Execute(null);vm.BackCommand.Execute(null);
+        vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;vm.NewName="capture";Assert.Equal(WorkspaceColors.Default,vm.CreatePreview.Color);vm.CaptureCreateCommand.Execute(null);
+        var saved=repo.Load();Assert.Equal(WorkspaceColors.Default,saved.Workspaces.Single(w=>w.Name=="ordinary").Color);Assert.Equal(WorkspaceColors.Default,saved.Workspaces.Single(w=>w.Name=="capture").Color);
+        Assert.Null(saved.Workspaces.Single(w=>w.Name=="legacy none").Color);Assert.Equal("#7189BB",saved.Workspaces.Single(w=>w.Name=="legacy blue").Color);Assert.Empty(saved.AdvancedColorHistory);
+    }
     sealed class EmptyCapturer : IOpenItemCapturer { public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), Array.Empty<string>()); }
     [Fact] public void Category_catalog_save_does_not_commit_or_lose_pending_color_history()
     {

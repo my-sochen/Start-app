@@ -13,7 +13,7 @@ public class WorkspaceCardTests
     private static MainViewModel Vm(JsonStore repo)
     {
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null);
+        repo.Mutate(c=>c.CreateWorkspace("w")); vm.Reload(); vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
         return vm;
     }
 
@@ -54,7 +54,7 @@ public class WorkspaceCardTests
         var store = repo.Load();
         Assert.Equal("#BFDBFE", store.Workspaces.Single(w => w.Id == ws.Id).Color);
         Assert.Equal("C:\\img\\bg.png", store.Workspaces.Single(w => w.Id == ws.Id).ImagePath);
-        Assert.Null(store.Workspaces.Single(w => w.Id != ws.Id).Color); // two cards do not affect each other
+        Assert.Equal(WorkspaceColors.Default,store.Workspaces.Single(w => w.Id != ws.Id).Color); // two cards do not affect each other
     }
 
     [Fact] public void Design_popup_remove_image_returns_to_color_background()

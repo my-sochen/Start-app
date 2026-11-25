@@ -75,6 +75,21 @@ internal static class Program
             timer.Start(); window.Show(); app.Run(); return 0;
         }
         window.ContentRendered+=async(_,_)=>{try{
+            if(args.Length>1 && args[1]=="--theme-default") {
+                vm.ShowCreateScreen();vm.NewName="כחול ברירת מחדל";
+                Check("default preview theme blue",vm.CreatePreview.Color==WorkspaceColors.Default);
+                await Shot(window,output,"theme-create-preview");vm.CreateWorkspaceCommand.Execute(null);vm.BackCommand.Execute(null);
+                Check("default create saves theme blue",repo.Load().Workspaces.Single(x=>x.Name=="כחול ברירת מחדל").Color==WorkspaceColors.Default);
+                vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;vm.NewName="כחול מלכידה";
+                Check("capture default preview theme blue",vm.CreatePreview.Color==WorkspaceColors.Default);
+                await Shot(window,output,"theme-capture-preview");vm.CaptureCreateCommand.Execute(null);
+                Check("capture default saves theme blue",repo.Load().Workspaces.Single(x=>x.Name=="כחול מלכידה").Color==WorkspaceColors.Default);
+                if(vm.InDetails)vm.BackCommand.Execute(null);if(vm.CaptureOpen)vm.CaptureCloseCommand.Execute(null);
+                await Shot(window,output,"theme-saved-cards");
+                Check("legacy null unchanged",repo.Load().Workspaces.Single(x=>x.Name=="סביבת עבודה לדוגמה").Color==null);
+                Check("implicit theme color not advanced history",repo.Load().AdvancedColorHistory.Count==0);
+                File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));window.Close();app.Shutdown();return;
+            }
             vm.ShowCreateScreen();vm.NewName="טיוטת צבע";vm.NewWorkspaceDescription="התיאור נשאר בזמן בחירת צבע";
             window.Width=1280; window.UpdateLayout();
             Check("nine shared base colors",vm.DesignPalette.Count==9);
