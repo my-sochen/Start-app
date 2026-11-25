@@ -4,7 +4,7 @@ $out=Join-Path $PWD 'installer-evidence';New-Item $out -ItemType Directory -Forc
 $checks=[Collections.Generic.List[object]]::new()
 function Check($name,$ok){$checks.Add(@{name=$name;ok=[bool]$ok});if(-not $ok){throw $name}}
 function Shot($name){$b=New-Object Drawing.Bitmap([Windows.Forms.Screen]::PrimaryScreen.Bounds.Width),([Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);$g=[Drawing.Graphics]::FromImage($b);$g.CopyFromScreen(0,0,0,0,$b.Size);$b.Save((Join-Path $out "$name.png"));$g.Dispose();$b.Dispose()}
-function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$w=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty,$pidValue)));if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
+function Window($pidValue){$until=[DateTime]::UtcNow.AddSeconds(30);do{$all=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition);$w=$all|Where-Object {$_.Current.Name -match 'Start App|Start-app' -and $_.Current.ControlType -eq [Windows.Automation.ControlType]::Window}|Select-Object -First 1;if($w){return $w};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $until);throw 'installer window missing'}
 function Buttons($w){return @($w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))))}
 function InvokeName($w,$regex){$b=Buttons $w|Where-Object {$_.Current.Name -match $regex -and $_.Current.IsEnabled}|Select-Object -First 1;if(-not $b){throw "button absent $regex"};$b.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()}
 $exe=(Get-ChildItem out/StartApp-Setup-*.exe|Select-Object -First 1).FullName
@@ -46,4 +46,4 @@ try{
  Check 'uninstall preserves user data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
  $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
  Check 'uninstall removes logon route' (-not $run)
-}finally{$checks|ConvertTo-Json|Set-Content (Join-Path $out 'checks.json')}
+}catch{Shot 'failure';$_.ToString()|Set-Content (Join-Path $out 'error.txt');throw}finally{$checks|ConvertTo-Json|Set-Content (Join-Path $out 'checks.json')}
