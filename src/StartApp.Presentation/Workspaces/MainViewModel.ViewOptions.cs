@@ -240,6 +240,7 @@ public sealed partial class MainViewModel
         foreach (var c in _current.AdvancedColorHistory.Concat(Workspaces.Select(w => w.Color).Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).OrderBy(c => c, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
             FilterColorOptions.Add(c!);
 
+        Raise(nameof(AdvancedColorOptions)); Raise(nameof(HasAdvancedColorOptions));
         Raise(nameof(HasActiveFilters)); Raise(nameof(FilteredCountText)); Raise(nameof(FilterCategoryOptions));
         Raise(nameof(IsSingleContentFilter)); Raise(nameof(SingleContentFilterName)); Raise(nameof(SingleFilterCountText));
         _clearFilters?.Raise();

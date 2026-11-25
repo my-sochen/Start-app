@@ -65,6 +65,10 @@ internal static class Program
         int exit=0;
         window.ContentRendered+=async(_,_)=>{try{
             vm.ShowCreateScreen();vm.NewName="טיוטת צבע";vm.NewWorkspaceDescription="התיאור נשאר בזמן בחירת צבע";
+            window.Width=1280; window.UpdateLayout();
+            Check("nine shared base colors",vm.DesignPalette.Count==9);
+            await Shot(window,output,"00-nine-base-colors");
+            window.Width=1100;
             await Shot(window,output,"01-create-picker");await Editor(window,output,"02-spectrum-create",true);
             Check("advanced create updates draft",vm.NewWorkspaceColor=="#45A1C7"&&vm.NewName=="טיוטת צבע"&&repo.Load().Workspaces.Count==1);
             await Shot(window,output,"03-create-preview");

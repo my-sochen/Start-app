@@ -41,8 +41,7 @@ public sealed partial class MainViewModel
     public string DesignImagePath { get => _cardDesign.ImagePath; set { var image = value ?? ""; if (_cardDesign.ImagePath != image) { _cardDesign.ImagePath = image; Raise(nameof(DesignImagePath)); } Raise(nameof(DesignDirty)); RaiseCommands(); } }
     /// <summary>Any change in the design popup shows its Save button (same rule as the other edit screens).</summary>
     public bool DesignDirty => _cardDesign.IsDirty;
-    /// <summary>Provisional preset palette: the exact color set was never settled, so the popup offers these and a free #RRGGBB entry.</summary>
-    public IReadOnlyList<string> DesignPalette { get; } = new[] { "#FFFFFF", "#FDE68A", "#BFDBFE", "#BBF7D0", "#FECACA", "#E9D5FF", "#E5E7EB" };
+    public IReadOnlyList<string> DesignPalette => WorkspaceColors.BasePalette;
     private void BeginDesign(Workspace w)
     {
         var fresh = _current.Workspaces.FirstOrDefault(x => x.Id == w.Id) ?? w; // the caller may hold a pre-reload reference

@@ -33,6 +33,15 @@ public sealed class WorkspaceColorPicker : StackPanel
         swatches.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(Palette)) { Source = this });
         swatches.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
         Children.Add(swatches);
+        var historyLabel = new TextBlock { Text = "צבעים נוספים", FontSize = 11, Margin = new Thickness(0, 2, 0, 4) };
+        historyLabel.SetBinding(VisibilityProperty, new Binding("HasAdvancedColorOptions") { Converter = new BooleanToVisibilityConverter() });
+        Children.Add(historyLabel);
+        var history = new ItemsControl { ItemsPanel = swatches.ItemsPanel, ItemTemplate = swatches.ItemTemplate };
+        history.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AdvancedColorOptions"));
+        history.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
+        history.SetBinding(VisibilityProperty, new Binding("HasAdvancedColorOptions") { Converter = new BooleanToVisibilityConverter() });
+        System.Windows.Automation.AutomationProperties.SetName(history, "Advanced color history");
+        Children.Add(history);
         var current = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 4), HorizontalAlignment = HorizontalAlignment.Right };
         var preview = new Border { Width = 18, Height = 18, BorderThickness = new Thickness(1), BorderBrush = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 0, 6, 0) };
         preview.SetBinding(Border.BackgroundProperty, new Binding(nameof(SelectedColor)) { Source = this, Converter = new ColorBrushConverter() });

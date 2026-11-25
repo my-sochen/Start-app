@@ -9,6 +9,8 @@ public sealed partial class MainViewModel
 {
     public ICommand ApplyAdvancedColorCommand { get; private set; } = null!;
     public bool CanChooseWorkspaceColor => !ReadOnly;
+    public IReadOnlyList<string> AdvancedColorOptions => FilterColorOptions.Where(c => !DesignPalette.Contains(c, StringComparer.OrdinalIgnoreCase)).ToArray();
+    public bool HasAdvancedColorOptions => AdvancedColorOptions.Count > 0;
     private void InitWorkspaceColorCommands()
     {
         ApplyAdvancedColorCommand = Cmd(p =>
