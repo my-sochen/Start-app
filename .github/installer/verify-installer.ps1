@@ -62,8 +62,10 @@ try{
  $liveText|Set-Content (Join-Path $out 'details-expanded.txt')
  Check 'live details contains actual installation destinations' ($liveText -match 'Programs\\StartApp\\' -and $liveText.Length -gt 30)
  ClickElement $hide
- Check 'details can collapse again' ([bool](Buttons $w|Where-Object {$_.Current.Name -eq 'Show details'}))
- InvokeName $w '^Show details$'
+ $untilDetails=[DateTime]::UtcNow.AddSeconds(5)
+ do{$show=Buttons $w|Where-Object {$_.Current.Name -eq 'Show details'}|Select-Object -First 1}while(-not $show -and [DateTime]::UtcNow -lt $untilDetails)
+ Check 'details can collapse again' ([bool]$show)
+ ClickElement $show
 
 
  $until=[DateTime]::UtcNow.AddSeconds(90)
