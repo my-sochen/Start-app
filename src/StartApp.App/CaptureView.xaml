@@ -21,7 +21,7 @@
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Description" Width="80" VerticalAlignment="Center"/>
                                 <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Capture workspace description"/></DockPanel>
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Category" Width="80" VerticalAlignment="Center"/>
-                                <ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding NewWorkspaceCategory}" MinWidth="120" HorizontalAlignment="Left" AutomationProperties.Name="Capture workspace category"/></DockPanel>
+                                <local:CategoryPicker SelectedCategory="{Binding NewWorkspaceCategory}" Target="create" MinWidth="120"/></DockPanel>
                             <!-- optional card design at creation, same fields as the ordinary create form -->
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Color" Width="80" VerticalAlignment="Center"/>
                                 <TextBox DockPanel.Dock="Left" Text="{Binding NewWorkspaceColor, UpdateSourceTrigger=PropertyChanged}" Width="90" ToolTip="#RRGGBB" AutomationProperties.Name="Capture card color"/>

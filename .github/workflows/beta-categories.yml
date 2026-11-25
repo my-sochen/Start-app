@@ -1,0 +1,39 @@
+name: beta-categories
+on:
+  push:
+    branches: [feat/category-management-everywhere]
+permissions:
+  contents: read
+jobs:
+  categories:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Narrow category contracts
+        run: |
+          dotnet test tests/StartApp.Core.Tests -c Release --filter "FullyQualifiedName~CategoriesDesignTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~CategoryManagementTests|FullyQualifiedName~CategoryEditSessionTests|FullyQualifiedName~WorkspaceCardTests|FullyQualifiedName~CategorySelectionStabilityTests|FullyQualifiedName~FeatureCommandOwnershipTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Storage.Json.Tests -c Release --filter "FullyQualifiedName~Schema4Tests|FullyQualifiedName~CategoryUpgradeTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actual Windows category entry points
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.CategoryCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary=Join-Path $PWD 'tests/StartApp.CategoryCapture/bin/Release/net10.0-windows/StartApp.CategoryCapture.exe'
+          $output=Join-Path $PWD 'category-evidence'
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'Category capture timeout' }
+          if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw 'Category capture failed' }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: category-evidence
+          path: category-evidence/
+          retention-days: 7

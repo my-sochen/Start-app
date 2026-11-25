@@ -24,14 +24,14 @@ public class WorkspaceCardTests
         using var repo = new JsonStore(Tmp());
         var vm = new MainViewModel(repo, new NotImplementedLauncher());
         Assert.Equal(Workspace.DefaultCategory, vm.NewWorkspaceCategory);
-        Assert.Equal(new[] { Workspace.DefaultCategory }, vm.CategoryChoices);
-        repo.Mutate(c => c.AddCustomCategory("מוזיקה")); vm.Reload();
-        Assert.Contains("מוזיקה", vm.CategoryChoices);
+        Assert.Equal(Catalog.BuiltInCategories, vm.CategoryChoices);
+        repo.Mutate(c => c.AddCustomCategory("מוזיקה אישית")); vm.Reload();
+        Assert.Contains("מוזיקה אישית", vm.CategoryChoices);
         Assert.False(vm.CreateDirty);
-        vm.NewWorkspaceCategory = "מוזיקה";
+        vm.NewWorkspaceCategory = "מוזיקה אישית";
         Assert.True(vm.CreateDirty); // a non-default category is unsaved input
         vm.NewName = "music ws"; vm.CreateWorkspaceCommand.Execute(null);
-        Assert.Equal("מוזיקה", repo.Load().Workspaces.Single().Category);
+        Assert.Equal("מוזיקה אישית", repo.Load().Workspaces.Single().Category);
         Assert.Equal(Workspace.DefaultCategory, vm.NewWorkspaceCategory); // reset after create
     }
 
@@ -122,16 +122,16 @@ public class WorkspaceCardTests
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo);
         var ws = vm.Selected!;
-        repo.Mutate(c => c.AddCustomCategory("מוזיקה")); vm.Reload();
+        repo.Mutate(c => c.AddCustomCategory("מוזיקה אישית")); vm.Reload();
         vm.EditCategoryPopupCommand.Execute(ws);
         Assert.True(vm.CategoryEditOpen);
         Assert.Equal(Workspace.DefaultCategory, vm.CurrentCategoryName);
-        var row = vm.CategoryRows.Single(r => r.Name == "מוזיקה");
+        var row = vm.CategoryRows.Single(r => r.Name == "מוזיקה אישית");
         Assert.False(row.IsBuiltIn);
         vm.PickCategoryCommand.Execute(row);
-        Assert.Equal("מוזיקה", vm.CurrentCategoryName);
-        Assert.Equal("מוזיקה", vm.Workspaces.Single(w => w.Id == ws.Id).EffectiveCategory);
-        Assert.Equal("מוזיקה", repo.Load().Workspaces.Single().Category);
+        Assert.Equal("מוזיקה אישית", vm.CurrentCategoryName);
+        Assert.Equal("מוזיקה אישית", vm.Workspaces.Single(w => w.Id == ws.Id).EffectiveCategory);
+        Assert.Equal("מוזיקה אישית", repo.Load().Workspaces.Single().Category);
     }
 
     [Fact] public void Category_popup_creates_a_custom_category_that_becomes_pickable()
@@ -140,13 +140,13 @@ public class WorkspaceCardTests
         var vm = Vm(repo);
         vm.EditCategoryPopupCommand.Execute(vm.Selected!);
         Assert.False(vm.AddCategoryCommand.CanExecute(null)); // empty name
-        vm.NewCategoryName = "גרפיקה";
+        vm.NewCategoryName = "גרפיקה אישית";
         Assert.True(vm.AddCategoryCommand.CanExecute(null));
         vm.AddCategoryCommand.Execute(null);
         Assert.Equal("", vm.NewCategoryName);
-        Assert.Contains(vm.CategoryRows, r => r.Name == "גרפיקה" && !r.IsBuiltIn);
-        Assert.Contains("גרפיקה", vm.CategoryChoices); // also in the create form and details screen
-        Assert.Equal(new[] { "גרפיקה" }, repo.Load().CustomCategories);
+        Assert.Contains(vm.CategoryRows, r => r.Name == "גרפיקה אישית" && !r.IsBuiltIn);
+        Assert.Contains("גרפיקה אישית", vm.CategoryChoices); // also in the create form and details screen
+        Assert.Equal(new[] { "גרפיקה אישית" }, repo.Load().CustomCategories);
     }
 
     [Fact] public void Builtin_category_offers_no_edit_or_delete()
@@ -164,11 +164,11 @@ public class WorkspaceCardTests
     {
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo);
-        repo.Mutate(c => c.AddCustomCategory("מוזיקה")); vm.Reload();
+        repo.Mutate(c => c.AddCustomCategory("מוזיקה אישית")); vm.Reload();
         vm.EditCategoryPopupCommand.Execute(vm.Selected!);
-        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה"));
+        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה אישית"));
         Assert.False(vm.CategoryDeletePending); // settled edge case: no warning
-        Assert.DoesNotContain(vm.CategoryRows, r => r.Name == "מוזיקה");
+        Assert.DoesNotContain(vm.CategoryRows, r => r.Name == "מוזיקה אישית");
         Assert.Empty(repo.Load().CustomCategories);
     }
 
@@ -177,17 +177,17 @@ public class WorkspaceCardTests
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo);
         var ws = vm.Selected!;
-        repo.Mutate(c => { c.AddCustomCategory("מוזיקה"); c.SetCategory(ws.Id, "מוזיקה"); }); vm.Reload();
+        repo.Mutate(c => { c.AddCustomCategory("מוזיקה אישית"); c.SetCategory(ws.Id, "מוזיקה אישית"); }); vm.Reload();
         vm.EditCategoryPopupCommand.Execute(ws);
-        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה"));
+        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה אישית"));
         Assert.True(vm.CategoryDeletePending);
-        Assert.Equal("סביבת העבודה 'w' משויכת לקטגוריה 'מוזיקה'. למחוק את הקטגוריה ולהעביר את סביבת העבודה לקטגוריה כללי?", vm.CategoryDeleteMessage); // one workspace is named directly
+        Assert.Equal("סביבת העבודה 'w' משויכת לקטגוריה 'מוזיקה אישית'. למחוק את הקטגוריה ולהעביר את סביבת העבודה לקטגוריה כללי?", vm.CategoryDeleteMessage); // one workspace is named directly
         Assert.True(vm.CategoryDeleteListShown); // and the list is already visible, no list button
         Assert.False(vm.ShowCategoryDeleteListCommand.CanExecute(null));
         vm.CancelCategoryDeleteCommand.Execute(null); // dismiss: category and assignment kept
         Assert.False(vm.CategoryDeletePending);
-        Assert.Equal("מוזיקה", repo.Load().Workspaces.Single().Category);
-        Assert.Equal(new[] { "מוזיקה" }, repo.Load().CustomCategories);
+        Assert.Equal("מוזיקה אישית", repo.Load().Workspaces.Single().Category);
+        Assert.Equal(new[] { "מוזיקה אישית" }, repo.Load().CustomCategories);
     }
 
     [Fact] public void Delete_with_several_workspaces_hides_the_list_behind_a_button_and_confirm_moves_them_to_general()
@@ -196,11 +196,11 @@ public class WorkspaceCardTests
         var vm = Vm(repo);
         var first = vm.Selected!;
         vm.NewName = "w2"; vm.CreateWorkspaceCommand.Execute(null);
-        repo.Mutate(c => { c.AddCustomCategory("מוזיקה"); foreach (var w in c.Store.Workspaces) c.SetCategory(w.Id, "מוזיקה"); }); vm.Reload();
+        repo.Mutate(c => { c.AddCustomCategory("מוזיקה אישית"); foreach (var w in c.Store.Workspaces) c.SetCategory(w.Id, "מוזיקה אישית"); }); vm.Reload();
         vm.EditCategoryPopupCommand.Execute(first);
-        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה"));
+        vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה אישית"));
         Assert.True(vm.CategoryDeletePending);
-        Assert.Equal("2 סביבות עבודה משויכות לקטגוריה 'מוזיקה'. למחוק את הקטגוריה ולהעביר אותן לקטגוריה כללי?", vm.CategoryDeleteMessage);
+        Assert.Equal("2 סביבות עבודה משויכות לקטגוריה 'מוזיקה אישית'. למחוק את הקטגוריה ולהעביר אותן לקטגוריה כללי?", vm.CategoryDeleteMessage);
         Assert.False(vm.CategoryDeleteListShown); // several: the list sits behind the button
         vm.ShowCategoryDeleteListCommand.Execute(null);
         Assert.True(vm.CategoryDeleteListShown);
@@ -217,9 +217,9 @@ public class WorkspaceCardTests
         using var repo = new JsonStore(Tmp());
         var vm = Vm(repo);
         var ws = vm.Selected!;
-        repo.Mutate(c => { c.AddCustomCategory("מוזיקה"); c.SetCategory(ws.Id, "מוזיקה"); }); vm.Reload();
+        repo.Mutate(c => { c.AddCustomCategory("מוזיקה אישית"); c.SetCategory(ws.Id, "מוזיקה אישית"); }); vm.Reload();
         vm.EditCategoryPopupCommand.Execute(ws);
-        var row = vm.CategoryRows.Single(r => r.Name == "מוזיקה");
+        var row = vm.CategoryRows.Single(r => r.Name == "מוזיקה אישית");
         vm.BeginRenameCategoryCommand.Execute(row);
         Assert.True(vm.RenameCategoryOpen);
         vm.RenameCategoryText = "פרויקט מוזיקה";

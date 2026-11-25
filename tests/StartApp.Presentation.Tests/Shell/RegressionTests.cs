@@ -114,15 +114,15 @@ public class CategorySelectionStabilityTests
         vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null); // a workspace exists so the category popup can open
         vm.BackCommand.Execute(null);
         vm.EditCategoryPopupCommand.Execute(vm.Selected!);
-        vm.NewCategoryName = "מוזיקה"; vm.AddCategoryCommand.Execute(null);
-        vm.NewWorkspaceCategory = "מוזיקה"; // user picked a custom category in the create form
+        vm.NewCategoryName = "מוזיקה אישית"; vm.AddCategoryCommand.Execute(null);
+        vm.NewWorkspaceCategory = "מוזיקה אישית"; // user picked a custom category in the create form
 
         // Any later catalog change (here: another category added) rebuilds the choices. With a Clear()/Reset
         // rebuild the bound ComboBox lost its selection and rendered blank; the diff-wise rebuild must keep it.
-        vm.NewCategoryName = "גרפיקה"; vm.AddCategoryCommand.Execute(null);
+        vm.NewCategoryName = "גרפיקה אישית"; vm.AddCategoryCommand.Execute(null);
 
-        Assert.Equal("מוזיקה", vm.NewWorkspaceCategory); // selection never blanked
-        Assert.Contains("מוזיקה", vm.CategoryChoices);
-        Assert.Contains("גרפיקה", vm.CategoryChoices);
+        Assert.Equal("מוזיקה אישית", vm.NewWorkspaceCategory); // selection never blanked
+        Assert.Contains("מוזיקה אישית", vm.CategoryChoices);
+        Assert.Contains("גרפיקה אישית", vm.CategoryChoices);
     }
 }

@@ -29,7 +29,7 @@
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="0.65*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.2*"/></Grid.ColumnDefinitions>
                         <StackPanel FlowDirection="RightToLeft"><TextBlock Text="תיאור" Style="{StaticResource DetailsLabel}"/><TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" MaxLength="500" AutomationProperties.Name="Workspace description"/></StackPanel>
-                        <StackPanel Grid.Column="2" FlowDirection="RightToLeft"><TextBlock Text="קטגוריה" Style="{StaticResource DetailsLabel}"/><ComboBox ItemsSource="{Binding CategoryChoices}" SelectedItem="{Binding EditCategory}" Style="{StaticResource DetailsCombo}" AutomationProperties.Name="Workspace category"/></StackPanel>
+                        <StackPanel Grid.Column="2" FlowDirection="RightToLeft"><TextBlock Text="קטגוריה" Style="{StaticResource DetailsLabel}"/><local:CategoryPicker SelectedCategory="{Binding EditCategory}" Target="details"/></StackPanel>
                         <StackPanel Grid.Column="4" FlowDirection="RightToLeft"><TextBlock Text="שם הסביבה" Style="{StaticResource DetailsLabel}"/><TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Workspace name"/></StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding DetailsError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft">
