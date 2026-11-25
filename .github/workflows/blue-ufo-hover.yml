@@ -1,0 +1,31 @@
+name: blue-ufo-hover
+on:
+  push:
+    branches: [feat/blue-ufo-capture-hover]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Focused motion contracts
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter FullyQualifiedName~CaptureHoverMotion
+      - name: Real Windows hover and return states
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.HoverCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe=Join-Path $PWD 'tests/StartApp.HoverCapture/bin/Release/net10.0-windows/StartApp.HoverCapture.exe'
+          $p=Start-Process $exe -ArgumentList ('"'+(Join-Path $PWD 'hover-evidence')+'"') -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'hover capture timeout' }
+          if ($p.ExitCode -ne 0) { Get-Content hover-evidence/error.txt; throw 'hover capture failed' }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: blue-ufo-hover
+          path: hover-evidence/

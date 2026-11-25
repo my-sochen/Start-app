@@ -3,319 +3,104 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using StartApp.Presentation;
 
 namespace StartApp.App;
 
-/// <summary>
-/// The capture button's hover animation (beta, owner-approved Nov 22 00:14).
-/// Renders the approved UFO motion model (<see cref="CaptureHoverMotion"/>, a
-/// direct port of the designer's make_anim.py generator) as real WPF vectors:
-/// the logo ship bobs and tilts, its hull dots pulse, two solid wavy beams pour
-/// into the hatch slot and boxes descend into it, in a seamless 1.8s loop.
-/// Rest state (t = 0) shows the static ship only. Animation runs only while the
-/// ancestor button is hovered; all motion stays inside the 64x64 icon bounds.
-/// </summary>
+/// <summary>Renders the traced icon paths without substituting geometric approximations.</summary>
 public sealed class CaptureHoverIcon : Canvas
 {
-    private static readonly Brush NavyBrush = Freeze(new SolidColorBrush((Color)ColorConverter.ConvertFromString(CaptureHoverMotion.Navy)));
-    private static readonly Brush WhiteBrush = Freeze(Brushes.White);
-
-    private readonly Canvas _animatedRoot = new();
-    private readonly Canvas _ship = new();
-    private readonly Path _beamLeftGlow = BeamPath(CaptureHoverMotion.BeamGlowWidth);
-    private readonly Path _beamRightGlow = BeamPath(CaptureHoverMotion.BeamGlowWidth);
-    private readonly Path _beamLeft = BeamPath(CaptureHoverMotion.BeamWidth);
-    private readonly Path _beamRight = BeamPath(CaptureHoverMotion.BeamWidth);
-    private readonly Canvas _beams = new();
-    private Path[] _dots = [];
-    private readonly Path[] _boxes = { BoxPath(), BoxPath() };
-    private readonly TranslateTransform _bob = new();
-    private readonly RotateTransform _tilt = new();
-    private readonly TranslateTransform[] _boxOffsets = { new(), new() };
-    private readonly ScaleTransform[] _boxScales = { new(), new() };
-
-    private readonly StreamGeometryCache _streamLeft = new();
-    private readonly StreamGeometryCache _streamRight = new();
-
-    private Button? _hoverSource;
-    private bool _ticking;
-    private Stopwatch? _clock;
-    private double _phase;
-    private long _lastTickMs;
-    private bool _easingOut;
-    private double _easeOutRate = 1.0;
-    private double _easeOutTarget;
+    private readonly Canvas _all = Layer();
+    private readonly Canvas _beam = Layer();
+    private readonly Canvas _body = Layer();
+    private readonly Canvas _cubes = Layer();
+    private readonly TranslateTransform _lift = new();
+    private readonly RotateTransform _tilt = new(0,627,760);
+    private readonly TranslateTransform[] _cubeOffset = {new(),new()};
+    private readonly Path[] _cube = new Path[2];
+    private readonly LinearGradientBrush _flow = new()
+    {
+        MappingMode = BrushMappingMode.Absolute, StartPoint = new(0,250), EndPoint = new(0,690),
+        SpreadMethod = GradientSpreadMethod.Repeat,
+        GradientStops = new() { new(Color.FromArgb(0,186,230,253),0),new(Color.FromArgb(191,186,230,253),0.5),new(Color.FromArgb(0,186,230,253),1) }
+    };
+    private readonly TranslateTransform _flowOffset = new();
+    private readonly Path _flowPath;
+    private readonly DropShadowEffect _beamGlow = new() {Color=Color.FromRgb(56,130,246),ShadowDepth=0};
+    private readonly DropShadowEffect _bodyGlow = new() {Color=Color.FromRgb(56,130,246),ShadowDepth=0};
+    private Button? _button;
+    private bool _ticking, _hovered;
+    private readonly Stopwatch _clock = new();
+    private double _hoverStart, _transitionStart, _fromEnvelope, _envelope;
+    public bool IsAnimationRunning => _ticking;
+    public double HoverEnvelope => _envelope;
+    public bool ReducedMotion => !SystemParameters.ClientAreaAnimation || ForceReducedMotion;
+    public bool ForceReducedMotion { get; set; }
 
     public CaptureHoverIcon()
     {
-        Width = 64;
-        Height = 64;
-        ClipToBounds = true;
-        IsHitTestVisible = false;
-        IsVisibleChanged += (_, _) =>
-        {
-            if (!IsVisible) { StopTicking(); _phase = 0; RenderFrameAt(0); }
-            else if (_hoverSource?.IsMouseOver == true) StartTicking();
-        };
-
-        _beams.Children.Add(_beamLeftGlow);
-        _beams.Children.Add(_beamRightGlow);
-        _beams.Children.Add(_beamLeft);
-        _beams.Children.Add(_beamRight);
-        _beams.Opacity = 0;
-        _beamLeftGlow.Opacity = CaptureHoverMotion.BeamGlowOpacity;
-        _beamRightGlow.Opacity = CaptureHoverMotion.BeamGlowOpacity;
-        _beamLeftGlow.Data = _streamLeft.Geometry;
-        _beamLeft.Data = _streamLeft.Geometry;
-        _beamRightGlow.Data = _streamRight.Geometry;
-        _beamRight.Data = _streamRight.Geometry;
-
-        for (var i = 0; i < _boxes.Length; i++)
-        {
-            // translate(x y) scale(s): scale around the box origin first, then move it.
-            var transforms = new TransformGroup();
-            transforms.Children.Add(_boxScales[i]);
-            transforms.Children.Add(_boxOffsets[i]);
-            _boxes[i].RenderTransform = transforms;
-            _boxes[i].Opacity = 0;
-        }
-
-        BuildShip();
-
-        _animatedRoot.RenderTransform = new TransformGroup { Children = { _tilt, _bob } };
-        _animatedRoot.Children.Add(_beams);
-        foreach (var box in _boxes) _animatedRoot.Children.Add(box);
-        _animatedRoot.Children.Add(_ship);
-        Children.Add(_animatedRoot);
-
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
-        RenderFrameAt(0);
+        Width=Height=874; IsHitTestVisible=false; FlowDirection=FlowDirection.LeftToRight;
+        var viewport=Layer(); viewport.RenderTransform=new TranslateTransform(-190,-190);
+        var transform=new TransformGroup(); transform.Children.Add(_tilt);transform.Children.Add(_lift);_all.RenderTransform=transform;
+        _beam.Children.Add(Shape(CaptureHoverGeometry.Body,Blue()));
+        _flow.Transform=_flowOffset;
+        _flowPath=Shape(CaptureHoverGeometry.Body,_flow);_beam.Children.Add(_flowPath);
+        _beam.OpacityMask=Mask(false);_beam.Effect=_beamGlow;
+        _body.Children.Add(Shape(CaptureHoverGeometry.Body,Blue()));_body.OpacityMask=Mask(true);_body.Effect=_bodyGlow;
+        _cubes.Clip=new RectangleGeometry(new Rect(0,0,1300,662));
+        for(int i=0;i<2;i++) {_cube[i]=Shape(i==0?CaptureHoverGeometry.LargeCube:CaptureHoverGeometry.SmallCube,Blue());_cube[i].RenderTransform=_cubeOffset[i];_cubes.Children.Add(_cube[i]);}
+        _all.Children.Add(_beam);_all.Children.Add(_cubes);_all.Children.Add(_body);viewport.Children.Add(_all);Children.Add(viewport);
+        Loaded+=OnLoaded;Unloaded+=OnUnloaded;
+        IsVisibleChanged+=(_,_)=>{if(!IsVisible) Reset();else if(_button?.IsMouseOver==true) ChangeHover(true);};
+        RenderFrameAt(0,0);
     }
-
-    private void BuildShip()
+    private static Canvas Layer()=>new(){Width=1300,Height=1300};
+    private static LinearGradientBrush Blue()=>new(Color.FromRgb(29,78,216),Color.FromRgb(125,211,252),new Point(520,992),new Point(733,264)){MappingMode=BrushMappingMode.Absolute};
+    private static Brush Mask(bool inverse)=>new LinearGradientBrush(inverse?Colors.Transparent:Colors.White,inverse?Colors.White:Colors.Transparent,new Point(0,600),new Point(0,690)){MappingMode=BrushMappingMode.Absolute};
+    private static Path Shape(string data,Brush fill)=>new(){Data=Geometry.Parse("F0 "+data),Fill=fill};
+    public void RenderFrameAt(double t,double envelope=1)
     {
-        // Static ship line-art in ship space, placed like the logo: bottom of the icon.
-        var body = new GeometryGroup();
-        body.Children.Add(new EllipseGeometry(new Point(119, 34), 106, 31));
-        body.Children.Add(Geometry.Parse("M48 56 C73 68 88 97 119 97 C150 97 165 68 190 56"));
-        _ship.Children.Add(new Path
-        {
-            Data = body,
-            Stroke = NavyBrush,
-            StrokeThickness = 15,
-            Opacity = 0.14,
-        });
-        _ship.Children.Add(new Path
-        {
-            Data = new EllipseGeometry(new Point(119, 34), 106, 31),
-            Stroke = NavyBrush,
-            StrokeThickness = 9.5,
-        });
-        _ship.Children.Add(new Path
-        {
-            Data = Geometry.Parse("M48 56 C73 68 88 97 119 97 C150 97 165 68 190 56"),
-            Stroke = NavyBrush,
-            StrokeThickness = 9,
-        });
-        _ship.Children.Add(new Path
-        {
-            Data = new EllipseGeometry(new Point(118, 25), 25, 8),
-            Fill = WhiteBrush,
-            Stroke = NavyBrush,
-            StrokeThickness = 7,
-        });
-        _dots = CaptureHoverMotion.Dots
-            .Select(d => new Path
-            {
-                Data = new EllipseGeometry(new Point(d.Cx, d.Cy), d.R, d.R),
-                Fill = NavyBrush,
-            })
-            .ToArray();
-        foreach (var dot in _dots) _ship.Children.Add(dot);
-
-        var place = new TransformGroup();
-        place.Children.Add(new ScaleTransform(CaptureHoverMotion.ShipScale, CaptureHoverMotion.ShipScale));
-        place.Children.Add(new TranslateTransform(CaptureHoverMotion.ShipLeftX, CaptureHoverMotion.ShipTopY));
-        _ship.RenderTransform = place;
+        var e=Math.Clamp(envelope,0,1);_envelope=e;
+        _lift.Y=CaptureHoverMotion.Lift(t,e);_tilt.Angle=CaptureHoverMotion.Tilt(t,e);
+        _beam.Opacity=CaptureHoverMotion.BeamOpacity(t,e);_flowPath.Opacity=0.6*e;_flowOffset.Y=CaptureHoverMotion.Flow(t);
+        for(int i=0;i<2;i++){var s=CaptureHoverMotion.Cube(t,e,i==1);_cubeOffset[i].Y=s.Offset;_cube[i].Opacity=s.Opacity;}
+        _beamGlow.BlurRadius=20*e;_beamGlow.Opacity=0.6*e;
+        _bodyGlow.BlurRadius=22*e;_bodyGlow.Opacity=0.4*e*(0.8+0.2*Math.Sin(2*Math.PI*t/2.6*2));
     }
-
-    /// <summary>Renders one exact frame. Used by the hover ticker and by the synthetic UI capture harness.</summary>
-    public void RenderFrameAt(double t)
+    private void OnLoaded(object sender,RoutedEventArgs e)
     {
-        _bob.Y = CaptureHoverMotion.BobDy(t);
-        _tilt.Angle = CaptureHoverMotion.TiltDeg(t);
-        _tilt.CenterX = CaptureHoverMotion.TiltCenter.X;
-        _tilt.CenterY = CaptureHoverMotion.TiltCenter.Y;
-
-        _beams.Opacity = CaptureHoverMotion.BeamOpacity(t);
-        if (_beams.Opacity > 0)
-        {
-            _streamLeft.Update(CaptureHoverMotion.StreamLeftStart, CaptureHoverMotion.StreamLeftEnd, CaptureHoverMotion.StreamLeftAmp, t);
-            _streamRight.Update(CaptureHoverMotion.StreamRightStart, CaptureHoverMotion.StreamRightEnd, CaptureHoverMotion.StreamRightAmp, t);
-        }
-
-        for (var i = 0; i < _boxes.Length; i++)
-        {
-            var (opacity, x, y, scale) = i == 0
-                ? CaptureHoverMotion.BoxState(t, CaptureHoverMotion.Box1Top, CaptureHoverMotion.Box1End, CaptureHoverMotion.Box1T0)
-                : CaptureHoverMotion.BoxState(t, CaptureHoverMotion.Box2Top, CaptureHoverMotion.Box2End, CaptureHoverMotion.Box2T0);
-            _boxes[i].Opacity = opacity;
-            _boxOffsets[i].X = x;
-            _boxOffsets[i].Y = y;
-            _boxScales[i].ScaleX = scale;
-            _boxScales[i].ScaleY = scale;
-        }
-
-        for (var i = 0; i < _dots.Length; i++)
-            _dots[i].Opacity = CaptureHoverMotion.DotOpacity(t, CaptureHoverMotion.DotPhases[i]);
+        DependencyObject current=this;
+        while(VisualTreeHelper.GetParent(current) is {} parent){if(parent is Button b){_button=b;break;}current=parent;}
+        if(_button==null)return;
+        _button.MouseEnter+=Enter;_button.MouseLeave+=Leave;
+        SystemParameters.StaticPropertyChanged+=SystemChanged;
+        if(_button.IsMouseOver)ChangeHover(true);
     }
-
-    // Reuses one PathGeometry per beam and rewrites the bezier points in place each
-    // frame; the segment count is fixed, so the rendered geometries keep a stable identity.
-    private sealed class StreamGeometryCache
+    private void OnUnloaded(object sender,RoutedEventArgs e)
     {
-        public readonly PathGeometry Geometry = new();
-        private PolyBezierSegment? _segment;
-
-        public void Update((double X, double Y) start, (double X, double Y) end, double amp, double t)
-        {
-            var segments = CaptureHoverMotion.StreamSegments(start, end, amp, t);
-            if (_segment is null || _segment.Points.Count != segments.Count * 3)
-            {
-                var figure = new PathFigure { StartPoint = new Point(start.X, start.Y) };
-                _segment = new PolyBezierSegment();
-                figure.Segments.Add(_segment);
-                Geometry.Figures.Clear();
-                Geometry.Figures.Add(figure);
-            }
-            else
-            {
-                Geometry.Figures[0].StartPoint = new Point(start.X, start.Y);
-            }
-            var points = _segment.Points;
-            points.Clear();
-            foreach (var (c1, c2, segEnd) in segments)
-            {
-                points.Add(new Point(c1.X, c1.Y));
-                points.Add(new Point(c2.X, c2.Y));
-                points.Add(new Point(segEnd.X, segEnd.Y));
-            }
-        }
+        Reset();SystemParameters.StaticPropertyChanged-=SystemChanged;
+        if(_button!=null){_button.MouseEnter-=Enter;_button.MouseLeave-=Leave;_button=null;}
     }
-
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private void Enter(object sender,System.Windows.Input.MouseEventArgs e)=>ChangeHover(true);
+    private void Leave(object sender,System.Windows.Input.MouseEventArgs e)=>ChangeHover(false);
+    private void SystemChanged(object? sender,PropertyChangedEventArgs e){if(ReducedMotion)Reset();else if(_button?.IsMouseOver==true)ChangeHover(true);}
+    private void ChangeHover(bool hovered)
     {
-        _hoverSource = FindAncestorButton();
-        if (_hoverSource is null) return;
-        DependencyPropertyDescriptor.FromProperty(IsMouseOverProperty, typeof(Button))
-            .AddValueChanged(_hoverSource, OnHoverChanged);
-        if (_hoverSource.IsMouseOver) StartTicking();
+        if(ReducedMotion){Reset();return;}
+        if(!_ticking){if(!hovered)return;_clock.Restart();_hoverStart=0;_ticking=true;CompositionTarget.Rendering+=Tick;}
+        _fromEnvelope=_envelope;_transitionStart=_clock.Elapsed.TotalSeconds;
+        if(hovered&&!_hovered)_hoverStart=_clock.Elapsed.TotalSeconds;
+        _hovered=hovered;
     }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
+    private void Tick(object? sender,EventArgs e)
     {
-        StopTicking();
-        if (_hoverSource is not null)
-        {
-            DependencyPropertyDescriptor.FromProperty(IsMouseOverProperty, typeof(Button))
-                .RemoveValueChanged(_hoverSource, OnHoverChanged);
-            _hoverSource = null;
-        }
+        if(ReducedMotion||!IsVisible){Reset();return;}
+        var now=_clock.Elapsed.TotalSeconds;var u=(now-_transitionStart)/(_hovered?0.35:0.5);
+        var envelope=_fromEnvelope+((_hovered?1:0)-_fromEnvelope)*CaptureHoverMotion.Smooth(u);
+        RenderFrameAt(now-_hoverStart,envelope);
+        if(!_hovered&&u>=1)Reset();
     }
-
-    private void OnHoverChanged(object? sender, EventArgs e)
-    {
-        if (_hoverSource?.IsMouseOver == true)
-        {
-            _easingOut = false;
-            StartTicking();
-        }
-        else if (_ticking)
-        {
-            // Ease out to the next rest pose (t wraps to 0) instead of snapping back.
-            var loop = CaptureHoverMotion.LoopSeconds;
-            var remaining = loop - (_phase % loop);
-            if (remaining >= loop - 0.001 || remaining <= 0.001)
-            {
-                _easingOut = false;
-                StopTicking();
-                RenderFrameAt(0);
-                return;
-            }
-            _easeOutTarget = _phase + remaining;
-            _easeOutRate = remaining / 0.45; // constant ~450 ms settle, slight speed change only
-            _easingOut = true;
-        }
-    }
-
-    private void StartTicking()
-    {
-        if (_ticking || !IsVisible) return;
-        _ticking = true;
-        _clock = Stopwatch.StartNew();
-        _lastTickMs = 0;
-        CompositionTarget.Rendering += OnRendering;
-    }
-
-    private void StopTicking()
-    {
-        if (!_ticking) return;
-        _ticking = false;
-        CompositionTarget.Rendering -= OnRendering;
-        _clock = null;
-    }
-
-    private void OnRendering(object? sender, EventArgs e)
-    {
-        if (_clock is null) return;
-        var nowMs = _clock.ElapsedMilliseconds;
-        var dt = _lastTickMs == 0 ? 0 : (nowMs - _lastTickMs) / 1000.0;
-        _lastTickMs = nowMs;
-        _phase += dt * (_easingOut ? _easeOutRate : 1.0);
-        if (_easingOut && _phase >= _easeOutTarget)
-        {
-            _easingOut = false;
-            _phase = 0;
-            StopTicking();
-            RenderFrameAt(0);
-            return;
-        }
-        RenderFrameAt(_phase % CaptureHoverMotion.LoopSeconds);
-    }
-
-    private Button? FindAncestorButton()
-    {
-        DependencyObject current = this;
-        while (VisualTreeHelper.GetParent(current) is { } parent)
-        {
-            if (parent is Button button) return button;
-            current = parent;
-        }
-        return null;
-    }
-
-    private static Path BeamPath(double thickness) => new()
-    {
-        Stroke = NavyBrush,
-        StrokeThickness = thickness,
-        StrokeStartLineCap = PenLineCap.Round,
-        StrokeEndLineCap = PenLineCap.Round,
-    };
-
-    private static Path BoxPath() => new()
-    {
-        Data = new RectangleGeometry(new Rect(-5, -5, 10, 10), 1.8, 1.8),
-        Fill = WhiteBrush,
-        Stroke = NavyBrush,
-        StrokeThickness = 1.7,
-    };
-
-    private static Brush Freeze(Brush brush)
-    {
-        brush.Freeze();
-        return brush;
-    }
+    private void Reset(){if(_ticking)CompositionTarget.Rendering-=Tick;_clock.Stop();_ticking=false;_hovered=false;RenderFrameAt(0,0);}
 }

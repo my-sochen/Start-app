@@ -249,11 +249,11 @@
             <!-- ============ OVERVIEW: workspace cards + create form ============ -->
             <DockPanel Margin="28,39,28,16" Visibility="{Binding InOverview, Converter={StaticResource B2V}}">
                 <!-- approved 22.11 home toolbar: capture + new-workspace buttons at the left, workspace search at the right -->
-                <Grid DockPanel.Dock="Top" Margin="4,0,4,16" Height="42">
+                <Grid DockPanel.Dock="Top" Margin="4,0,4,16" Height="44">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                        <Button Width="44" Height="38" VerticalAlignment="Center" Padding="0" Style="{StaticResource HomeToolbarButton}" Margin="0,0,10,0" AutomationProperties.Name="Capture"
+                        <Button Width="44" Height="44" ClipToBounds="True" VerticalAlignment="Center" Padding="0" Style="{StaticResource CaptureToolbarButton}" Margin="0,0,10,0" AutomationProperties.Name="Capture"
                                 Click="CaptureMenu_Click" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                            <Viewbox Width="31" Height="31" IsHitTestVisible="False"><local:CaptureHoverIcon/></Viewbox>
+                            <Viewbox Width="34" Height="34" IsHitTestVisible="False" FlowDirection="LeftToRight"><local:CaptureHoverIcon/></Viewbox>
                             <Button.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="סביבה חדשה" Command="{Binding PlacementTarget.Tag.CaptureNewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
