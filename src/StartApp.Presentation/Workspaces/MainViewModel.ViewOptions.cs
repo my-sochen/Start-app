@@ -237,7 +237,7 @@ public sealed partial class MainViewModel
         FilterChips.Clear(); foreach (var chip in _workspaceView.Chips(text)) FilterChips.Add(chip);
 
         FilterColorOptions.Clear();
-        foreach (var c in Workspaces.Select(w => w.Color).Where(c => !string.IsNullOrEmpty(c)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+        foreach (var c in _current.AdvancedColorHistory.Concat(Workspaces.Select(w => w.Color).Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).OrderBy(c => c, StringComparer.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
             FilterColorOptions.Add(c!);
 
         Raise(nameof(HasActiveFilters)); Raise(nameof(FilteredCountText)); Raise(nameof(FilterCategoryOptions));

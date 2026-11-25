@@ -38,4 +38,13 @@ public class AdvancedColorTests
         Assert.False(vm.ApplyAdvancedColorCommand.CanExecute(new AdvancedColorChoice("design", "#123456")));
         Assert.False(vm.ApplyAdvancedColorCommand.CanExecute(new AdvancedColorChoice("filter", "#123456")));
     }
+    [Fact] public void Filter_options_include_history_without_live_cards_and_merge_legacy_colors_without_duplicates()
+    {
+        using var repo = Repo();
+        repo.Mutate(c => { WorkspaceColors.Remember(c.Store, "#123456"); WorkspaceColors.Remember(c.Store, "#AABBCC"); var w = c.CreateWorkspace("legacy"); c.SetCardDesign(w.Id, "#aabbcc", null); });
+        var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        Assert.Equal(new[] { "#123456", "#AABBCC" }, vm.FilterColorOptions);
+        vm.ToggleColorFilter("#123456"); Assert.Empty(vm.DisplayWorkspaces); Assert.True(vm.HasActiveFilters);
+        vm.ToggleColorFilter("#123456"); Assert.Single(vm.DisplayWorkspaces);
+    }
 }
