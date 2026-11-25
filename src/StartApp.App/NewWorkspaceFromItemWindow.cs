@@ -25,7 +25,7 @@ internal sealed class NewWorkspaceFromItemWindow : Window
         var input = new TextBox { Style = (Style)FindResource("DetailsInput") };
         System.Windows.Automation.AutomationProperties.SetName(input, "New item environment name"); body.Children.Add(input);
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(155,48,48)), Margin = new Thickness(0,8,0,8) }; body.Children.Add(error);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,12,0,0) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0,12,0,0) };
         var create = new Button { Content = "צור סביבה והוסף", IsEnabled = false, IsDefault = true, Style = (Style)FindResource("DialogPrimaryButton") };
         System.Windows.Automation.AutomationProperties.SetName(create, "Create item environment");
         input.TextChanged += (_, _) => create.IsEnabled = !string.IsNullOrWhiteSpace(input.Text);

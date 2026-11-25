@@ -21,7 +21,7 @@ internal sealed class SavedItemPromptWindow : Window
         body.Children.Add(header);
         header.Children.Add(new TextBlock { Text = title, FontSize = 22, Foreground = new SolidColorBrush(Color.FromRgb(34,40,51)), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,14,0,18) });
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Right };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
         var ok = new Button { Content = confirm, Style = (Style)FindResource("DialogPrimaryButton"), IsDefault = true };
         System.Windows.Automation.AutomationProperties.SetName(ok, notice ? "Close item notice" : "Move capture list item");
         ok.Click += (_, _) => DialogResult = true;
