@@ -61,4 +61,14 @@ public class AdvancedColorTests
         public Store Mutate(Action<Catalog> change) => throw new Exception("must not write");
         public void Dispose() { }
     }
+    [Fact] public void Nine_muted_base_colors_are_shared_and_old_saved_colors_remain_selectable_separately()
+    {
+        using var repo = Repo(); repo.Mutate(c => { var w = c.CreateWorkspace("old"); c.SetCardDesign(w.Id, "#BFDBFE", null); });
+        var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        Assert.Equal(9, vm.DesignPalette.Count); Assert.Equal(9, vm.DesignPalette.Distinct().Count());
+        Assert.Equal(WorkspaceColors.BasePalette, vm.DesignPalette); Assert.Contains("#7189BB", vm.DesignPalette);
+        Assert.Contains("#BFDBFE", vm.AdvancedColorOptions); Assert.True(vm.HasAdvancedColorOptions);
+        Assert.DoesNotContain(vm.AdvancedColorOptions, c => vm.DesignPalette.Contains(c));
+        Assert.Equal("#BFDBFE", repo.Load().Workspaces.Single().Color);
+    }
 }
