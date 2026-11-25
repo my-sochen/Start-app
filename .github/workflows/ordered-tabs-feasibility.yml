@@ -10,6 +10,22 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Targeted opening contracts
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~DedicatedWindowLaunchRunnerTests|FullyQualifiedName~OpeningLaunchRunnerTests|FullyQualifiedName~PreflightTests"
+          dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter "FullyQualifiedName~BrowserWindowLaunchTests|FullyQualifiedName~BrowserPreflightTests"
+      - name: Actual app opening dialog
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.BrowserWindowCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $exe=Join-Path $PWD 'tests/StartApp.BrowserWindowCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $p=Start-Process $exe -ArgumentList ('"'+(Join-Path $PWD 'browser-window-app')+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'App capture timeout'}
+          if($p.ExitCode -ne 0){Get-Content browser-window-app/error.txt;throw 'App capture failed'}
       - name: Disposable Chrome and Edge window and tab control probe
         shell: pwsh
         run: |
@@ -66,4 +82,6 @@ jobs:
         if: always()
         with:
           name: ordered-tabs-feasibility
-          path: tabs-feasibility/
+          path: |
+            tabs-feasibility/
+            browser-window-app/
