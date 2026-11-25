@@ -16,7 +16,7 @@
     <AssemblyMetadata Include="StartAppSourceCommit" Value="$(StartAppSourceCommit)" />
   </ItemGroup>
   <Target Name="ValidateStartAppIdentity" BeforeTargets="CoreCompile" Condition="'$(StartAppReleaseVersion)' != '' Or '$(StartAppSourceCommit)' != ''">
-    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(StartAppReleaseVersion)', '^(0|[1-9][0-9]{0,8})[.](0|[1-9][0-9]{0,8})[.](0|[1-9][0-9]{0,8})-proto[.](0|[1-9][0-9]{0,8})$'))" Text="Explicit prototype release version required" />
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(StartAppReleaseVersion)', '^(0|[1-9][0-9]{0,8})[.](0|[1-9][0-9]{0,8})[.](0|[1-9][0-9]{0,8})-(proto|beta)[.](0|[1-9][0-9]{0,8})$'))" Text="Explicit prototype or beta release version required" />
     <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(StartAppSourceCommit)', '^[0-9a-f]{40}$'))" Text="Explicit source commit required" />
   </Target>
   <ItemGroup>
