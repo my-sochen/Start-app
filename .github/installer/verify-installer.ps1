@@ -34,6 +34,10 @@ try{
  Check 'first page presents shortcut and launch options' ($task.Count -ge 2)
  # Inno custom task list does not expose TogglePattern/MSAA item state here.
  # Preserve pixels for manual verification; actual shortcut/launch side effects are asserted below.
+ $startup=$all|Where-Object {$_.Current.Name -eq 'Start Start App when I sign in to Windows'}|Select-Object -First 1
+ Check 'startup checkbox present with English label' ([bool]$startup)
+ $toggle=[Windows.Automation.TogglePattern]$startup.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+ Check 'startup default unchecked' ($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::Off)
  Shot '01-options' $w
  $r=$w.Current.BoundingRectangle
  $frames=Join-Path $out 'progress-frames';New-Item $frames -ItemType Directory -Force|Out-Null
@@ -82,13 +86,41 @@ try{
  $identity=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $target 'StartApp.App.dll'))
  $info=(Get-Item (Join-Path $target 'StartApp.App.dll')).VersionInfo.ProductVersion
  Check 'installed beta identity matches candidate' ($info -eq "$env:APP_VERSION+sha.$env:GITHUB_SHA")
- $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App'
- Check 'existing logon route installed' ($run.'Start App' -match '--autostart')
+ $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
+ Check 'startup unchecked does not register logon route' (-not $run)
  . (Join-Path $PSScriptRoot 'capture-installed-surfaces.ps1')
  $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="!launchafter,!desktopicon"' -PassThru -Wait
  Check 'reinstall succeeds' ($p.ExitCode -eq 0)
  Check 'reinstall preserves data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
  Check 'reinstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
+ # Upgrade from the older always-on installer must respect the new unchecked choice.
+ New-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force|Out-Null
+ New-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -Value ('"'+(Join-Path $target 'StartApp.App.exe')+'" --autostart') -PropertyType String -Force|Out-Null
+ $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="!launchafter,!desktopicon,!startup"' -PassThru -Wait
+ Check 'unchecked upgrade succeeds' ($p.ExitCode -eq 0)
+ $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
+ Check 'unchecked upgrade removes older automatic startup' (-not $run)
+ # Exercise the real checkbox checked, not only a silent command-line task.
+ $p=Start-Process $exe -ArgumentList '/SP-','/NORESTART' -PassThru
+ $w=Window $p.Id;Start-Sleep -Milliseconds 300
+ $all=$w.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+ $startup=$all|Where-Object {$_.Current.Name -eq 'Start Start App when I sign in to Windows'}|Select-Object -First 1
+ $toggle=[Windows.Automation.TogglePattern]$startup.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+ Check 'startup still defaults unchecked on reinstall' ($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::Off)
+ ClickElement $startup
+ $untilToggle=[DateTime]::UtcNow.AddSeconds(5)
+ do{Start-Sleep -Milliseconds 50;$state=$toggle.Current.ToggleState}while($state -ne [Windows.Automation.ToggleState]::On -and [DateTime]::UtcNow -lt $untilToggle)
+ Check 'startup can be checked in real installer' ($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::On)
+ $launch=$all|Where-Object {$_.Current.Name -eq 'Launch Start App when setup finishes'}|Select-Object -First 1
+ if(([Windows.Automation.TogglePattern]$launch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)).Current.ToggleState -eq [Windows.Automation.ToggleState]::On){ClickElement $launch;Start-Sleep -Milliseconds 150}
+ Shot '06-startup-checked' $w
+ InvokeName $w 'Next'
+ $until=[DateTime]::UtcNow.AddSeconds(90)
+ do{Start-Sleep -Milliseconds 200;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
+ Check 'checked installation reaches finish' ([bool]$finish);ClickElement $finish;$p.WaitForExit(10000)|Out-Null
+ $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App'
+ Check 'checked registers exact current-user startup command' ($run.'Start App' -eq ('"'+(Join-Path $target 'StartApp.App.exe')+'" --autostart'))
+ Check 'startup choice preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  $un=Join-Path $target 'unins000.exe';$p=Start-Process $un -ArgumentList '/NORESTART' -PassThru
  $u=UninstallWindow;Shot '04-uninstall-confirm' $u;InvokeName $u 'Yes'
  $until=[DateTime]::UtcNow.AddSeconds(60);do{Start-Sleep -Milliseconds 200;$u=UninstallWindow;$ok=Buttons $u|Where-Object {$_.Current.Name -match 'OK'}|Select-Object -First 1}while(-not $ok -and [DateTime]::UtcNow -lt $until)
