@@ -129,7 +129,7 @@ public class ItemPopupsTests
         vm.NewItemName = "";
         var one = vm.Items.Single(r => r.Name == "one");
         vm.OpenWithCommand.Execute(one);
-        Assert.True(vm.OpenWithOpen); Assert.Contains("Browser", vm.OpenWithLabel);
+        Assert.True(vm.OpenWithOpen); Assert.Contains("דפדפן", vm.OpenWithLabel);
         vm.OpenWithProgram = "C:\\Browsers\\other.exe";
         vm.OpenWithSetDefault = true;
         vm.OpenWithGoCommand.Execute(null);
@@ -159,7 +159,7 @@ public class ItemPopupsTests
         vm.NewItemType = ItemType.File; vm.NewTarget = "C:\\a.txt"; vm.NewItemName = "doc"; vm.AddItemCommand.Execute(null);
         var row = vm.Items.Single();
         vm.OpenWithCommand.Execute(row);
-        Assert.Contains("Program", vm.OpenWithLabel);
+        Assert.Contains("תוכנה", vm.OpenWithLabel);
         vm.OpenWithProgram = "C:\\Apps\\reader.exe"; vm.OpenWithSetDefault = true;
         vm.OpenWithGoCommand.Execute(null); await vm.OpenTask;
         Assert.Equal("C:\\Apps\\reader.exe", repo.Load().Workspaces.Single().Items.Single().Launch?.OpenWith);

@@ -181,7 +181,7 @@ public class WorkspaceCardTests
         vm.EditCategoryPopupCommand.Execute(ws);
         vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה"));
         Assert.True(vm.CategoryDeletePending);
-        Assert.Contains("'w'", vm.CategoryDeleteMessage); // one workspace is named directly
+        Assert.Equal("סביבת העבודה 'w' משויכת לקטגוריה 'מוזיקה'. למחוק את הקטגוריה ולהעביר את סביבת העבודה לקטגוריה כללי?", vm.CategoryDeleteMessage); // one workspace is named directly
         Assert.True(vm.CategoryDeleteListShown); // and the list is already visible, no list button
         Assert.False(vm.ShowCategoryDeleteListCommand.CanExecute(null));
         vm.CancelCategoryDeleteCommand.Execute(null); // dismiss: category and assignment kept
@@ -200,7 +200,7 @@ public class WorkspaceCardTests
         vm.EditCategoryPopupCommand.Execute(first);
         vm.DeleteCategoryCommand.Execute(vm.CategoryRows.Single(r => r.Name == "מוזיקה"));
         Assert.True(vm.CategoryDeletePending);
-        Assert.Contains("2 workspaces", vm.CategoryDeleteMessage);
+        Assert.Equal("2 סביבות עבודה משויכות לקטגוריה 'מוזיקה'. למחוק את הקטגוריה ולהעביר אותן לקטגוריה כללי?", vm.CategoryDeleteMessage);
         Assert.False(vm.CategoryDeleteListShown); // several: the list sits behind the button
         vm.ShowCategoryDeleteListCommand.Execute(null);
         Assert.True(vm.CategoryDeleteListShown);

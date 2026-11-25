@@ -22,7 +22,7 @@ public sealed partial class MainViewModel
     private readonly OpenWithSession<ItemRow, StagedRow> _openWith = new();
     public bool OpenWithOpen { get => _openWith.IsOpen; private set { if (_openWith.IsOpen != value) { _openWith.IsOpen = value; Raise(nameof(OpenWithOpen)); } RaiseCommands(); } }
     /// <summary>A site asks for a browser; files and folders ask for a program.</summary>
-    public string OpenWithLabel => _openWith.SavedTarget?.Type == nameof(ItemType.Link) || _openWith.StagedTarget?.Type == ItemType.Link ? "Browser (full path to its exe); empty = Windows default" : "Program (full path to its exe); empty = Windows default";
+    public string OpenWithLabel => _openWith.SavedTarget?.Type == nameof(ItemType.Link) || _openWith.StagedTarget?.Type == ItemType.Link ? "דפדפן (נתיב מלא לקובץ ההפעלה). השאירו ריק לשימוש בברירת המחדל של Windows." : "תוכנה (נתיב מלא לקובץ ההפעלה). השאירו ריק לשימוש בברירת המחדל של Windows.";
     public string OpenWithProgram { get => _openWith.Program; set { var program = value ?? ""; if (_openWith.Program != program) { _openWith.Program = program; Raise(nameof(OpenWithProgram)); } RaiseCommands(); } }
     /// <summary>Save the choice for this instance only, never a Windows default or other workspaces.</summary>
     public bool OpenWithSetDefault { get => _openWith.SetDefault; set { if (_openWith.SetDefault != value) { _openWith.SetDefault = value; Raise(nameof(OpenWithSetDefault)); } } }

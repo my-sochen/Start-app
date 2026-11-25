@@ -178,7 +178,7 @@ public class StagedItemActionsTests
         var stagedCount = vm.StagedRows.Count;
         vm.StagedOpenWithCommand.Execute(link);
         Assert.True(vm.OpenWithOpen);
-        Assert.Contains("Browser", vm.OpenWithLabel);                               // a staged link asks for a browser, like a saved one
+        Assert.Contains("דפדפן", vm.OpenWithLabel);                               // a staged link asks for a browser, like a saved one
         vm.OpenWithProgram = "C:\\MyBrowser\\b.exe"; vm.OpenWithSetDefault = true;
         vm.OpenWithGoCommand.Execute(null); await vm.OpenTask;
         Assert.False(vm.OpenWithOpen);
