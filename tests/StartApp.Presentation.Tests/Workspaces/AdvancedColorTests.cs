@@ -125,4 +125,12 @@ public class AdvancedColorTests
         vm.CaptureCreateCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory); Assert.Single(repo.Load().Workspaces);
     }
     sealed class EmptyCapturer : IOpenItemCapturer { public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), Array.Empty<string>()); }
+    [Fact] public void Category_catalog_save_does_not_commit_or_lose_pending_color_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.ShowCreateScreen(); vm.NewName = "draft";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233"));
+        vm.ManageCategoriesCommand.Execute("create"); vm.NewCategoryName = "personal"; vm.AddCategoryCommand.Execute(null);
+        Assert.Empty(repo.Load().AdvancedColorHistory); Assert.Empty(repo.Load().Workspaces); Assert.Equal("#112233", vm.NewWorkspaceColor);
+        vm.CloseCategoryPopupCommand.Execute(null); vm.CreateWorkspaceCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory);
+    }
 }

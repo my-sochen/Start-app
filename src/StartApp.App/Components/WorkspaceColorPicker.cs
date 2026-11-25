@@ -47,7 +47,12 @@ public sealed class WorkspaceColorPicker : StackPanel
         preview.SetBinding(Border.BackgroundProperty, new Binding(nameof(SelectedColor)) { Source = this, Converter = new ColorBrushConverter() });
         var value = new TextBlock { FlowDirection = FlowDirection.LeftToRight, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
         value.SetBinding(TextBlock.TextProperty, new Binding(nameof(SelectedColor)) { Source = this });
-        current.Children.Add(preview); current.Children.Add(value); Children.Add(current);
+        current.Children.Add(preview); current.Children.Add(value);
+        var currentStyle = new Style(typeof(StackPanel));
+        currentStyle.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible));
+        var empty = new DataTrigger { Binding = new Binding(nameof(SelectedColor)) { Source = this }, Value = "" };
+        empty.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed)); currentStyle.Triggers.Add(empty); current.Style = currentStyle;
+        Children.Add(current);
         var advanced = new Button { Content = "בחירה מתקדמת", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0) };
         advanced.SetResourceReference(StyleProperty, "HomeToolbarButton");
         System.Windows.Automation.AutomationProperties.SetName(advanced, "Advanced color selection");
