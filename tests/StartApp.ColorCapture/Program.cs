@@ -37,7 +37,10 @@ internal static class Program
         var editor=Application.Current.Windows.OfType<AdvancedColorWindow>().Single();
         var boxes=Tree(editor).OfType<TextBox>().ToArray();
         var hex=boxes.Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Color hex");
-        hex.Focus(); hex.Text="#12ab34"; hex.Select(3,1); hex.SelectedText="c";
+        editor.Activate(); hex.Focus(); await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+        Check(name+" hex has real keyboard focus",hex.IsKeyboardFocused);
+        hex.Text="#12ab34"; hex.Select(3,1); System.Windows.Forms.SendKeys.SendWait("c");
+        await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(name+" actual mid-edit hex value",editor.ChosenColor=="#12CB34"&&hex.Text=="#12cb34");
         Check(name+" actual mid-edit hex caret",hex.SelectionStart==4&&hex.SelectionLength==0);
         hex.Text="#12ab34";
@@ -50,7 +53,10 @@ internal static class Program
         var red = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Red");
         var green = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Green");
         var blue = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Blue");
-        red.Focus(); red.Text="12"; red.Select(1,1); red.SelectedText="3";
+        red.Focus(); await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+        Check(name+" RGB has real keyboard focus",red.IsKeyboardFocused);
+        red.Text="12"; red.Select(1,1); System.Windows.Forms.SendKeys.SendWait("3");
+        await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(name+" RGB mid-edit caret",red.Text=="13"&&red.SelectionStart==2);
         red.Text="013";
         Check(name+" RGB leading zero normalization",red.Text=="13"&&editor.ChosenColor.StartsWith("#0D"));
