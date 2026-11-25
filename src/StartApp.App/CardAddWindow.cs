@@ -12,6 +12,8 @@ public sealed class CardAddWindow : Window
     private readonly MainViewModel _session;
     private readonly ManualAddForm _form = new();
     private bool _discardApproved;
+    private readonly UIElement _surface;
+    private readonly Button _keepEditing;
     private readonly Grid _shade = new() { Visibility=Visibility.Collapsed, Background=new SolidColorBrush(Color.FromArgb(102,80,90,112)) };
     public CardAddWindow(MainViewModel session)
     {
@@ -36,24 +38,27 @@ public sealed class CardAddWindow : Window
         var surface = new DialogFrame { Padding=new Thickness(28),CornerRadius=new CornerRadius(6),BorderBrush=new SolidColorBrush(Color.FromRgb(201,208,220)),BorderThickness=new Thickness(1),HorizontalAlignment=HorizontalAlignment.Stretch,VerticalAlignment=VerticalAlignment.Stretch,Child=new ScrollViewer { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Content=body } };
         var guard = new StackPanel {FlowDirection=FlowDirection.RightToLeft};
         var keep = new Button {Content="×",Style=(Style)FindResource("QuietTextButton"),Width=24,HorizontalAlignment=HorizontalAlignment.Left,ToolTip="חזרה לעריכה"};
-        keep.Click+=(_,_)=>{_shade.Visibility=Visibility.Collapsed;_form.FocusTarget();};guard.Children.Add(keep);
+        _keepEditing=keep;
+        keep.Click+=(_,_)=>HideGuard();guard.Children.Add(keep);
         guard.Children.Add(new TextBlock {Text="יש אייטם שטרם נוסף",FontSize=20,FontWeight=FontWeights.SemiBold});
         guard.Children.Add(new TextBlock {Text="להוסיף את האייטם לפני היציאה?",Margin=new Thickness(0,12,0,20)});
         var actions = new WrapPanel {HorizontalAlignment=HorizontalAlignment.Left};
         var save = new Button {Content="שמור וצא",Style=(Style)FindResource("PrimaryActionButton")};
-        save.Click+=(_,_)=>{if(session.AddItemCommand.CanExecute(null))session.AddItemCommand.Execute(null);_shade.Visibility=Visibility.Collapsed;if(session.NewTarget.Length==0&&session.NewItemName.Length==0&&session.NewDescription.Length==0){_discardApproved=true;Close();}};
+        save.Click+=(_,_)=>{if(session.AddItemCommand.CanExecute(null))session.AddItemCommand.Execute(null);HideGuard();if(session.NewTarget.Length==0&&session.NewItemName.Length==0&&session.NewDescription.Length==0){_discardApproved=true;Close();}};
         var discard = new Button {Content="צא בלי לשמור",Style=(Style)FindResource("HomeToolbarButton"),Margin=new Thickness(8,0,0,0)};
         discard.Click+=(_,_)=>{_discardApproved=true;Close();};actions.Children.Add(save);actions.Children.Add(discard);guard.Children.Add(actions);
         _shade.Children.Add(new DialogFrame {Child=guard,Padding=new Thickness(24),Margin=new Thickness(20),CornerRadius=new CornerRadius(6)});
+        _surface=surface;System.Windows.Input.KeyboardNavigation.SetTabNavigation(_shade,System.Windows.Input.KeyboardNavigationMode.Cycle);
         var root = new Grid();root.Children.Add(surface);root.Children.Add(_shade);Content=root;
         ContentRendered += (_,_) => _form.FocusTarget();
-        PreviewKeyDown += (_,e)=>{if(e.Key==Key.Escape){e.Handled=true;if(_shade.Visibility==Visibility.Visible)_shade.Visibility=Visibility.Collapsed;else if(session.PickerOpen)session.ClosePickerCommand.Execute(null);else Close();}};
+        PreviewKeyDown += (_,e)=>{if(e.Key==Key.Escape){e.Handled=true;if(_shade.Visibility==Visibility.Visible)HideGuard();else if(session.PickerOpen)session.ClosePickerCommand.Execute(null);else Close();}};
         Closing += ClosingWindow;
     }
+    private void HideGuard(){_shade.Visibility=Visibility.Collapsed;_surface.IsEnabled=true;_form.FocusTarget();}
     private void ClosingWindow(object? sender, CancelEventArgs e)
     {
         if (_discardApproved || (_session.NewTarget.Length==0 && _session.NewItemName.Length==0 && _session.NewDescription.Length==0)) return;
-        e.Cancel=true; _shade.Visibility=Visibility.Visible;
+        e.Cancel=true; _surface.IsEnabled=false;_shade.Visibility=Visibility.Visible;_keepEditing.Focus();
 
     }
 }
