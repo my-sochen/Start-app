@@ -58,7 +58,7 @@ var
   DetailsButton: TNewButton;
   DetailsMemo: TNewMemo;
   ShortcutCheck, LaunchCheck: TNewCheckBox;
-  ShortcutCard, LaunchCard, SuccessCard: TPanel;
+  ShortcutCard, LaunchCard, SuccessCard, ProgressTrack, ProgressFill: TPanel;
   Art: TBitmapImage;
 
 procedure DetailsClick(Sender: TObject);
@@ -128,6 +128,17 @@ begin
   WizardForm.ProgressGauge.Parent := WizardForm;
   WizardForm.ProgressGauge.SetBounds(ScaleX(32), ScaleY(142), ScaleX(756), ScaleY(10));
   WizardForm.ProgressGauge.Visible := False;
+  ProgressTrack := TPanel.Create(WizardForm);
+  ProgressTrack.Parent := WizardForm;
+  ProgressTrack.SetBounds(ScaleX(32), ScaleY(142), ScaleX(756), ScaleY(10));
+  ProgressTrack.BevelOuter := bvNone;
+  ProgressTrack.Color := $00F3EAE5;
+  ProgressTrack.Visible := False;
+  ProgressFill := TPanel.Create(WizardForm);
+  ProgressFill.Parent := ProgressTrack;
+  ProgressFill.SetBounds(0, 0, 0, ProgressTrack.Height);
+  ProgressFill.BevelOuter := bvNone;
+  ProgressFill.Color := $00C55C31;
   CopyHint := TextLabel(32, 113, 660, 24, 10, 'Copying application files');
   CopyHint.Visible := False;
   PercentLabel := TextLabel(714, 113, 74, 24, 10, '0%');
@@ -158,7 +169,8 @@ begin
   WizardForm.BackButton.Visible := False;
   ShortcutCard.Visible := CurPageID = wpSelectTasks;
   LaunchCard.Visible := CurPageID = wpSelectTasks;
-  WizardForm.ProgressGauge.Visible := CurPageID = wpInstalling;
+  WizardForm.ProgressGauge.Visible := False;
+  ProgressTrack.Visible := CurPageID = wpInstalling;
   CopyHint.Visible := CurPageID = wpInstalling;
   PercentLabel.Visible := CurPageID = wpInstalling;
   DetailsButton.Visible := CurPageID = wpInstalling;
@@ -188,7 +200,10 @@ end;
 procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);
 begin
   if MaxProgress > 0 then
+  begin
     PercentLabel.Caption := IntToStr(Round(CurProgress * 100.0 / MaxProgress)) + '%';
+    ProgressFill.Width := Round(ProgressTrack.Width * (CurProgress * 1.0 / MaxProgress));
+  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;

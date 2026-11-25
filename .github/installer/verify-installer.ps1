@@ -53,8 +53,14 @@ try{
  Check 'details expands during install' ([bool]$hide)
  Start-Sleep -Milliseconds 150
  Shot '02-progress-expanded' $w
- $names=@($w.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {$_.Current.Name})
- $names|ConvertTo-Json|Set-Content (Join-Path $out 'details-expanded.json')
+ $memo=$w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Edit)))|Select-Object -First 1
+ $liveText=$memo.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+ $liveText|Set-Content (Join-Path $out 'details-expanded.txt')
+ Check 'live details contains actual installation destinations' ($liveText -match 'Programs\\StartApp\\' -and $liveText.Length -gt 30)
+ ClickElement $hide
+ Check 'details can collapse again' ([bool](Buttons $w|Where-Object {$_.Current.Name -eq 'Show details'}))
+ InvokeName $w '^Show details$'
+
 
  $until=[DateTime]::UtcNow.AddSeconds(90)
  do{Start-Sleep -Milliseconds 300;$w=Window $p.Id;$finish=Buttons $w|Where-Object {$_.Current.Name -match 'Finish' -and $_.Current.IsEnabled}|Select-Object -First 1}while(-not $finish -and [DateTime]::UtcNow -lt $until)
