@@ -11,11 +11,11 @@
                     <TextBox Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Item description"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                       <Button Content="הוספה" Command="{Binding AddItemCommand}" Style="{StaticResource PrimaryActionButton}" AutomationProperties.Name="Add item"/>
-                      <Button Content="בחר מסביבות קיימות" Command="{Binding OpenPickerCommand}" Style="{StaticResource HomeToolbarButton}" Margin="8,0,0,0" AutomationProperties.Name="Pick from existing resources"/>
+                      <Button Content="בחר מסביבות קיימות" MinWidth="180" Command="{Binding OpenPickerCommand}" Style="{StaticResource HomeToolbarButton}" Margin="8,0,0,0" AutomationProperties.Name="Pick from existing resources"/>
                     </StackPanel>
                     <StackPanel Visibility="{Binding DuplicatePending, Converter={StaticResource B2V}}" Margin="0,8,0,0">
                       <TextBlock Text="{Binding DuplicateMessage}" TextWrapping="Wrap"/>
-                      <Button Content="הוסף בכל זאת" Command="{Binding ConfirmDuplicateCommand}"/><Button Content="ביטול" Command="{Binding CancelDuplicateCommand}"/>
+                      <Button Content="הוסף בכל זאת" Command="{Binding ConfirmDuplicateCommand}" Style="{StaticResource PrimaryActionButton}" Margin="0,6,0,4"/><Button Content="ביטול" Command="{Binding CancelDuplicateCommand}" Style="{StaticResource HomeToolbarButton}"/>
                     </StackPanel>
 
 </StackPanel>
