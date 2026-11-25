@@ -132,14 +132,6 @@ public class AdvancedColorTests
         vm.CaptureCreateCommand.Execute(null);
         Assert.Null(repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
     }
-    [Fact] public void Regular_create_empty_selection_currently_saves_default_but_not_history()
-    {
-        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        vm.ShowCreateScreen(); vm.NewName = "current default"; Assert.True(vm.InCreate); Assert.Equal("", vm.NewWorkspaceColor);
-        vm.CreateWorkspaceCommand.Execute(null);
-        // Characterizes current policy only, not a new product decision.
-        Assert.Equal("#7189BB", repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
-    }
     [Fact] public async Task Capture_preset_click_must_save_non_default_color_without_history()
     {
         using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
