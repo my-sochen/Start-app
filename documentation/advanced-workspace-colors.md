@@ -12,7 +12,7 @@ Feature branch from dev after PR143. Not merged or released.
 ## Product decisions
 - 25 November: unify all pickers and the filter base list on nine muted colors, retaining the six styled creation colors. Added muted teal, peach and brick.
 - Existing card colors are never rewritten. Colors outside the base palette remain available as extra colors and filter choices.
-- History write timing is pending the owner's answer. Storage and read/filter support exist but no user selection writes history yet. Do not merge this incomplete revision.
+- 25 November: history is written only with a successful outer workspace/design save, in the same transaction. Cancel/discard and failed saves write neither. Replacing an advanced choice with another choice remembers only the final saved color. Failed saves retain the pending selection for retry.
 
 ## Review map
 - Draft state, cancel, validation and read-only gates.

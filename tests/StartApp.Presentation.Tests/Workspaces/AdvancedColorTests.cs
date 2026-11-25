@@ -71,4 +71,58 @@ public class AdvancedColorTests
         Assert.DoesNotContain(vm.AdvancedColorOptions, c => vm.DesignPalette.Contains(c));
         Assert.Equal("#BFDBFE", repo.Load().Workspaces.Single().Color);
     }
+    [Fact] public void History_commits_only_final_advanced_color_with_workspace_and_survives_restart()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.ShowCreateScreen(); vm.NewName = "draft";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233"));
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#445566")); Assert.Empty(repo.Load().AdvancedColorHistory);
+        vm.CreateWorkspaceCommand.Execute(null);
+        Assert.Equal(new[] { "#445566" }, repo.Load().AdvancedColorHistory);
+        var reopened = new MainViewModel(repo, new NotImplementedLauncher()); Assert.Contains("#445566", reopened.FilterColorOptions);
+    }
+    [Fact] public void Discarding_advanced_create_does_not_leak_history_to_next_create()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.ShowCreateScreen(); vm.NewName = "discard";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); vm.LeaveCreateScreen();
+        Assert.True(vm.UnsavedOpen); vm.ExitWithoutSavingCommand.Execute(null); Assert.Empty(repo.Load().AdvancedColorHistory);
+        vm.ShowCreateScreen(); vm.NewName = "new"; vm.CreateWorkspaceCommand.Execute(null); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public void Preset_replacing_advanced_choice_does_not_remember_abandoned_color()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher()); vm.ShowCreateScreen(); vm.NewName = "new";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); vm.ApplyCreatePaletteColorCommand.Execute(vm.DesignPalette[1]);
+        vm.CreateWorkspaceCommand.Execute(null); Assert.Empty(repo.Load().AdvancedColorHistory); Assert.Equal(vm.DesignPalette[1], repo.Load().Workspaces.Single().Color);
+    }
+    [Fact] public void Design_history_commits_on_save_but_not_on_discard_and_is_deduplicated()
+    {
+        using var repo = Repo(); repo.Mutate(c => c.CreateWorkspace("old")); var vm = new MainViewModel(repo, new NotImplementedLauncher());
+        vm.DesignCardCommand.Execute(vm.Workspaces.Single()); vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("design", "#112233"));
+        vm.CloseDesignCommand.Execute(null); vm.ExitWithoutSavingCommand.Execute(null); Assert.Empty(repo.Load().AdvancedColorHistory);
+        vm.DesignCardCommand.Execute(vm.Workspaces.Single()); vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("design", "#445566"));
+        vm.SaveDesignCommand.Execute(null); Assert.Equal(new[] { "#445566" }, repo.Load().AdvancedColorHistory);
+        vm.DesignCardCommand.Execute(vm.Workspaces.Single()); vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("design", "#445566")); vm.DesignImagePath = @"C:\new.png";
+        vm.SaveDesignCommand.Execute(null); Assert.Single(repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public void Failed_save_retains_pending_advanced_selection_for_atomic_retry()
+    {
+        using var repo = Repo(); var failing = new RetryRepo(repo); var vm = new MainViewModel(failing, new NotImplementedLauncher());
+        vm.ShowCreateScreen(); vm.NewName = "retry"; vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233"));
+        vm.CreateWorkspaceCommand.Execute(null); Assert.Empty(repo.Load().AdvancedColorHistory); Assert.Empty(repo.Load().Workspaces); Assert.Equal("#112233", vm.NewWorkspaceColor);
+        failing.Fail = false; vm.CreateWorkspaceCommand.Execute(null); Assert.Single(repo.Load().Workspaces); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory);
+    }
+    sealed class RetryRepo(IStoreRepository inner) : IStoreRepository
+    {
+        public bool Fail = true;
+        public Store Load() => inner.Load();
+        public Store Mutate(Action<Catalog> change) => Fail ? throw new IOException("simulated failure") : inner.Mutate(change);
+        public void Dispose() { }
+    }
+    [Fact] public async Task Capture_history_is_draft_until_capture_save_succeeds()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "capture";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); Assert.Empty(repo.Load().AdvancedColorHistory);
+        vm.CaptureCreateCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory); Assert.Single(repo.Load().Workspaces);
+    }
+    sealed class EmptyCapturer : IOpenItemCapturer { public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), Array.Empty<string>()); }
 }
