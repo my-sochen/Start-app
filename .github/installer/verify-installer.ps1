@@ -3,7 +3,7 @@ Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Drawing,Syste
 $out=Join-Path $PWD 'installer-evidence';New-Item $out -ItemType Directory -Force | Out-Null
 Add-Type @'
 using System;using System.Runtime.InteropServices;
-public class MouseInput { [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h); [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e); }
+public class MouseInput { [DllImport("user32.dll", CharSet=CharSet.Unicode)]public static extern int SendMessage(IntPtr h,int m,IntPtr w,System.Text.StringBuilder l); [DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h); [DllImport("user32.dll")]public static extern bool SetCursorPos(int x,int y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e); }
 '@
 $checks=[Collections.Generic.List[object]]::new()
 function ClickElement($b){$r=$b.Current.BoundingRectangle;[MouseInput]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2))|Out-Null;[MouseInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[MouseInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
@@ -53,8 +53,12 @@ try{
  Check 'details expands during install' ([bool]$hide)
  Start-Sleep -Milliseconds 150
  Shot '02-progress-expanded' $w
- $memo=$w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Edit)))|Select-Object -First 1
- $liveText=$memo.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+ $elements=$w.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+ $elements|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.ClassName)|$($_.Current.Name)"}|Set-Content (Join-Path $out 'details-elements.txt')
+ $memo=$elements|Where-Object {$_.Current.ClassName -match 'Memo'}|Select-Object -First 1
+ $textBuffer=[Text.StringBuilder]::new(65536)
+ if($memo){[MouseInput]::SendMessage([IntPtr]$memo.Current.NativeWindowHandle,13,[IntPtr]65536,$textBuffer)|Out-Null}
+ $liveText=$textBuffer.ToString()
  $liveText|Set-Content (Join-Path $out 'details-expanded.txt')
  Check 'live details contains actual installation destinations' ($liveText -match 'Programs\\StartApp\\' -and $liveText.Length -gt 30)
  ClickElement $hide

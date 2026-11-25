@@ -73,8 +73,9 @@ begin
   Result := TPanel.Create(WizardForm);
   Result.Parent := WizardForm;
   Result.SetBounds(ScaleX(32), ScaleY(Y), ScaleX(756), ScaleY(48));
+  Result.ParentBackground := False;
   Result.BevelOuter := bvNone;
-  Result.Color := $00F7F9FC;
+  Result.Color := $00FCF9F7;
   Result.Caption := Text;
 end;
 
@@ -131,12 +132,14 @@ begin
   ProgressTrack := TPanel.Create(WizardForm);
   ProgressTrack.Parent := WizardForm;
   ProgressTrack.SetBounds(ScaleX(32), ScaleY(142), ScaleX(756), ScaleY(10));
+  ProgressTrack.ParentBackground := False;
   ProgressTrack.BevelOuter := bvNone;
   ProgressTrack.Color := $00F3EAE5;
   ProgressTrack.Visible := False;
   ProgressFill := TPanel.Create(WizardForm);
   ProgressFill.Parent := ProgressTrack;
   ProgressFill.SetBounds(0, 0, 0, ProgressTrack.Height);
+  ProgressFill.ParentBackground := False;
   ProgressFill.BevelOuter := bvNone;
   ProgressFill.Color := $00C55C31;
   CopyHint := TextLabel(32, 113, 660, 24, 10, 'Copying application files');
@@ -166,6 +169,14 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  WizardForm.Bevel.SetBounds(0, ScaleY(314), ScaleX(820), ScaleY(2));
+  WizardForm.NextButton.SetBounds(ScaleX(584), ScaleY(330), ScaleX(96), ScaleY(30));
+  WizardForm.CancelButton.SetBounds(ScaleX(692), ScaleY(330), ScaleX(96), ScaleY(30));
+  if CurPageID = wpSelectTasks then
+  begin
+    ShortcutCheck.Checked := WizardIsTaskSelected('desktopicon');
+    LaunchCheck.Checked := WizardIsTaskSelected('launchafter');
+  end;
   WizardForm.BackButton.Visible := False;
   ShortcutCard.Visible := CurPageID = wpSelectTasks;
   LaunchCard.Visible := CurPageID = wpSelectTasks;
