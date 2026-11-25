@@ -2,8 +2,8 @@
 ; Per-user install: no admin, no UAC prompt. Program files go to
 ; %LOCALAPPDATA%\Programs\StartApp; user data lives separately in
 ; %LOCALAPPDATA%\StartApp and is never touched by install, update or uninstall.
-; Wizard (agreed 2026-11-20): opens on two default-checked checkboxes
-; (desktop shortcut, launch when done) -> Next -> progress bar -> Finish.
+; Wizard: desktop shortcut and launch when done default checked; Windows startup
+; is a separate opt-in, default unchecked, including upgrades.
 
 #ifndef AppVersion
   #define AppVersion "0.2.0-beta.0"
@@ -34,6 +34,7 @@ DisableReadyPage=yes
 DisableFinishedPage=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
+UsePreviousTasks=no
 CloseApplications=yes
 UninstallDisplayName=Start App
 SetupIconFile={#AppIcon}
@@ -47,6 +48,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Options:"
 Name: "launchafter"; Description: "Launch Start App when setup finishes"; GroupDescription: "Options:"
+Name: "startup"; Description: "Start Start App when I sign in to Windows"; GroupDescription: "Options:"; Flags: unchecked
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; BeforeInstall: FileCopyStarting
@@ -56,15 +58,17 @@ Name: "{userdesktop}\Start App"; Filename: "{app}\StartApp.App.exe"; IconFilenam
 Name: "{group}\Start App"; Filename: "{app}\StartApp.App.exe"; IconFilename: "{app}\Assets\start-app-ufo.ico"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Start App"; ValueData: """{app}\StartApp.App.exe"" --autostart"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Start App"; ValueData: """{app}\StartApp.App.exe"" --autostart"; Flags: uninsdeletevalue; Tasks: startup
+; Unchecked also removes the older installer's unconditional registration on upgrade.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Start App"; Flags: deletevalue; Tasks: not startup
 
 [Code]
 var
   Heading, Subtitle, PercentLabel, CopyHint: TNewStaticText;
   DetailsButton: TNewButton;
   DetailsMemo: TNewMemo;
-  ShortcutCheck, LaunchCheck: TNewCheckBox;
-  ShortcutCard, LaunchCard, SuccessCard, ProgressTrack, ProgressFill: TPanel;
+  ShortcutCheck, LaunchCheck, StartupCheck: TNewCheckBox;
+  ShortcutCard, LaunchCard, StartupCard, SuccessCard, ProgressTrack, ProgressFill: TPanel;
   Art: TBitmapImage;
 
 procedure DetailsClick(Sender: TObject);
@@ -113,7 +117,7 @@ begin
   WizardForm.CancelButton.SetBounds(ScaleX(692), ScaleY(330), ScaleX(96), ScaleY(30));
   Heading := TextLabel(32, 26, 650, 34, 18, 'Install Start App');
   Heading.Font.Style := [fsBold];
-  Subtitle := TextLabel(32, 70, 700, 26, 10, 'Choose what happens when setup is complete.');
+  Subtitle := TextLabel(32, 70, 700, 26, 10, 'Choose shortcuts, launch, and Windows startup options.');
   Subtitle.Font.Color := $00816D60;
   Art := TBitmapImage.Create(WizardForm);
   Art.Parent := WizardForm;
@@ -122,6 +126,7 @@ begin
   Art.SetBounds(ScaleX(732), ScaleY(23), ScaleX(56), ScaleY(56));
   ShortcutCard := Card(108, '');
   LaunchCard := Card(168, '');
+  StartupCard := Card(228, '');
   ShortcutCheck := TNewCheckBox.Create(WizardForm);
   ShortcutCheck.Parent := ShortcutCard;
   ShortcutCheck.SetBounds(ScaleX(16), ScaleY(10), ScaleX(720), ScaleY(28));
@@ -132,6 +137,11 @@ begin
   LaunchCheck.SetBounds(ScaleX(16), ScaleY(10), ScaleX(720), ScaleY(28));
   LaunchCheck.Caption := 'Launch Start App when setup finishes';
   LaunchCheck.Checked := WizardIsTaskSelected('launchafter');
+  StartupCheck := TNewCheckBox.Create(WizardForm);
+  StartupCheck.Parent := StartupCard;
+  StartupCheck.SetBounds(ScaleX(16), ScaleY(10), ScaleX(720), ScaleY(28));
+  StartupCheck.Caption := 'Start Start App when I sign in to Windows';
+  StartupCheck.Checked := WizardIsTaskSelected('startup');
   WizardForm.ProgressGauge.Parent := WizardForm;
   WizardForm.ProgressGauge.SetBounds(ScaleX(32), ScaleY(142), ScaleX(756), ScaleY(10));
   WizardForm.ProgressGauge.Visible := False;
@@ -182,10 +192,12 @@ begin
   begin
     ShortcutCheck.Checked := WizardIsTaskSelected('desktopicon');
     LaunchCheck.Checked := WizardIsTaskSelected('launchafter');
+    StartupCheck.Checked := WizardIsTaskSelected('startup');
   end;
   WizardForm.BackButton.Visible := False;
   ShortcutCard.Visible := CurPageID = wpSelectTasks;
   LaunchCard.Visible := CurPageID = wpSelectTasks;
+  StartupCard.Visible := CurPageID = wpSelectTasks;
   WizardForm.ProgressGauge.Visible := False;
   ProgressTrack.Visible := CurPageID = wpInstalling;
   CopyHint.Visible := CurPageID = wpInstalling;
@@ -234,6 +246,8 @@ begin
     else WizardSelectTasks('!desktopicon');
     if LaunchCheck.Checked then WizardSelectTasks('launchafter')
     else WizardSelectTasks('!launchafter');
+    if StartupCheck.Checked then WizardSelectTasks('startup')
+    else WizardSelectTasks('!startup');
   end;
   if (CurPageID = wpFinished) and (not WizardSilent) and WizardIsTaskSelected('launchafter') then
   begin
