@@ -14,7 +14,7 @@
   <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="24"/><ColumnDefinition/></Grid.ColumnDefinitions>
    <Border Background="White" BorderBrush="#CFD7E6" BorderThickness="1" CornerRadius="4"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Border Background="#EDF1F7" BorderBrush="#CFD7E6" BorderThickness="0,0,0,1" Padding="16,14"><Grid><Button Content="חזרה לבחירת סביבה" Command="{Binding CaptureBackCommand}" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" Style="{StaticResource QuietTextButton}" Foreground="#315CC5" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="Capture back"/><StackPanel HorizontalAlignment="Right"><TextBlock Text="{Binding CaptureTargetHeader}" FontSize="16" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/><TextBlock Text="הפריטים שהוספת יישמרו רק בלחיצה על שמור." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#667388" Margin="0,6,0,0"/></StackPanel></Grid></Border>
-    <Grid Grid.Row="1" Margin="24,16"><StackPanel Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}">
+    <Grid Grid.Row="1" Margin="24,16"><ScrollViewer Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="New capture workspace form"><StackPanel>
                             <TextBlock Text="סביבה חדשה" FontWeight="SemiBold"/>
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="Name" Width="80" VerticalAlignment="Center"/>
                                 <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace name"/></DockPanel>
@@ -43,7 +43,7 @@
                                 <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture card image path" ToolTip="Full path of the uploaded image"/></DockPanel>
                             <TextBlock Text="Only the ticked items on the right are added." Foreground="Gray" FontSize="11" Margin="0,6,0,0"/>
                             <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="Create workspace from capture" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
-                        </StackPanel>
+                        </StackPanel></ScrollViewer>
 
                         <DockPanel Visibility="{Binding IsCapturePick, Converter={StaticResource B2V}}">
                             <TextBlock DockPanel.Dock="Top" Text="סביבה קיימת" FontWeight="SemiBold"/>

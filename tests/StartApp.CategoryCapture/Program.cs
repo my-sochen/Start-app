@@ -69,8 +69,8 @@ internal static class Program
             var menu=PresentationSource.CurrentSources.Cast<PresentationSource>().Where(x=>x.RootVisual!=null).SelectMany(x=>Tree(x.RootVisual)).OfType<ContextMenu>().Single(x=>x.IsOpen);
             var filter=menu.Items.OfType<MenuItem>().Single(x=>x.Header as string=="סינון");filter.IsSubmenuOpen=true;
             var categories=filter.Items.OfType<MenuItem>().Single(x=>x.Header as string=="לפי קטגוריה");categories.IsSubmenuOpen=true;
-            await Shot(window,output,"09-category-filter-management-entry");
             var manage=categories.Items.OfType<MenuItem>().Single(x=>x.Header as string=="ניהול קטגוריות");
+            manage.BringIntoView();await Shot(window,output,"09-category-filter-management-entry");
             Check("filter management command bound",manage.Command==vm.ManageCategoriesCommand&&manage.Command.CanExecute(manage.CommandParameter));
             menu.IsOpen=false;manage.Command!.Execute(manage.CommandParameter);await Shot(window,output,"10-filter-category-manager");
             Check("filter management cannot assign",!vm.CategoryAssignmentAvailable&&!vm.PickCategoryCommand.CanExecute(vm.CategoryRows.First()));
@@ -78,6 +78,10 @@ internal static class Program
             await Shot(window,output,"11-minimum-width-create-picker");
             vm.LeaveCreateScreen();vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;
             await Shot(window,output,"12-minimum-width-capture-picker");
+            var form=Tree(window).OfType<System.Windows.Controls.ScrollViewer>().Single(x=>x.IsVisible&&System.Windows.Automation.AutomationProperties.GetName(x)=="New capture workspace form");
+            form.ScrollToBottom();await Shot(window,output,"13-minimum-width-capture-form-bottom");
+            Check("narrow capture form can reach create",Tree(form).OfType<Button>().Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Create workspace from capture").TransformToAncestor(form).TransformBounds(new Rect(0,0,100,20)).Bottom<=form.ActualHeight);
+
 
         }catch(Exception e){exit=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}finally{
             File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks,new JsonSerializerOptions{WriteIndented=true}));
