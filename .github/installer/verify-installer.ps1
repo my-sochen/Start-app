@@ -16,6 +16,9 @@ $exe=(Get-ChildItem out/StartApp-Setup-*.exe|Select-Object -First 1).FullName
 $target=Join-Path $env:LOCALAPPDATA 'Programs\StartApp'
 $data=Join-Path $env:LOCALAPPDATA 'StartApp';New-Item $data -ItemType Directory -Force|Out-Null
 $sentinel=Join-Path $data 'installer-preserve-test.txt';[IO.File]::WriteAllText($sentinel,'preserve-data')
+$store=Join-Path $data 'store.json'
+@{schemaVersion=6;items=@{fixture=@{id='fixture';type='link';name='בדיקת שימור';target='https://example.com/'}};workspaces=@(@{id='ws_fixture';name='סביבה שמורה';color='#12AB34';items=@(@{itemId='fixture';id='membership_fixture';name='שם מקומי';description='תיאור שנשמר'})});globalItems=@();captureWhitelist=@();captureBlacklist=@();customCategories=@();advancedColorHistory=@('#12AB34')}|ConvertTo-Json -Depth 12|Set-Content $store -Encoding utf8
+$storeHash=(Get-FileHash $store -Algorithm SHA256).Hash
 try{
  $p=Start-Process $exe -ArgumentList '/SP-','/NORESTART' -PassThru
  $w=Window $p.Id
@@ -35,18 +38,24 @@ try{
  Check 'app waits for Finish' (-not (Get-Process StartApp.App -ErrorAction SilentlyContinue))
  ClickElement $finish;$p.WaitForExit(10000)|Out-Null
  $until=[DateTime]::UtcNow.AddSeconds(20);do{Start-Sleep -Milliseconds 250;$app=Get-Process StartApp.App -ErrorAction SilentlyContinue}while(-not $app -and [DateTime]::UtcNow -lt $until)
- Check 'launch on completion' ([bool]$app);if($app){$app|Stop-Process -Force}
+ Check 'launch on completion' ([bool]$app);if($app){$app|Stop-Process -Force; $app|ForEach-Object {$_.WaitForExit(5000)|Out-Null}}
+ Check 'initial install and launch preserve store bytes' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  Check 'desktop shortcut exists' (Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Start App.lnk'))
  Check 'installed payload exists' (Test-Path (Join-Path $target 'StartApp.App.exe'))
+ $identity=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $target 'StartApp.App.dll'))
+ $info=(Get-Item (Join-Path $target 'StartApp.App.dll')).VersionInfo.ProductVersion
+ Check 'installed beta identity matches candidate' ($info -eq "$env:APP_VERSION+sha.$env:GITHUB_SHA")
  $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App'
  Check 'existing logon route installed' ($run.'Start App' -match '--autostart')
  $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="!launchafter,!desktopicon"' -PassThru -Wait
  Check 'reinstall succeeds' ($p.ExitCode -eq 0)
  Check 'reinstall preserves data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
+ Check 'reinstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  $un=Join-Path $target 'unins000.exe';$p=Start-Process $un -ArgumentList '/VERYSILENT','/NORESTART' -PassThru -Wait
  Check 'uninstall succeeds' ($p.ExitCode -eq 0)
  Check 'uninstall removes payload' (-not(Test-Path (Join-Path $target 'StartApp.App.exe')))
  Check 'uninstall preserves user data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
+ Check 'uninstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
  Check 'uninstall removes logon route' (-not $run)
 }catch{Shot 'failure';$_.ToString()|Set-Content (Join-Path $out 'error.txt');throw}finally{$checks|ConvertTo-Json|Set-Content (Join-Path $out 'checks.json')}
