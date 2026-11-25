@@ -12,6 +12,6 @@ The actual current app logo sources remain in `src/StartApp.App/Assets/start-app
 
 ## Icon options
 
-No new icon option has been selected yet. Add approved icon designs and their editable originals under `approved/icons/` after the owner decides. Do not present reference-only material as approved production artwork.
+The owner chose the purple tile with the white logo. Its unchanged delivered sources and preview are under `approved/icons/purple-tile-white-logo/`. Earlier reconstructed UFO drafts remain reference-only.
 
 This archive does not feed app builds or replace any production asset.
