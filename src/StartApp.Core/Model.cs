@@ -60,7 +60,7 @@ public sealed class GlobalListEntry
 
 public sealed class Store
 {
-    public int SchemaVersion { get; set; } = 5;
+    public int SchemaVersion { get; set; } = 6;
     public Dictionary<string, Item> Items { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
     /// <summary>פריטי הסביבה הגלובלית: opened automatically with the computer start, always (schema 5+). Missing on older files = none.</summary>
@@ -78,6 +78,8 @@ public sealed class Store
     /// <summary>Custom categories the user created (schema 4+). Built-ins are defined in code (Catalog.BuiltInCategories), are never
     /// stored here, and cannot be edited or deleted; custom ones can. Missing/null on older files = none.</summary>
     public List<string> CustomCategories { get; set; } = new();
+    /// <summary>Distinct confirmed advanced colors in first-selection order (schema 6+). Not derived from existing cards.</summary>
+    public List<string> AdvancedColorHistory { get; set; } = new();
     /// <summary>סביבת ברירת המחדל (green-dot badge on its card, approved 22.11 handoff): the one workspace marked as
     /// default, or null/empty for "ללא סביבת ברירת מחדל". Missing on older files = none. Setting it from the אופציות menu
     /// and opening it automatically at computer startup are follow-up product work; the badge renders from this field only.</summary>

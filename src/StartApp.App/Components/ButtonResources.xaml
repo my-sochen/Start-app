@@ -119,4 +119,13 @@
     <Style x:Key="CompactIconButton" TargetType="Button"><Setter Property="Padding" Value="6,0"/></Style>
     <Style x:Key="DialogSecondaryButton" TargetType="Button" BasedOn="{StaticResource HomeToolbarButton}"><Setter Property="Height" Value="38"/><Setter Property="Padding" Value="16,7"/></Style>
     <Style x:Key="DialogPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryActionButton}"><Setter Property="Height" Value="38"/></Style>
+  <Style x:Key="SwatchButton" TargetType="Button">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border x:Name="Swatch" Background="{TemplateBinding Background}" BorderBrush="#B8C0CF" BorderThickness="1" CornerRadius="4"/>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Swatch" Property="BorderBrush" Value="#315CC5"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
 </ResourceDictionary>

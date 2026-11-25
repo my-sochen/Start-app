@@ -5,7 +5,7 @@ using Xunit;
 public class CategoryUpgradeTests
 {
     private static string Tmp() => Path.Combine(Path.GetTempPath(), "categories-" + Guid.NewGuid().ToString("N"), "store.json");
-    private static string Legacy(string categories) => "{\"schemaVersion\":5,\"items\":{},\"workspaces\":[{\"id\":\"w\",\"name\":\"old\",\"category\":\"מוזיקה\",\"items\":[]}],\"customCategories\":" + categories + "}";
+    private static string Legacy(string categories) => "{\"schemaVersion\":6,\"items\":{},\"workspaces\":[{\"id\":\"w\",\"name\":\"old\",\"category\":\"מוזיקה\",\"items\":[]}],\"customCategories\":" + categories + "}";
 
     [Fact] public void Legacy_same_name_becomes_builtin_with_assignments_kept_and_original_bytes_backed_up_before_save()
     {

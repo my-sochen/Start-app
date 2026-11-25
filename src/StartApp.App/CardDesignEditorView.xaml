@@ -24,18 +24,7 @@
                         </local:PreviewBorder.Background>
                     </local:PreviewBorder>
                     <TextBlock Text="צבע" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <TextBox Text="{Binding DesignColor, UpdateSourceTrigger=PropertyChanged}" Width="90" AutomationProperties.Name="Card color" ToolTip="#RRGGBB"/>
-                        <ItemsControl ItemsSource="{Binding DesignPalette}" Margin="8,0,0,0">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate><DataTemplate>
-                                <Button Width="22" Height="22" Margin="0,0,4,0" BorderBrush="Gray" BorderThickness="1"
-                                        Background="{Binding ., Converter={StaticResource ColorBrush}}"
-                                        Command="{Binding DataContext.ApplyPaletteColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                        ToolTip="{Binding}"/>
-                            </DataTemplate></ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <local:WorkspaceColorPicker SelectedColor="{Binding DesignColor}" Palette="{Binding DesignPalette}" Target="design" Margin="0,4,0,0"/>
                     <TextBlock Text="תמונת רקע" FontWeight="SemiBold" Margin="0,8,0,0"/>
                     <DockPanel Margin="0,4,0,0">
                         <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove card image"/>

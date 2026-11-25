@@ -416,6 +416,12 @@ public sealed class Catalog
     public IReadOnlyList<string> Validate()
     {
         var errs = new List<string>();
+        if (_s.AdvancedColorHistory == null) errs.Add("advanced color history is null");
+        else
+        {
+            if (_s.AdvancedColorHistory.Any(c => string.IsNullOrEmpty(c) || ValidateColor(c) != null)) errs.Add("invalid advanced color history");
+            if (_s.AdvancedColorHistory.Distinct(StringComparer.OrdinalIgnoreCase).Count() != _s.AdvancedColorHistory.Count) errs.Add("duplicate advanced color history");
+        }
         foreach (var it in _s.Items.Values) { var te = ValidateTarget(it.Type, it.Target); if (te != null) errs.Add($"{it.Id}: {te}"); var de = ValidateDescription(it.Description); if (de != null) errs.Add($"{it.Id}: {de}"); }
         foreach (var w in _s.Workspaces)
         {

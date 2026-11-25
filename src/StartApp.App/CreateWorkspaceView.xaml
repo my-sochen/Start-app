@@ -5,15 +5,6 @@
  <UserControl.Resources>
   <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource DetailsLabel}"/>
   <Style x:Key="FieldInput" TargetType="TextBox" BasedOn="{StaticResource DetailsInput}"/>
-  <Style x:Key="SwatchButton" TargetType="Button">
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-    <Border x:Name="Swatch" Background="{TemplateBinding Background}" BorderBrush="#B8C0CF" BorderThickness="1" CornerRadius="4"/>
-    <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Swatch" Property="BorderBrush" Value="#315CC5"/></Trigger>
-     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
-    </ControlTemplate.Triggers>
-   </ControlTemplate></Setter.Value></Setter>
-  </Style>
   <Style x:Key="FieldCombo" TargetType="ComboBox" BasedOn="{StaticResource DetailsCombo}"/>
  </UserControl.Resources>
  <DockPanel>
@@ -48,14 +39,7 @@
         <Border DockPanel.Dock="Top" Background="#F0F3F8" BorderBrush="#DFE4EC" BorderThickness="0,0,0,1" Padding="14,6"><TextBlock Text="עיצוב הכרטיס · לא חובה" FontSize="12"/></Border>
         <StackPanel Margin="18">
          <TextBlock Text="צבע הכרטיס" FontSize="12" Foreground="#586678"/>
-         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SwatchButton}" Background="#7189BB" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#7189BB" AutomationProperties.Name="Create color blue"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SwatchButton}" Background="#8BAA9D" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#8BAA9D" AutomationProperties.Name="Create color green"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SwatchButton}" Background="#B4A0C5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#B4A0C5" AutomationProperties.Name="Create color purple"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SwatchButton}" Background="#E6CE9A" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#E6CE9A" AutomationProperties.Name="Create color gold"/>
-          <Button Width="28" Height="28" Margin="0,0,10,0" Style="{StaticResource SwatchButton}" Background="#D6AEB5" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D6AEB5" AutomationProperties.Name="Create color pink"/>
-          <Button Width="28" Height="28" Style="{StaticResource SwatchButton}" Background="#D9DEE6" BorderBrush="#B8C0CF" Command="{Binding ApplyCreatePaletteColorCommand}" CommandParameter="#D9DEE6" AutomationProperties.Name="Create color gray"/>
-         </StackPanel>
+         <local:WorkspaceColorPicker SelectedColor="{Binding NewWorkspaceColor}" Palette="{Binding DesignPalette}" Target="create" Margin="0,10,0,0"/>
          <DockPanel Margin="0,22,0,0" FlowDirection="LeftToRight">
           <Button DockPanel.Dock="Left" Content="בחר תמונה" Command="{Binding PickCreateImageCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="104" Height="38" AutomationProperties.Name="Upload create image"/>
           <TextBlock Text="תמונת רקע" FontSize="12" Foreground="#586678" VerticalAlignment="Center" TextAlignment="Right"/>
