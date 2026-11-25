@@ -27,10 +27,19 @@ public sealed class AdvancedColorWindow : Window
 
     public AdvancedColorWindow(string initial)
     {
-        Title = "בחירה מתקדמת"; Width = 380; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        Title = "בחירה מתקדמת"; Width = 440; WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; FontFamily = new FontFamily("./Assets/Fonts/#Noto Sans Hebrew, Arial"); FontSize = 14; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; FlowDirection = FlowDirection.RightToLeft;
-        var root = new StackPanel { Margin = new Thickness(18) };
-        root.Children.Add(new TextBlock { Text = "בחירת צבע", FontSize = 16, Margin = new Thickness(0, 0, 0, 12) });
+        var root = new StackPanel { Margin = new Thickness(28) };
+        var header = new DockPanel { FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0,0,0,20) };
+        var close = new Button { Content = "×", Width = 24, Height = 24 };
+        close.SetResourceReference(StyleProperty, "QuietTextButton");
+        System.Windows.Automation.AutomationProperties.SetName(close, "Close advanced color");
+        close.Click += (_, _) => Close(); DockPanel.SetDock(close, Dock.Left); header.Children.Add(close);
+        header.Children.Add(new TextBlock { Text = "בחירת צבע", FontSize = 24, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right }); root.Children.Add(header);
+        _hex.SetResourceReference(StyleProperty, "DetailsInput");
+        foreach (var input in _rgb) { input.SetResourceReference(StyleProperty, "DetailsInput"); input.MinWidth = 55; input.MinHeight = 34; input.Padding = new Thickness(6,4,6,4); }
+        _hex.MinHeight = 34; _hex.Padding = new Thickness(6,4,6,4);
+        PreviewKeyDown += (_, e) => { if(e.Key == Key.Escape) { e.Handled = true; Close(); } };
         var spectrum = new Grid { ClipToBounds = true, FlowDirection = FlowDirection.LeftToRight };
         spectrum.Children.Add(_spectrum);
         var white = new LinearGradientBrush(Colors.White, Colors.Transparent, 0);
@@ -66,10 +75,10 @@ public sealed class AdvancedColorWindow : Window
         root.Children.Add(rgbRow); root.Children.Add(_error);
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
         var cancel = new Button { Content = "ביטול", MinWidth = 70, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
-        cancel.SetResourceReference(StyleProperty, "HomeToolbarButton"); _choose.SetResourceReference(StyleProperty, "PrimaryActionButton");
+        cancel.SetResourceReference(StyleProperty, "DialogSecondaryButton"); _choose.SetResourceReference(StyleProperty, "DialogPrimaryButton");
         _choose.Click += (_, _) => { if (_choose.IsEnabled) DialogResult = true; };
         actions.Children.Add(cancel); actions.Children.Add(_choose); root.Children.Add(actions);
-        Content = new DialogFrame { Child = root, Background = Brushes.White, Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch };
+        Content = new DialogFrame { Child = root, Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(201,208,220)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch };
         SetColor(Catalog.ValidateColor(initial) == null && !string.IsNullOrEmpty(initial) ? initial : WorkspaceColors.Default);
     }
 

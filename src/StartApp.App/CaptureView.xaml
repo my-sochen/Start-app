@@ -15,32 +15,28 @@
    <Border Background="White" BorderBrush="#CFD7E6" BorderThickness="1" CornerRadius="4"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Border Background="#EDF1F7" BorderBrush="#CFD7E6" BorderThickness="0,0,0,1" Padding="16,14"><Grid><Button Content="חזרה לבחירת סביבה" Command="{Binding CaptureBackCommand}" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" Style="{StaticResource QuietTextButton}" Foreground="#315CC5" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="Capture back"/><StackPanel HorizontalAlignment="Right"><TextBlock Text="{Binding CaptureTargetHeader}" FontSize="16" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/><TextBlock Text="הפריטים שהוספת יישמרו רק בלחיצה על שמור." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#667388" Margin="0,6,0,0"/></StackPanel></Grid></Border>
     <Grid Grid.Row="1" Margin="24,16"><ScrollViewer Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="New capture workspace form"><StackPanel>
-                            <TextBlock Text="סביבה חדשה" FontWeight="SemiBold"/>
-                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="שם" Width="80" VerticalAlignment="Center"/>
-                                <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace name"/></DockPanel>
-                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="תיאור" Width="80" VerticalAlignment="Center"/>
-                                <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Capture workspace description"/></DockPanel>
-                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="קטגוריה" Width="80" VerticalAlignment="Center"/>
-                                <local:CategoryPicker SelectedCategory="{Binding NewWorkspaceCategory}" Target="create" MinWidth="120"/></DockPanel>
-                            <!-- optional card design at creation, same fields as the ordinary create form -->
-                            <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="צבע" Width="80" VerticalAlignment="Center"/>
-                                <local:WorkspaceColorPicker PaletteName="Capture palette" SelectedColor="{Binding NewWorkspaceColor}" Palette="{Binding DesignPalette}" Target="create"/>
-                            </DockPanel>
-                            <StackPanel Margin="0,4,0,0">
-                                <TextBlock Text="תמונת רקע" TextAlignment="Right"/>
-                                <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture card image path" ToolTip="הנתיב המלא של התמונה שנבחרה"/>
-                                <WrapPanel HorizontalAlignment="Right" Margin="0,4,0,0">
-                                    <Button Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Padding="8,2" Margin="4,0,0,4" AutomationProperties.Name="Upload capture image"/>
-                                    <Button Content="הסר תמונה" Command="{Binding RemoveCreateImageCommand}" Padding="8,2" Margin="4,0,0,4" AutomationProperties.Name="Remove capture image"/>
-                                </WrapPanel>
-                            </StackPanel>
-                            <TextBlock Text="רק הפריטים המסומנים בצד ימין יתווספו." TextWrapping="Wrap" FlowDirection="RightToLeft" Foreground="Gray" FontSize="11" Margin="0,6,0,0"/>
-                            <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><Button Content="צור סביבה מהלכידה" Command="{Binding CaptureCreateCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" Padding="10,2" AutomationProperties.Name="Create workspace from capture"/>
+ <StackPanel FlowDirection="RightToLeft">
+  <TextBlock Text="סביבה חדשה" FontSize="18" FontWeight="SemiBold" Foreground="#222833" Margin="0,0,0,16"/>
+  <TextBlock Text="שם הסביבה" FontSize="12" Foreground="#667388"/>
+  <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" Margin="0,4,0,12" AutomationProperties.Name="Capture workspace name"/>
+  <TextBlock Text="תיאור" FontSize="12" Foreground="#667388"/>
+  <TextBox Text="{Binding NewWorkspaceDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" MaxLength="500" Margin="0,4,0,12" AutomationProperties.Name="Capture workspace description"/>
+  <TextBlock Text="קטגוריה" FontSize="12" Foreground="#667388"/>
+  <local:CategoryPicker SelectedCategory="{Binding NewWorkspaceCategory}" Target="create" MinWidth="120" Margin="0,4,0,12"/>
+  <TextBlock Text="צבע" FontSize="12" Foreground="#667388" Margin="0,0,0,6"/>
+  <local:WorkspaceColorPicker PaletteName="Capture palette" SelectedColor="{Binding NewWorkspaceColor}" Palette="{Binding DesignPalette}" Target="create"/>
+  <TextBlock Text="תמונת רקע" FontSize="12" Foreground="#667388" Margin="0,12,0,0"/>
+  <TextBox Text="{Binding NewWorkspaceImagePath, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" TextAlignment="Left" Margin="0,4,0,8" AutomationProperties.Name="Capture card image path" ToolTip="הנתיב המלא של התמונה שנבחרה"/>
+  <WrapPanel HorizontalAlignment="Right"><Button Content="העלה תמונה" Command="{Binding PickCreateImageCommand}" Style="{StaticResource DialogSecondaryButton}" Margin="0,0,8,4" AutomationProperties.Name="Upload capture image"/><Button Content="הסר תמונה" Command="{Binding RemoveCreateImageCommand}" Style="{StaticResource DialogSecondaryButton}" Margin="0,0,0,4" AutomationProperties.Name="Remove capture image"/></WrapPanel>
+  <TextBlock Text="רק הפריטים המסומנים בצד ימין יתווספו." TextWrapping="Wrap" Foreground="#667388" FontSize="12" Margin="0,12,0,0"/>
+  <TextBlock Text="{Binding CreateError}" Foreground="#9B3030" TextWrapping="Wrap"/>
+  <Button Content="צור סביבה מהלכידה" Command="{Binding CaptureCreateCommand}" Style="{StaticResource DialogPrimaryButton}" HorizontalAlignment="Right" Margin="0,16,0,0" AutomationProperties.Name="Create workspace from capture"/>
+ </StackPanel>
                         </StackPanel></ScrollViewer>
 
                         <DockPanel Visibility="{Binding IsCapturePick, Converter={StaticResource B2V}}">
                             <TextBlock DockPanel.Dock="Top" Text="סביבה קיימת" FontWeight="SemiBold"/>
-                            <TextBox DockPanel.Dock="Top" Margin="0,4,0,4" Text="{Binding CaptureSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace search"/>
+                            <TextBox Style="{StaticResource DetailsInput}" DockPanel.Dock="Top" Margin="0,8,0,12" Text="{Binding CaptureSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Capture workspace search"/>
                             <ListBox ItemsSource="{Binding CaptureWorkspaceResults}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
