@@ -476,7 +476,6 @@
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
                         <StackPanel Visibility="{Binding HasOpeningSites, Converter={StaticResource B2V}}" Margin="0,0,0,8">
                             <CheckBox IsChecked="{Binding DedicatedBrowserWindows}" Content="פתיחת האתרים בחלון ייעודי לכל דפדפן" AutomationProperties.Name="Dedicated browser windows"/>
-                            <Button Content="סדר לשוניות קיימות (לא זמין עדיין)" IsEnabled="False" HorizontalAlignment="Right" Margin="0,6,0,0" AutomationProperties.Name="Arrange existing tabs unavailable" ToolTip="סידור לשוניות קיימות יהיה זמין רק כשאפשר יהיה לעשות זאת בלי לפגוע בעבודה אחרת."/>
                             <TextBlock Text="כרום ו-Edge בלבד, לפי סדר האתרים בסביבה. לשוניות קיימות לא יוזזו. דפדפן אחר לא יוחלף ולא ייפתח במצב זה." TextWrapping="Wrap" FontSize="12" Foreground="#585254" Margin="0,4,0,0"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"><Button Content="שגר" Command="{Binding ConfirmSelectionCommand}" Padding="16,4" AutomationProperties.Name="Confirm opening selection"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4" Margin="8,0"/></StackPanel>
