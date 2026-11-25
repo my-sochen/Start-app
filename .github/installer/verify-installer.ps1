@@ -84,6 +84,7 @@ try{
  Check 'installed beta identity matches candidate' ($info -eq "$env:APP_VERSION+sha.$env:GITHUB_SHA")
  $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App'
  Check 'existing logon route installed' ($run.'Start App' -match '--autostart')
+ . (Join-Path $PSScriptRoot 'capture-installed-surfaces.ps1')
  $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="!launchafter,!desktopicon"' -PassThru -Wait
  Check 'reinstall succeeds' ($p.ExitCode -eq 0)
  Check 'reinstall preserves data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
