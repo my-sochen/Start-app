@@ -39,9 +39,16 @@ internal static class Program
         window.ContentRendered+=async(_,_)=>{
             try
             {
+                vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());await Settle(window);
+                Check("Arrange existing tabs explicitly disabled on item list",!Button("Arrange existing tabs unavailable").IsEnabled);
+                await Take(window,output,"00-item-list-disabled-action");
+                window.Width=720;window.Height=400;await Take(window,output,"00-item-list-minimum");
+                Check("Disabled action visible on minimum item list",Button("Arrange existing tabs unavailable").IsVisible);
+                window.Width=960;window.Height=650;
                 vm.OpenWorkspaceForCommand.Execute(vm.Workspaces.Single());await Settle(window);
                 Check("New window option defaults off",!vm.DedicatedBrowserWindows && vm.HasOpeningSites);
-                Check("Arrange existing tabs explicitly disabled",!Button("Arrange existing tabs unavailable").IsEnabled);
+                var arrange=Button("Arrange existing tabs unavailable");
+                Check("Rearrange is outside opening selection",!IsInsideDialog(arrange));
                 await Take(window,output,"01-opening-choice");
                 var toggle=Descendants(window).OfType<CheckBox>().Single(c=>c.IsVisible && System.Windows.Automation.AutomationProperties.GetName(c)=="Dedicated browser windows");
                 ((IToggleProvider)new CheckBoxAutomationPeer(toggle).GetPattern(PatternInterface.Toggle)).Toggle();await Settle(window);
@@ -61,6 +68,12 @@ internal static class Program
             finally {File.WriteAllText(Path.Combine(output,"results.json"),JsonSerializer.Serialize(results,new JsonSerializerOptions {WriteIndented=true}));window.Close();app.Shutdown(code);}
         };
         app.Run(window);return code;
+    }
+    private static bool IsInsideDialog(DependencyObject element)
+    {
+        for(var parent=VisualTreeHelper.GetParent(element);parent is not null;parent=VisualTreeHelper.GetParent(parent))
+            if(parent is DialogFrame)return true;
+        return false;
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
