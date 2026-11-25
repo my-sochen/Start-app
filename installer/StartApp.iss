@@ -49,6 +49,9 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{userdesktop}\Start App"; Filename: "{app}\StartApp.App.exe"; Tasks: desktopicon
 Name: "{group}\Start App"; Filename: "{app}\StartApp.App.exe"
 
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Start App"; ValueData: """{app}\StartApp.App.exe"" --autostart"; Flags: uninsdeletevalue
+
 [Code]
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
@@ -59,14 +62,9 @@ begin
   begin
     if not Exec(ExpandConstant('{app}\StartApp.App.exe'), '', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
     begin
-      MsgBox('Unable to launch Start App: ' + SysErrorMessage(ResultCode), mbError, MB_OK);
+      MsgBox('לא ניתן לפתוח את Start App: ' + SysErrorMessage(ResultCode), mbError, MB_OK);
       Result := False;
     end;
   end;
 end;
 
-
-; Logon autostart (approved 22.11): the global-environment items open at every sign-in. Per-user value under HKCU,
-; removed on uninstall. The --autostart flag tells the app to open the global items after its window is up.
-[Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Start App"; ValueData: """{app}\StartApp.App.exe"" --autostart"; Flags: uninsdeletevalue
