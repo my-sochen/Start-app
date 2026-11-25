@@ -473,7 +473,14 @@
             <local:DialogFrame BorderBrush="#CCCCCC" BorderThickness="1" Margin="20" MaxWidth="620" MaxHeight="340" FlowDirection="RightToLeft" CornerRadius="0" HorizontalAlignment="Stretch">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10"><Button DockPanel.Dock="Left" Content="✕" Command="{Binding CancelOpenCommand}" Margin="0,0,12,0" AutomationProperties.Name="Close opening selection"/><TextBlock Text="מה לפתוח בסביבה?" FontSize="18" FontWeight="SemiBold"/></DockPanel>
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0"><Button Content="שגר" Command="{Binding ConfirmSelectionCommand}" Padding="16,4" AutomationProperties.Name="Confirm opening selection"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4" Margin="8,0"/></StackPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <StackPanel Visibility="{Binding HasOpeningSites, Converter={StaticResource B2V}}" Margin="0,0,0,8">
+                            <CheckBox IsChecked="{Binding DedicatedBrowserWindows}" Content="פתיחת האתרים בחלון ייעודי לכל דפדפן" AutomationProperties.Name="Dedicated browser windows"/>
+                            <Button Content="סדר לשוניות קיימות (לא זמין עדיין)" IsEnabled="False" HorizontalAlignment="Right" Margin="0,6,0,0" AutomationProperties.Name="Arrange existing tabs unavailable" ToolTip="סידור לשוניות קיימות יהיה זמין רק כשאפשר יהיה לעשות זאת בלי לפגוע בעבודה אחרת."/>
+                            <TextBlock Text="כרום ו-Edge בלבד, לפי סדר האתרים בסביבה. לשוניות קיימות לא יוזזו. דפדפן אחר לא יוחלף ולא ייפתח במצב זה." TextWrapping="Wrap" FontSize="12" Foreground="#585254" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"><Button Content="שגר" Command="{Binding ConfirmSelectionCommand}" Padding="16,4" AutomationProperties.Name="Confirm opening selection"/><Button Content="ביטול" Command="{Binding CancelOpenCommand}" Padding="12,4" Margin="8,0"/></StackPanel>
+                    </StackPanel>
                     <ListBox ItemsSource="{Binding OpeningChoices}" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Opening selection">
                         <ListBox.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name}"><DockPanel Margin="0,3"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,8,0"/><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Target}" Foreground="Gray" FontSize="11" TextWrapping="Wrap" FlowDirection="LeftToRight" TextAlignment="Left"/></StackPanel></DockPanel></CheckBox></DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
