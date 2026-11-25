@@ -91,7 +91,6 @@ public sealed class CaptureHoverIcon : Canvas
         if(ReducedMotion){Reset();return;}
         if(!_ticking){if(!hovered)return;_clock.Restart();_hoverStart=0;_ticking=true;CompositionTarget.Rendering+=Tick;}
         _fromEnvelope=_envelope;_transitionStart=_clock.Elapsed.TotalSeconds;
-        if(hovered&&!_hovered)_hoverStart=_clock.Elapsed.TotalSeconds;
         _hovered=hovered;
     }
     private void Tick(object? sender,EventArgs e)
