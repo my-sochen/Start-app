@@ -17,6 +17,7 @@ public sealed class WorkspaceColorPicker : StackPanel
 
     public WorkspaceColorPicker()
     {
+        FlowDirection = FlowDirection.RightToLeft;
         var swatches = new ItemsControl();
         var panel = new FrameworkElementFactory(typeof(WrapPanel));
         swatches.ItemsPanel = new ItemsPanelTemplate(panel);
@@ -32,6 +33,12 @@ public sealed class WorkspaceColorPicker : StackPanel
         swatches.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(Palette)) { Source = this });
         swatches.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
         Children.Add(swatches);
+        var current = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 4), HorizontalAlignment = HorizontalAlignment.Right };
+        var preview = new Border { Width = 18, Height = 18, BorderThickness = new Thickness(1), BorderBrush = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 0, 6, 0) };
+        preview.SetBinding(Border.BackgroundProperty, new Binding(nameof(SelectedColor)) { Source = this, Converter = new ColorBrushConverter() });
+        var value = new TextBlock { FlowDirection = FlowDirection.LeftToRight, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+        value.SetBinding(TextBlock.TextProperty, new Binding(nameof(SelectedColor)) { Source = this });
+        current.Children.Add(preview); current.Children.Add(value); Children.Add(current);
         var advanced = new Button { Content = "בחירה מתקדמת", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0) };
         advanced.SetResourceReference(StyleProperty, "HomeToolbarButton");
         System.Windows.Automation.AutomationProperties.SetName(advanced, "Advanced color selection");

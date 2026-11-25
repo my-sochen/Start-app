@@ -41,6 +41,15 @@ internal static class Program
         var accept=Tree(editor).OfType<Button>().Single(x=>x.Content as string=="בחר צבע");
         Check(name+" valid hex enabled",accept.IsEnabled&&editor.ChosenColor=="#12AB34");
         hex.Text="#NOTHEX";Check(name+" invalid hex disables",!accept.IsEnabled);await Shot(editor,output,name+"-invalid");
+        var rgb = boxes.Where(x => x != hex).ToArray();
+        var red = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Red");
+        var green = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Green");
+        var blue = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Blue");
+        red.Text = "255"; green.Text = "128"; blue.Text = "0";
+        Check(name+" RGB updates hex",editor.ChosenColor=="#FF8000"&&accept.IsEnabled);
+        red.Text="256";Check(name+" invalid RGB disables",!accept.IsEnabled);red.Text="255";
+        var hue=Tree(editor).OfType<Slider>().Single();hue.Value=240;
+        Check(name+" hue updates selected color",editor.ChosenColor=="#0000FF");
         hex.Text="#45A1C7";
         if(choose) Click(accept); else editor.Close();
         await operation;
