@@ -108,9 +108,11 @@ try{
  $toggle=[Windows.Automation.TogglePattern]$startup.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
  Check 'startup still defaults unchecked on reinstall' ($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::Off)
  ClickElement $startup
+ $untilToggle=[DateTime]::UtcNow.AddSeconds(5)
+ do{Start-Sleep -Milliseconds 50;$state=$toggle.Current.ToggleState}while($state -ne [Windows.Automation.ToggleState]::On -and [DateTime]::UtcNow -lt $untilToggle)
  Check 'startup can be checked in real installer' ($toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::On)
  $launch=$all|Where-Object {$_.Current.Name -eq 'Launch Start App when setup finishes'}|Select-Object -First 1
- if(([Windows.Automation.TogglePattern]$launch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)).Current.ToggleState -eq [Windows.Automation.ToggleState]::On){ClickElement $launch}
+ if(([Windows.Automation.TogglePattern]$launch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)).Current.ToggleState -eq [Windows.Automation.ToggleState]::On){ClickElement $launch;Start-Sleep -Milliseconds 150}
  Shot '06-startup-checked' $w
  InvokeName $w 'Next'
  $until=[DateTime]::UtcNow.AddSeconds(90)
