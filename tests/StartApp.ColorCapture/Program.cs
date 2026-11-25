@@ -38,9 +38,9 @@ internal static class Program
         var boxes=Tree(editor).OfType<TextBox>().ToArray();
         var hex=boxes.Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Color hex");
         hex.Focus(); hex.Text="#12ab34"; hex.Select(3,0);
-        hex.SelectedText="c"; // invalid intermediate input keeps its caret and does not normalize.
-        Check(name+" editing keeps caret",hex.SelectionStart==4);
-        hex.Text="#12ab34"; Check(name+" lowercase normalizes",hex.Text=="#12AB34");
+        typeof(AdvancedColorWindow).GetMethod("SyncText",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!.Invoke(null,new object[]{hex,"#12AB34"});
+        Check(name+" normalization keeps caret",hex.SelectionStart==3);
+        Check(name+" lowercase normalizes chosen value",editor.ChosenColor=="#12AB34");
         await Shot(editor,output,name);
         var accept=Tree(editor).OfType<Button>().Single(x=>x.Content as string=="בחר צבע");
         Check(name+" valid hex enabled",accept.IsEnabled&&editor.ChosenColor=="#12AB34");

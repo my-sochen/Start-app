@@ -96,7 +96,7 @@ public sealed class AdvancedColorWindow : Window
     }
     private static void SyncText(TextBox input, string value)
     {
-        if (input.Text == value) return;
+        if (input.Text == value || input.IsKeyboardFocused && string.Equals(input.Text, value, StringComparison.OrdinalIgnoreCase)) return;
         int start = input.SelectionStart, length = input.SelectionLength;
         bool focused = input.IsKeyboardFocused;
         input.Text = value;
