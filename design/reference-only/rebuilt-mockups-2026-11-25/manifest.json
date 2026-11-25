@@ -1,0 +1,57 @@
+[
+  {
+    "file": "capture-f1-7b8e0b4c.png",
+    "sha256": "879c508f6fff1ee5ee5b1d1cfd05009f5eee1ca508848a319b0a30b09ca082bc",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "details-delete-confirm-f1-d327cea4.png",
+    "sha256": "43d9d321a2b974fe81f061455627fa6e1f98b012a9a8dc72e80b5bf9e076cde7",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "details-item-edit-f1-b729cdf9.png",
+    "sha256": "02f54fad4e83b98124ce02a0e6b26a6f7d34c0c4ffa0d31d9efbb48536cc56f3",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "edit-unsaved-exit-f1-01d1b5f8.png",
+    "sha256": "7410d18a01585f9b9a012d4a0705c3dd94da795effe27e7cbf7cc84a466c39fb",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "global-env-f1-1a072294.png",
+    "sha256": "931aaf17237be19091b1829bf7b10b913246f110eb1fc06fc8f0afdfffc6cf92",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-context-f1-73a86ca7.png",
+    "sha256": "8495bcb4ac485ad91c2f101c393a2cd3464084defea18335a990986d07a91d0a",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-delpick-f1-1207f64c.png",
+    "sha256": "e1d910b054d3b55a88e527131d2a78a6d66cad2d24b0bf444ef7e851f4fd0610",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-edit-f1-a2d4a141.png",
+    "sha256": "a5b178f2fefcb6d1af6f5ddd6f4c14a7ee88f00b69ab0769b61530a15070f59c",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-edit-folder-f1-2281bd95.png",
+    "sha256": "3fd39412396e32027d59766939e1a169a4f3eeca1aa950824f4bb5e431b63198",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-envpick-f1-0d707d50.png",
+    "sha256": "7c1b8f35662ae0e92fd64bf9e0a6edbf0aa3e72d391ed0bd80cbcd1c256a39d1",
+    "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "options-all-items-f1-1ab05834.png",
+    "sha256": "0e7b836b9cfd65dc48a83244578ca4dfbfc2fcac8d353d0815b17cbf86e8eba9",
+    "status": "rebuilt reference only, not original source"
+  }
+]
