@@ -520,7 +520,7 @@ try {
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'reopened capture-new form has empty design fields' ((ReadWorkspaceColor) -eq '#7189BB' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  Assert 'reopened capture-new form has empty design fields' (-not (TestWorkspaceColorSelected) -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
@@ -549,9 +549,9 @@ try {
   $capCardImg = "$PWD\diag\cap-create-card.png"
   $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
   $capPalAnchor = CapPalette; Assert 'capture palette anchor uniquely found for the swatch click' ($null -ne $capPalAnchor) 'missing or ambiguous Capture palette list - window-wide hex lookup refused'
-  $csw = CapSwatch '#7189BB'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
-  [void](InvokeEl $csw 'capture palette #7189BB'); Start-Sleep -Milliseconds 400
-  Assert 'capture palette click fills the color' ((ReadWorkspaceColor) -eq '#7189BB') (ReadWorkspaceColor)
+  $csw = CapSwatch '#8BAA9D'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  [void](InvokeEl $csw 'capture palette #8BAA9D'); Start-Sleep -Milliseconds 400
+  Assert 'capture palette click fills the color' ((ReadWorkspaceColor) -eq '#8BAA9D') (ReadWorkspaceColor)
   SetText (NamedEdit 'Capture card image path') $capCardImg
   $crm = Btn 'Remove capture image'; Assert 'remove capture image button present' ($null -ne $crm) ''
   [void](InvokeEl $crm 'remove capture image'); Start-Sleep -Milliseconds 300
@@ -565,7 +565,7 @@ try {
   $openedCap = $false; for ($t = 0; $t -lt 20 -and -not $openedCap; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap = $true } }
   Assert 'native picker opened from the capture form' $openedCap (AppWindowDump)
   Close-OwnedPickers 'capture-image picker cancelled from an empty path'
-  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ReadWorkspaceColor) -eq '#7189BB') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ReadWorkspaceColor)'")
+  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ReadWorkspaceColor) -eq '#8BAA9D') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ReadWorkspaceColor)'")
   SetText (NamedEdit 'Capture card image path') $capCardImg
   Assert 'capture typed image path shown' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg) ''
   [void](InvokeEl (Btn 'Upload capture image') 'upload capture image (preserve cancel flow)')
@@ -634,7 +634,7 @@ try {
   Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
   $o = StoreObj
   $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
-  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#7189BB' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
+  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#8BAA9D' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
   # SiteFromAddressText returns the scheme-prefixed host exactly as read (no forced trailing slash): accept the two
   # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
   $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id

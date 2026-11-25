@@ -13,7 +13,9 @@ try {
   $timer=[Diagnostics.Stopwatch]::StartNew()
   do { $window=CurWin; if($window) { $picker=$window.FindFirst([System.Windows.Automation.TreeScope]::Descendants,(New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty,'Advanced color selection'))) }; if($picker) {break}; Start-Sleep -Milliseconds 100 } while($timer.Elapsed.TotalSeconds -lt 15)
   if(-not $picker) {throw 'Shared picker missing at startup'}
+  if ((TestWorkspaceColorSelected)) {throw 'Empty picker falsely reports a selected color'}
   SetWorkspaceColor '#12ab34'
+  if (-not (TestWorkspaceColorSelected)) {throw 'Selected-color label did not expose chosen color'}
   $actual=ReadWorkspaceColor
   if($actual -ne '#12AB34') {throw "Shared consumer readback failed: $actual"}
   $palette=$window.FindAll([System.Windows.Automation.TreeScope]::Descendants,(New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty,'Create palette')))
