@@ -9,6 +9,8 @@ public sealed class InstalledBuildIdentityTests
     [InlineData("0.2.0-proto.1")]
     [InlineData("1.0.1")]
     [InlineData("1.0.0-beta.1")]
+    [InlineData("0.2.0-beta.0")]
+    [InlineData("0.2.0-beta.9")]
     public void Explicit_version_and_matching_commit_are_required(string version)
     {
         var identity = InstalledBuildIdentity.Parse(version + "+sha." + Sha, Sha);
