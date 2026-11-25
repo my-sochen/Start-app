@@ -133,6 +133,21 @@ public class AdvancedColorTests
         var saved=repo.Load();Assert.Equal(WorkspaceColors.Default,saved.Workspaces.Single(w=>w.Name=="ordinary").Color);Assert.Equal(WorkspaceColors.Default,saved.Workspaces.Single(w=>w.Name=="capture").Color);
         Assert.Null(saved.Workspaces.Single(w=>w.Name=="legacy none").Color);Assert.Equal("#7189BB",saved.Workspaces.Single(w=>w.Name=="legacy blue").Color);Assert.Empty(saved.AdvancedColorHistory);
     }
+    [Fact] public async Task Capture_without_selection_does_not_add_advanced_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "no selection";
+        Assert.Equal("", vm.NewWorkspaceColor);
+        vm.CaptureCreateCommand.Execute(null);
+        Assert.Single(repo.Load().Workspaces); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public async Task Capture_preset_click_must_save_non_default_color_without_history()
+    {
+        using var repo = Repo(); var vm = new MainViewModel(repo, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "green preset";
+        vm.ApplyCreatePaletteColorCommand.Execute("#8BAA9D"); Assert.Equal("#8BAA9D", vm.NewWorkspaceColor);
+        vm.CaptureCreateCommand.Execute(null); Assert.Equal("#8BAA9D", repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
+    }
     sealed class EmptyCapturer : IOpenItemCapturer { public CaptureScan Scan() => new(Array.Empty<CapturedItem>(), Array.Empty<string>()); }
     [Fact] public void Category_catalog_save_does_not_commit_or_lose_pending_color_history()
     {

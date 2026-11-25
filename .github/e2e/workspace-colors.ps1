@@ -61,3 +61,15 @@ function RevealColorSwatch($swatch) {
   }
   throw 'Color swatch remained offscreen after scrolling'
 }
+
+# Read the caller-owned selection, never the advanced editor's fallback preview.
+# The shared picker hides this label while selection is empty.
+function TestWorkspaceColorSelected {
+  $scope = if (Get-Command ActiveAppWindow -ErrorAction SilentlyContinue) { ActiveAppWindow } else { CurWin }
+  $labels = $scope.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Selected workspace color')))
+  $visible = @($labels | Where-Object { -not $_.Current.IsOffscreen })
+  if ($visible.Count -gt 1) { throw 'Ambiguous visible selected-color labels' }
+  # WPF TextBlock exposes visibility/name but no TextPattern. This checks selection
+  # presence only; exact selected values are checked through editor and saved JSON.
+  return $visible.Count -eq 1
+}

@@ -318,7 +318,7 @@ try {
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'reopened capture-new form has empty design fields' ((ReadWorkspaceColor) -eq '#7189BB' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  Assert 'reopened capture-new form has empty design fields' (-not (TestWorkspaceColorSelected) -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')

@@ -46,6 +46,10 @@ internal static class Program
                 vm.NewName="Capture workspace"; vm.CreateWorkspaceCommand.Execute(null); vm.BackCommand.Execute(null);
                 vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; await Settle(window);
                 Check("New capture has fixed three selected rows",vm.CaptureRows.Count==3 && vm.CaptureRows.All(r=>r.IsChecked));
+                Check("Empty capture draft has no selected color",vm.NewWorkspaceColor==""&&!vm.CreateDirty);
+                var baselinePicker=new CaptureBaselineGrid(window.Resources);
+                baselinePicker.DataContext=vm;
+                Check("Baseline fixture has shared picker",Descendants(baselinePicker).OfType<WorkspaceColorPicker>().Count()==1);
                 vm.NewName="New captured environment"; await Take(window,output,"01-new-form");
                 // New-form name is unsaved; clear it before ordinary close.
                 vm.NewName="";vm.CaptureCloseCommand.Execute(null); Check("Close new capture",!vm.CaptureOpen);
