@@ -5,8 +5,14 @@ namespace StartApp.Presentation;
 
 /// <summary>Owns one category editor's target, rename draft and deletion warning state.
 /// No catalog, repository, commands, window or MainViewModel access. Host owns writes and command invalidation.</summary>
+public enum CategoryEditTarget { SavedWorkspace, CreateDraft, DetailsDraft, Catalog }
+
 public sealed class CategoryEditSession : ObservableBase
 {
+    public CategoryEditTarget Target { get; set; }
+    public bool DuplicateNameOpen { get => _duplicateNameOpen; set => Set(ref _duplicateNameOpen, value); }
+    private bool _duplicateNameOpen;
+    public bool DuplicateWasRename { get; set; }
     public string WorkspaceId { get; set; } = "";
     public string RenameOriginalName { get; set; } = "";
     public string DeleteCategoryName { get; set; } = "";

@@ -71,6 +71,11 @@ public sealed class JsonStore : IStoreRepository
                 RejectDuplicateKeys(text);
                 var s = JsonSerializer.Deserialize<Store>(text, Opts) ?? throw new JsonException("null");
                 CheckShape(s);
+                // New built-ins replace same-name legacy personal entries; assignments use the unchanged name.
+                // Do not hide duplicate/corrupt personal entries while reconciling a valid older list.
+                if (s.CustomCategories.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+                    throw new JsonException("duplicate custom category");
+                s.CustomCategories.RemoveAll(IsPromotedCategory);
                 var errs = new Catalog(s).Validate();
                 if (errs.Count > 0) throw new JsonException(string.Join("; ", errs));
                 return s;
@@ -110,28 +115,34 @@ public sealed class JsonStore : IStoreRepository
 
     /// <summary>
     /// Before a file of an older schema is replaced by a newer-schema file, make sure a byte-exact copy of it exists next to it
-    /// (store.json.schema1.bak / store.json.schema2.bak / ...). A current-schema file needs no copy.
+    /// (store.json.schema1.bak / store.json.schema2.bak / ...). Category promotion in a current-schema file also keeps a .categories.bak copy.
     /// The copy is written to a temp name, flushed, then published with a no-overwrite move, so a final backup name only ever holds a complete copy
     /// (an interrupted copy leaves just a *.tmp that the next attempt rewrites). An existing backup is trusted only if its bytes equal the current file;
     /// otherwise it is left alone and the copy goes to store.json.schemaN.&lt;hash&gt;.bak. Nothing is overwritten or deleted. Any failure throws, so the upgrade does not happen.
     /// Not claimed: power-loss durability beyond the flush of the temp file.
     /// </summary>
+    private static bool IsPromotedCategory(string name) => name != Workspace.DefaultCategory && Catalog.IsBuiltInCategory(name);
+
     private void KeepPreUpgradeCopy()
     {
         if (!File.Exists(_path)) return;
         var bytes = File.ReadAllBytes(_path);
         var body = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes.AsMemory(3) : bytes.AsMemory(); // JsonDocument rejects a BOM; the backup still copies the original bytes
         int ver;
+        bool categoryUpgrade;
         using (var doc = JsonDocument.Parse(body))
         {
             if (!(doc.RootElement.TryGetProperty("schemaVersion", out var v) && v.TryGetInt32(out ver))) return;
-            if (ver >= SupportedSchema) return;
+            categoryUpgrade = doc.RootElement.TryGetProperty("customCategories", out var categories) &&
+                categories.ValueKind == JsonValueKind.Array && categories.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String && IsPromotedCategory(x.GetString()!));
+            if (ver >= SupportedSchema && !categoryUpgrade) return;
         }
-        var bak = _path + ".schema" + ver + ".bak";
+        var suffix = ver < SupportedSchema ? ".schema" + ver : ".categories";
+        var bak = _path + suffix + ".bak";
         if (File.Exists(bak))
         {
             if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;
-            bak = _path + ".schema" + ver + "." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16] + ".bak";
+            bak = _path + suffix + "." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16] + ".bak";
             if (File.Exists(bak))
             {
                 if (File.ReadAllBytes(bak).AsSpan().SequenceEqual(bytes)) return;

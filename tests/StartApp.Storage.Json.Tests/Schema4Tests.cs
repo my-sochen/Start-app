@@ -14,9 +14,9 @@ public class Schema4Tests
         using (var repo = new JsonStore(p))
             repo.Mutate(c =>
             {
-                c.AddCustomCategory("מוזיקה");
+                c.AddCustomCategory("מוזיקה אישית");
                 var w = c.CreateWorkspace("w");
-                c.SetCategory(w.Id, "מוזיקה");
+                c.SetCategory(w.Id, "מוזיקה אישית");
                 c.SetCardDesign(w.Id, "#BFDBFE", "C:\\img\\bg.png");
             });
         var text = File.ReadAllText(p);
@@ -26,8 +26,8 @@ public class Schema4Tests
         {
             var s = repo2.Load();
             Assert.Equal(5, s.SchemaVersion);
-            Assert.Equal(new[] { "מוזיקה" }, s.CustomCategories);
-            Assert.Equal("מוזיקה", s.Workspaces[0].Category);
+            Assert.Equal(new[] { "מוזיקה אישית" }, s.CustomCategories);
+            Assert.Equal("מוזיקה אישית", s.Workspaces[0].Category);
             Assert.Equal("#BFDBFE", s.Workspaces[0].Color); Assert.Equal("C:\\img\\bg.png", s.Workspaces[0].ImagePath);
         }
     }

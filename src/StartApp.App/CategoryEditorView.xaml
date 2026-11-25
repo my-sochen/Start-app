@@ -2,12 +2,14 @@
     <local:DialogFrame.Resources>
         <BooleanToVisibilityConverter x:Key="B2V"/>
     </local:DialogFrame.Resources>
+    <Grid>
                 <StackPanel>
+                    <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers><DataTrigger Binding="{Binding DuplicateNameOpen}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                     <DockPanel Margin="0,0,0,6">
                         <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseCategoryPopupCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close category popup" ToolTip="סגור"/>
                         <TextBlock Text="ערוך קטגוריה" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
                     </DockPanel>
-                    <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Text="{Binding CurrentCategoryName, StringFormat='קטגוריה נוכחית: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding CategoryError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft"/><TextBlock Visibility="{Binding CategoryAssignmentAvailable, Converter={StaticResource B2V}}" Text="{Binding CurrentCategoryName, StringFormat='קטגוריה נוכחית: {0}'}" Foreground="Gray" Margin="0,0,0,4"/>
                     <ListBox HorizontalContentAlignment="Stretch" ItemsSource="{Binding CategoryRows}" MaxHeight="180" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Category list">
                         <ListBox.ItemTemplate><DataTemplate>
                             <DockPanel>
@@ -25,7 +27,7 @@
                                     </Style.Triggers></Style></Button.Style>
                                 </Button>
                                 <Button DockPanel.Dock="Right" Content="בחר" Padding="6,0" Margin="4,0,0,0" AutomationProperties.Name="Pick category"
-                                        Command="{Binding DataContext.PickCategoryCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}"/>
+                                        Command="{Binding DataContext.PickCategoryCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Visibility="{Binding DataContext.CategoryAssignmentAvailable, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource B2V}}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}" Margin="0,0,5,0"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel>
                             </DockPanel>
                         </DataTemplate></ListBox.ItemTemplate>
@@ -66,4 +68,13 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+        <Grid Background="#CCFFFFFF" IsVisibleChanged="DuplicateNotice_IsVisibleChanged" Visibility="{Binding DuplicateNameOpen, Converter={StaticResource B2V}}" KeyboardNavigation.TabNavigation="Cycle">
+            <local:DialogFrame Padding="24" CornerRadius="7" FlowDirection="RightToLeft">
+                <StackPanel>
+                    <TextBlock Text="קטגוריה כבר קיימת" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,20"/>
+                    <Button x:Name="DuplicateAcknowledgeButton" Content="אישור" Command="{Binding AcknowledgeCategoryDuplicateCommand}" Style="{StaticResource DialogPrimaryButton}" HorizontalAlignment="Left" AutomationProperties.Name="Acknowledge duplicate category"/>
+                </StackPanel>
             </local:DialogFrame>
+        </Grid>
+    </Grid>
+</local:DialogFrame>

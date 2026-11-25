@@ -154,12 +154,12 @@ public sealed class Catalog
         w.LaunchCount++;
     }
 
-    // ---- managed categories (פופאפ עריכת קטגוריה, settled Nov 11): built-ins are defined in code and can never be edited or
-    // deleted; the user creates, renames and deletes custom ones. כללי is the default and the one guaranteed built-in; the exact
-    // contents of the built-in base list beyond it are still an open product choice, so the list holds only what is settled. ----
-
-    /// <summary>Built-in base categories. Only כללי is settled by the user's originals; more can be added here once decided.</summary>
-    public static readonly IReadOnlyList<string> BuiltInCategories = new[] { Workspace.DefaultCategory };
+    // Managed categories: built-ins are protected; personal categories support add/rename/delete.
+    /// <summary>Settled base list, in the owner's order, followed by personal categories.</summary>
+    public static readonly IReadOnlyList<string> BuiltInCategories = Array.AsReadOnly(new[] {
+        Workspace.DefaultCategory, "מוזיקה", "גרפיקה", "תכנות", "מחשבים", "קולנוע", "אומנות", "עבודה", "משחק",
+        "צילום", "ציור", "הוראה", "הדרכה", "אדריכלות", "עיצוב", "כושר", "ריקוד", "אוכל", "יזמות", "ספורט", "תחביבים"
+    });
     /// <summary>Exact-match rule for category identity (Hebrew names; case-insensitive duplicate check for Latin letters).</summary>
     private static bool SameCategory(string a, string b) => string.Equals(a, b, StringComparison.Ordinal);
     public static bool IsBuiltInCategory(string name) => BuiltInCategories.Any(b => SameCategory(b, name));

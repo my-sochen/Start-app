@@ -6,10 +6,15 @@ namespace StartApp.Presentation;
 
 public sealed partial class MainViewModel
 {
-    /// <summary>ערוך קטגוריה from the card actions menu: opens the category popup (פופאפ עריכת קטגוריה) for that workspace.</summary>
+    /// <summary>Reuses the category manager for a create/details draft or the filter catalog.</summary>
+    public ICommand ManageCategoriesCommand { get; private set; } = null!;
+    public bool CategoryAssignmentAvailable => _categoryEdit.Target != CategoryEditTarget.Catalog;
+    /// <summary>Opens category assignment for the saved workspace from its card actions.</summary>
     public ICommand EditCategoryPopupCommand { get; private set; } = null!;
-    /// <summary>Selecting a category in the popup assigns it to the workspace immediately.</summary>
+    /// <summary>Selection updates the active draft, or saves immediately for the card action.</summary>
     public ICommand PickCategoryCommand { get; private set; } = null!;
+    public bool DuplicateNameOpen => _categoryEdit.DuplicateNameOpen;
+    public ICommand AcknowledgeCategoryDuplicateCommand { get; private set; } = null!;
     public ICommand AddCategoryCommand { get; private set; } = null!;
     /// <summary>Starts renaming a custom category (built-ins never offer this).</summary>
     public ICommand BeginRenameCategoryCommand { get; private set; } = null!;
@@ -25,20 +30,25 @@ public sealed partial class MainViewModel
 
     private void InitCategoryEntryCommand()
     {
-        EditCategoryPopupCommand = Cmd(p => BeginCategoryEdit((Workspace)p!), p => p is Workspace && !ReadOnly);
+        EditCategoryPopupCommand = Cmd(p => BeginCategoryEdit((Workspace)p!), p => p is Workspace && !DuplicateNameOpen && !ReadOnly);
+        ManageCategoriesCommand = Cmd(p => BeginCategoryManagement(p as string), _ => !DuplicateNameOpen && !ReadOnly);
     }
 
     private void InitCategoryEditCommands()
     {
-        PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && !ReadOnly);
-        AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !ReadOnly && NewCategoryName.Length > 0);
-        BeginRenameCategoryCommand = Cmd(p => { _categoryEdit.RenameOriginalName = ((CategoryRow)p!).Name; RenameCategoryText = _categoryEdit.RenameOriginalName; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
-        SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !ReadOnly && RenameCategoryText.Length > 0);
+        AcknowledgeCategoryDuplicateCommand = Cmd(_ => {
+            if (_categoryEdit.DuplicateWasRename) RenameCategoryText = ""; else NewCategoryName = "";
+            _categoryEdit.DuplicateNameOpen = false; RaiseCommands();
+        }, _ => DuplicateNameOpen);
+        PickCategoryCommand = Cmd(p => PickCategory((CategoryRow)p!), p => p is CategoryRow && CategoryAssignmentAvailable && !DuplicateNameOpen && !ReadOnly);
+        AddCategoryCommand = Cmd(_ => AddCategory(), _ => CategoryEditOpen && !DuplicateNameOpen && !ReadOnly && NewCategoryName.Length > 0);
+        BeginRenameCategoryCommand = Cmd(p => { _categoryEdit.RenameOriginalName = ((CategoryRow)p!).Name; RenameCategoryText = _categoryEdit.RenameOriginalName; RenameCategoryOpen = true; }, p => p is CategoryRow { IsBuiltIn: false } && !DuplicateNameOpen && !ReadOnly);
+        SaveRenameCategoryCommand = Cmd(_ => SaveRenameCategory(), _ => RenameCategoryOpen && !DuplicateNameOpen && !ReadOnly && RenameCategoryText.Length > 0);
         CancelRenameCategoryCommand = Cmd(_ => RenameCategoryOpen = false, _ => RenameCategoryOpen);
-        DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !ReadOnly);
+        DeleteCategoryCommand = Cmd(p => BeginDeleteCategory((CategoryRow)p!), p => p is CategoryRow { IsBuiltIn: false } && !DuplicateNameOpen && !ReadOnly);
         CloseCategoryPopupCommand = Cmd(_ => CloseCategoryPopup(), _ => CategoryEditOpen);
         ShowCategoryDeleteListCommand = Cmd(_ => CategoryDeleteListShown = true, _ => CategoryDeletePending && !CategoryDeleteListShown);
-        ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !ReadOnly);
+        ConfirmCategoryDeleteCommand = Cmd(_ => ConfirmCategoryDelete(), _ => CategoryDeletePending && !DuplicateNameOpen && !ReadOnly);
         CancelCategoryDeleteCommand = Cmd(_ => CancelCategoryDelete("Category deletion cancelled, nothing was changed"), _ => CategoryDeletePending);
     }
 
@@ -66,8 +76,36 @@ public sealed partial class MainViewModel
     public bool CategoryDeleteListShown { get => _categoryEdit.CategoryDeleteListShown; private set { _categoryEdit.CategoryDeleteListShown = value; RaiseCommands(); } }
     private void BeginCategoryEdit(Workspace w)
     {
+        _categoryEdit.Target = CategoryEditTarget.SavedWorkspace; Raise(nameof(CategoryAssignmentAvailable));
         _categoryEdit.WorkspaceId = w.Id; CategoryEditOpen = true; RenameCategoryOpen = false; CancelCategoryDelete();
         RefreshCategories();
+    }
+    private void BeginCategoryManagement(string? target)
+    {
+        _categoryEdit.Target = target switch { "create" => CategoryEditTarget.CreateDraft, "details" => CategoryEditTarget.DetailsDraft, _ => CategoryEditTarget.Catalog };
+        _categoryEdit.WorkspaceId = Selected?.Id ?? "";
+        CategoryEditOpen = true; RenameCategoryOpen = false; CancelCategoryDelete();
+        Raise(nameof(CategoryAssignmentAvailable)); RefreshCategories();
+    }
+    private string CategoryForTarget() => _categoryEdit.Target switch
+    {
+        CategoryEditTarget.CreateDraft => NewWorkspaceCategory,
+        CategoryEditTarget.DetailsDraft => EditCategory,
+        CategoryEditTarget.Catalog => "",
+        _ => _current.Workspaces.FirstOrDefault(x => x.Id == _categoryEdit.WorkspaceId)?.EffectiveCategory ?? Workspace.DefaultCategory
+    };
+    // Catalog edits save immediately, but must never save or discard an unrelated workspace draft.
+    private bool ApplyCategoryChange(Action<Catalog> change, string? oldName = null, string? replacement = null)
+    {
+        var create = (NewName, NewWorkspaceDescription, NewWorkspaceCategory, NewWorkspaceColor, NewWorkspaceImagePath);
+        var details = (EditName, EditDescription, EditCategory);
+        var ok = Apply(change);
+        string Reconcile(string value) => ok && oldName != null && value == oldName ? replacement ?? Workspace.DefaultCategory : value;
+        NewName = create.NewName; NewWorkspaceDescription = create.NewWorkspaceDescription;
+        NewWorkspaceCategory = Reconcile(create.NewWorkspaceCategory); NewWorkspaceColor = create.NewWorkspaceColor; NewWorkspaceImagePath = create.NewWorkspaceImagePath;
+        EditName = details.EditName; EditDescription = details.EditDescription; EditCategory = Reconcile(details.EditCategory);
+        CurrentCategoryName = CategoryForTarget();
+        return ok;
     }
     private void RefreshCategories()
     {
@@ -82,22 +120,41 @@ public sealed partial class MainViewModel
         foreach (var c in cats) if (!CategoryChoices.Contains(c)) CategoryChoices.Add(c);
         _workspaceCreate.Category = keepNew; Raise(nameof(NewWorkspaceCategory)); Raise(nameof(CreateDirty));
         _workspaceDetails.Category = keepEdit; Raise(nameof(EditCategory)); RaiseDirty();
-        var w = _current.Workspaces.FirstOrDefault(x => x.Id == _categoryEdit.WorkspaceId);
-        CurrentCategoryName = w?.EffectiveCategory ?? Workspace.DefaultCategory;
+        CurrentCategoryName = CategoryForTarget();
     }
     private void PickCategory(CategoryRow row)
     {
-        if (Apply(c => c.SetCategory(_categoryEdit.WorkspaceId, row.Name))) Status = "Category saved";
+        if (_categoryEdit.Target == CategoryEditTarget.CreateDraft) NewWorkspaceCategory = row.Name;
+        else if (_categoryEdit.Target == CategoryEditTarget.DetailsDraft) EditCategory = row.Name;
+        else if (_categoryEdit.Target == CategoryEditTarget.SavedWorkspace)
+        {
+            var previous = CategoryForTarget();
+            var followsSavedCategory = Selected?.Id == _categoryEdit.WorkspaceId && EditCategory == previous;
+            if (ApplyCategoryChange(c => c.SetCategory(_categoryEdit.WorkspaceId, row.Name)))
+            {
+                if (followsSavedCategory) EditCategory = row.Name;
+                Status = "Category saved";
+            }
+        }
+        CurrentCategoryName = CategoryForTarget();
+    }
+    private bool DuplicateCategoryName(string name, string? current = null)
+    {
+        if (name == current || !new Catalog(_current).AllCategories().Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase))) return false;
+        _categoryEdit.DuplicateWasRename = current != null; _categoryEdit.DuplicateNameOpen = true; RaiseCommands();
+        return true;
     }
     private void AddCategory()
     {
         if (Catalog.ValidateCategoryName(NewCategoryName) is { } categoryError) { FieldError("category", "שם הקטגוריה אינו תקין. הזינו שם באורך עד 100 תווים ללא תווי בקרה.", "Not saved: " + categoryError); return; }
-        if (Apply(c => c.AddCustomCategory(NewCategoryName))) { NewCategoryName = ""; Status = "Category added"; }
+        if (DuplicateCategoryName(NewCategoryName)) return;
+        if (ApplyCategoryChange(c => c.AddCustomCategory(NewCategoryName))) { NewCategoryName = ""; Status = "Category added"; }
     }
     private void SaveRenameCategory()
     {
         if (Catalog.ValidateCategoryName(RenameCategoryText) is { } categoryError) { FieldError("category", "שם הקטגוריה אינו תקין. הזינו שם באורך עד 100 תווים ללא תווי בקרה.", "Not saved: " + categoryError); return; }
-        if (Apply(c => c.RenameCustomCategory(_categoryEdit.RenameOriginalName, RenameCategoryText))) { RenameCategoryOpen = false; Status = "Category renamed"; }
+        if (DuplicateCategoryName(RenameCategoryText, _categoryEdit.RenameOriginalName)) return;
+        if (ApplyCategoryChange(c => c.RenameCustomCategory(_categoryEdit.RenameOriginalName, RenameCategoryText), _categoryEdit.RenameOriginalName, RenameCategoryText)) { RenameCategoryOpen = false; Status = "Category renamed"; }
     }
     private void BeginDeleteCategory(CategoryRow row)
     {
@@ -105,7 +162,7 @@ public sealed partial class MainViewModel
         if (used.Count == 0)
         {
             // settled edge case: no assigned workspaces means no warning at all
-            if (Apply(c => c.DeleteCustomCategory(row.Name))) Status = "Category deleted";
+            if (ApplyCategoryChange(c => c.DeleteCustomCategory(row.Name), row.Name)) Status = "Category deleted";
             return;
         }
         _categoryEdit.DeleteCategoryName = row.Name;
@@ -118,8 +175,11 @@ public sealed partial class MainViewModel
     }
     private void ConfirmCategoryDelete()
     {
-        if (Apply(c => c.DeleteCustomCategory(_categoryEdit.DeleteCategoryName))) Status = "Category deleted, its workspaces moved to " + Workspace.DefaultCategory;
-        CancelCategoryDelete();
+        if (ApplyCategoryChange(c => c.DeleteCustomCategory(_categoryEdit.DeleteCategoryName), _categoryEdit.DeleteCategoryName))
+        {
+            Status = "Category deleted, its workspaces moved to " + Workspace.DefaultCategory;
+            CancelCategoryDelete();
+        }
     }
     private void CancelCategoryDelete(string? status = null)
     {
@@ -128,6 +188,7 @@ public sealed partial class MainViewModel
     }
     private void CloseCategoryPopup()
     {
+        if (DuplicateNameOpen) return;
         if (CategoryDeletePending) { CancelCategoryDelete("Category deletion cancelled, nothing was changed"); return; }
         if (RenameCategoryOpen) { RenameCategoryOpen = false; return; }
         CategoryEditOpen = false;
