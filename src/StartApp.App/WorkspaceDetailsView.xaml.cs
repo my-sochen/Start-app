@@ -12,8 +12,8 @@ public partial class WorkspaceDetailsView : DockPanel
     {
         DetailsAddForm.Visibility = Visibility.Visible;
         DetailsAddForm.UpdateLayout();
-        TargetBox.BringIntoView();
-        TargetBox.Focus();
+        AddForm.BringIntoView();
+        AddForm.FocusTarget();
     }
 
     private void ShowDetailsAddForm_Click(object sender, RoutedEventArgs e) => FocusAddForm();

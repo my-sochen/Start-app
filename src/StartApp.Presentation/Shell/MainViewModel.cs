@@ -33,8 +33,10 @@ public sealed partial class MainViewModel : ObservableBase
     private void RaiseCommands() { _commands.RaiseAll(); Raise(nameof(OpenDecisionPending)); Raise(nameof(ShowOpenPanel)); Raise(nameof(ConfirmLabel)); Raise(nameof(DuplicatePending)); Raise(nameof(CanBackToOpeningSelection)); }
     /// <summary>Opens the details screen for a workspace (from its card in the overview).</summary>
     public ICommand OpenDetailsCommand { get; }
-    /// <summary>הוסף אייטם from the card's actions menu: opens the details screen and focuses the add form.</summary>
+    /// <summary>Card action opens an isolated add session without navigating the owner.</summary>
     public ICommand AddItemToCommand { get; }
+    public MainViewModel? CardAddSession { get; private set; }
+    public void FinishCardAdd() { CardAddSession = null; Reload(); }
     public ICommand BackCommand { get; }
     public ICommand SaveDetailsCommand { get; }
     /// <summary>Unsaved-changes exit dialog: שמור וצא.</summary>
@@ -112,7 +114,16 @@ public sealed partial class MainViewModel : ObservableBase
         // Workspace deletion remains unexposed; this is navigation only.
         OpenDetailsCommand = Cmd(p => OpenDetails((Workspace)p!), p => p is Workspace);
         InitWorkspaceCardOpeningCommand();
-        AddItemToCommand = Cmd(p => { OpenDetails((Workspace)p!); FocusAddRequested?.Invoke(); }, p => p is Workspace);
+        AddItemToCommand = Cmd(p => {
+            var id = ((Workspace)p!).Id;
+            var session = new MainViewModel(_repo, _launcher);
+            var target = session.Workspaces.FirstOrDefault(w => w.Id == id);
+            if (session.ReadOnly || target is null) return;
+            session.Selected = target;
+            session.LoadDetails(); session.InDetails = true;
+            CardAddSession = session;
+            FocusAddRequested?.Invoke();
+        }, p => p is Workspace && !ReadOnly && InOverview);
         BackCommand = Cmd(_ => Back(), _ => InDetails);
         SaveDetailsCommand = Cmd(_ => SaveDetails(), _ => InDetails && DetailsDirty && !ReadOnly);
         SaveAndExitCommand = Cmd(_ => SaveAndExit(), _ => UnsavedOpen);
@@ -318,7 +329,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (!force && new Catalog(_current).HasTarget(wsId, type, target))
         {
             _manualAdd.DuplicatePending = true; Raise(nameof(DuplicatePending)); RaiseCommands();
-            DuplicateMessage = "This target is already in the workspace. Add it again as a separate instance with its own name and settings?";
+            DuplicateMessage = "הכתובת כבר קיימת בסביבה. להוסיף עותק נפרד עם שם והגדרות משלו?";
             return;
         }
         _manualAdd.DuplicatePending = false; DuplicateMessage = ""; Raise(nameof(DuplicatePending));

@@ -57,24 +57,8 @@
                 <Border x:Name="DetailsAddForm" Visibility="Collapsed" DockPanel.Dock="Top" Margin="0,8,8,12" Padding="16" Background="White" BorderBrush="#DCE1E9" BorderThickness="1" CornerRadius="6">
                   <StackPanel FlowDirection="RightToLeft">
                     <TextBlock Text="הוספת אייטם לסביבה" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                    <TextBlock Text="סוג הפריט" Style="{StaticResource DetailsLabel}"/>
-                    <ComboBox ItemsSource="{Binding ItemTypeLabels}" SelectedIndex="{Binding NewItemTypeIndex}" Style="{StaticResource DetailsCombo}" AutomationProperties.Name="Item type"/>
-                    <TextBlock Text="כתובת או נתיב" Style="{StaticResource DetailsLabel}" Margin="0,10,0,0"/>
-                    <TextBox x:Name="TargetBox" Text="{Binding NewTarget, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" FlowDirection="LeftToRight" AutomationProperties.Name="Item target"/>
-                    <TextBlock Text="{Binding AddItemError}" Foreground="#9B3030" TextWrapping="Wrap" AutomationProperties.Name="Item target error"/>
-                    <TextBlock Text="שם (לא חובה)" Style="{StaticResource DetailsLabel}" Margin="0,10,0,0"/>
-                    <TextBox Text="{Binding NewItemName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Item name"/>
-                    <TextBlock Text="תיאור (לא חובה)" Style="{StaticResource DetailsLabel}" Margin="0,10,0,0"/>
-                    <TextBox Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Item description"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                      <Button Content="הוספה" Command="{Binding AddItemCommand}" Style="{StaticResource PrimaryActionButton}" AutomationProperties.Name="Add item"/>
-                      <Button Content="בחר מסביבות קיימות" Command="{Binding OpenPickerCommand}" Style="{StaticResource HomeToolbarButton}" Margin="8,0,0,0" AutomationProperties.Name="Pick from existing resources"/>
-                    </StackPanel>
+                    <local:ManualAddForm x:Name="AddForm"/>
                     <Button Content="הוסף ממה שפתוח" Command="{Binding AddFromOpenCommand}" Style="{StaticResource HomeToolbarButton}" HorizontalAlignment="Left" Margin="0,8,0,0" AutomationProperties.Name="Add from open items"/>
-                    <StackPanel Visibility="{Binding DuplicatePending, Converter={StaticResource B2V}}" Margin="0,8,0,0">
-                      <TextBlock Text="{Binding DuplicateMessage}" TextWrapping="Wrap"/>
-                      <Button Content="הוסף בכל זאת" Command="{Binding ConfirmDuplicateCommand}"/><Button Content="ביטול" Command="{Binding CancelDuplicateCommand}"/>
-                    </StackPanel>
                   </StackPanel>
                 </Border>
                 <ListView ItemsSource="{Binding Source={StaticResource ItemsView}}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="0" FlowDirection="RightToLeft">

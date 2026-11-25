@@ -4,3 +4,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("StartApp.CategoryCapture")]
 
 [assembly: InternalsVisibleTo("StartApp.ColorCapture")]
+
+[assembly: InternalsVisibleTo("StartApp.CardAddCapture")]

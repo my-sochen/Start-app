@@ -71,7 +71,15 @@ public partial class MainWindow : Window
                 WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
         }
     }
-    private void OnFocusAddRequested() => DetailsView.FocusAddForm();
+    private void OnFocusAddRequested()
+    {
+        if (DataContext is MainViewModel vm && vm.CardAddSession is { } session)
+        {
+            try { new CardAddWindow(session) { Owner = this }.ShowDialog(); }
+            finally { vm.FinishCardAdd(); }
+        }
+        else DetailsView.FocusAddForm();
+    }
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
     private void OnAppCloseApproved() { _updateWindow.ApproveClose(); Close(); }
     private void OnPickImageRequested()
