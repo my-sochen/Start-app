@@ -53,8 +53,6 @@ public partial class MainWindow
         var cats = new MenuItem { Header = "לפי קטגוריה" };
         foreach (var cat in vm.FilterCategoryOptions)
             cats.Items.Add(Choice(cat, vm.IsCategoryFiltered(cat), () => vm.ToggleCategoryFilter(cat), staysOpen: true));
-        cats.Items.Add(new Separator());
-        cats.Items.Add(new MenuItem { Header = "ניהול קטגוריות", Command = vm.ManageCategoriesCommand, CommandParameter = "catalog" });
         filter.Items.Add(cats);
         var types = new MenuItem { Header = "לפי סוג תוכן" };
         foreach (var t in new[] { ItemType.Link, ItemType.Program, ItemType.File, ItemType.Folder })
