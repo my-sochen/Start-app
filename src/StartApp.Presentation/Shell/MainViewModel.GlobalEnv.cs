@@ -28,7 +28,9 @@ public sealed partial class MainViewModel
     private bool _globalConflictOpen;
     public bool GlobalConflictOpen { get => _globalConflictOpen; private set { Set(ref _globalConflictOpen, value); RaiseCommands(); } }
     private string _globalConflictMessage = "";
-    public string GlobalConflictMessage { get => _globalConflictMessage; private set => Set(ref _globalConflictMessage, value); }
+    public string GlobalConflictMessage { get => _globalConflictMessage; private set { Set(ref _globalConflictMessage, value); Raise(nameof(GlobalConflictTitle)); } }
+    public static string CaptureListConflictTitle(string message) => message == Catalog.WhitelistConflictError ? "הפריט נמצא ברשימה השחורה" : message == Catalog.BlacklistConflictError ? "הפריט נמצא ברשימה הלבנה" : "לא ניתן להוסיף את הפריט";
+    public string GlobalConflictTitle => CaptureListConflictTitle(GlobalConflictMessage);
     public ICommand CloseGlobalConflictCommand { get; private set; } = null!;
     public ICommand MoveGlobalConflictCommand { get; private set; } = null!;
     private bool _inGlobalEnv;
