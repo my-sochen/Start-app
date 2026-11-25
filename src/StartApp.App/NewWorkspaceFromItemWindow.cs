@@ -25,14 +25,14 @@ internal sealed class NewWorkspaceFromItemWindow : Window
         var input = new TextBox { Style = (Style)FindResource("DetailsInput") };
         System.Windows.Automation.AutomationProperties.SetName(input, "New item environment name"); body.Children.Add(input);
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(155,48,48)), Margin = new Thickness(0,8,0,8) }; body.Children.Add(error);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,12,0,0) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,12,0,0) };
         var create = new Button { Content = "צור סביבה והוסף", IsEnabled = false, IsDefault = true, Style = (Style)FindResource("DialogPrimaryButton") };
         System.Windows.Automation.AutomationProperties.SetName(create, "Create item environment");
         input.TextChanged += (_, _) => create.IsEnabled = !string.IsNullOrWhiteSpace(input.Text);
         create.Click += (_, _) => { if (vm.CreateWorkspaceFromSavedItem(source, input.Text)) DialogResult = true; else error.Text = vm.Status; };
-        var cancel = new Button { Content = "ביטול", IsCancel = true, Style = (Style)FindResource("DialogSecondaryButton"), Margin = new Thickness(8,0,0,0) };
+        var cancel = new Button { Content = "ביטול", IsCancel = true, Style = (Style)FindResource("DialogSecondaryButton"), Margin = new Thickness(0,0,8,0) };
         System.Windows.Automation.AutomationProperties.SetName(cancel, "Cancel item environment");cancel.Click += (_, _) => DialogResult = false;
-        actions.Children.Add(create);actions.Children.Add(cancel);body.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.FromRgb(224,230,240)), BorderThickness = new Thickness(0,1,0,0), Padding = new Thickness(0,20,0,0), Margin = new Thickness(0,8,0,0), Child = actions });
+        actions.Children.Add(cancel);actions.Children.Add(create);body.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.FromRgb(224,230,240)), BorderThickness = new Thickness(0,1,0,0), Padding = new Thickness(0,20,0,0), Margin = new Thickness(0,8,0,0), Child = actions });
         Content = new DialogFrame { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Child = body, Padding = new Thickness(28), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(201,208,220)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
         Loaded += (_, _) => input.Focus();
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; DialogResult = false; } };

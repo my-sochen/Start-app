@@ -14,9 +14,9 @@
   <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="24"/><ColumnDefinition/></Grid.ColumnDefinitions>
    <Border Background="White" BorderBrush="#CFD7E6" BorderThickness="1" CornerRadius="4"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Border Background="#EDF1F7" BorderBrush="#CFD7E6" BorderThickness="0,0,0,1" Padding="16,14"><Grid><Button Content="חזרה לבחירת סביבה" Command="{Binding CaptureBackCommand}" Visibility="{Binding IsCaptureSide, Converter={StaticResource B2V}}" Style="{StaticResource QuietTextButton}" Foreground="#315CC5" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="Capture back"/><StackPanel HorizontalAlignment="Right"><TextBlock Text="{Binding CaptureTargetHeader}" FontSize="16" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right" AutomationProperties.AutomationId="CaptureTargetWorkspace" AutomationProperties.Name="{Binding CaptureWorkspaceName}"/><TextBlock Text="הפריטים שהוספת יישמרו רק בלחיצה על שמור." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#667388" Margin="0,6,0,0"/></StackPanel></Grid></Border>
-    <Grid Grid.Row="1" Margin="24,16"><ScrollViewer Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="New capture workspace form"><StackPanel>
- <StackPanel FlowDirection="RightToLeft">
-  <TextBlock Text="סביבה חדשה" FontSize="18" FontWeight="SemiBold" Foreground="#222833" Margin="0,0,0,16"/>
+    <Grid Grid.Row="1" Margin="24,16"><ScrollViewer FlowDirection="RightToLeft" Visibility="{Binding IsCaptureNew, Converter={StaticResource B2V}}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="New capture workspace form"><StackPanel>
+ <StackPanel FlowDirection="RightToLeft" Margin="8,0,8,0">
+ 
   <TextBlock Text="שם הסביבה" FontSize="12" Foreground="#667388"/>
   <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" Margin="0,4,0,12" AutomationProperties.Name="Capture workspace name"/>
   <TextBlock Text="תיאור" FontSize="12" Foreground="#667388"/>

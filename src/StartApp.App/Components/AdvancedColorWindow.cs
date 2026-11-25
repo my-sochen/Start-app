@@ -73,8 +73,8 @@ public sealed class AdvancedColorWindow : Window
             _rgb[i].TextChanged += (_, _) => { if (!_sync) ReadRgb(); };
         }
         root.Children.Add(rgbRow); root.Children.Add(_error);
-        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        var cancel = new Button { Content = "ביטול", MinWidth = 70, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        var actions = new WrapPanel { FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        var cancel = new Button { Content = "ביטול", MinWidth = 70, Margin = new Thickness(0, 0, 8, 0), IsCancel = true };
         cancel.SetResourceReference(StyleProperty, "DialogSecondaryButton"); _choose.SetResourceReference(StyleProperty, "DialogPrimaryButton");
         _choose.Click += (_, _) => { if (_choose.IsEnabled) DialogResult = true; };
         actions.Children.Add(cancel); actions.Children.Add(_choose); root.Children.Add(actions);

@@ -36,7 +36,7 @@ internal static class Program {
  Check("create item environment persisted",repo.Load().Workspaces.Any(x=>x.Name=="סביבה מהאייטם"));
  vm.CaptureNewCommand.Execute(null);await vm.CurrentScan!;vm.NewName="סביבה חדשה מלכידה";await Idle(shell);Check("capture new form shown",vm.IsCaptureNew);await Shot(shell,output,"07-capture-new");
  var field=Tree(shell).OfType<TextBox>().Single(x=>AutomationProperties.GetName(x)=="Capture workspace name");Check("capture styled input",field.Style==app.FindResource("DetailsInput"));Check("capture binds name",field.Text==vm.NewName);field.Text="סביבת לכידה מעוצבת";Check("capture name two way",vm.NewName==field.Text);
- var createCapture=Named(shell,"Create workspace from capture");Check("capture shared primary",createCapture.Style==app.FindResource("DialogPrimaryButton"));
+ var createCapture=Named(shell,"Create workspace from capture");createCapture.BringIntoView();await Idle(shell);await Shot(shell,output,"07b-capture-new-bottom");Check("capture shared primary",createCapture.Style==app.FindResource("DialogPrimaryButton"));
  vm.CaptureCloseCommand.Execute(null);await Idle(shell);await Shot(shell,output,"08-capture-close-guard");
  }catch(Exception e){exit=1;File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());}finally{File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));foreach(Window w in app.Windows.Cast<Window>().ToArray())w.Hide();app.Shutdown(exit);}};app.Run(shell);return exit;}
 }
