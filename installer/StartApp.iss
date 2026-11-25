@@ -12,6 +12,10 @@
   #define SourceDir "payload"
 #endif
 
+; One source icon, shared with StartApp.App.csproj. Replace the source asset
+; only after the owner chooses the new design, then rebuild app + installer.
+#define AppIcon "..\src\StartApp.App\Assets\start-app-ufo.ico"
+
 [Setup]
 AppId={{B7E4A1C2-5F3D-4E8A-9C60-2D1F8A5B3E77}
 AppName=Start App
@@ -32,6 +36,8 @@ DisableDirPage=yes
 DisableProgramGroupPage=yes
 CloseApplications=yes
 UninstallDisplayName=Start App
+SetupIconFile={#AppIcon}
+UninstallDisplayIcon={app}\Assets\start-app-ufo.ico
 VersionInfoVersion=0.2.0.0
 MinVersion=10.0
 
@@ -46,8 +52,8 @@ Name: "launchafter"; Description: "Launch Start App when setup finishes"; GroupD
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; BeforeInstall: FileCopyStarting
 
 [Icons]
-Name: "{userdesktop}\Start App"; Filename: "{app}\StartApp.App.exe"; Tasks: desktopicon
-Name: "{group}\Start App"; Filename: "{app}\StartApp.App.exe"
+Name: "{userdesktop}\Start App"; Filename: "{app}\StartApp.App.exe"; IconFilename: "{app}\Assets\start-app-ufo.ico"; Tasks: desktopicon
+Name: "{group}\Start App"; Filename: "{app}\StartApp.App.exe"; IconFilename: "{app}\Assets\start-app-ufo.ico"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Start App"; ValueData: """{app}\StartApp.App.exe"" --autostart"; Flags: uninsdeletevalue

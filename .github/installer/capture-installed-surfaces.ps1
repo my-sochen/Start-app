@@ -8,7 +8,7 @@ function FindSurface($pattern){
  do{foreach($process in @(Get-Process -ErrorAction SilentlyContinue)){try{if($process.MainWindowHandle -ne 0 -and $process.MainWindowTitle -match $pattern){return [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)}}catch{}};Start-Sleep -Milliseconds 300}while([DateTime]::UtcNow -lt $until)
  return $null
 }
-function FolderShot($path,$pattern,$name){
+function FolderShot($path,$pattern,$name,$selectedFile='StartApp.App.exe'){
  Start-Process explorer.exe -ArgumentList $path
  $window=$null;$until=[DateTime]::UtcNow.AddSeconds(20)
  do{foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$window=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]$sw.HWND);break}}catch{}};if(-not $window){Start-Sleep -Milliseconds 300}}while(-not $window -and [DateTime]::UtcNow -lt $until)
@@ -16,7 +16,7 @@ function FolderShot($path,$pattern,$name){
  [MouseInput]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle)|Out-Null
  Start-Sleep -Milliseconds 1500
  try{$window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)|ForEach-Object {"$($_.Current.ControlType.ProgrammaticName)|$($_.Current.Name)"}|Set-Content (Join-Path $out "$name-ui.txt")}catch{}
- if($name -eq '08-installed-files-folder'){foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$item=$sw.Document.Folder.ParseName('StartApp.App.exe');$sw.Document.SelectItem($item,29)}}catch{}};Start-Sleep -Seconds 1}
+ if($name -match '^08-'){foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$item=$sw.Document.Folder.ParseName($selectedFile);$sw.Document.SelectItem($item,29)}}catch{}};Start-Sleep -Seconds 1}
  Shot $name $window
  foreach($sw in @($shell.Windows())){try{if($sw.Document.Folder.Self.Path -eq $path){$sw.Quit()}}catch{}}
 }
@@ -30,10 +30,17 @@ try{
  Shot '06-desktop-installed-shortcut'
  try{FolderShot $downloads 'Downloads' '07-setup-file-in-downloads'}catch{$_.ToString()|Set-Content (Join-Path $out 'downloads-error.txt')}
  try{FolderShot $target '^StartApp$|StartApp' '08-installed-files-folder'}catch{$_.ToString()|Set-Content (Join-Path $out 'folder-error.txt')}
+ try{FolderShot $target '^StartApp$|StartApp' '08-uninstaller-file' 'unins000.exe'}catch{$_.ToString()|Set-Content (Join-Path $out 'uninstaller-folder-error.txt')}
  $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{B7E4A1C2-5F3D-4E8A-9C60-2D1F8A5B3E77}_is1'
  $entry=Get-ItemProperty $reg
  Check 'Windows uninstall registration exists' ($entry.DisplayName -eq 'Start App' -and $entry.UninstallString -match 'unins000.exe')
- $entry|Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString|ConvertTo-Json|Set-Content (Join-Path $out 'windows-uninstall-registration.json')
+ if(Test-Path (Join-Path $target 'Assets\start-app-ufo.ico')){
+  Check 'installed shared icon matches source bytes' ((Get-FileHash (Join-Path $target 'Assets\start-app-ufo.ico')).Hash -eq (Get-FileHash 'src/StartApp.App/Assets/start-app-ufo.ico').Hash)
+  Check 'Installed apps uses shared icon' ($entry.DisplayIcon -eq (Join-Path $target 'Assets\start-app-ufo.ico'))
+  $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $desktop 'Start App.lnk'))
+  Check 'desktop shortcut uses shared icon' ($shortcut.IconLocation -eq ((Join-Path $target 'Assets\start-app-ufo.ico')+',0'))
+ }
+ $entry|Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString,DisplayIcon|ConvertTo-Json|Set-Content (Join-Path $out 'windows-uninstall-registration.json')
  try{
   Start-Process 'ms-settings:appsfeatures'
   $settings=FindSurface '^Settings$'
