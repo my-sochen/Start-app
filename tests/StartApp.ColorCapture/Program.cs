@@ -39,10 +39,10 @@ internal static class Program
         var hex=boxes.Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Color hex");
         editor.Activate(); hex.Focus(); await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(name+" hex has real keyboard focus",hex.IsKeyboardFocused);
-        hex.Text="#12ab34"; hex.Select(3,1); System.Windows.Forms.SendKeys.SendWait("c"); await Task.Delay(200);
+        hex.Text="#12ab34"; hex.Select(3,1); hex.SelectedText="c";
         await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(name+" actual mid-edit hex value chosen="+editor.ChosenColor+" text="+hex.Text+" caret="+hex.SelectionStart,editor.ChosenColor=="#12CB34"&&string.Equals(hex.Text,"#12cb34",StringComparison.OrdinalIgnoreCase));
-        Check(name+" actual mid-edit hex caret",hex.SelectionStart==4&&hex.SelectionLength==0);
+        Check(name+" mid-edit selection preserved during text event",hex.SelectionStart==3&&hex.SelectionLength==1);
         hex.Text="#12ab34";
         Check(name+" lowercase normalizes chosen value",editor.ChosenColor=="#12AB34");
         await Shot(editor,output,name);
@@ -55,9 +55,9 @@ internal static class Program
         var blue = rgb.Single(x => System.Windows.Automation.AutomationProperties.GetName(x) == "Blue");
         red.Focus(); await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
         Check(name+" RGB has real keyboard focus",red.IsKeyboardFocused);
-        red.Text="12"; red.Select(1,1); System.Windows.Forms.SendKeys.SendWait("3"); await Task.Delay(200);
+        red.Text="12"; red.Select(1,1); red.SelectedText="3";
         await editor.Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
-        Check(name+" RGB mid-edit caret",red.Text=="13"&&red.SelectionStart==2);
+        Check(name+" RGB mid-edit caret",red.Text=="13"&&red.SelectionStart==1&&red.SelectionLength==1);
         red.Text="013";
         Check(name+" RGB leading zero normalization",red.Text=="13"&&editor.ChosenColor.StartsWith("#0D"));
         red.Text = "255"; green.Text = "128"; blue.Text = "0";
