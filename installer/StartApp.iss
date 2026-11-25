@@ -27,6 +27,7 @@ SolidCompression=yes
 WizardStyle=modern
 DisableWelcomePage=yes
 DisableReadyPage=yes
+DisableFinishedPage=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 CloseApplications=yes
