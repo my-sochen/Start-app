@@ -60,13 +60,20 @@ internal static class Program
     }
     [STAThread]static int Main(string[] args)
     {
-        var output=Path.GetFullPath(args.Single()); Directory.CreateDirectory(output);
+        var output=Path.GetFullPath(args[0]); Directory.CreateDirectory(output);
         var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
         app.Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml")});
         using var repo=new JsonStore(Path.Combine(output,"store.json")); repo.Mutate(c=>c.CreateWorkspace("סביבת עבודה לדוגמה"));
         var vm=new MainViewModel(repo,new NotImplementedLauncher(),capturer:new Capture()){ScanMinVisible=TimeSpan.Zero};
         var window=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected browser"))){DataContext=vm,Width=1100,Height=760,Left=0,Top=0,WindowStartupLocation=WindowStartupLocation.Manual};
         int exit=0;
+        if (args.Length > 1 && args[1] == "--uia-smoke")
+        {
+            window.ContentRendered += (_, _) => { vm.ShowCreateScreen(); vm.NewName="UIA color consumer"; };
+            var timer = new DispatcherTimer { Interval=TimeSpan.FromMilliseconds(100) };
+            timer.Tick += (_, _) => { if(File.Exists(Path.Combine(output,"stop"))) { timer.Stop(); app.Shutdown(); } };
+            timer.Start(); window.Show(); app.Run(); return 0;
+        }
         window.ContentRendered+=async(_,_)=>{try{
             vm.ShowCreateScreen();vm.NewName="טיוטת צבע";vm.NewWorkspaceDescription="התיאור נשאר בזמן בחירת צבע";
             window.Width=1280; window.UpdateLayout();

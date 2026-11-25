@@ -22,7 +22,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/StartApp.Storage.Json.Tests -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $scripts = @('workspace-colors.ps1','capture-flow.ps1','cycle1-flow.ps1','tabs-only-flow.ps1','design-captures.ps1')
+          $scripts = @('workspace-colors.ps1','capture-flow.ps1','cycle1-flow.ps1','tabs-only-flow.ps1','design-captures.ps1','workspace-colors-smoke.ps1')
           foreach ($script in $scripts) {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD ".github/e2e/$script"),[ref]$tokens,[ref]$errors)
@@ -38,9 +38,14 @@ jobs:
           $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
           if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'Color capture timeout' }
           if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw 'Color capture failed' }
+      - name: Actual UIA consumer helper smoke
+        shell: pwsh
+        run: ./.github/e2e/workspace-colors-smoke.ps1
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: color-evidence
-          path: color-evidence/
+          path: |
+            color-evidence/
+            color-uia-evidence/checks.json
           retention-days: 7
