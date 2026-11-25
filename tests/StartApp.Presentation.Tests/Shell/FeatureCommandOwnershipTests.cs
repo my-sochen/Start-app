@@ -87,6 +87,7 @@ public class FeatureCommandOwnershipTests
             "MoveItemDownCommand",
             "DesignCardCommand",
             "PickImageCommand",
+            "ApplyAdvancedColorCommand",
             "PickCreateImageCommand",
             "RemoveCreateImageCommand",
             "ApplyCreatePaletteColorCommand",

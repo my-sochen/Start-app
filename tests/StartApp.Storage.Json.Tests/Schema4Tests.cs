@@ -20,12 +20,12 @@ public class Schema4Tests
                 c.SetCardDesign(w.Id, "#BFDBFE", "C:\\img\\bg.png");
             });
         var text = File.ReadAllText(p);
-        Assert.Contains("\"schemaVersion\": 5", text);
+        Assert.Contains("\"schemaVersion\": 6", text);
         Assert.Contains("customCategories", text); Assert.Contains("#BFDBFE", text); // non-ASCII names are escaped in the JSON
         using (var repo2 = new JsonStore(p))
         {
             var s = repo2.Load();
-            Assert.Equal(5, s.SchemaVersion);
+            Assert.Equal(6, s.SchemaVersion);
             Assert.Equal(new[] { "מוזיקה אישית" }, s.CustomCategories);
             Assert.Equal("מוזיקה אישית", s.Workspaces[0].Category);
             Assert.Equal("#BFDBFE", s.Workspaces[0].Color); Assert.Equal("C:\\img\\bg.png", s.Workspaces[0].ImagePath);
@@ -42,7 +42,7 @@ public class Schema4Tests
             Assert.Empty(s.CustomCategories); // missing on older files = none
             repo.Mutate(c => c.AddCustomCategory("x"));
         }
-        Assert.Contains("\"schemaVersion\": 5", File.ReadAllText(p));
+        Assert.Contains("\"schemaVersion\": 6", File.ReadAllText(p));
         Assert.True(File.Exists(p + ".schema3.bak"));
         Assert.Contains("\"schemaVersion\":3", File.ReadAllText(p + ".schema3.bak"));
     }

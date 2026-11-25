@@ -9,6 +9,7 @@ public sealed class WorkspaceCreateDraft
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public string Category { get; set; } = Workspace.DefaultCategory;
+    public string? AdvancedColorToRemember { get; set; }
     public string Color { get; set; } = "";
     public string ImagePath { get; set; } = "";
     public bool IsDirty => Name.Length > 0 || Description.Length > 0 || Category != Workspace.DefaultCategory || Color.Length > 0 || ImagePath.Length > 0;

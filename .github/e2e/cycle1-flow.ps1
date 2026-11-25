@@ -1,3 +1,4 @@
+. "$PSScriptRoot/workspace-colors.ps1"
 try {
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); }'
@@ -442,7 +443,7 @@ try {
   $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900
   Assert 'design popup opened' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
         Shot 'design-popup-open'
-  $colorBox = NamedEdit 'Card color'; Assert 'design color box found' ($null -ne $colorBox) ''
+  $colorBox = Btn 'Advanced color selection'; Assert 'shared design color picker found' ($null -ne $colorBox) ''
   # design preview baseline: persisted design BEFORE any edits (autosave would otherwise fake a green unchanged-check)
   $oD = StoreObj; $wsD0 = $oD.workspaces[0]; $wsDId = $wsD0.id
   # Design fields are nullable and the store OMITS nulls by contract (JsonStore.cs: DefaultIgnoreCondition
@@ -512,7 +513,7 @@ try {
     if (-not $imgRead) { Shot 'picker-failure'; throw 'card image path ValuePattern read failed after the cancelled picker' }
     Assert 'image path unchanged after the cancelled picker' (("$imgNow") -eq ("$img0")) ("box='$imgNow' img0='$img0'")
   }
-  if ($colorBox) { SetText $colorBox '#BFDBFE' }
+  SetWorkspaceColor '#BFDBFE'
   # 9a. design preview reflects UNSAVED values (preview border bound to DesignColor/DesignImagePath via the same converters as the card; save only persists them)
   $prevEl = AnyByName 'Card design preview'; Assert 'design preview element present' ($null -ne $prevEl) ''
   if ($prevEl) {
@@ -622,7 +623,7 @@ try {
   # missing/moved source image: the path is a reference, so a missing file must fall back to the color without breaking the card
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for missing-image check' ($c -eq 'ok') $c
   $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry'); Start-Sleep -Milliseconds 900
-  Assert 'design popup reopened with the saved color' ((ValOf (NamedEdit 'Card color')) -eq '#BFDBFE') ''
+  Assert 'design popup reopened with the saved color' ((ReadWorkspaceColor) -eq '#BFDBFE') ''
   SetText (NamedEdit 'Card image path') "$root\no-such-image.png"
   $c = ClickBtn 'Save card design' 1500; Assert 'design with a missing image path saved' ($c -eq 'ok') $c
   Assert 'app survived a missing image path' (-not $p.HasExited) ''
@@ -978,8 +979,7 @@ public static class DlgDrive {
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for picker-accept upload' ($c -eq 'ok') $c
   $mi = MenuItemByName 'עצב כרטיס'; [void](InvokeEl $mi 'design menu entry for picker-accept'); Start-Sleep -Milliseconds 900
   Assert 'design popup reopened for picker-accept upload' (WaitText 'תמונת רקע' 10) ((Texts) -join ' | ')
-  $colEditAcc = NamedEdit 'Card color'; Assert 'card color editor present before accept' ($null -ne $colEditAcc) ''
-  $colPre = ''; $colPreOk = (Read-EditValue $colEditAcc ([ref]$colPre))
+  $colPre = ReadWorkspaceColor; $colPreOk = ($colPre -match '^#[0-9A-Fa-f]{6}$')
   Assert 'card color readback succeeded and shows the persisted color before accept' ($colPreOk -and $colPre -eq '#BFDBFE') ("read=$colPreOk value='$colPre'")
   $preAcc = @(FindPickers)
   if ($preAcc.Count -gt 0) { Assert 'no picker already open before the accept click' $false (AppWindowDump); Close-OwnedPickers 'pre-existing picker before accept click'; Shot 'picker-failure'; throw 'a picker dialog was already open before the accept click' }
@@ -2835,7 +2835,7 @@ public static class WinCap {
   # The new creation UI deliberately offers palette/native picker only, not raw color/path inputs.
   # Invalid raw values remain covered by CreateFormDesignTests, not simulated as unreachable UI actions.
   $storeBeforePalette = StoreJson
-  $sw = Btn 'Create color gold'; Assert 'current create palette gold swatch exists' ($null -ne $sw) ''
+  $sw = Btn '#E6CE9A'; Assert 'current create palette gold swatch exists' ($null -ne $sw) ''
   [void](InvokeEl $sw 'create palette gold'); Start-Sleep -Milliseconds 400
   Assert 'palette remains a draft until explicit creation' ((StoreJson) -eq $storeBeforePalette) ''
   # app-close guard: TRUE design-only input (palette color only, NO name) is unsaved and guarded; cancelling

@@ -95,7 +95,7 @@ public class GlobalEnvTests
             repo.Mutate(c => c.AddGlobalEntry(GlobalListKind.GlobalItems, ItemType.Link, "Gmail", "https://mail.google.com/"));
         }
         var text = File.ReadAllText(p);
-        Assert.Contains("\"schemaVersion\": 5", text);
+        Assert.Contains("\"schemaVersion\": 6", text);
         Assert.Contains("globalItems", text);
         Assert.True(File.Exists(p + ".schema4.bak"));
         using (var repo2 = new JsonStore(p))

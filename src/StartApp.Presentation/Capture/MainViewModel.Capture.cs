@@ -288,6 +288,7 @@ public sealed partial class MainViewModel
         {
             id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat);
             c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null);
+            RememberAdvancedColor(c, _workspaceCreate.AdvancedColorToRemember, color);
             foreach (var i in chosen) { var it = c.GetOrAddItem(i.Type, i.Name, i.Target); c.AddToWorkspace(id, it.Id, RetainedBrowserLaunch(i)); }
         });
         if (!ok) return false;

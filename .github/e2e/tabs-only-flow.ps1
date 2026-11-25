@@ -1,3 +1,4 @@
+. "$PSScriptRoot/workspace-colors.ps1"
 # Focused diagnostic reproduction only. Shared helper definitions copied from exact5ebf capture harness; broad flow is not executed.
 $results = New-Object System.Collections.ArrayList   # initialized BEFORE the outer try: the outer catch appends to this in-memory CURRENT-RUN collection and never loads a disk file that could hold a stale prior run's PASS/FLOW evidence
 try {
@@ -305,7 +306,7 @@ try {
   ShotRaw 'post-scan-before-raise'
   # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
   # resets the shared create form; reopening scans fresh with the form at its defaults
-  SetText (NamedEdit 'Capture card color') '#E9D5FF'
+  SetWorkspaceColor '#E9D5FF'
   Shot 'new-form-design-filled'
   $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
   Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'You have changes that were not saved' 5) ((Texts) -join ' | ')
@@ -317,7 +318,7 @@ try {
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'reopened capture-new form has empty design fields' ((ValOf (NamedEdit 'Capture card color')) -eq '' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  Assert 'reopened capture-new form has empty design fields' ((ReadWorkspaceColor) -eq '#7189BB' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')

@@ -8,6 +8,7 @@ public sealed class CardDesignSession
 {
     public string WorkspaceId { get; private set; } = "";
     public bool IsOpen { get; set; }
+    public string? AdvancedColorToRemember { get; set; }
     public string Color { get; set; } = "";
     public string ImagePath { get; set; } = "";
     public string OriginalColor { get; private set; } = "";
@@ -17,6 +18,7 @@ public sealed class CardDesignSession
     /// <summary>Capture identity and originals before the host publishes the draft property notifications.</summary>
     public void CaptureOriginal(Workspace workspace)
     {
+        AdvancedColorToRemember = null;
         WorkspaceId = workspace.Id;
         OriginalColor = workspace.Color ?? "";
         OriginalImagePath = workspace.ImagePath ?? "";

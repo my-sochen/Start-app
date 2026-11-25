@@ -46,9 +46,31 @@ public class ViewSourceIntegrityTests
 
     [Fact] public void Both_create_forms_have_a_real_palette_control()
     {
-        Assert.Contains("ApplyCreatePaletteColorCommand", ViewSource("CaptureView.xaml")); // capture create
-        var ordinary = ViewSource("CreateWorkspaceView.xaml");
-        XDocument.Parse(ordinary);
-        Assert.Contains("ApplyCreatePaletteColorCommand", ordinary);
+        foreach (var file in new[] { "CaptureView.xaml", "CreateWorkspaceView.xaml", "CardDesignEditorView.xaml" })
+        {
+            var document = XDocument.Parse(ViewSource(file));
+            var picker = Assert.Single(document.Descendants(), x => x.Name.LocalName == "WorkspaceColorPicker");
+            Assert.Equal("{Binding DesignPalette}", picker.Attribute("Palette")?.Value);
+            Assert.Equal(file == "CardDesignEditorView.xaml" ? "{Binding DesignColor}" : "{Binding NewWorkspaceColor}", picker.Attribute("SelectedColor")?.Value);
+            Assert.Equal(file == "CardDesignEditorView.xaml" ? "design" : "create", picker.Attribute("Target")?.Value);
+        }
+        var component = ViewSource("Components/WorkspaceColorPicker.cs");
+        Assert.Contains("new ItemsControl()", component); Assert.Contains("swatches.ItemTemplate", component);
+        Assert.Contains("SetCurrentValue(SelectedColorProperty", component); Assert.Contains("new AdvancedColorWindow", component);
+    }
+    [Fact] public void Active_color_consumers_use_shared_picker_contract_not_removed_textboxes()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, ".github", "e2e"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        foreach (var name in new[] { "capture-flow.ps1", "cycle1-flow.ps1", "tabs-only-flow.ps1" })
+        {
+            var text = File.ReadAllText(Path.Combine(dir!.FullName, ".github", "e2e", name));
+            Assert.Contains("workspace-colors.ps1", text);
+            Assert.DoesNotContain("NamedEdit 'Card color'", text); Assert.DoesNotContain("NamedEdit 'Capture card color'", text);
+            Assert.DoesNotContain("Create color gold", text);
+        }
+        var capture = File.ReadAllText(Path.Combine(dir!.FullName, ".github", "e2e", "capture-flow.ps1"));
+        Assert.Contains("all 9 capture palette", capture); Assert.Contains("28.0 * $dpiX", capture);
     }
 }

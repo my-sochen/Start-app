@@ -332,7 +332,7 @@ try {
   $input = $win.FindFirst($ts, (New-Object $pc($a::NameProperty, 'Workspace name')))
   $input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('פרויקט חדש')
   Capture 'create-live-preview-blue' 1280 880
-  InvokeNamed 'Create color green'
+  InvokeNamed '#8BAA9D'
   Capture 'create-live-preview-green' 1280 880
   Capture 'create-live-preview-900x560' 900 560
   InvokeNamed 'Close window'

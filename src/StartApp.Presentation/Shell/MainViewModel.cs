@@ -127,6 +127,7 @@ public sealed partial class MainViewModel : ObservableBase
         InitOpenWithEditorCommands();
         InitItemReorderCommands();
         InitCardDesignEntryCommands();
+        InitWorkspaceColorCommands();
         InitWorkspaceCreateDesignCommands();
         InitCardDesignEditCommands();
         InitCategoryEntryCommand();
@@ -148,7 +149,7 @@ public sealed partial class MainViewModel : ObservableBase
     // workspace+instance captured when the form opened, and dirty forms block workspace switches and row
     // deletion, so a preserved form can neither crash nor silently retarget.
     public string Status { get => _status; private set { Set(ref _status, value); PresentLegacyStatus(value); } }
-    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); RaiseCommands(); } }
+    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); Raise(nameof(CanChooseWorkspaceColor)); RaiseCommands(); } }
     public ItemType NewItemType { get => _manualAdd.Type; set { if (_manualAdd.Type != value) { _manualAdd.Type = value; Raise(nameof(NewItemType)); } Raise(nameof(NewItemTypeIndex)); ClearDup(); } }
     public string NewTarget { get => _manualAdd.Target; set { if (_manualAdd.Target != value) { _manualAdd.Target = value; Raise(nameof(NewTarget)); }
         if (Uri.TryCreate(value, UriKind.Absolute, out var pasted) && (pasted.Scheme == Uri.UriSchemeHttp || pasted.Scheme == Uri.UriSchemeHttps)) NewItemType = ItemType.Link;
@@ -165,10 +166,10 @@ public sealed partial class MainViewModel : ObservableBase
     public string NewName { get => _workspaceCreate.Name; set { if (_workspaceCreate.Name != value) { _workspaceCreate.Name = value; Raise(nameof(NewName)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     public string NewWorkspaceDescription { get => _workspaceCreate.Description; set { var text = value ?? ""; if (_workspaceCreate.Description != text) { _workspaceCreate.Description = text; Raise(nameof(NewWorkspaceDescription)); } Raise(nameof(CreateDirty)); } }
     public string NewWorkspaceCategory { get => _workspaceCreate.Category; set { var text = value ?? Workspace.DefaultCategory; if (_workspaceCreate.Category != text) { _workspaceCreate.Category = text; Raise(nameof(NewWorkspaceCategory)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); } }
-    public string NewWorkspaceColor { get => _workspaceCreate.Color; set { var text = value ?? ""; if (_workspaceCreate.Color != text) { _workspaceCreate.Color = text; Raise(nameof(NewWorkspaceColor)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
+    public string NewWorkspaceColor { get => _workspaceCreate.Color; set { var text = value ?? ""; if (_workspaceCreate.Color != text) { _workspaceCreate.Color = text; _workspaceCreate.AdvancedColorToRemember = null; Raise(nameof(NewWorkspaceColor)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     public string NewWorkspaceImagePath { get => _workspaceCreate.ImagePath; set { var text = value ?? ""; if (_workspaceCreate.ImagePath != text) { _workspaceCreate.ImagePath = text; Raise(nameof(NewWorkspaceImagePath)); } Raise(nameof(CreateDirty)); Raise(nameof(CreatePreview)); RaiseCommands(); } }
     // Keep host setter order and notifications on successful create/discard.
-    private void ResetCreateForm() { NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
+    private void ResetCreateForm() { _workspaceCreate.AdvancedColorToRemember = null; NewName = ""; NewWorkspaceDescription = ""; NewWorkspaceCategory = Workspace.DefaultCategory; NewWorkspaceColor = ""; NewWorkspaceImagePath = ""; }
     public bool CreateDirty => _workspaceCreate.IsDirty;
     /// <summary>True while the open unsaved-exit dialog guards the create form rather than the details screen.</summary>
     public bool UnsavedForCreate { get => _unsavedExit.ForCreate; private set { if (_unsavedExit.ForCreate != value) { _unsavedExit.ForCreate = value; Raise(nameof(UnsavedForCreate)); } } }
@@ -344,7 +345,7 @@ public sealed partial class MainViewModel : ObservableBase
         if (InCreate && color.Length == 0) color = "#7189BB";
         if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return; }
         string? id = null;
-        if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); }))
+        if (Apply(c => { id = c.CreateWorkspace(n, d).Id; c.SetCategory(id, cat); c.SetCardDesign(id, color.Length > 0 ? color : null, image.Length > 0 ? image : null); RememberAdvancedColor(c, _workspaceCreate.AdvancedColorToRemember, color); }))
         {
             ResetCreateForm();
             InCreate = false;
