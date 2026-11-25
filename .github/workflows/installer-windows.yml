@@ -9,6 +9,7 @@ on:
   push:
     branches:
     - feat/beta-installer-current
+    - feat/installer-shared-icon
     paths:
     - installer/**
     - .github/workflows/installer-windows.yml

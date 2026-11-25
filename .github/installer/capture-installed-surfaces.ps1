@@ -33,7 +33,13 @@ try{
  $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{B7E4A1C2-5F3D-4E8A-9C60-2D1F8A5B3E77}_is1'
  $entry=Get-ItemProperty $reg
  Check 'Windows uninstall registration exists' ($entry.DisplayName -eq 'Start App' -and $entry.UninstallString -match 'unins000.exe')
- $entry|Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString|ConvertTo-Json|Set-Content (Join-Path $out 'windows-uninstall-registration.json')
+ if(Test-Path (Join-Path $target 'Assets\start-app-ufo.ico')){
+  Check 'installed shared icon matches source bytes' ((Get-FileHash (Join-Path $target 'Assets\start-app-ufo.ico')).Hash -eq (Get-FileHash 'src/StartApp.App/Assets/start-app-ufo.ico').Hash)
+  Check 'Installed apps uses shared icon' ($entry.DisplayIcon -eq (Join-Path $target 'Assets\start-app-ufo.ico'))
+  $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $desktop 'Start App.lnk'))
+  Check 'desktop shortcut uses shared icon' ($shortcut.IconLocation -eq ((Join-Path $target 'Assets\start-app-ufo.ico')+',0'))
+ }
+ $entry|Select-Object DisplayName,DisplayVersion,InstallLocation,UninstallString,DisplayIcon|ConvertTo-Json|Set-Content (Join-Path $out 'windows-uninstall-registration.json')
  try{
   Start-Process 'ms-settings:appsfeatures'
   $settings=FindSurface '^Settings$'

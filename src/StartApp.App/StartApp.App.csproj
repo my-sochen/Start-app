@@ -21,6 +21,7 @@
   </Target>
   <ItemGroup>
     <Resource Include="Assets/start-app-ufo.ico" />
+    <Content Include="Assets/start-app-ufo.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets/start-app-ufo.png" />
     <Resource Include="Assets/Fonts/*.ttf" />
   </ItemGroup>
