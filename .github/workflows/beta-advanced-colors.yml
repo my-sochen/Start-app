@@ -1,7 +1,7 @@
 name: beta-advanced-colors
 on:
   push:
-    branches: [feat/advanced-color-picker]
+    branches: [feat/advanced-color-picker, fix/no-implicit-workspace-color]
 permissions:
   contents: read
 jobs:
@@ -35,7 +35,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $binary=Join-Path $PWD 'tests/StartApp.ColorCapture/bin/Release/net10.0-windows/StartApp.ColorCapture.exe'
           $output=Join-Path $PWD 'color-evidence'
-          $p=Start-Process $binary -ArgumentList ('"'+$output+'"') -PassThru
+          $p=Start-Process $binary -ArgumentList ('"'+$output+'" --none') -PassThru
           if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'Color capture timeout' }
           if ($p.ExitCode -ne 0) { Get-Content "$output/error.txt"; throw 'Color capture failed' }
       - name: Actual UIA consumer helper smoke

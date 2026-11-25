@@ -7,7 +7,7 @@ public class WorkspaceCreateDraftTests
     {
         var s = new WorkspaceCreateDraft(); Assert.False(s.IsDirty);
         Assert.Equal(Workspace.DefaultCategory, s.Category);
-        var p = s.Preview; Assert.Equal("פרויקט חדש", p.Name); Assert.Equal("#7189BB", p.Color);
+        var p = s.Preview; Assert.Equal("פרויקט חדש", p.Name); Assert.Null(p.Color);
         Assert.Equal(Workspace.DefaultCategory, p.Category); Assert.Equal("", p.ImagePath);
     }
     [Theory] [InlineData("name")] [InlineData("description")] [InlineData("category")] [InlineData("color")] [InlineData("image")]
@@ -27,13 +27,13 @@ public class WorkspaceCreateDraftTests
     [Fact] public void Whitespace_name_and_color_use_preview_defaults_without_changing_dirty_draft()
     {
         var s = new WorkspaceCreateDraft { Name = " ", Color = " " };
-        Assert.Equal("פרויקט חדש", s.Preview.Name); Assert.Equal("#7189BB", s.Preview.Color);
+        Assert.Equal("פרויקט חדש", s.Preview.Name); Assert.Null(s.Preview.Color);
         Assert.True(s.IsDirty); Assert.Equal(" ", s.Name); Assert.Equal(" ", s.Color);
     }
     [Fact] public void Drafts_have_independent_values_and_previews()
     {
         var a = new WorkspaceCreateDraft { Name = "a", Color = "#000000" }; var b = new WorkspaceCreateDraft();
-        Assert.False(b.IsDirty); Assert.Equal("", b.Name); Assert.Equal("#7189BB", b.Preview.Color);
+        Assert.False(b.IsDirty); Assert.Equal("", b.Name); Assert.Null(b.Preview.Color);
         a.Preview.Color = "other"; Assert.Equal("#000000", a.Color);
     }
 }

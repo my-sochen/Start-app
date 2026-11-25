@@ -75,6 +75,16 @@ internal static class Program
             timer.Start(); window.Show(); app.Run(); return 0;
         }
         window.ContentRendered+=async(_,_)=>{try{
+            if(args.Length>1 && args[1]=="--none") {
+            vm.ShowCreateScreen(); vm.NewName="ללא צבע";
+            Check("no-color preview is null",vm.CreatePreview.Color==null);
+            await Shot(window,output,"none-create-preview");
+            vm.CreateWorkspaceCommand.Execute(null);
+            Check("no-color create saves null",repo.Load().Workspaces.Single(x=>x.Name=="ללא צבע").Color==null);
+            vm.BackCommand.Execute(null); await Shot(window,output,"none-saved-card");
+            File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));
+            window.Close();app.Shutdown();return;
+            }
             vm.ShowCreateScreen();vm.NewName="טיוטת צבע";vm.NewWorkspaceDescription="התיאור נשאר בזמן בחירת צבע";
             window.Width=1280; window.UpdateLayout();
             Check("nine shared base colors",vm.DesignPalette.Count==9);

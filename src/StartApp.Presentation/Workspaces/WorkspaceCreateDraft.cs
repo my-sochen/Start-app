@@ -17,7 +17,7 @@ public sealed class WorkspaceCreateDraft
     {
         Name = string.IsNullOrWhiteSpace(Name) ? "פרויקט חדש" : Name,
         Category = Category,
-        Color = string.IsNullOrWhiteSpace(Color) ? "#7189BB" : Color,
+        Color = string.IsNullOrWhiteSpace(Color) ? null : Color,
         ImagePath = ImagePath
     };
 }
