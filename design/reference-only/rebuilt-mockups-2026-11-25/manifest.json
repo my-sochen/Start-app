@@ -53,5 +53,60 @@
     "file": "options-all-items-f1-1ab05834.png",
     "sha256": "0e7b836b9cfd65dc48a83244578ca4dfbfc2fcac8d353d0815b17cbf86e8eba9",
     "status": "rebuilt reference only, not original source"
+  },
+  {
+    "file": "capture-fd4096cb.html",
+    "sha256": "322fc867637f4b008c41cfb89a12a02b8910486ee9c63eed252136f16410a01e",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "details-delete-confirm-1c71eeb3.html",
+    "sha256": "9c11c90c851a368d4788305200ed75140979f415c8ee9dcd71a7e6be8961c580",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "details-item-edit-1a40433c.html",
+    "sha256": "2f27c45fd0352867a3ba57905331da897245096fe27727df9e093ad5b9f52020",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "edit-unsaved-exit-8b0703c6.html",
+    "sha256": "7e85dd7dee008611730f34b25acb1bab966b8f897bf44701cb8b82f99479b525",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "global-env-b32f9524.html",
+    "sha256": "0f77cd6c5572b75c4d3db98e113392d5caaf606d8d2b74ed47775875c1a2d65c",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-caeaaeb7.html",
+    "sha256": "6e96937fe8a4a61124765afe25dd5bb0621a0230a47db242fc10b7d0e2e616e0",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-context-f47ad7d3.html",
+    "sha256": "54ec3564c0ea8b9e83d37ff0fd98f58f31faf3966aafe2f3dacf17b2377aa380",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-delpick-bc573deb.html",
+    "sha256": "2a7b7b267077bdf8f922a53af8c8e29f0e1b2080e52c89d8f4b1eacd279f5193",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-edit-e71236cc.html",
+    "sha256": "d5e91535edb6f2431609dff332de443fe56f129e1f8d548c5696c9bb343cf321",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-edit-folder-af5483df.html",
+    "sha256": "7b811a9c45a9a3be703ede64090f81c76d1a13d09a9be2d6733230f2a5e8cc1e",
+    "status": "editable reconstructed reference source, not original production source"
+  },
+  {
+    "file": "options-all-items-envpick-1273be68.html",
+    "sha256": "afd765671d6138978eac98b572286dc830ee044e813367d41115cdb83387448d",
+    "status": "editable reconstructed reference source, not original production source"
   }
 ]

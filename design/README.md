@@ -4,7 +4,7 @@ Keep approved design work and reference material in version control. Add revisio
 
 ## Rebuilt mockups: reference only
 
-`reference-only/rebuilt-mockups-2026-11-25/` contains the 11 rebuilt PNG references received on November 25, 2026. These are reconstructions, not recovered original source files. The manifest records exact file hashes.
+`reference-only/rebuilt-mockups-2026-11-25/` contains the 11 rebuilt PNG references and their 11 editable HTML sources received on November 25, 2026. These are reconstructions, not recovered original source files. The manifest records exact file hashes. Each HTML filename matches its PNG by the descriptive prefix before the hash. Superseded draft logo files are preserved separately under `reference-only/superseded-draft-logo/`, explicitly NOT the real logo.
 
 The owner approved these as layout references only. The real application wins wherever these images differ from its logo, colors, or anything already approved or built. Never copy the reconstructed mockup logo into the app. The global environment reference is less exact because its source was missing.
 
