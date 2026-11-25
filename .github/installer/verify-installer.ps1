@@ -94,6 +94,7 @@ try{
  Check 'reinstall preserves data' ((Get-Content $sentinel -Raw) -eq 'preserve-data')
  Check 'reinstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  # Upgrade from the older always-on installer must respect the new unchecked choice.
+ New-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force|Out-Null
  New-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -Value ('"'+(Join-Path $target 'StartApp.App.exe')+'" --autostart') -PropertyType String -Force|Out-Null
  $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="!launchafter,!desktopicon,!startup"' -PassThru -Wait
  Check 'unchecked upgrade succeeds' ($p.ExitCode -eq 0)
