@@ -53,7 +53,7 @@ public class CreateFormGuardTests
         Assert.Empty(repo.Load().Workspaces);
     }
 
-    [Fact] public void Add_item_from_the_card_menu_opens_details_and_focuses_the_add_form()
+    [Fact] public void Add_item_from_the_card_menu_opens_isolated_session_without_details()
     {
         using var repo = new JsonStore(Tmp()); var vm = new MainViewModel(repo, new NotImplementedLauncher());
         vm.NewName = "w"; vm.CreateWorkspaceCommand.Execute(null);
@@ -62,6 +62,8 @@ public class CreateFormGuardTests
         var w = vm.Workspaces.Single();
         Assert.True(vm.AddItemToCommand.CanExecute(w));
         vm.AddItemToCommand.Execute(w);
-        Assert.True(vm.InDetails); Assert.True(focused);
+        Assert.True(vm.InOverview); Assert.True(focused);
+        Assert.NotNull(vm.CardAddSession); Assert.True(vm.CardAddSession!.InDetails);
+        Assert.Equal(w.Id, vm.CardAddSession.Selected!.Id);
     }
 }
