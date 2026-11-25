@@ -22,3 +22,11 @@ Feature branch from dev after PR143. Not merged or released.
 - Shared controls/resources, RTL layout and narrow-width wrapping.
 
 Targeted tests and actual Windows pixel captures are in the beta-advanced-colors workflow. The evidence fixture is synthetic and does not cover all DPI, all screen readers, real owner data, or full-system release qualification.
+
+## Review corrections, 25 November
+- Source-integrity and registered-command contracts now assert the shared picker and its new advanced command, rather than removed inline controls.
+- Active capture/cycle1/tab/design consumers use current preset hex names and a shared advanced-dialog UIA helper. A Windows smoke test executes that helper against the app. Full long-running capture/cycle1 browser/native flows are not claimed by this feature workflow.
+- Updated palette geometry to nine28px swatches, preserving the scroll-to-reveal and full-size checks.
+- Added explicit failure/retry tests for design and capture, not only create.
+- Fixed schema documentation, mixed-direction error message, and caret retention during hex/RGB normalization.
+- Run the entire affected Core, Presentation and Storage test projects once on the corrected head; do not rerun a whole suite merely to hide a single assertion failure.
