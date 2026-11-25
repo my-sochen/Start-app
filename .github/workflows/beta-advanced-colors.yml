@@ -16,10 +16,18 @@ jobs:
       - name: Targeted color contracts
         shell: pwsh
         run: |
-          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~AdvancedColorTests|FullyQualifiedName~WorkspaceCardTests|FullyQualifiedName~ViewOptionsTests|FullyQualifiedName~CreateFormDesignTests"
+          dotnet test tests/StartApp.Core.Tests -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet test tests/StartApp.Storage.Json.Tests -c Release --filter "FullyQualifiedName~AdvancedColorStorageTests|FullyQualifiedName~Schema4Tests|FullyQualifiedName~CategoryUpgradeTests|FullyQualifiedName~DescriptionStorageTests"
+          dotnet test tests/StartApp.Presentation.Tests -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Storage.Json.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $scripts = @('workspace-colors.ps1','capture-flow.ps1','cycle1-flow.ps1','tabs-only-flow.ps1','design-captures.ps1')
+          foreach ($script in $scripts) {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD ".github/e2e/$script"),[ref]$tokens,[ref]$errors)
+            if($errors.Count) { $errors | Format-List; throw "Parse failed: $script" }
+          }
       - name: Windows color picker entry points
         shell: pwsh
         run: |

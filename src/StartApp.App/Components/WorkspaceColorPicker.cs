@@ -15,6 +15,9 @@ public sealed class WorkspaceColorPicker : StackPanel
     public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(nameof(Palette), typeof(IEnumerable<string>), typeof(WorkspaceColorPicker));
     public IEnumerable<string> Palette { get => (IEnumerable<string>)GetValue(PaletteProperty); set => SetValue(PaletteProperty, value); }
 
+    public static readonly DependencyProperty PaletteNameProperty = DependencyProperty.Register(nameof(PaletteName), typeof(string), typeof(WorkspaceColorPicker), new PropertyMetadata("Workspace palette"));
+    public string PaletteName { get => (string)GetValue(PaletteNameProperty); set => SetValue(PaletteNameProperty, value); }
+
     public WorkspaceColorPicker()
     {
         FlowDirection = FlowDirection.RightToLeft;
@@ -30,6 +33,7 @@ public sealed class WorkspaceColorPicker : StackPanel
         button.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty, new Binding("."));
         button.AddHandler(Button.ClickEvent, new RoutedEventHandler((s, _) => SetCurrentValue(SelectedColorProperty, ((Button)s).DataContext as string ?? "")));
         swatches.ItemTemplate = new DataTemplate { VisualTree = button };
+        swatches.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty, new Binding(nameof(PaletteName)) { Source = this });
         swatches.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(Palette)) { Source = this });
         swatches.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
         Children.Add(swatches);
@@ -46,6 +50,7 @@ public sealed class WorkspaceColorPicker : StackPanel
         var preview = new Border { Width = 18, Height = 18, BorderThickness = new Thickness(1), BorderBrush = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 0, 6, 0) };
         preview.SetBinding(Border.BackgroundProperty, new Binding(nameof(SelectedColor)) { Source = this, Converter = new ColorBrushConverter() });
         var value = new TextBlock { FlowDirection = FlowDirection.LeftToRight, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(value, "Selected workspace color");
         value.SetBinding(TextBlock.TextProperty, new Binding(nameof(SelectedColor)) { Source = this });
         current.Children.Add(preview); current.Children.Add(value);
         var currentStyle = new Style(typeof(StackPanel));

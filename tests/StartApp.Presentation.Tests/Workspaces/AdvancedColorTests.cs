@@ -133,4 +133,21 @@ public class AdvancedColorTests
         Assert.Empty(repo.Load().AdvancedColorHistory); Assert.Empty(repo.Load().Workspaces); Assert.Equal("#112233", vm.NewWorkspaceColor);
         vm.CloseCategoryPopupCommand.Execute(null); vm.CreateWorkspaceCommand.Execute(null); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory);
     }
+    [Fact] public void Design_failure_retains_draft_and_history_for_retry()
+    {
+        using var repo = Repo(); repo.Mutate(c => c.CreateWorkspace("old")); var failing = new RetryRepo(repo);
+        var vm = new MainViewModel(failing, new NotImplementedLauncher()); vm.DesignCardCommand.Execute(vm.Workspaces.Single());
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("design", "#112233")); vm.SaveDesignCommand.Execute(null);
+        Assert.True(vm.DesignEditOpen); Assert.Equal("#112233", vm.DesignColor); Assert.Null(repo.Load().Workspaces.Single().Color); Assert.Empty(repo.Load().AdvancedColorHistory);
+        failing.Fail = false; vm.SaveDesignCommand.Execute(null); Assert.False(vm.DesignEditOpen); Assert.Equal("#112233", repo.Load().Workspaces.Single().Color); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory);
+    }
+    [Fact] public async Task Capture_failure_retains_draft_and_history_for_retry()
+    {
+        using var repo = Repo(); var failing = new RetryRepo(repo);
+        var vm = new MainViewModel(failing, new NotImplementedLauncher(), capturer: new EmptyCapturer()) { ScanMinVisible = TimeSpan.Zero };
+        vm.CaptureNewCommand.Execute(null); await vm.CurrentScan!; vm.NewName = "retry capture";
+        vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice("create", "#112233")); vm.CaptureCreateCommand.Execute(null);
+        Assert.True(vm.CaptureOpen); Assert.Equal("#112233", vm.NewWorkspaceColor); Assert.Empty(repo.Load().Workspaces); Assert.Empty(repo.Load().AdvancedColorHistory);
+        failing.Fail = false; vm.CaptureCreateCommand.Execute(null); Assert.Single(repo.Load().Workspaces); Assert.Equal(new[] { "#112233" }, repo.Load().AdvancedColorHistory);
+    }
 }

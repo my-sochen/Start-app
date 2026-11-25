@@ -71,8 +71,8 @@ internal static class Program
                 Check("Picker row command reaches view model", ReferenceEquals(pick.Command, vm.PickResourceCommand));
                 pick.Command!.Execute(pick.CommandParameter); Check("Picker selection fills target and closes", !vm.PickerOpen && vm.NewTarget == row.Target);
                 vm.DesignCardCommand.Execute(vm.Selected); await Idle(window);
-                Check("Design binding", Input(window, "Card color").Text == vm.DesignColor);
-                await TabsFrom(window, "design", "Card color", 6); await Take(window, output, "06-design");
+                Check("Design binding", Descendants(window).OfType<WorkspaceColorPicker>().Single(x => x.IsVisible && x.Target == "design").SelectedColor == vm.DesignColor);
+                await TabsFrom(window, "design", "Advanced color selection", 6); await Take(window, output, "06-design");
                 vm.CloseDesignCommand.Execute(null); Check("Design close command", !vm.DesignEditOpen);
                 vm.EditCategoryPopupCommand.Execute(vm.Selected); await Idle(window);
                 Check("Category has rows", vm.CategoryRows.Count > 1);

@@ -86,13 +86,21 @@ public sealed class AdvancedColorWindow : Window
         return Color.FromRgb((byte)Math.Round((r + m) * 255), (byte)Math.Round((g + m) * 255), (byte)Math.Round((b + m) * 255));
     }
     private void UpdateFromHsv() => SetColor(Hsv(_hue.Value, _s, _v).ToString()[3..].Insert(0, "#"), preserveHsv: true);
-    private void Invalid() { _error.Text = "הזינו קוד #RRGGBB או ערכי RGB בין 0 ל-255."; _choose.IsEnabled = false; }
+    private void Invalid() { _error.Text = "הזינו קוד צבע בן שש ספרות אחרי סולמית, או ערכי אדום, ירוק וכחול בין אפס למאתיים חמישים וחמש."; _choose.IsEnabled = false; }
     private void ReadHex() { if (Catalog.ValidateColor(_hex.Text) != null || _hex.Text.Length != 7) { Invalid(); return; } SetColor(_hex.Text); }
     private void ReadRgb()
     {
         var values = new byte[3];
         for (int i = 0; i < 3; i++) if (!byte.TryParse(_rgb[i].Text, NumberStyles.None, CultureInfo.InvariantCulture, out values[i])) { Invalid(); return; }
         SetColor($"#{values[0]:X2}{values[1]:X2}{values[2]:X2}");
+    }
+    private static void SyncText(TextBox input, string value)
+    {
+        if (input.Text == value) return;
+        int start = input.SelectionStart, length = input.SelectionLength;
+        bool focused = input.IsKeyboardFocused;
+        input.Text = value;
+        if (focused) input.Select(Math.Min(start, value.Length), Math.Min(length, Math.Max(0, value.Length - start)));
     }
     private void SetColor(string hex, bool preserveHsv = false)
     {
@@ -106,7 +114,7 @@ public sealed class AdvancedColorWindow : Window
                 _v = max; _s = max == 0 ? 0 : delta / max;
                 if (delta != 0) _hue.Value = ((max == r ? (g - b) / delta : max == g ? (b - r) / delta + 2 : (r - g) / delta + 4) * 60 + 360) % 360;
             }
-            _hex.Text = ChosenColor; _rgb[0].Text = c.R.ToString(); _rgb[1].Text = c.G.ToString(); _rgb[2].Text = c.B.ToString();
+            SyncText(_hex, ChosenColor); SyncText(_rgb[0], c.R.ToString()); SyncText(_rgb[1], c.G.ToString()); SyncText(_rgb[2], c.B.ToString());
             _preview.Background = new SolidColorBrush(c); _spectrum.Fill = new SolidColorBrush(Hsv(_hue.Value, 1, 1));
             PositionMarker(); _error.Text = ""; _choose.IsEnabled = true;
         }

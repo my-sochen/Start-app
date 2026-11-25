@@ -24,7 +24,7 @@
                                 <local:CategoryPicker SelectedCategory="{Binding NewWorkspaceCategory}" Target="create" MinWidth="120"/></DockPanel>
                             <!-- optional card design at creation, same fields as the ordinary create form -->
                             <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Left" Text="צבע" Width="80" VerticalAlignment="Center"/>
-                                <local:WorkspaceColorPicker SelectedColor="{Binding NewWorkspaceColor}" Palette="{Binding DesignPalette}" Target="create"/>
+                                <local:WorkspaceColorPicker PaletteName="Capture palette" SelectedColor="{Binding NewWorkspaceColor}" Palette="{Binding DesignPalette}" Target="create"/>
                             </DockPanel>
                             <StackPanel Margin="0,4,0,0">
                                 <TextBlock Text="תמונת רקע" TextAlignment="Right"/>

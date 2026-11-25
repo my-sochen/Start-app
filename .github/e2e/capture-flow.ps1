@@ -1,3 +1,4 @@
+. "$PSScriptRoot/workspace-colors.ps1"
 $results = New-Object System.Collections.ArrayList   # initialized BEFORE the outer try: the outer catch appends to this in-memory CURRENT-RUN collection and never loads a disk file that could hold a stale prior run's PASS/FLOW evidence
 try {
 . (Join-Path $PSScriptRoot 'capture-readiness.ps1')
@@ -506,7 +507,7 @@ try {
   # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
   # resets the shared create form; reopening scans fresh with the form at its defaults
   $oPreDisc = StoreObj; $wsCountPreDisc = if ($null -ne $oPreDisc) { @($oPreDisc.workspaces).Count } else { 0 }
-  SetText (NamedEdit 'Capture card color') '#E9D5FF'
+  SetWorkspaceColor '#E9D5FF'
   Shot 'new-form-design-filled'
   $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
   Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'You have changes that were not saved' 5) ((Texts) -join ' | ')
@@ -515,11 +516,11 @@ try {
   Assert 'capture screen closed after discard' (-not (WaitText 'Open now' 2)) ''
   $oDisc = StoreObj
   Assert 'discard saved nothing (workspace count unchanged from before the capture-new form)' ($null -ne $oDisc -and @($oDisc.workspaces).Count -eq $wsCountPreDisc) ("before=$wsCountPreDisc after=$(if ($null -ne $oDisc) { @($oDisc.workspaces).Count } else { 'no-store' })")
-  Assert 'discard reset the shared create form design fields' ((ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  Assert 'discard writes no advanced-color history' (@((StoreObj).advancedColorHistory).Count -eq 0) ''
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'reopened capture-new form has empty design fields' ((ValOf (NamedEdit 'Capture card color')) -eq '' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  Assert 'reopened capture-new form has empty design fields' ((ReadWorkspaceColor) -eq '#7189BB' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
@@ -548,9 +549,9 @@ try {
   $capCardImg = "$PWD\diag\cap-create-card.png"
   $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
   $capPalAnchor = CapPalette; Assert 'capture palette anchor uniquely found for the swatch click' ($null -ne $capPalAnchor) 'missing or ambiguous Capture palette list - window-wide hex lookup refused'
-  $csw = CapSwatch '#BFDBFE'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
-  [void](InvokeEl $csw 'capture palette #BFDBFE'); Start-Sleep -Milliseconds 400
-  Assert 'capture palette click fills the color' ((ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') (ValOf (NamedEdit 'Capture card color'))
+  $csw = CapSwatch '#7189BB'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  [void](InvokeEl $csw 'capture palette #7189BB'); Start-Sleep -Milliseconds 400
+  Assert 'capture palette click fills the color' ((ReadWorkspaceColor) -eq '#7189BB') (ReadWorkspaceColor)
   SetText (NamedEdit 'Capture card image path') $capCardImg
   $crm = Btn 'Remove capture image'; Assert 'remove capture image button present' ($null -ne $crm) ''
   [void](InvokeEl $crm 'remove capture image'); Start-Sleep -Milliseconds 300
@@ -564,7 +565,7 @@ try {
   $openedCap = $false; for ($t = 0; $t -lt 20 -and -not $openedCap; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap = $true } }
   Assert 'native picker opened from the capture form' $openedCap (AppWindowDump)
   Close-OwnedPickers 'capture-image picker cancelled from an empty path'
-  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ValOf (NamedEdit 'Capture card color'))'")
+  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ReadWorkspaceColor) -eq '#7189BB') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ReadWorkspaceColor)'")
   SetText (NamedEdit 'Capture card image path') $capCardImg
   Assert 'capture typed image path shown' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg) ''
   [void](InvokeEl (Btn 'Upload capture image') 'upload capture image (preserve cancel flow)')
@@ -596,8 +597,8 @@ try {
   $dpiX = 0
   if ($hdcCap -ne [IntPtr]::Zero) { try { $dpiX = [CapGuard.Dpi]::GetDeviceCaps($hdcCap, 88) } finally { [void][CapGuard.Dpi]::ReleaseDC($p.MainWindowHandle, $hdcCap) } }
   $dpiOk = ($hdcCap -ne [IntPtr]::Zero -and $dpiX -gt 0)
-  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(22.0 * $dpiX / 96.0) }
-  $palHex = @('#FFFFFF', '#FDE68A', '#BFDBFE', '#BBF7D0', '#FECACA', '#E9D5FF', '#E5E7EB')
+  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(28.0 * $dpiX / 96.0) }
+  $palHex = @('#7189BB', '#8BAA9D', '#B4A0C5', '#E6CE9A', '#D6AEB5', '#D9DEE6', '#90B5B8', '#D9B390', '#C78F87')
   $wrCap = (CurWin).Current.BoundingRectangle
   $palBox = CapPalette
   $palBad = @()
@@ -612,6 +613,8 @@ try {
     foreach ($hex in $palHex) {
       $sw = $palBox.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
       if ($null -eq $sw) { $palBad += "$hex=missing in the anchored capture palette"; continue }
+      RevealColorSwatch $sw
+      $pr0 = $palBox.Current.BoundingRectangle
       $sr = $sw.Current.BoundingRectangle
       $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
       if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
@@ -621,7 +624,7 @@ try {
       if ($sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex outside window" }
     }
   }
-  Assert 'all 7 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
+  Assert 'all 9 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
@@ -631,7 +634,7 @@ try {
   Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
   $o = StoreObj
   $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
-  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#BFDBFE' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
+  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#7189BB' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
   # SiteFromAddressText returns the scheme-prefixed host exactly as read (no forced trailing slash): accept the two
   # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
   $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id

@@ -24,7 +24,7 @@
                         </local:PreviewBorder.Background>
                     </local:PreviewBorder>
                     <TextBlock Text="צבע" FontWeight="SemiBold"/>
-                    <local:WorkspaceColorPicker SelectedColor="{Binding DesignColor}" Palette="{Binding DesignPalette}" Target="design" Margin="0,4,0,0"/>
+                    <local:WorkspaceColorPicker PaletteName="Design palette" SelectedColor="{Binding DesignColor}" Palette="{Binding DesignPalette}" Target="design" Margin="0,4,0,0"/>
                     <TextBlock Text="תמונת רקע" FontWeight="SemiBold" Margin="0,8,0,0"/>
                     <DockPanel Margin="0,4,0,0">
                         <Button DockPanel.Dock="Right" Content="הסר תמונה" Command="{Binding RemoveImageCommand}" Padding="8,2" Margin="4,0,0,0" AutomationProperties.Name="Remove card image"/>
