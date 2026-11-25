@@ -29,4 +29,19 @@ public class CardAddTests
         child.AddItemCommand.Execute(null);child.ConfirmDuplicateCommand.Execute(null);Assert.Equal(2,repo.Load().Workspaces.Single().Items.Count);
         child.NewTarget="C:\\cancel.txt";owner.FinishCardAdd();Assert.Equal(2,repo.Load().Workspaces.Single().Items.Count);
     }
+    sealed class FailingRepo(IStoreRepository inner) : IStoreRepository
+    {
+        public bool Fail;
+        public Store Load()=>inner.Load();
+        public Store Mutate(Action<Catalog> change)=>Fail ? throw new IOException("fixture") : inner.Mutate(change);
+        public void Dispose() { }
+    }
+    [Fact] public void Failed_save_retains_form_and_retries_without_entering_details()
+    {
+        using var store=Repo();store.Mutate(c=>c.CreateWorkspace("one"));var repo=new FailingRepo(store);
+        var owner=new MainViewModel(repo,new NotImplementedLauncher());owner.AddItemToCommand.Execute(owner.Workspaces.Single());var child=owner.CardAddSession!;
+        repo.Fail=true;child.NewTarget="https://example.com/";child.NewItemName="name";child.AddItemCommand.Execute(null);
+        Assert.True(child.SaveBlocked);Assert.Equal("https://example.com/",child.NewTarget);Assert.Equal("name",child.NewItemName);Assert.Empty(store.Load().Items);Assert.True(owner.InOverview);
+        repo.Fail=false;child.AddItemCommand.Execute(null);Assert.False(child.SaveBlocked);Assert.Empty(child.NewTarget);Assert.Single(store.Load().Items);
+    }
 }
