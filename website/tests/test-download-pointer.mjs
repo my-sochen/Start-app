@@ -271,8 +271,8 @@ t("wire renders all download controls through the shared reader (home, guide, of
   assert.equal((WIRE.match(/StartAppPointer\.render\(/g) || []).length, 2);
   assert.ok(WIRE.includes("[data-download-cta]"));
   assert.equal((INDEX.match(/data-download-cta/g) || []).length, 1, "home has one CTA");
-  assert.equal((DOCS.match(/data-download-cta/g) || []).length, 1, "guide has one gated CTA");
-  for (const html of [INDEX, DOCS]) {
+  assert.equal((DOCS.match(/data-download-cta/g) || []).length, 0, "guide has no download CTA");
+  for (const html of [INDEX]) {
     assert.ok(!/<a[^>]*download-pointer|releases\/download/.test(html), "no static download URL in any page");
     const cta = html.match(/<button[^>]*data-download-cta[^>]*>/)[0];
     assert.ok(/\bdisabled\b/.test(cta), "CTA ships disabled (fail closed)");
@@ -283,7 +283,7 @@ t("home is clean: guide/onboarding facts live only in the guide", () => {
   for (const s of ["StartApp.App.exe", "LOCALAPPDATA", "id=\"how\"", "class=\"faq\""]) {
     assert.ok(!INDEX.includes(s), "home has no " + s);
   }
-  assert.ok(DOCS.includes("StartApp.App.exe") && DOCS.includes("חלצו את כל הקבצים"));
+  assert.ok(DOCS.includes("Start-app.exe") && DOCS.includes("ZIP"));
   assert.ok(DOCS.includes("לא נבדק באופן"), "guide states what was not verified");
 });
 
@@ -329,7 +329,7 @@ t("docs carry no unconditional availability claim in either direction (regressio
   // ...and the docs must not claim availability either: they defer to the
   // live homepage state, which is correct in both active and none states.
   const install = DOCS.slice(DOCS.indexOf('id="install"'), DOCS.indexOf('id="main-screen"'));
-  assert.ok(install.includes('href="index.html#download"'), "install guidance links to the live homepage state");
+  assert.ok(install.includes('href="index.html?version=v0.1.0-proto.2#download"'), "install guidance links to the live homepage state");
   assert.ok(!/גרסה (מאומתת )?זמינה(?! להורדה כ)/.test(install.replace("כשקיימת גרסת אב-טיפוס מאומתת", "")),
     "install guidance makes no unconditional availability claim");
   assert.ok(!INDEX.includes("לסקירת אב-טיפוס") && !DOCS.includes("לסקירת אב-טיפוס"),
@@ -380,10 +380,10 @@ t("primary button restyle is scoped, light-blue over page, focus untouched", () 
   assert.ok(css.includes(".hero-download button:focus-visible,.hero-download summary:focus-visible,.doc-download button.primary:focus-visible{outline:3px solid #1b5de0;outline-offset:3px}"), "approved keyboard focus rule unchanged");
 });
 
-t("package-specific claims are identity-gated; design wording is the default", () => {
-  assert.ok(DOCS.includes("data-layout-legacy-unqualified"), "current-project-design fallback present");
-  assert.ok(/<p data-layout-legacy-qualification hidden>[\s\S]*?LOCALAPPDATA/.test(DOCS), "self-contained/no-sign-in/LOCALAPPDATA claims gated to the exact documented package");
-  assert.ok(WIRE.includes("data-layout-legacy-unqualified"), "wire toggles the fallback copy");
+t("guide documents a fixed version, not the live primary pointer", () => {
+  assert.ok(DOCS.includes("Start-app.exe") && DOCS.includes("0.1.0-proto.2"));
+  assert.ok(!DOCS.includes("data-layout-legacy-qualification"), "fixed guide never follows latest package layout");
+  assert.ok(DOCS.includes("?version=v0.1.0-proto.2#download"));
 });
 
 t("loading never claims unavailable; render failure fails closed (review delta)", () => {

@@ -32,7 +32,7 @@ globalThis.fetch=async()=>{throw new Error('offline');};assert.equal((await C.lo
 console.log(passed+' catalog checks passed');
 // Minimal element doubles test handler lifecycle without enrolling the module.
 class Element {
- constructor(tag){this.tagName=tag;this.children=[];this.disabled=false;this.onclick=null;this.textContent='';this.attributes={};}
+ constructor(tag){this.tagName=tag;this.children=[];this.disabled=false;this.onclick=null;this.textContent='';this.attributes={};this.dataset={};}
  setAttribute(k,v){this.attributes[k]=v;}
  getAttribute(k){return this.attributes[k];}
  appendChild(e){this.children.push(e);}
