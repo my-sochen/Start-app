@@ -50,6 +50,7 @@ public sealed class CardAddWindow : Window
         _shade.Children.Add(new DialogFrame {Child=guard,MinWidth=400,Padding=new Thickness(24),Margin=new Thickness(20),CornerRadius=new CornerRadius(6)});
         _surface=surface;System.Windows.Input.KeyboardNavigation.SetTabNavigation(_shade,System.Windows.Input.KeyboardNavigationMode.Cycle);
         var root = new Grid();root.Children.Add(surface);root.Children.Add(_shade);Content=root;
+        SizeChanged += (_,_) => {var area=SystemParameters.WorkArea;if(IsLoaded&&Top+ActualHeight>area.Bottom)Top=Math.Max(area.Top,area.Bottom-ActualHeight);};
         ContentRendered += (_,_) => _form.FocusTarget();
         PreviewKeyDown += (_,e)=>{if(e.Key==Key.Escape){e.Handled=true;if(_shade.Visibility==Visibility.Visible)HideGuard();else if(session.PickerOpen)session.ClosePickerCommand.Execute(null);else Close();}};
         Closing += ClosingWindow;

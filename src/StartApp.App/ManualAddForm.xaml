@@ -15,7 +15,7 @@
                     </StackPanel>
                     <StackPanel Visibility="{Binding DuplicatePending, Converter={StaticResource B2V}}" Margin="0,8,0,0">
                       <TextBlock Text="{Binding DuplicateMessage}" TextWrapping="Wrap"/>
-                      <Button Content="הוסף בכל זאת" Command="{Binding ConfirmDuplicateCommand}" Style="{StaticResource PrimaryActionButton}" Margin="0,6,0,4"/><Button Content="ביטול" Command="{Binding CancelDuplicateCommand}" Style="{StaticResource HomeToolbarButton}"/>
+                      <Button HorizontalAlignment="Right" MinWidth="130" Content="הוסף בכל זאת" Command="{Binding ConfirmDuplicateCommand}" Style="{StaticResource PrimaryActionButton}" Margin="0,6,0,4"/><Button HorizontalAlignment="Right" MinWidth="130" Content="ביטול" Command="{Binding CancelDuplicateCommand}" Style="{StaticResource HomeToolbarButton}"/>
                     </StackPanel>
 
 </StackPanel>
