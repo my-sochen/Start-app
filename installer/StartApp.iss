@@ -150,7 +150,6 @@ begin
   DetailsMemo.Visible := False;
   SuccessCard := Card(115, 'Start App was installed successfully');
   SuccessCard.Color := $00F1F7ED;
-  SuccessCard.Font.Color := $00467828;
   SuccessCard.Visible := False;
 end;
 
