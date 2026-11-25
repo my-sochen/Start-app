@@ -7,3 +7,5 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("StartApp.CardAddCapture")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("StartApp.DialogDesignCapture")]
+
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("StartApp.HoverCapture")]
