@@ -51,13 +51,13 @@ public class CreateFormDesignTests
         Assert.Equal("", vm.NewWorkspaceColor); Assert.Equal("", vm.NewWorkspaceImagePath); Assert.False(vm.CreateDirty);
     }
 
-    [Fact] public void Create_without_design_leaves_color_and_image_empty()
+    [Fact] public void Create_without_design_saves_theme_blue_and_no_image()
     {
         using var repo = new JsonStore(Tmp()); var vm = new MainViewModel(repo, new NotImplementedLauncher());
         vm.NewName = "plain";
         vm.CreateWorkspaceCommand.Execute(null);
         var w = repo.Load().Workspaces.Single();
-        Assert.Null(w.Color); Assert.Null(w.ImagePath);
+        Assert.Equal(WorkspaceColors.Default,w.Color); Assert.Null(w.ImagePath);
     }
 
     [Fact] public void Create_with_an_invalid_color_refuses_and_creates_nothing()
@@ -188,7 +188,7 @@ public class CreateFormDesignTests
         vm.NewName = "B"; vm.CreateWorkspaceCommand.Execute(null);
         var store = repo.Load();
         Assert.Equal("#BFDBFE", store.Workspaces.Single(w => w.Name == "A").Color);
-        Assert.Null(store.Workspaces.Single(w => w.Name == "B").Color);
+        Assert.Equal(WorkspaceColors.Default,store.Workspaces.Single(w => w.Name == "B").Color);
         Assert.Null(store.Workspaces.Single(w => w.Name == "B").ImagePath);
     }
 

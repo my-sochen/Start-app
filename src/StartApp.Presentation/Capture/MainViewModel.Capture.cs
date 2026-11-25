@@ -278,6 +278,7 @@ public sealed partial class MainViewModel
         var chosen = CaptureRows.Where(r => r.IsChecked).Select(r => r.Item).ToList();
         if (string.IsNullOrWhiteSpace(n)) { Status = "Not created: workspace name is required"; return false; }
         var color = NewWorkspaceColor.Trim(); var image = NewWorkspaceImagePath.Trim();
+        if (color.Length == 0) color = WorkspaceColors.Default;
         if (ValidateCreateDesign(color, image) is { } de) { FieldError("create", "בדקו את הצבע ואת נתיב התמונה. צבע יש להזין בצורה #RRGGBB ותמונה כנתיב מלא.", "Not created: " + de); return false; }
         foreach (var i in chosen)
         {

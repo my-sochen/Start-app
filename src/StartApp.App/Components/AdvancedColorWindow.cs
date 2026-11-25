@@ -23,7 +23,7 @@ public sealed class AdvancedColorWindow : Window
     private readonly Ellipse _marker = new() { Width = 10, Height = 10, Stroke = Brushes.White, StrokeThickness = 2, Fill = Brushes.Transparent };
     private double _s = 1, _v = 1;
     private bool _sync;
-    public string ChosenColor { get; private set; } = "#7189BB";
+    public string ChosenColor { get; private set; } = WorkspaceColors.Default;
 
     public AdvancedColorWindow(string initial)
     {
@@ -70,7 +70,7 @@ public sealed class AdvancedColorWindow : Window
         _choose.Click += (_, _) => { if (_choose.IsEnabled) DialogResult = true; };
         actions.Children.Add(cancel); actions.Children.Add(_choose); root.Children.Add(actions);
         Content = new DialogFrame { Child = root, Background = Brushes.White, Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch };
-        SetColor(Catalog.ValidateColor(initial) == null && !string.IsNullOrEmpty(initial) ? initial : "#7189BB");
+        SetColor(Catalog.ValidateColor(initial) == null && !string.IsNullOrEmpty(initial) ? initial : WorkspaceColors.Default);
     }
 
     private void PositionMarker()
