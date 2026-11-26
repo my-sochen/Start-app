@@ -331,6 +331,7 @@ try {
   $prog.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 300
   Assert 'shared dropdown offers deferred Other action' ($null -ne (AnyByName 'אחר...')) ''
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}');Start-Sleep -Milliseconds 200
+  Assert 'ESC collapses list without dismissing context dialog' ($null -ne (NamedCombo 'Open with program') -and $prog.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed) ''
   Shot 'open-with-dropdown'
   $beforeCancel=StoreJson
   $c = ClickBtn 'Close open with' 500;Assert 'cancel closes dropdown editor without saving' ($c -eq 'ok' -and (StoreJson) -eq $beforeCancel) ''
