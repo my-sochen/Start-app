@@ -6,9 +6,10 @@ p=Path(__file__).parent
 cycle=(p/'cycle1-flow.ps1').read_text(encoding='utf-8-sig')
 cap=(p/'capture-flow.ps1').read_text(encoding='utf-8-sig')
 common=r'''
+Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class ContractWindow{[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);}'
 function Section($name,[scriptblock]$work) {
   $before=$results.Count
-  try { & $work; Assert "SECTION $name complete" $true '' }
+  try { & $work; $failures=@($results | Select-Object -Skip $before | Where-Object { -not $_.ok }); Assert "SECTION $name complete" ($failures.Count -eq 0) ("failed assertions="+$failures.Count) }
   catch { [void]$results.Add([ordered]@{name="SECTION $name error";ok=$false;detail="$($_.Exception.Message)"}) }
   # Each next section starts from a fresh process/store, even when this section failed.
   try { Shot ("contract-"+$name) } catch { }
@@ -22,6 +23,7 @@ function ResetContractApp {
   if($p.MainWindowHandle -eq 0){throw 'App window not ready'}
   $script:mainHwnd=$p.MainWindowHandle;$script:win=$A::FromHandle($p.MainWindowHandle)
   [void][W]::SetWindowPos($p.MainWindowHandle,[IntPtr]::Zero,0,0,960,650,0x40)
+  [void][ContractWindow]::SetForegroundWindow($p.MainWindowHandle)
   Start-Sleep -Milliseconds 400
 }
 '''
@@ -108,7 +110,7 @@ Section 'capture-new-palette-dirty-guard' {
   $swatch=CapSwatch '#8BAA9D';Assert 'capture swatch exists under palette' ($null -ne $swatch) ''
   RevealColorSwatch $swatch;[void](InvokeEl $swatch 'capture swatch');Start-Sleep -Milliseconds 200
   $c=ClickBtn 'Close capture' 300;Assert 'capture-only design invokes Hebrew guard' ($c -eq 'ok' -and (WaitText 'יש שינויים שלא נשמרו' 2)) $c
-  $c=ClickBtn 'צא בלי לשמור' 300;Assert 'discard closes capture without saving' ($c -eq 'ok' -and -not (CaptureShown 1) -and @((StoreObj).workspaces).Count -eq 0) $c
+  $c=ClickBtn 'צא בלי לשמור' 300;Assert 'discard closes capture without saving' ($c -eq 'ok' -and -not (CaptureShown 1) -and @((StoreObj).workspaces | Where-Object { $null -ne $_ }).Count -eq 0) $c
 }
 Section 'capture-stage-arrow-dropdown-delete' {
   ExistingCapture;UntickSource
