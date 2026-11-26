@@ -1,0 +1,1459 @@
+. "$PSScriptRoot/workspace-colors.ps1"
+$results = New-Object System.Collections.ArrayList   # initialized BEFORE the outer try: the outer catch appends to this in-memory CURRENT-RUN collection and never loads a disk file that could hold a stale prior run's PASS/FLOW evidence
+try {
+. (Join-Path $PSScriptRoot 'capture-readiness.ps1')
+. (Join-Path $PSScriptRoot 'chrome-fixture-observation.ps1')
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; } [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, System.UIntPtr e); [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'
+$A = [System.Windows.Automation.AutomationElement]; $CT = [System.Windows.Automation.ControlType]; $PC = [System.Windows.Automation.PropertyCondition]; $TS = [System.Windows.Automation.TreeScope]
+$script:shot = 0; $runId = $env:GITHUB_RUN_ID
+# Controlled-runner scalar timeline only. Bounded append attempts, no names/URLs/input content.
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class InputTraceNative { [StructLayout(LayoutKind.Sequential)] public struct LastInput { public uint Size; public uint Tick; } [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LastInput input); }'
+$script:phaseTraceCount = 0
+function TracePhase($stage) {
+  if ($script:phaseTraceCount++ -ge 512) { return }
+  try {
+    $li = New-Object InputTraceNative+LastInput
+    $li.Size = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($li)
+    $ok = [InputTraceNative]::GetLastInputInfo([ref]$li)
+    "$([Environment]::TickCount64) stage=$stage inputTick=$($li.Tick) inputRead=$ok" | Out-File -Append -Encoding utf8 diag/harness-phase-trace.txt
+  } catch { }
+}
+function Assert($name, $ok, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = [bool]$ok; detail = "$detail" }); "ASSERT $(if ($ok) {'PASS'} else {'FAIL'}) $name :: $detail" }
+function Info($name, $detail) { [void]$results.Add([ordered]@{ name = $name; ok = $true; info = $true; detail = "$detail" }); "INFO $name :: $detail" }
+function CurWin() { $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))); if ($ws.Count -eq 0) { return $null }; $named = @($ws | Where-Object { $_.Current.Name }); if ($named.Count -gt 0) { return $named[0] }; return $ws[0] }
+$script:dumped = $false
+function DumpState($why) {
+  if ($script:dumped) { return }; $script:dumped = $true
+  try {
+    $p.Refresh()
+    "DUMP($why): hasExited=$($p.HasExited) mainHwnd=$($p.MainWindowHandle) responding=$(if ($p.HasExited) { '-' } else { $p.Responding })" | Tee-Object -Append diag/errors.txt
+    $ws = @($A::RootElement.FindAll($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id))))
+    "DUMP($why): top-level windows for pid=$($p.Id): $($ws.Count)" | Tee-Object -Append diag/errors.txt
+    foreach ($w0 in $ws) { try { $c = $w0.Current; "DUMP win: name='$($c.Name)' class='$($c.ClassName)' offscreen=$($c.IsOffscreen) rect=$($c.BoundingRectangle)" | Tee-Object -Append diag/errors.txt } catch { "DUMP win unreadable: $($_.Exception.GetType().Name)" | Tee-Object -Append diag/errors.txt } }
+    try {
+      $ev = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = @('Application Error', '.NET Runtime', 'Windows Error Reporting') } -MaxEvents 60 -ErrorAction Stop | Where-Object { $_.Message -like '*StartApp*' } | Select-Object -First 3
+      foreach ($e in $ev) { $m = ($e.Message -replace '\s+', ' '); if ($m.Length -gt 1600) { $m = $m.Substring(0, 1600) }; "DUMP event $($e.ProviderName) $($e.TimeCreated.ToString('HH:mm:ss')): $m" | Out-File -Append diag/errors.txt }
+      if (-not $ev) { "DUMP no StartApp crash events in Application log" | Out-File -Append diag/errors.txt }
+    } catch { "DUMP event log read failed: $($_.Exception.Message)" | Out-File -Append diag/errors.txt }
+    $vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
+    $bmp = New-Object System.Drawing.Bitmap $vs.Width, $vs.Height; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($vs.Left, $vs.Top, 0, 0, $bmp.Size)
+    $f = "out-images/cap-DESKTOP-$why.png"; $bmp.Save("$PWD/$f"); "DUMP desktop shot $f $($vs.Width)x$($vs.Height)"
+  } catch { "DUMP failed: $_" | Tee-Object -Append diag/errors.txt }
+}
+function Shot($state) {
+  TracePhase 'shot-before-cursor-and-window'
+  [void][W]::SetCursorPos(5, 5); if ($p.MainWindowHandle -ne 0) { [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) }; Start-Sleep -Milliseconds 400
+  $f = "out-images/cap-$state.png"
+  $w0 = CurWin; if ($null -eq $w0) { "no app window for $state" | Tee-Object -Append diag/errors.txt; return }
+  $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
+  if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+  $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  TracePhase 'shot-after-capture'
+}
+function ShotRaw($state) {
+  TracePhase 'shot-raw-before-cursor'
+  # Evidence shot with NO window-raise: captures whatever is actually on screen over the app region.
+  [void][W]::SetCursorPos(5, 5)
+  $f = "out-images/cap-$state.png"
+  $w0 = CurWin; if ($null -eq $w0) { "no app window for $state" | Tee-Object -Append diag/errors.txt; return }
+  $br = $w0.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
+  if ($w -le 0 -or $h -le 0) { "no window rect for $state" | Tee-Object -Append diag/errors.txt; return }
+  $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size); $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  TracePhase 'shot-after-capture'
+}
+function UiaAll($ct) { for ($t = 0; $t -lt 3; $t++) { $w0 = CurWin; if ($null -eq $w0) { if ($t -eq 2) { "UIA window gone for pid $($p.Id): appHasExited=$($p.HasExited) mainWindowHandle=$($p.MainWindowHandle)" | Out-File -Append diag/uia-liveness.txt; return @() }; Start-Sleep -Milliseconds 400; continue }; try { return $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $ct))) } catch { if ($t -eq 2) { "UIA read failed after retries: $($_.Exception.Message) | appHasExited=$(if ($p) { $p.HasExited } else { "no-process" }) mainWindowHandle=$(if ($p) { $p.MainWindowHandle } else { "-" })" | Out-File -Append diag/uia-liveness.txt; throw }; Start-Sleep -Milliseconds 400 } } }
+function Texts() { @(UiaAll $CT::Text | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+function ListLines() { @(UiaAll $CT::ListItem | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
+function Btn($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $name))))) }
+# The capture screen is an opaque overlay over the overview, which stays Visible behind it, so both forms'
+# palette swatches sit in the window-wide UIA control view under the same hex automation names (FindFirst
+# picked the OVERVIEW palette in run 43577316808 - a false pass). The capture palette ItemsControl carries
+# the unique automation name 'Capture palette'; EVERY capture palette lookup must go through this anchor
+# (exactly one match) and search only inside its subtree - never the window-wide tree.
+function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Capture palette')))); if ($m.Count -eq 1) { return $m[0] }; return $null }
+function CapSwatch($hex) { $pal = CapPalette; if ($null -eq $pal) { return $null }; return $pal.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex))))) }
+function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
+function OpenContextEl($el, $settle = 900) {
+  if ($null -eq $el) { return 'context anchor missing' }
+  try {
+    $el.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    Start-Sleep -Milliseconds $settle
+    if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
+    return 'ok'
+  } catch { return "native context menu failed: $_" }
+}
+function ContextAnchors($name) {
+  $hostWindow = (CurWin)
+  if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
+  if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
+  if ($name -eq 'Staged item actions') { return @(StagedRowRecords | ForEach-Object { $_.Host }) }
+  return @()
+}
+function ClickBtn($name, $settle = 900) {
+  if ($name -eq 'Back') { $name = 'Back to workspaces' }
+  if ($name -like 'Remove added *') { return RemoveStagedRow ($name.Substring(13)) $settle }
+  if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
+  $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
+  if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
+  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
+}
+function OpenCreateScreen() {
+  if (Btn 'Create workspace') { return }
+  $b = Btn 'New workspace button'
+  if (-not $b) { throw 'New workspace button missing from home' }
+  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $deadline = [Diagnostics.Stopwatch]::StartNew()
+  while ($deadline.Elapsed.TotalSeconds -lt 10 -and -not (Btn 'Create workspace')) { Start-Sleep -Milliseconds 100 }
+  if (-not (Btn 'Create workspace')) { throw 'Dedicated create screen did not open' }
+}
+function StateVisible($name, $seconds) {
+  $clock=[Diagnostics.Stopwatch]::StartNew()
+  do {
+    $matches=@((CurWin).FindAll($TS::Descendants,(New-Object $PC($A::NameProperty,$name))) | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 })
+    if($matches.Count -eq 1){return $true}
+    Start-Sleep -Milliseconds 100
+  } while($clock.Elapsed.TotalSeconds -lt $seconds)
+  return $false
+}
+function CaptureShown($seconds=2) { StateVisible 'Open now list' $seconds }
+function DetailsShown($seconds=2) { (StateVisible 'Back to workspaces' $seconds) -and $null -ne (NamedEdit 'Workspace name') }
+function ComboValue($combo) {
+  if($null -eq $combo){return ''}
+  $selected=@($combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection())
+  if($selected.Count -ne 1){return ''}
+  return $selected[0].Current.Name
+}
+function CaptureAddLabelMatches($count) {
+  $button=Btn 'Add selected capture items'; if(-not $button){return $false}
+  $expected=if($count -eq 0){'הוסף הכל ←'}elseif($count -eq 1){'הוסף נבחר אחד ←'}else{"הוסף $count נבחרים ←"}
+  return @($button.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::Text))) | Where-Object { $_.Current.Name -ceq $expected }).Count -eq 1
+}
+function RemoveStagedRow($original,$settle=600) {
+  $matches=@(StagedRowRecords | Where-Object { $_.Edit.Current.Name -ceq "Toggle added $original" })
+  if($matches.Count -ne 1){return "staged identity missing or ambiguous: $original"}
+  $record=$matches[0]; $record.Edit.SetFocus()
+  $opened=OpenContextEl $record.Host 300; if($opened -ne 'ok'){return $opened}
+  $delete=MenuItemByName 'מחיקה'
+  if(-not $delete -or -not $delete.Current.IsEnabled){return 'staged delete unavailable'}
+  [void](InvokeEl $delete 'exact staged row delete'); Start-Sleep -Milliseconds $settle
+  return 'ok'
+}
+function EnsureToggle($el, $what, $wantOn) {
+  if ($null -eq $el) { Assert "$what found" $false 'missing'; return $false }
+  $tp = $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  if (($tp.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -ne $wantOn) { $tp.Toggle(); Start-Sleep -Milliseconds 250 }
+  return (($tp.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) -eq $wantOn)
+}
+function WaitText($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" }) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
+function WaitGone($needle, $secs) { $sw = [Diagnostics.Stopwatch]::StartNew(); while ($sw.Elapsed.TotalSeconds -lt $secs) { if (-not (@(Texts) + @(ListLines) | Where-Object { $_ -like "*$needle*" })) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
+function NamedEdit($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, $name))))) }
+function ReadSingleStagedName() {
+  # Read the normal summary, not an editor: adding/dragging must not open editing.
+  # StagedRowRecords validates one staged list and paired identity within each row.
+  $records = @(StagedRowRecords)
+  $observations = @($records | ForEach-Object {
+    $bounds = $_.NameElement.Current.BoundingRectangle
+    [pscustomobject]@{ Name=$_.Name; Offscreen=$_.NameElement.Current.IsOffscreen; Width=$bounds.Width; Height=$bounds.Height }
+  })
+  return Get-CaptureSingleVisibleStagedName -Rows $observations
+}
+function NamedCombo($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ComboBox)), (New-Object $PC($A::NameProperty, $name))))) }
+function ComboValue($combo) { if ($null -eq $combo) { return '' }; try { $sel = $combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection(); if ($sel.Count -gt 0) { return $sel[0].Current.Name } } catch { }; return '' }
+function ValOf($edit) { if ($null -eq $edit) { return '' }; try { return $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value } catch { return '' } }
+function BrowserWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+function OmniboxHost($raw) { $v = ($raw -replace '^\s+', '') -replace '\s+$', ''; if ($v -match '^(?:[a-zA-Z][a-zA-Z0-9+.\-]*://)?([^/?#]+)') { return $Matches[1].ToLowerInvariant() }; return '' }
+function InvokeEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); return $true } catch { Assert "$what invokable" $false "$_"; return $false } }
+function ToggleEl($el, $what) { if ($null -eq $el) { Assert "$what found" $false 'element not found'; return $false }; try { $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle(); return $true } catch { Assert "$what toggleable" $false "$_"; return $false } }
+function MenuItemByName($name) { $A::RootElement.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::MenuItem)), (New-Object $PC($A::NameProperty, $name))))) }
+function MenuInsideWindow($label) { $m = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Menu))); if ($null -eq $m) { Assert "$label menu element found" $false 'no open menu'; return }; $mr = $m.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle; Assert "$label fully inside the app window" ($mr.Left -ge $wr.Left -and $mr.Right -le $wr.Right -and $mr.Top -ge $wr.Top -and $mr.Bottom -le $wr.Bottom) ("menu=$($mr.Left),$($mr.Top)-$($mr.Right),$($mr.Bottom) window=$($wr.Left),$($wr.Top)-$($wr.Right),$($wr.Bottom)") }
+function EdgeFixturePids() { if (-not $edgeProfile) { return @() }; @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($edgeProfile) } | ForEach-Object { $_.ProcessId }) }   # ForEach-Object emission: zero matches yield a truly EMPTY array - @((...).ProcessId) emitted @($null) on no match, a null that hit the finally Stop-Process binder and failed run 43496001745 after every assertion had passed
+$script:edgeHwnd = 0   # the ONE verified fixture browser window, captured once at readiness
+function EdgeWindow() {
+  # The ONE browser window this test drives. Before readiness: the tab-richest real window among THIS
+  # fixture profile's own msedge processes (profile-command-line identity survives a possible
+  # launcher->browser PID handoff; run 43490152034 bound only the launcher PID and read before=-1 while
+  # the fixture tabs existed - handoff vs welcome-surface overlay not conclusively distinguished).
+  # After readiness: re-binds ONLY the captured HWND, revalidated to still exist and still belong to a
+  # fixture-profile process; if the verified window is gone or replaced this returns null and the caller
+  # fails - setup, middle selection and the before/after restore can never silently drift to another
+  # window. No class-name fallback - a fallback can bind a different browser window and make the
+  # setup/before/after reads disagree.
+  $fp = @(EdgeFixturePids)
+  if ($fp.Count -eq 0) { return $null }
+  $cand = @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fp -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } })
+  if ($script:edgeHwnd -ne 0) {
+    $bound = @($cand | Where-Object { try { $_.Current.NativeWindowHandle -eq $script:edgeHwnd } catch { $false } })
+    if ($bound.Count -gt 0) { return $bound[0] }
+    return $null
+  }
+  if ($cand.Count -gt 0) { return ($cand | Sort-Object { try { $_.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))).Count } catch { 0 } } -Descending | Select-Object -First 1) }
+  return $null
+}
+function EdgeTabExpectHost($w, $t, $expectedHost, $sliceDeadline) {
+  # Expected-host proof for THIS tab: it must be selected and the omnibox authority must read as two
+  # consecutive EQUAL occurrences of the expected host while it stays selected, re-confirming the
+  # selection AFTER the second read (same discipline as ChromeTabExpectHost). A stable WRONG host keeps
+  # waiting - the expected host may still settle within the slice - and a lost selection resets the proof.
+  try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } catch { return $false }
+  $stable = ''
+  while ((Get-Date) -lt $sliceDeadline) {
+    $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+    if (-not $sel) { $stable = ''; Start-Sleep -Milliseconds 150; continue }
+    $h = OmniboxHost (BrowserWinUrl $w)
+    if ($h -ne $expectedHost) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
+    if ($stable -eq $h) {
+      $stillSel = $false; try { $stillSel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+      if ($stillSel) { return $true }
+      $stable = ''
+    } else { $stable = $h; Start-Sleep -Milliseconds 200 }
+  }
+  return $false
+}
+function EdgeTabUrlRaw($w, $t) {
+  # Diagnostic-only single read. UNPROVEN by design (no stable re-read, no post-read selection check):
+  # used only for failure logging, never as readiness or restoration evidence.
+  try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return BrowserWinUrl $w } catch { return '' }
+}
+function EdgeSetupShot($state) {
+  # Setup-time evidence shot of the EDGE window region (the app process does not exist yet, so Shot/CurWin are unusable here).
+  try {
+    $wE = EdgeWindow; if ($null -eq $wE) { "no edge window for $state" | Tee-Object -Append diag/errors.txt; return }
+    $br = $wE.Current.BoundingRectangle; $w = [int]$br.Width; $h = [int]$br.Height
+    if ($w -le 0 -or $h -le 0) { "no edge rect for $state" | Tee-Object -Append diag/errors.txt; return }
+    $bmp = New-Object System.Drawing.Bitmap $w, $h; $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen([int]$br.X, [int]$br.Y, 0, 0, $bmp.Size)
+    $f = "out-images/cap-$state.png"; $bmp.Save("$PWD/$f"); "shot $f ${w}x${h}"
+  } catch { "edge setup shot failed: $_" | Tee-Object -Append diag/errors.txt }
+}
+function EdgeSelectedTabIndex() {
+  # Index of the selected tab in the one bound Edge window (all three test pages share the title 'Example Domain', so the index is the discriminator).
+  $w0 = EdgeWindow
+  if ($null -eq $w0) { return -1 }
+  try {
+    $tabs = $w0.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem)))
+    for ($i = 0; $i -lt $tabs.Count; $i++) { try { $sip = $tabs[$i].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern); if ($sip.Current.IsSelected) { return $i } } catch { } }
+  } catch { }
+  return -1
+}
+function DragRowToStage($like, $label) {
+  # Real pointer drag: press on the source row, move in steps over the drop zone, release. Same path a user's mouse takes.
+  $row = CheckByLike $like
+  if ($null -eq $row) { Assert "$label found for drag" $false 'row not found'; return }
+  $rr = $row.Current.BoundingRectangle; $wr = (CurWin).Current.BoundingRectangle
+  $sx = [int]($rr.X + $rr.Width * 0.65); $sy = [int]($rr.Y + $rr.Height / 2)
+  $tx = [int]($wr.X + $wr.Width * 0.25); $ty = [int]($wr.Y + $wr.Height * 0.55)
+  TracePhase 'drag-before-input'
+  [void][W]::SetCursorPos($sx, $sy); Start-Sleep -Milliseconds 250
+  [W]::mouse_event(0x02, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 250
+  for ($i = 1; $i -le 12; $i++) { [void][W]::SetCursorPos([int]($sx + ($tx - $sx) * $i / 12), [int]($sy + ($ty - $sy) * $i / 12)); Start-Sleep -Milliseconds 60 }
+  Start-Sleep -Milliseconds 350
+  [W]::mouse_event(0x04, 0, 0, 0, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 700
+  TracePhase 'drag-after-input'
+}
+function StoreObj() { if (Test-Path $store) { Get-Content $store -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null } }
+function SetText($edit, $text) { if ($null -eq $edit) { Assert 'SetText target present' $false 'edit element not found'; return }; try { $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) } catch { Assert 'SetText succeeded' $false "$_" }; Start-Sleep -Milliseconds 400 }
+function SetType($typeName) {
+  $combo = NamedCombo 'Item type'
+  if (-not $combo) { return 'item type combo not found' }
+  $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
+  $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
+  if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
+  if (-not $it) { return "type item '$typeName' not found" }
+  $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
+}
+function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
+function AnyByName($name) { $e = (CurWin).FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
+function StoreJson() { if (Test-Path $store) { (Get-Content $store -Raw -Encoding UTF8) -replace '\s+', ' ' } else { '' } }
+
+# --- native picker discovery/cancel machinery: VERBATIM port of the vetted cycle1 helpers (WinN class,
+# OwnerChainOf/OwnerChainHas, PickerEligible, AppWindowDump, FindPickers, Close-OwnedPickers) - the picker opened
+# from the capture form is the SAME shared-handler dialog (title 'העלה תמונה', class #32770, owned by the main
+# window), so the same owner-aware discovery applies with $script:mainHwnd captured at app launch.
+Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class WinN {
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr lparam);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr w, IntPtr l);
+  delegate bool EnumProc(IntPtr hWnd, IntPtr lparam);
+  public const uint WM_CLOSE = 0x0010;
+  public static string Esc(string s) {
+    var b = new StringBuilder();
+    foreach (var ch in s) {
+      int c = ch;
+      if (c < 0x20 || c == 0x7F || char.GetUnicodeCategory(ch) == System.Globalization.UnicodeCategory.Format) b.Append(string.Format("\\u{0:X4}", c));
+      else b.Append(ch);
+    }
+    return b.ToString();
+  }
+  public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  public static IntPtr OwnerOf(IntPtr h) { return GetWindow(h, 4); } // GW_OWNER
+  public static string TitleOf(IntPtr h) { var sb = new StringBuilder(512); GetWindowTextW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static string ClassOf(IntPtr h) { var sb = new StringBuilder(256); GetClassNameW(h, sb, sb.Capacity); return sb.ToString(); }
+  public static List<IntPtr> TopLevelOfPid(uint pid) {
+    var found = new List<IntPtr>();
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) found.Add(h); return true; }, IntPtr.Zero);
+    return found;
+  }
+}
+'@
+$script:mainHwnd = [IntPtr]::Zero
+function OwnerChainOf($hwnd) { $chain = @(); $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -ne [IntPtr]::Zero) { $chain += ("0x{0:X}" -f $h.ToInt64()) } } return ($chain -join '>') }
+function OwnerChainHas($hwnd, $ancestor) { $h = $hwnd; for ($i = 0; $i -lt 8 -and $h -ne [IntPtr]::Zero; $i++) { $h = [WinN]::OwnerOf($h); if ($h -eq $ancestor) { return $true } } return $false }
+function PickerEligible($h) {
+  # Eligible native picker: a visible top-level window of the app process, not the main window, owned
+  # (directly or through its owner chain) by the main app window, and either a native dialog class or
+  # carrying the hardcoded picker title. Title alone is NOT required: a queued duplicate must be caught
+  # even if its title were to differ unexpectedly.
+  if ($h -eq $script:mainHwnd) { return $false }
+  if (-not [WinN]::IsWindowVisible($h)) { return $false }
+  if (-not (OwnerChainHas $h $script:mainHwnd)) { return $false }
+  $cls = [WinN]::ClassOf($h); $title = [WinN]::TitleOf($h)
+  return ($cls -eq '#32770' -or $title -like '*העלה תמונה*')
+}
+function AppWindowDump() {
+  # Raw per-window diagnostics for EVERY top-level window of the app process, eligible or not: native
+  # HWND/PID/class/owner-chain/visibility/title, the eligibility verdict, and the UIA view. Logged on
+  # success and failure alike so any detection miss is classifiable from the artifact.
+  $lines = @()
+  foreach ($h in [WinN]::TopLevelOfPid([uint32]$p.Id)) {
+    $t = [WinN]::TitleOf($h); $c = [WinN]::ClassOf($h); $vis = [WinN]::IsWindowVisible($h); $elig = PickerEligible $h
+    $uia = ''; try { $el = [System.Windows.Automation.AutomationElement]::FromHandle($h); $modal = 'n/a'; try { $modal = "$($el.GetCurrentPropertyValue([System.Windows.Automation.WindowPattern]::IsModalProperty))" } catch { }; $uia = ("uiaHandle=0x{0:X} uiaName='{1}' uiaCT={2} uiaModal={3}" -f $el.Current.NativeWindowHandle, [WinN]::Esc($el.Current.Name), $el.Current.ControlType.ProgrammaticName, $modal) } catch { $uia = ("uiaErr='{0}'" -f $_.Exception.Message) }
+    $lines += ("hwnd=0x{0:X} pid={1} cls='{2}' ownerChain=[{3}] vis={4} eligible={5} nativeTitle='{6}' {7}" -f $h.ToInt64(), [WinN]::PidOf($h), $c, (OwnerChainOf $h), $vis, $elig, [WinN]::Esc($t), $uia)
+  }
+  return ($lines -join ' || ')
+}
+function FindPickers() { @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { PickerEligible $_ }) }
+function Close-OwnedPickers { param([string]$why)
+  # failure cleanup / CANCEL: close every picker HWND owned by THIS app process (FindPickers is PID-scoped)
+  # and wait for each to disappear; never touches unrelated windows.
+  $owned = @(FindPickers)
+  foreach ($h in $owned) { try { [void][WinN]::PostMessage($h, [WinN]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) } catch { } }
+  foreach ($h in $owned) { for ($t = 0; $t -lt 15 -and [WinN]::IsWindow($h); $t++) { Start-Sleep -Milliseconds 200 } }
+  $leftOpen = @(FindPickers).Count
+  Info 'owned picker cleanup' ("$why; closed=$($owned.Count) remaining=$leftOpen")
+  Assert 'owned picker cleanup left no picker open' ($leftOpen -eq 0) ("$why; remaining=$leftOpen windows: $(AppWindowDump)")
+  return $leftOpen
+}
+
+function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'CaptureTargetWorkspace'))))); if ($null -eq $tw) { return '<no header element>' }; return $tw.Current.Name }
+function Checks() {
+  $list=(CurWin).FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,'Open now list')))
+  if($null -eq $list){return @()}
+  @($list.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::CheckBox))))
+}
+function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
+function CheckByLike($needle) { $scope=if($needle -like 'הוסף שוב:*'){ @(UiaAll $CT::CheckBox) }else{ @(Checks) }; $scope | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
+# Pair summaries and buttons inside each exact staged row, never by parallel window-wide arrays.
+function StagedRowRecords() {
+  $hostWindow = CurWin
+  if ($null -eq $hostWindow) { throw 'No current app window while collecting staged rows' }
+  $lists = @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Added items not saved yet'))))))
+  if ($lists.Count -ne 1) { throw 'Missing or ambiguous staged list host' }
+  $rows = @($lists[0].FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::ListItem))))
+  foreach ($row in $rows) {
+    $names = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemName'))))
+    $addresses = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress'))))
+    $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *' })
+    $null = Assert 'staged row has one paired summary and Edit button' ($names.Count -eq 1 -and $addresses.Count -eq 1 -and $edits.Count -eq 1) ("names=$($names.Count) addresses=$($addresses.Count) edits=$($edits.Count)")
+    if ($names.Count -ne 1 -or $addresses.Count -ne 1 -or $edits.Count -ne 1) { throw 'Ambiguous staged row structure' }
+    [pscustomobject]@{ Row=$row; Host=$row.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Staged item row'))); Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
+  }
+}
+function StagedNames() { @(StagedRowRecords | ForEach-Object { $_.Name }) }
+function StagedAddrs() { @(StagedRowRecords | ForEach-Object { $_.Address }) }
+function OpenStagedEditor($original) {
+  $matches = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq "Toggle added $original" })
+  Assert "explicit Edit has unique row identity for $original" ($matches.Count -eq 1) ("matches=$($matches.Count)")
+  if ($matches.Count -ne 1) { throw 'Ambiguous or missing staged Edit target' }
+  $record = $matches[0]; $button = $record.Edit; $br = $button.Current.BoundingRectangle
+  Assert "exact staged Edit button is visible and enabled for $original" (-not $button.Current.IsOffscreen -and $button.Current.IsEnabled -and $br.Width -gt 0 -and $br.Height -gt 0) ''
+  if ($button.Current.IsOffscreen -or -not $button.Current.IsEnabled -or $br.Width -le 0 -or $br.Height -le 0) { throw 'Staged Edit button not actionable' }
+  [void](InvokeEl $button "explicit Edit exact row $original"); Start-Sleep -Milliseconds 400
+  $editors = @($record.Row.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Edit)), (New-Object $PC($A::NameProperty, 'Added item name'))))))
+  Assert "exact staged row owns one name editor after explicit Edit for $original" ($editors.Count -eq 1 -and (ValOf $editors[0]) -eq $record.Name) ("count=$($editors.Count)")
+  foreach ($other in @(StagedRowRecords | Where-Object { -not [System.Windows.Automation.Automation]::Compare($_.Row, $record.Row) })) {
+    $otherEdits = @($other.Row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))))
+    Assert "other staged row has no editor after explicit Edit for $original" ($otherEdits.Count -eq 0) ("count=$($otherEdits.Count)")
+  }
+}
+function ScrollStaged([int]$delta) {
+  # Real mouse wheel over the staged panel: scrolls the innermost scrollable under the cursor, like a user's wheel.
+  $anchor = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress')))))
+  if ($null -eq $anchor) { return }
+  $r = $anchor.Current.BoundingRectangle; if ($r.Width -le 0) { return }
+  TracePhase 'scroll-before-input'
+  [void][W]::SetCursorPos([int]($r.X + [Math]::Min(200, $r.Width / 2)), [int]($r.Y + $r.Height / 2)); Start-Sleep -Milliseconds 150
+  $d = if ($delta -lt 0) { [uint32](4294967296 + $delta) } else { [uint32]$delta }
+  [W]::mouse_event(0x0800, 0, 0, $d, [System.UIntPtr]::Zero); Start-Sleep -Milliseconds 450
+  TracePhase 'scroll-after-input'
+}
+function StagedAddrsDeep() {
+  # The staged list is virtualized: UIA only returns rendered rows. Wheel through the panel and union what renders.
+  # Distinct addresses only (enough for the sections that stage each row once).
+  $seen = @{}; $ordered = New-Object System.Collections.ArrayList
+  foreach ($addr in (StagedAddrs)) { if ($addr -and -not $seen.ContainsKey($addr)) { $seen[$addr] = 1; [void]$ordered.Add($addr) } }
+  for ($i = 0; $i -lt 20; $i++) { ScrollStaged -360; foreach ($addr in (StagedAddrs)) { if ($addr -and -not $seen.ContainsKey($addr)) { $seen[$addr] = 1; [void]$ordered.Add($addr) } } }
+  for ($i = 0; $i -lt 20; $i++) { ScrollStaged 360 }
+  return $ordered
+}
+function WsCountByTarget($ws, $o, $like) { $ids = @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like $like } | ForEach-Object { $_.id }); return @($ws.items | Where-Object { $ids -contains $_.itemId }).Count }
+function EffectiveNames($ws, $o) { @($ws.items | ForEach-Object { $m = $_; if (-not [string]::IsNullOrWhiteSpace($m.name)) { $m.name } else { $it = @($o.items.PSObject.Properties.Value | Where-Object { $_.id -eq $m.itemId })[0]; if ($it) { $it.name } else { '' } } }) }
+function StagedActionBtns() { @(ContextAnchors 'Staged item actions') }
+function IsOn($el) { try { return $el.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' } catch { return $false } }
+function OpenCaptureMenu($item) {
+  $c = ClickBtn 'Capture' 900; if ($c -ne 'ok') { return $c }
+  $mi = $null; for ($i = 0; $i -lt 20; $i++) { $mi = MenuItemByName $item; if ($mi) { break }; Start-Sleep -Milliseconds 250 }
+  if (-not $mi) { return "menu item '$item' not found" }
+  MenuInsideWindow "capture dropdown ($item)"
+  TracePhase 'capture-menu-before-invoke'
+  if (-not (InvokeEl $mi "capture menu item $item")) { return 'invoke failed' }
+  TracePhase 'capture-menu-after-invoke'
+  $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()  # the scan now runs off the UI thread with a visible scanning state
+  while ($swS.Elapsed.TotalMilliseconds -lt 1500) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
+  TracePhase 'capture-menu-after-status-poll'
+  return 'ok'
+}
+try {
+  $root = Join-Path $env:RUNNER_TEMP 'cap-flow'; New-Item -ItemType Directory -Force $root | Out-Null
+  $capdir = Join-Path $root 'capfolder'; New-Item -ItemType Directory -Force $capdir | Out-Null
+  $storeDir = Join-Path $env:LOCALAPPDATA 'StartApp'; if (Test-Path $storeDir) { Remove-Item -Recurse -Force $storeDir }
+  $store = Join-Path $storeDir 'store.json'
+  # Real things to detect: a Notepad window, a File Explorer window on a known folder, and (best effort, reported as info only) an Edge window.
+  $np = Start-Process notepad.exe -PassThru
+  Start-Process explorer.exe -ArgumentList "`"$capdir`""
+  $edgeProfile = Join-Path $env:RUNNER_TEMP ('edge-fixture-' + [Guid]::NewGuid().ToString('N'))
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$edgeProfile", 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge start' "$_" }
+  # Fixture readiness under ONE shared 25s setup deadline: exactly the three fixture tabs, each proven by a
+  # selected+stable omnibox read at its launched host IN LAUNCH ORDER, then the verified window's HWND is
+  # captured once. Nothing is dismissed or closed: an unexpected surface simply keeps readiness unmet and
+  # the setup fails with precise diagnostics (v10 review: no guessed Close* on an unidentified first-run UI).
+  $edgeHosts = @('example.com', 'example.org', 'example.net')
+  $edgeReady = $false; $edgeDiag = ''; $edgeInitial = ''
+  $deadlineE = (Get-Date).AddSeconds(25)
+  while ((Get-Date) -lt $deadlineE -and -not $edgeReady) {
+    $wE = EdgeWindow
+    if ($null -eq $wE) { Start-Sleep -Milliseconds 400; continue }
+    if (-not $edgeInitial) {
+      # Non-mutating snapshot of the first candidate window BEFORE the first readiness Select (names and
+      # selected flags exactly as found), so setup evidence predates every mutation, success or failure.
+      $tabsI = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      $edgeInitial = "hwnd=0x$('{0:X}' -f $wE.Current.NativeWindowHandle) title='$($wE.Current.Name)' tabs=$($tabsI.Count) [" + ((@(for ($i = 0; $i -lt $tabsI.Count; $i++) { $t = $tabsI[$i]; $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }; $nm = ''; try { $nm = $t.Current.Name } catch { }; "t$i sel=$sel name='$nm'" })) -join ' | ') + ']'
+      Info 'edge fixture initial state (before any selection)' $edgeInitial
+    }
+    $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+    if ($tabsE.Count -ne 3) { Start-Sleep -Milliseconds 400; continue }
+    $hosts = @('', '', '')
+    for ($i = 0; $i -lt 3; $i++) {
+      if ((Get-Date) -ge $deadlineE) { break }
+      $sliceE = (Get-Date).AddSeconds(4); if ($sliceE -gt $deadlineE) { $sliceE = $deadlineE }
+      if (EdgeTabExpectHost $wE $tabsE[$i] $edgeHosts[$i] $sliceE) { $hosts[$i] = $edgeHosts[$i] }
+    }
+    if ($hosts[0] -eq $edgeHosts[0] -and $hosts[1] -eq $edgeHosts[1] -and $hosts[2] -eq $edgeHosts[2]) {
+      $script:edgeHwnd = $wE.Current.NativeWindowHandle
+      $edgeReady = $true
+      Info 'edge fixture ready: three tabs at their launched hosts, verified window captured' "hwnd=0x$('{0:X}' -f $script:edgeHwnd) title='$($wE.Current.Name)' hosts='$($hosts -join ',')'"
+      break
+    }
+    Start-Sleep -Milliseconds 400
+  }
+  if (-not $edgeReady) {
+    # Non-mutating as-found snapshot FIRST (tab count/names/selection exactly as found); only then bounded
+    # selected+stable URL reads as diagnostics - the log order is the mutation order.
+    $wE = EdgeWindow
+    if ($null -ne $wE) {
+      $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      $asFound = (@(for ($i = 0; $i -lt $tabsE.Count; $i++) { $t = $tabsE[$i]; $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }; $nm = ''; try { $nm = $t.Current.Name } catch { }; "t$i sel=$sel name='$nm'" }) -join ' | ')
+      $diagDeadline = (Get-Date).AddSeconds(12)
+      $reads = (@(for ($i = 0; $i -lt $tabsE.Count; $i++) { if ((Get-Date) -ge $diagDeadline) { break }; $sliceD = (Get-Date).AddSeconds(3); if ($sliceD -gt $diagDeadline) { $sliceD = $diagDeadline }; "t$i rawUnproven='$(EdgeTabUrlRaw $wE $tabsE[$i])'" }) -join ' | ')
+      $edgeDiag = "launchPid=$(if ($edge) { $edge.Id } else { 'none' }) launchExited=$(if ($edge) { $edge.HasExited } else { '-' }) fixturePids=[$(@(EdgeFixturePids | ForEach-Object { "pid=$_" }) -join ',')] hwnd=0x$('{0:X}' -f $wE.Current.NativeWindowHandle) title='$($wE.Current.Name)' tabs=$($tabsE.Count) asFound=[$asFound] reads=[$reads] initial=[$edgeInitial]"
+    } else {
+      $edgeDiag = "launchPid=$(if ($edge) { $edge.Id } else { 'none' }) launchExited=$(if ($edge) { $edge.HasExited } else { '-' }) fixturePids=[$(@(EdgeFixturePids | ForEach-Object { "pid=$_" }) -join ',')] hwnd=none (no profile-bound window)"
+    }
+    EdgeSetupShot 'edge-setup-timeout'
+  }
+  $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }; Info 'edge active tab index before scans' "$edgeTabBefore"
+  # Regression (PR19 review): restore must also work when the user's tab is NOT first in UIA enumeration -
+  # the old code discovered the original tab inside the mutating loop and lost it. Move the ONE verified
+  # fixture window (same captured HWND) to its middle tab (index 1 of the three example.* tabs) before the
+  # app starts; setup, before and after all read THAT window, and the post-scan assert below proves
+  # restore for the active-middle case.
+  $moved = $false
+  $wE = EdgeWindow
+  if ($edgeReady -and $null -ne $wE) {
+    try {
+      $tabsE = @($wE.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      if ($tabsE.Count -eq 3) { $tabsE[1].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); $moved = $true }
+    } catch { }
+  }
+  Start-Sleep -Milliseconds 800
+  $edgeTabBefore = -1; try { $edgeTabBefore = EdgeSelectedTabIndex } catch { }
+  Assert 'regression setup: Edge active tab moved to the middle (index 1) before the scans' ($edgeReady -and $moved -and $edgeTabBefore -eq 1) ("ready=$edgeReady moved=$moved before=$edgeTabBefore hwnd=0x$('{0:X}' -f $script:edgeHwnd) $edgeDiag")
+  $exe = Get-ChildItem -Recurse src/StartApp.App/bin/Release -Filter StartApp.App.exe | Select-Object -First 1
+  $env:STARTAPP_CAPTURE_TRACE_PATH = Join-Path $PWD 'diag/browser-capture-trace.txt'
+  $env:STARTAPP_CRASHLOG = '1' # opt the app into crash.log evidence for this harness run
+  $p = Start-Process -FilePath $exe.FullName -PassThru
+  $sw = [Diagnostics.Stopwatch]::StartNew()
+  while ($sw.Elapsed.TotalSeconds -lt 60) { $p.Refresh(); if ($p.HasExited -or $p.MainWindowHandle -ne 0) { break }; Start-Sleep -Milliseconds 500 }
+  Start-Sleep -Seconds 2
+  Assert 'app window opened' (-not $p.HasExited -and $p.MainWindowHandle -ne 0) ''
+  $win = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $p.Id)))
+  Assert 'automation window found' ($null -ne $win) ''
+  $script:mainHwnd = $p.MainWindowHandle
+  Info 'main window handle captured for owner-aware dialog discovery' ("mainHwnd=0x{0:X}" -f $script:mainHwnd.ToInt64())
+  $vsB = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  Info 'virtual screen bounds (measured)' "left=$($vsB.Left) top=$($vsB.Top) right=$($vsB.Right) bottom=$($vsB.Bottom) ($($vsB.Width)x$($vsB.Height))"
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, $vsB.Left, $vsB.Top, 0, 0, 0x0001)
+  Start-Sleep -Milliseconds 600
+  $wr0 = (CurWin).Current.BoundingRectangle
+  Assert 'app window fully inside the virtual screen' ($wr0.Left -ge $vsB.Left -and $wr0.Top -ge $vsB.Top -and $wr0.Right -le $vsB.Right -and $wr0.Bottom -le $vsB.Bottom) ("window=$([int]$wr0.Left),$([int]$wr0.Top)-$([int]$wr0.Right),$([int]$wr0.Bottom) screen=$($vsB.Left),$($vsB.Top)-$($vsB.Right),$($vsB.Bottom)")
+  Assert 'overview shown' ($null -ne (Btn 'New workspace button')) ((Texts) -join ' | ')
+  Assert 'capture button is on the overview page' ($null -ne (Btn 'Capture')) ''
+  foreach ($n in 'Cap A', 'Cap B') { OpenCreateScreen; SetText (NamedEdit 'Workspace name') $n; $c = ClickBtn 'Create workspace' 900; Assert "create $n" ($c -eq 'ok') $c; $c = ClickBtn 'Back' 900; Assert "back after $n" ($c -eq 'ok') $c }
+
+  # 1. dropdown -> new workspace: real scan, all rows ticked, read-only list
+  $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> סביבה חדשה' ($c -eq 'ok') $c
+  $shown = CaptureShown 10; Assert 'capture screen shown' $shown ((Texts) -join ' | ')
+  if (-not $shown) {
+    DumpState 'no-capture-screen'
+    'capture screen never appeared; every later capture step depends on it, so the flow stops here (fail fast, no fake cascade)' | Out-File -Append diag/errors.txt
+    $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
+    exit 1
+  }
+  Assert 'scanning state was visible while the scan ran' $script:sawScanning ''
+  Assert 'scan finished before the rows are read' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  $names = CheckNames
+  Info 'detected rows (new form)' ($names -join ' | ')
+  $npRow = CheckByLike '*Notepad*'; $folderRow = CheckByLike '*capfolder*'
+  Assert 'REAL scan: the open Notepad window is listed as a program' ($null -ne $npRow) ($names -join ' | ')
+  Assert 'REAL scan: the open Explorer window on the test folder is listed as a folder' ($null -ne $folderRow) ($names -join ' | ')
+  Assert 'ALL TABS: the active tab site example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($names -join ' | ')
+  Assert 'ALL TABS: background tab example.org is listed' ($null -ne (CheckByLike '*example.org*')) ($names -join ' | ')
+  Assert 'ALL TABS: background tab example.net is listed' ($null -ne (CheckByLike '*example.net*')) ($names -join ' | ')
+  $edgeTabAfter = EdgeSelectedTabIndex
+  $sameWin = ($null -ne (EdgeWindow))
+  Assert 'ALL TABS: the tab the user was on stays selected after the scan' ($edgeTabBefore -ge 0 -and $sameWin -and $edgeTabAfter -eq $edgeTabBefore) ("before=$edgeTabBefore after=$edgeTabAfter hwnd=0x$('{0:X}' -f $script:edgeHwnd) sameWindow=$sameWin")
+  $fgPid = [uint32]0; [void][W]::GetWindowThreadProcessId([W]::GetForegroundWindow(), [ref]$fgPid)
+  Info 'foreground window after the all-tabs scan' $(if ($fgPid -eq $p.Id) { 'app (scan did not raise the browser)' } elseif (@(EdgeFixturePids) -contains $fgPid) { 'edge - the scan raises the scanned browser window' } else { "another window (pid $fgPid)" })
+  ShotRaw 'post-scan-before-raise'
+  Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
+  Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
+  Assert 'routine capabilities are behind help rather than warning toast' ($null -ne (AnyByName 'מה ניתן ללכוד?')) ((Texts) -join ' | ')
+
+  Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
+  Shot 'new-form-with-scan'
+  # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
+  # resets the shared create form; reopening scans fresh with the form at its defaults
+  $oPreDisc = StoreObj; $wsCountPreDisc = if ($null -ne $oPreDisc) { @($oPreDisc.workspaces).Count } else { 0 }
+  SetWorkspaceColor '#E9D5FF'
+  Shot 'new-form-design-filled'
+  $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
+  Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'יש שינויים שלא נשמרו' 5) ((Texts) -join ' | ')
+  Shot 'capture-new-design-unsaved-guard'
+  $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discard the design-only capture-new form' ($c -eq 'ok') $c
+  Assert 'capture screen closed after discard' (-not (CaptureShown 2)) ''
+  $oDisc = StoreObj
+  Assert 'discard saved nothing (workspace count unchanged from before the capture-new form)' ($null -ne $oDisc -and @($oDisc.workspaces).Count -eq $wsCountPreDisc) ("before=$wsCountPreDisc after=$(if ($null -ne $oDisc) { @($oDisc.workspaces).Count } else { 'no-store' })")
+  Assert 'discard writes no advanced-color history' (@((StoreObj).advancedColorHistory).Count -eq 0) ''
+  $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
+  Assert 'capture screen shown after the design discard' (CaptureShown 10) ((Texts) -join ' | ')
+  Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  Assert 'reopened capture-new form has empty design fields' (-not (TestWorkspaceColorSelected) -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  $names = CheckNames
+  $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
+  Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
+  if (-not $rescanComplete) {
+    # Read-only post-failure fixture evidence, not a retry or a relaxed completeness assertion.
+    $fw = EdgeWindow
+    if ($fw) {
+      $ft = @($fw.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+      Info 'failed rescan fixture state (no tab switching)' ("tabs=$($ft.Count) selected=$(EdgeSelectedTabIndex) activeAddress=$(BrowserWinUrl $fw)")
+    }
+    ShotRaw 'rescan-missing-tab-before-diagnostics'
+    $notice = AnyByName 'Notification'
+    if ($notice) {
+      foreach ($group in @($notice.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))))) {
+        try { $group.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand() } catch { }
+      }
+      Info 'failed rescan notification details' ((@($notice.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit)))) | ForEach-Object { ValOf $_ }) -join ' | ')
+    }
+  }
+  Assert 'reopened form: every row ticked by default again' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
+  $npRow = CheckByLike '*Notepad*'
+  if ($npRow) { [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400 }
+  Assert 'unticking works' ($npRow -and -not (IsOn $npRow)) ''
+  Assert 'create button needs a name' (-not (Btn 'Create workspace from capture').Current.IsEnabled) ''
+  SetText (NamedEdit 'Capture workspace name') 'From capture'
+  $capCardImg = "$PWD\diag\cap-create-card.png"
+  $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
+  $capPalAnchor = CapPalette; Assert 'capture palette anchor uniquely found for the swatch click' ($null -ne $capPalAnchor) 'missing or ambiguous Capture palette list - window-wide hex lookup refused'
+  $csw = CapSwatch '#8BAA9D'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  [void](InvokeEl $csw 'capture palette #8BAA9D'); Start-Sleep -Milliseconds 400
+  Assert 'capture palette click fills the color' ((ReadWorkspaceColor) -eq '#8BAA9D') (ReadWorkspaceColor)
+  SetText (NamedEdit 'Capture card image path') $capCardImg
+  $crm = Btn 'Remove capture image'; Assert 'remove capture image button present' ($null -ne $crm) ''
+  [void](InvokeEl $crm 'remove capture image'); Start-Sleep -Milliseconds 300
+  Assert 'capture remove clears the image path' ((ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  # native picker CANCEL on the capture form (SAME shared creation handler, dialog title 'העלה תמונה'): from an
+  # empty path nothing is set and the typed name/color are kept; with a typed path present the existing text is
+  # preserved, never cleared
+  $preCapP = @(FindPickers); Assert 'no picker already open before the capture-image picker' ($preCapP.Count -eq 0) (AppWindowDump)
+  $upCap = Btn 'Upload capture image'; Assert 'upload capture image button present' ($null -ne $upCap) ''
+  [void](InvokeEl $upCap 'upload capture image (empty cancel flow)')
+  $openedCap = $false; for ($t = 0; $t -lt 20 -and -not $openedCap; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap = $true } }
+  Assert 'native picker opened from the capture form' $openedCap (AppWindowDump)
+  Close-OwnedPickers 'capture-image picker cancelled from an empty path'
+  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ReadWorkspaceColor) -eq '#8BAA9D') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ReadWorkspaceColor)'")
+  SetText (NamedEdit 'Capture card image path') $capCardImg
+  Assert 'capture typed image path shown' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg) ''
+  [void](InvokeEl (Btn 'Upload capture image') 'upload capture image (preserve cancel flow)')
+  $openedCap2 = $false; for ($t = 0; $t -lt 20 -and -not $openedCap2; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap2 = $true } }
+  Assert 'native picker reopened from the capture form with a typed path present' $openedCap2 (AppWindowDump)
+  Close-OwnedPickers 'capture-image picker cancelled over a typed path'
+  Assert 'capture cancel preserves the typed image path (cancel never clears existing text)' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture') (ValOf (NamedEdit 'Capture card image path'))
+  Shot 'new-form-design-ready'
+  # bounded minimum-window evidence (declared MinWidth=720/MinHeight=400): resize to the minimum, one shot of the
+  # filled capture form, restore the previous size immediately
+  $rCapMin = New-Object W+R; [void][W]::GetWindowRect($p.MainWindowHandle, [ref]$rCapMin)
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, 720, 400, 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
+  Shot 'new-form-design-ready-minsize'
+  # regression pin for the minimum-size palette clip (run 43575045592: the last swatch rendered 15px of its
+  # 20px interior, clipped at its parent container edge while still inside the window). Anchored like every
+  # capture palette lookup: the overview stays Visible behind the capture overlay, so hex-named swatches are
+  # ambiguous window-wide (run 43577316808's guard passed against the OVERVIEW palette while the visible
+  # capture palette had wrapped - the pixels were the real proof there). CapPalette requires exactly one
+  # 'Capture palette' list and the swatch search runs only inside its subtree; a missing or ambiguous anchor
+  # FAILS before any search. Containment alone is not enough - a zero-size or clipped rect could sit inside
+  # the palette bounds - so this also requires finite positive palette geometry and every swatch at its full
+  # DPI-scaled 22px size (wrapping is fine; clip, offscreen, undersize and outside-window are not). The
+  # palette identity/rect and ALL swatch sizes are recorded in the detail even on PASS, so the run is auditable.
+  Add-Type -MemberDefinition '[DllImport("gdi32.dll")] public static extern int GetDeviceCaps(System.IntPtr hdc, int index); [DllImport("user32.dll")] public static extern System.IntPtr GetDC(System.IntPtr hWnd); [DllImport("user32.dll")] public static extern int ReleaseDC(System.IntPtr hWnd, System.IntPtr hdc);' -Name Dpi -Namespace CapGuard
+  # fail-closed DPI read: a zero DC or zero DPI must NOT silently produce expected=0 (threshold -1 would then
+  # accept any zero/clipped swatch size) - verify the DC, read inside try, release the valid DC in finally,
+  # and treat an unreadable scale as a guard failure with no default 96 assumed
+  $hdcCap = [CapGuard.Dpi]::GetDC($p.MainWindowHandle)
+  $dpiX = 0
+  if ($hdcCap -ne [IntPtr]::Zero) { try { $dpiX = [CapGuard.Dpi]::GetDeviceCaps($hdcCap, 88) } finally { [void][CapGuard.Dpi]::ReleaseDC($p.MainWindowHandle, $hdcCap) } }
+  $dpiOk = ($hdcCap -ne [IntPtr]::Zero -and $dpiX -gt 0)
+  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(28.0 * $dpiX / 96.0) }
+  $palHex = @('#7189BB', '#8BAA9D', '#B4A0C5', '#E6CE9A', '#D6AEB5', '#D9DEE6', '#90B5B8', '#D9B390', '#C78F87')
+  $wrCap = (CurWin).Current.BoundingRectangle
+  $palBox = CapPalette
+  $palBad = @()
+  $palInfo = @()
+  $palGeom = 'palette=missing-or-ambiguous'
+  if ($null -eq $palBox) {
+    $palBad += "capture palette anchor (List named 'Capture palette') missing or ambiguous - refusing window-wide search (ambiguous hex names)"
+  } else {
+    $pr0 = $palBox.Current.BoundingRectangle
+    $palGeom = "palette class='$($palBox.Current.ClassName)' name='$($palBox.Current.Name)' rect=$([int]$pr0.Left),$([int]$pr0.Top)-$([int]$pr0.Right),$([int]$pr0.Bottom) size=$([int]$pr0.Width)x$([int]$pr0.Height)"
+    if ([int]$pr0.Width -le 0 -or [int]$pr0.Height -le 0) { $palBad += 'capture palette container has non-positive geometry' }
+    foreach ($hex in $palHex) {
+      $sw = $palBox.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
+      if ($null -eq $sw) { $palBad += "$hex=missing in the anchored capture palette"; continue }
+      RevealColorSwatch $sw
+      $pr0 = $palBox.Current.BoundingRectangle
+      $sr = $sw.Current.BoundingRectangle
+      $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
+      if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
+      if (-not $dpiOk) { $palBad += "$hex size unverifiable: window DC/DPI unreadable (hdc=$hdcCap dpi=$dpiX), no default assumed"; continue }
+      if ([int]$sr.Width -lt ($swExpected - 1) -or [int]$sr.Height -lt ($swExpected - 1)) { $palBad += "$hex size=$([int]$sr.Width)x$([int]$sr.Height) below expected ${swExpected}px"; continue }
+      if ($sr.Left -lt $pr0.Left -or $sr.Right -gt $pr0.Right -or $sr.Top -lt $pr0.Top -or $sr.Bottom -gt $pr0.Bottom) { $palBad += "$hex outside palette swatch=$([int]$sr.Left),$([int]$sr.Top)-$([int]$sr.Right),$([int]$sr.Bottom) palette=$([int]$pr0.Left),$([int]$pr0.Top)-$([int]$pr0.Right),$([int]$pr0.Bottom)" }
+      if ($sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex outside window" }
+    }
+  }
+  Assert 'all 9 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
+  [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
+  Assert 'details opened after create (spec: after creation details open)' (DetailsShown 15) ((Texts) -join ' | ')
+  Assert 'capture screen closed after create' (-not (CaptureShown 2)) ''
+  $sj = StoreJson
+  Assert 'store holds the captured folder' ($sj.Contains('capfolder')) $sj
+  Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
+  $o = StoreObj
+  $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
+  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#8BAA9D' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
+  # SiteFromAddressText returns the scheme-prefixed host exactly as read (no forced trailing slash): accept the two
+  # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
+  $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
+  $capSiteMem = @($wsCap.items | Where-Object { $_.itemId -eq $capSiteItemId })[0]
+  Assert 'captured site keeps the browser it was found in (Edge) as its default browser (spec Nov 11)' ($null -ne $capSiteItemId -and $null -ne $capSiteMem -and $capSiteMem.launch.browser -like '*msedge.exe') ("itemId=$(if ($capSiteItemId) { $capSiteItemId } else { 'NO-ITEM-MATCH' }) browser=$(if ($null -ne $capSiteMem) { $capSiteMem.launch.browser } else { 'NO-MEMBERSHIP' })")
+  $capFolderItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $capFolderMem = @($wsCap.items | Where-Object { $_.itemId -eq $capFolderItemId })[0]
+  Assert 'captured folder has no retained browser (retention is site-only)' ($null -ne $capFolderMem -and [string]::IsNullOrEmpty($capFolderMem.launch.browser)) ("browser=$($capFolderMem.launch.browser)")
+  Assert 'the captured folder is listed in the new workspace' (WaitText 'capfolder' 5) ((Texts) -join ' | ')
+  Shot 'created-from-capture-details'
+  $c = ClickBtn 'Back' 900; Assert 'back to overview' ($c -eq 'ok') $c
+
+  # all-tabs evidence is captured; collapse Edge to the single-active-tab shape so the
+  # existing-workspace flows below stage exactly the row set their exact-count asserts were built for
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', 'https://example.com/' -PassThru } catch { Info 'edge relaunch (single tab)' "$_" }
+  Start-Sleep -Seconds 4
+  Assert 'edge relaunched with a single tab for the workspace flows' ($null -ne (Get-Process msedge -ErrorAction SilentlyContinue)) ''
+
+  # 2. dropdown -> existing workspace: search, side by side, staged until Save
+  $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> סביבה קיימת' ($c -eq 'ok') $c
+  Assert 'workspace search shown' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Info 'scanning state observed (existing)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
+  Assert 'existing-mode scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  Assert 'existing mode: rows start unticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0 -and (Checks).Count -gt 0) ''
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  Shot 'pick-workspace-search'
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B' ($c -eq 'ok') $c
+  Assert 'side by side: target workspace named' ((CaptureTargetText) -eq 'Cap B') (CaptureTargetText)
+  Assert 'add-all button has current Hebrew label when nothing is ticked' (CaptureAddLabelMatches 0) ''
+  $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row'); Start-Sleep -Milliseconds 500
+  Assert 'add-one button has current Hebrew label' (CaptureAddLabelMatches 1) ''
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected clicked' ($c -eq 'ok') $c
+  Assert 'staged row is normal until explicit Edit' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
+  Shot 'staged-normal-before-edit'
+  OpenStagedEditor 'capfolder'
+  Assert 'staged item has the default name (the original)' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  SetText (NamedEdit 'Added item name') 'my capture folder'; SetText (NamedEdit 'Added item description') 'added from capture'
+  Assert 'NOT saved yet: store has no such instance name' (-not (StoreJson).Contains('my capture folder')) (StoreJson)
+  Shot 'side-by-side-staged'
+
+  # 2b. settled rule: a staged item offers the FULL item action set, staged until Save, the source list unchanged
+  $rowCount = (Checks).Count
+  $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row untick'); Start-Sleep -Milliseconds 400
+  $npRow = CheckByLike '*Notepad*'; Assert 'Notepad row present for a two-program staging' ($null -ne $npRow) ((CheckNames) -join ' | ')
+  [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400
+  $termRow = CheckByLike '*Terminal*'; Assert 'Windows Terminal Host row present' ($null -ne $termRow) ((CheckNames) -join ' | ')
+  [void](ToggleEl $termRow 'terminal row'); Start-Sleep -Milliseconds 500
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'two programs staged beside the folder' ($c -eq 'ok' -and @(StagedNames).Count -eq 3) $c
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged item actions menu opened' ($c -eq 'ok') $c
+  $sfound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  Assert 'staged menu shows the six settled entries' (@($sfound).Count -eq 6) ("found: $($sfound -join ', ')")
+  foreach ($h in @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה')) { $e = MenuItemByName $h; Assert "staged menu entry actually visible: $h" ($null -ne $e -and -not $e.Current.IsOffscreen) '' }
+  MenuInsideWindow 'staged item menu'
+  Assert 'unsaved staged rows offer no sharing or add-to action' ($null -eq (MenuItemByName 'שיתוף לסביבה אחרת') -and $null -eq (MenuItemByName 'הוסף ל...')) ''
+  Shot 'side-by-side-staged-menu'
+  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'folder at its group edge'); Start-Sleep -Milliseconds 600
+  Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
+  $before = @(StagedNames)
+  $btns = @(StagedActionBtns); Assert 'three staged action buttons' ($btns.Count -eq 3) "$($btns.Count)"
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
+  Assert 'פתח באמצעות hidden on a program item (it is the program)' ($null -eq (MenuItemByName 'פתח באמצעות')) ''
+  $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'program move down'); Start-Sleep -Milliseconds 700
+  $after = @(StagedNames)
+  Assert 'הזז למטה swaps within the Programs group only' ($after.Count -eq 3 -and $after[0] -eq $before[0] -and $after[1] -eq $before[2] -and $after[2] -eq $before[1]) ($after -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'עריכת כתובת'; [void](InvokeEl $mi 'staged address edit entry'); Start-Sleep -Milliseconds 800
+  $addr = NamedEdit 'Full address'; $rowAddr = @(StagedAddrs)[2]
+  Assert 'address popup opened on the staged row with its full address' ($null -ne $addr -and (ValOf $addr) -eq $rowAddr) ("popup=$(ValOf $addr) row=$rowAddr")
+  Assert 'copy button inside the popup' ($null -ne (AnyByName 'Copy full address')) ''
+  SetText $addr 'C:\Windows\System32\notepad.exe'
+  $c = ClickBtn 'שמור' 900; Assert 'address saved on the staged row' ($c -eq 'ok') $c
+  Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address')
+  # clipboard read races on a loaded runner: poll up to 5s, and GetText itself can throw while the clipboard is held
+  $clipLen = 0; for ($ci = 0; $ci -lt 10 -and $clipLen -le 0; $ci++) { Start-Sleep -Milliseconds 500; try { $clipLen = [System.Windows.Forms.Clipboard]::GetText().Length } catch { $clipLen = 0 } }
+  Assert 'העתק כתובת on a staged row reports the copy' ($clipLen -gt 0) ((Texts) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
+  Assert 'מחיקה removes that staged row only' (@(StagedNames).Count -eq 2) ((StagedNames) -join ' | ')
+  $btns = @(StagedActionBtns)
+  [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
+  $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete other program'); Start-Sleep -Milliseconds 700
+  Assert 'second delete leaves the folder row only' (@(StagedNames).Count -eq 1 -and @(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged folder menu opened' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'פתח באמצעות'
+  Assert 'folder open-with remains visible and disabled' ($null -ne $mi -and -not $mi.Current.IsEnabled) ''
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  # Folder defaults cannot be edited. Selectable site/file defaults are covered independently.
+  OpenStagedEditor 'capfolder'
+  $folderOpener = NamedCombo 'Added item open with'
+  Assert 'folder inline open-with dropdown is disabled' ($null -ne $folderOpener -and -not $folderOpener.Current.IsEnabled) ''
+  Assert 'the source capture list is unchanged by all staged actions' ((Checks).Count -eq $rowCount -and $null -ne (CheckByLike '*capfolder*')) ("rows=$((Checks).Count) before=$rowCount")
+  # restore the tick state the duplicate flow below expects: only the saved folder ticked
+  $npRow2 = CheckByLike '*Notepad*'; [void](ToggleEl $npRow2 'notepad row untick'); Start-Sleep -Milliseconds 300
+  $termRow2 = CheckByLike '*Terminal*'; [void](ToggleEl $termRow2 'terminal row untick'); Start-Sleep -Milliseconds 300
+  $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row retick'); Start-Sleep -Milliseconds 400
+  Assert 'tick state restored for the duplicate flow: only the saved folder ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
+
+  $c = ClickBtn 'Capture save' 1200; Assert 'save clicked' ($c -eq 'ok') $c
+  # Require the exact saved instance in Cap B, not unrelated strings anywhere in the store.
+  # Assert and detail use the SAME accepted (or last failed) observation, with no second read.
+  $savedObservation = Wait-CaptureTextObservation -Read { StoreJson } -Accept {
+    param($json)
+    Test-CaptureSavedInstance $json 'Cap B' $capdir 'my capture folder' 'added from capture' ''
+  }
+  Assert 'after Save exact folder name and description persist without an opener' $savedObservation.Matched ("attempts=$($savedObservation.Attempts) elapsedMs=$($savedObservation.ElapsedMilliseconds) readError=$($savedObservation.ReadErrorType) snapshot=$($savedObservation.Value)")
+  Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
+  Assert 'staged area is empty again after Save' (@(StagedNames).Count -eq 0) ''
+  Shot 'side-by-side-after-save'
+
+  # 2c. REAL pointer drag/drop: stage by dragging from the capture list; the per-drag duplicate warning fires per drag
+  $storeBeforeDrag = StoreJson
+  DragRowToStage '*example.com*' 'site row'
+  $dragObservation = Wait-CaptureTextObservation -Read { ReadSingleStagedName } -Accept { param($value) $value -ceq 'example.com' }
+  Assert 'real drag stages the site with its default name' $dragObservation.Matched ("attempts=$($dragObservation.Attempts) elapsedMs=$($dragObservation.ElapsedMilliseconds) readError=$($dragObservation.ReadErrorType) snapshot=$($dragObservation.Value)")
+  Assert 'drag stages a normal row without opening editing' ((@(StagedNames) -join '|') -eq 'example.com' -and $null -eq (NamedEdit 'Added item name')) ''
+  OpenStagedEditor 'example.com'
+  Assert 'explicit editor retains the dragged default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
+  Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ComboValue (NamedCombo 'Added item open with')) -like '*Edge*') (ValOf (NamedEdit 'Added item open with'))
+  Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
+  Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
+  $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
+  Shot 'side-by-side-drag-staged'
+  $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
+  DragRowToStage '*capfolder*' 'saved folder row'
+  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
+  Shot 'drag-duplicate-warning'
+  $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
+  DragRowToStage '*capfolder*' 'saved folder row again'
+  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
+  $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a normal second instance' ($c -eq 'ok' -and (@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) $c
+  Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
+
+  # 3. duplicates: add the ticked folder again -> one grouped dialog
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected again' ($c -eq 'ok') $c
+  Assert 'grouped duplicate dialog shown' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'הוסף שוב: capfolder*')) ((CheckNames) -join ' | ')
+  Shot 'duplicate-dialog'
+  $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
+  Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
+  $dup = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
+  Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
+
+  # 4. back with unsaved staging -> guard; exit without saving keeps the snapshot; earlier save stays
+  $c = ClickBtn 'Capture back' 1000; Assert 'back clicked' ($c -eq 'ok') $c
+  Assert 'unsaved-changes dialog on back' (WaitText 'יש שינויים שלא נשמרו' 5) ((Texts) -join ' | ')
+  Shot 'back-unsaved-dialog'
+  $c = ClickBtn 'צא בלי לשמור' 1000; Assert 'exit without saving' ($c -eq 'ok') $c
+  Assert 'back at the workspace search with the capture list still there' ($null -ne (NamedEdit 'Capture workspace search') -and (Checks).Count -gt 0) ''
+  Assert 'the discarded duplicate was not saved (only the first save exists)' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
+
+  # 4a. שמור וצא: the unsaved guard's save path persists the staged row and returns to the search
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for save-and-exit' ($c -eq 'ok') $c
+  foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick all before save-and-exit'); Start-Sleep -Milliseconds 200 }
+  Assert 'nothing ticked before save-and-exit (tick state does not leak between sections)' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
+  $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'הוסף שוב: *')) ((CheckNames) -join ' | ')
+  $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
+  Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'יש שינויים שלא נשמרו' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
+  $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
+  Assert 'save-and-exit returns to the workspace search' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
+  $o = StoreObj
+  $npId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*notepad.exe' } | Select-Object -First 1).id
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'save-and-exit persisted the staged row to Cap B' (@($wsB.items | Where-Object { $_.itemId -eq $npId }).Count -eq 1) (StoreJson)
+  Shot 'save-and-exit-back-at-search'
+
+  # 4b. הוסף הכל for real: non-duplicates stage at once, ALL duplicates gather in ONE grouped dialog, nothing saved before the choice
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for add-all' ($c -eq 'ok') $c
+  foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick before add-all'); Start-Sleep -Milliseconds 200 }
+  Assert 'nothing ticked before add-all' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
+  $storeBeforeAll = StoreJson
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked' ($c -eq 'ok') $c
+  $stagedAll = @(StagedNames)
+  Assert 'add-all staged the non-duplicate terminal at once' ($stagedAll -contains 'Windows Terminal Host') ($stagedAll -join ' | ')
+  Assert 'duplicates not staged before the dialog choice' (($stagedAll -notcontains 'capfolder') -and ($stagedAll -notcontains 'Notepad')) ($stagedAll -join ' | ')
+  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'הוסף שוב: capfolder*')) -and ($null -ne (CheckByLike 'הוסף שוב: Notepad*'))) ((CheckNames) -join ' | ')
+  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'הוסף שוב: *Terminal*')) ((CheckNames) -join ' | ')
+  Assert 'add-all changed nothing in the store' ((StoreJson) -eq $storeBeforeAll) ''
+  Shot 'add-all-grouped-dialog'
+  $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip both duplicates' ($c -eq 'ok') $c
+  Assert 'non-duplicates stay staged after skipping' (@(StagedNames) -contains 'Windows Terminal Host') ((StagedNames) -join ' | ')
+  foreach ($sn in @(StagedNames)) { $c = ClickBtn "Remove added $sn" 800; Assert "remove staged $sn before the selective pass" ($c -eq 'ok') $c }
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
+  Assert 'grouped dialog again for the selective pass' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupF = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
+  $stagedNow = @(StagedRowRecords)
+  $foldersNow = @($stagedNow | Where-Object { $_.Address -like '*capfolder*' })
+  Assert 'the ticked duplicate staged, the unticked duplicate did not' ($foldersNow.Count -eq 1 -and -not @($stagedNow | Where-Object { $_.Address -like '*notepad.exe' })) (($stagedNow | ForEach-Object { $_.Address }) -join ' | ')
+  Assert 'the approved duplicate staged with the capture default name, not a local one' ($foldersNow.Count -eq 1 -and $foldersNow[0].Name -eq 'capfolder') (($foldersNow | ForEach-Object { $_.Name }) -join ' | ')
+  foreach ($sn in @(StagedNames | Where-Object { $_ -ne 'capfolder' })) { $c = ClickBtn "Remove added $sn" 800; Assert "remove non-folder staged $sn before the selective save" ($c -eq 'ok') $c }
+  Assert 'only the folder remains staged for the selective save' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  OpenStagedEditor 'capfolder'
+  SetText (NamedEdit 'Added item name') 'capfolder second'
+  $c = ClickBtn 'Capture save' 1500; Assert 'save the selective add' ($c -eq 'ok') $c
+  Assert 'the selective save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  $o = StoreObj
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $bFolderNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  Assert 'the approved duplicate saved as an independent second instance (own name, first untouched)' ($bFolderNames.Count -eq 2 -and $bFolderNames -contains 'my capture folder' -and $bFolderNames -contains 'capfolder second') ($bFolderNames -join ' | ')
+  Assert 'Cap B holds exactly the folder twice plus Notepad (no extra rows saved)' (@($wsB.items).Count -eq 3) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+
+  # 4c. between workspaces: no false warning when the address lives only elsewhere, both keep it, list identical across switches, exit-without-save keeps every save, re-add gets capture defaults
+  $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the selective save' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
+  SetText (NamedEdit 'Capture workspace search') 'Cap A'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap A' 1000; Assert 'picked Cap A' ($c -eq 'ok') $c
+  $namesBeforeSwitch = @(CheckNames)
+  DragRowToStage '*capfolder*' 'folder row into Cap A'
+  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'כבר קיים בסביבה' 2)) ((Texts) -join ' | ')
+  Shot '4c-after-drag-cap-a'
+  Assert 'the dragged folder staged in Cap A with the capture default name' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
+  $o = StoreObj
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $wsA = @($o.workspaces | Where-Object { $_.name -eq 'Cap A' })[0]
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'both workspaces now hold the captured folder as separate instances' ((@($wsA.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 1 -and (@($wsB.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 2) (StoreJson)
+  $storeBeforeDiscard = StoreJson
+  $npTick2 = CheckByLike '*Notepad*'; [void](ToggleEl $npTick2 'notepad tick for the discard test'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'notepad staged in Cap A for the discard test' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  $c = ClickBtn 'Capture back' 1000; Assert 'back with the staged notepad' ($c -eq 'ok') $c
+  $c = ClickBtn 'צא בלי לשמור' 1000; Assert 'exit without saving from Cap A' ($c -eq 'ok') $c
+  Assert 'exit without saving changed nothing: every earlier save in both workspaces intact' ((StoreJson) -eq $storeBeforeDiscard) (StoreJson)
+  $npUntick = CheckByLike '*Notepad*'; if ($npUntick -and (IsOn $npUntick)) { [void](ToggleEl $npUntick 'notepad untick after discard'); Start-Sleep -Milliseconds 300 }
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B again' ($c -eq 'ok') $c
+  Assert 'the capture list is identical after switching workspaces' ((@(CheckNames) -join '|') -eq ($namesBeforeSwitch -join '|')) ((CheckNames) -join ' | ')
+  $folderTick = CheckByLike '*capfolder*'; [void](ToggleEl $folderTick 'folder tick for re-add'); Start-Sleep -Milliseconds 400
+  $c = ClickBtn 'Add selected capture items' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
+  Assert 'duplicate dialog for the re-add' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupR = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
+  Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
+  $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
+  $folderUntick = CheckByLike '*capfolder*'; if ($folderUntick -and (IsOn $folderUntick)) { [void](ToggleEl $folderUntick 'folder untick after re-add'); Start-Sleep -Milliseconds 300 }
+  $c = ClickBtn 'Capture back' 1000
+  if (WaitText 'יש שינויים שלא נשמרו' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }
+  Assert 'back at the search for the reset flow' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
+
+  # 5. X resets; a new scan reflects what is open at that moment (Notepad closed first)
+  $c = ClickBtn 'Close capture' 900; Assert 'X clicked' ($c -eq 'ok') $c
+  Assert 'capture screen closed' (-not (CaptureShown 2)) ''
+  Assert 'capture list was cleared on close' ((Checks).Count -eq 0) ''
+  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  # back to three tabs so the details rescan re-proves background-tab detection
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
+  $edge = $null; try { $edge = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--hide-crash-restore-bubble', 'https://example.com/', 'https://example.org/', 'https://example.net/' -PassThru } catch { Info 'edge relaunch (three tabs)' "$_" }
+  Start-Sleep -Seconds 4
+  Assert 'edge relaunched with three tabs for the details rescan' ($null -ne (Get-Process msedge -ErrorAction SilentlyContinue)) ''
+  # entry from the workspace details screen
+  $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details' ($c -eq 'ok') $c
+  Assert 'details screen shown' (DetailsShown 10) ''
+  $c = ClickBtn 'Add from open items' 1500; Assert 'add-from-open clicked' ($c -eq 'ok') $c
+  Assert 'goes straight to side by side for the current workspace' ((CaptureShown 10) -and $null -ne (Btn 'Capture save')) ((Texts) -join ' | ')
+  $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()
+  while ($swS.Elapsed.TotalMilliseconds -lt 2000) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
+  Info 'scanning state observed (details entry)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
+  Assert 'rescan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  Assert 'target workspace is Cap A' ((CaptureTargetText) -eq 'Cap A') (CaptureTargetText)
+  $names2 = CheckNames; Info 'detected rows (after closing Notepad)' ($names2 -join ' | ')
+  Assert 'REAL rescan: the closed Notepad is gone from the new scan' ($null -eq (CheckByLike '*Notepad*')) ($names2 -join ' | ')
+  Assert 'REAL rescan: the Explorer folder is still listed' ($null -ne (CheckByLike '*capfolder*')) ($names2 -join ' | ')
+  Assert 'ALL TABS (details rescan): background tab example.org still listed' ($null -ne (CheckByLike '*example.org*')) ($names2 -join ' | ')
+  $edgeRows = @($names2 | Where-Object { $_ -like '*example*' })
+  Info 'ALL TABS site detection (every Edge tab via address bar)' $(if ($edgeRows.Count -gt 0) { "detected: $($edgeRows -join ', ')" } else { 'no site row detected in this run' })
+  Shot 'add-from-open-details-entry'
+  $c = ClickBtn 'Capture back' 900; Assert 'back from details entry goes to the workspace search' ($c -eq 'ok' -and $null -ne (NamedEdit 'Capture workspace search')) $c
+  $c = ClickBtn 'Close capture' 900; Assert 'closed' ($c -eq 'ok') $c
+  # 5b. out-of-viewport staging: multi-tab capture stages more rows than the panel renders.
+  # Staged set, save and below-viewport removal are verified against the store, not the rendered rows.
+  $c = ClickBtn 'Back' 900; Assert 'back to overview for deep staging' ($c -eq 'ok') $c
+  $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep staging)' ($c -eq 'ok') $c
+  Assert 'capture screen shown (deep staging)' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'deep staging scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep staging' ($c -eq 'ok') $c
+  $storeBeforeDeep = StoreJson
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
+  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) -and $null -ne (CheckByLike 'הוסף שוב: capfolder*') -and $null -eq (CheckByLike 'הוסף שוב: *example*')) ((CheckNames) -join ' | ')
+  $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
+  $deepStaged = @(StagedAddrsDeep)
+  $expectDeep = @('*WindowsTerminal.exe*', '*example.com*', '*example.org*', '*example.net*')   # msedge.exe is excluded from every capture by the seeded global blacklist (approved 22.11)
+  $missingDeep = @(); foreach ($e in $expectDeep) { if (@($deepStaged | Where-Object { $_ -like $e }).Count -eq 0) { $missingDeep += $e } }
+  Assert 'deep staging: exactly the 4 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 4) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: msedge.exe excluded by the seeded global blacklist (approved 22.11)' (@($deepStaged | Where-Object { $_ -like '*msedge.exe*' }).Count -eq 0) ($deepStaged -join ' | ')
+  Assert 'deep staging: nothing saved before the choice' ((StoreJson) -eq $storeBeforeDeep) ''
+  Shot 'deep-staging-staged'
+  $c = ClickBtn 'Capture save' 1500; Assert 'deep staging save clicked' ($c -eq 'ok') $c
+  Assert 'deep staging: app reports saving all 4 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'deep staging: store holds the previous 3 plus exactly the 4 new in Cap B' (@($wsB.items).Count -eq 7) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  foreach ($ds in @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like 'https://example.*' })) {
+    $mem = @($wsB.items | Where-Object { $_.itemId -eq $ds.id })[0]
+    Assert "deep staging: staged site $($ds.target) kept its source browser (Edge) through the existing-workspace save" ($null -ne $mem -and $mem.launch.browser -like '*msedge.exe') ("browser=$($mem.launch.browser)")
+  }
+  foreach ($e in $expectDeep) { Assert "deep staging: $e saved exactly once to Cap B" ((WsCountByTarget $wsB $o $e) -eq 1) "count=$(WsCountByTarget $wsB $o $e)" }
+  Assert 'deep staging: every saved instance has a non-empty effective name (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
+  $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep save' ($c -eq 'ok') $c
+
+  # 5c. below-viewport removal: restage five duplicate rows, wheel to a row the panel does not render, remove it, save the rest
+  $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep removal)' ($c -eq 'ok') $c
+  Assert 'capture screen shown (deep removal)' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'deep removal scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+  SetText (NamedEdit 'Capture workspace search') 'Cap B'
+  Start-Sleep -Milliseconds 600
+  $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
+  Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  foreach ($cbx in @(UiaAll $CT::CheckBox | Where-Object { $_.Current.Name -like 'הוסף שוב:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the four ticked duplicates (deep removal)' ($c -eq 'ok') $c
+  $deep2 = @(StagedAddrsDeep)
+  Assert 'deep removal: four duplicate rows staged beyond the viewport' (($deep2.Count -eq 4) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
+  $removedNet = $false
+  for ($i = 0; $i -lt 20 -and -not $removedNet; $i++) {
+    $row = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq 'Toggle added example.net' -and -not $_.Edit.Current.IsOffscreen })
+    if ($row.Count -eq 1) { $removedNet = (RemoveStagedRow 'example.net' 600) -eq 'ok'; break }
+    ScrollStaged -360
+  }
+  Assert 'below-viewport staged row example.net realized and removed' $removedNet ''
+  $deep3 = @(StagedAddrsDeep)
+  Assert 'deep removal: staged set is the three kept rows' (($deep3.Count -eq 3) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
+  $c = ClickBtn 'Capture save' 1500; Assert 'deep removal save clicked' ($c -eq 'ok') $c
+  Assert 'deep removal: app reports saving the 3 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  Assert 'deep removal: Cap B holds exactly 10 rows after the kept three saved' (@($wsB.items).Count -eq 10) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
+  foreach ($e in @('*WindowsTerminal.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
+  Assert 'deep removal: the folder stayed at its two instances' ((WsCountByTarget $wsB $o '*capfolder*') -eq 2) "count=$(WsCountByTarget $wsB $o '*capfolder*')"
+  Assert 'deep removal: every instance effective name still non-empty (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
+  $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
+
+  # 6. instance independence across workspaces: renaming Cap A's instance never touches Cap B's
+  if (-not (DetailsShown 2)) { $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details (independence)' ($c -eq 'ok') $c; Assert 'Cap A details shown' (DetailsShown 10) '' }
+  $c = ClickBtn 'Edit item' 900; Assert 'edit Cap A folder instance' ($c -eq 'ok') $c
+  SetText (NamedEdit 'Edit item name') 'folder in A'
+  $c = ClickBtn 'Save item edit' 900; Assert 'Cap A instance rename saved' ($c -eq 'ok') $c
+  Assert 'renamed instance visible in Cap A' (WaitText 'folder in A' 10) ((Texts) -join ' | ')
+  $o = StoreObj
+  $capItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -like '*capfolder*' } | Select-Object -First 1).id
+  $wsA = @($o.workspaces | Where-Object { $_.name -eq 'Cap A' })[0]
+  $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
+  $aNames = @($wsA.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  $bNames = @($wsB.items | Where-Object { $_.itemId -eq $capItemId } | ForEach-Object { $_.name })
+  Assert 'editing the instance in Cap A changed only Cap A' (($aNames -contains 'folder in A') -and $bNames.Count -eq 2 -and ($bNames -contains 'my capture folder') -and ($bNames -contains 'capfolder second')) ("A: $($aNames -join '|') B: $($bNames -join '|')")
+  $c = ClickBtn 'Back' 900; Assert 'back to overview from Cap A' ($c -eq 'ok') $c
+  # 7. cross-browser engineering check: Chrome tabs detected by the same UIA scan (user asked for all browsers; free verification)
+  # Hardened fixture (PR19 CI run 43472682415: after the old fixed 6s wait the scan listed no Chrome rows;
+  # the preserved evidence does not say why): resolved executable + dedicated disposable profile; the window
+  # we wait for is identity-bound to THIS launch through the unique profile path in the process command line,
+  # which survives a launcher->browser process handoff. Readiness is polled and bounded, and requires BOTH
+  # fixture tabs with their actual URLs (each tab selected and read, then the original tab restored), so a
+  # failure here is fixture readiness evidence, not proof of app capture failure. A missing executable or a timeout
+  # is a hard failure with process/window diagnostics, never a skip and never an Edge substitute.
+  $chromeExe = $null
+  foreach ($cand in @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")) { if (-not $chromeExe -and (Test-Path $cand)) { $chromeExe = $cand } }
+  if (-not $chromeExe) { $gcm = Get-Command chrome.exe -ErrorAction SilentlyContinue; if ($gcm) { $chromeExe = $gcm.Source } }
+  if (-not $chromeExe) {
+    Assert 'CROSS-BROWSER: chrome executable resolved' $false 'chrome.exe not found in the standard install paths or on PATH; this gate requires Chrome (no skip, no Edge substitute)'
+  } else {
+    $chromeProfile = Join-Path $env:RUNNER_TEMP ('chrome-fixture-' + [Guid]::NewGuid().ToString('N'))
+    function ChromeFixturePids() { @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($chromeProfile) } | ForEach-Object { $_.ProcessId }) }
+    function ChromeFixtureWin() { $fpids = @(ChromeFixturePids); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $fpids -contains $_.Current.ProcessId -and $_.Current.ControlType -eq $CT::Window -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 } catch { $false } } | Select-Object -First 1) }
+    function ChromeWinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+    # Per-tab EXPECTED-authority proof: the fixture is controlled - exactly two tabs in launched URL order.
+    # Chrome's omnibox may hide the trivial www subdomain (Chromium url_display_guidelines), so each tab
+    # accepts exactly its own fixture authority PAIR by exact equality - never substring, never a generic
+    # www-strip: a stale omnibox value from the other tab (or any foreign host) is never in this tab's set.
+    # A host counts only after two consecutive EQUAL reads taken while this same tab stays selected,
+    # re-confirming the selection at accept time. A visit never proves from another visit's reads: $stable
+    # is local, so switching away and back restarts the two-read proof for this tab.
+    function ChromeTabExpectHost($w, $t, $allowedHosts, $tabIndex, $sliceDeadline) {
+      try { $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() } catch { return $false }
+      $stable = ''
+      while ((Get-Date) -lt $sliceDeadline) {
+        $sel = $false; try { $sel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+        if (-not $sel) { $stable = ''; Start-Sleep -Milliseconds 150; continue }
+        $raw = ChromeWinUrl $w
+        $script:tabLastRaw[$tabIndex] = $raw
+        $h = OmniboxHost $raw
+        $script:tabLastHosts[$tabIndex] = $h
+        $script:tabReads[$tabIndex]++
+        if ($allowedHosts -notcontains $h) { $stable = ''; Start-Sleep -Milliseconds 200; continue }
+        if ($stable -eq $h) {
+          $stillSel = $false; try { $stillSel = $t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } catch { }
+          if ($stillSel) { return $true }
+          $stable = ''
+        } else { $stable = $h; Start-Sleep -Milliseconds 200 }
+      }
+      return $false
+    }
+    $chrome = $null; $chromeLaunchErr = ''
+    try { $chrome = Start-Process $chromeExe -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$chromeProfile", 'https://example.com/', 'https://www.iana.org/help/example-domains', 'https://www.rfc-editor.org/' -PassThru } catch { $chromeLaunchErr = "$_" }
+    if (-not $chrome) {
+      Assert 'CROSS-BROWSER: chrome launch' $false "Start-Process $chromeExe failed: $chromeLaunchErr"
+    } else {
+      Info 'chrome fixture launched' "exe=$chromeExe pid=$($chrome.Id) profile=$chromeProfile"
+      $expectedHosts = @(@('example.com', 'www.example.com'), @('iana.org', 'www.iana.org'), @('rfc-editor.org', 'www.rfc-editor.org'))   # launched URL order => tab strip order; per-tab exact authority pairs (the omnibox may hide www)
+      $script:tabLastHosts = @('', '', '')
+      $script:tabLastRaw = @('', '', ''); $script:tabReads = @(0, 0, 0); $tabAttempts = @(0, 0, 0)
+      $cw = $null; $curl = ''; $csawWin = $false; $csawTabs = 0; $tabTitles = ''; $tooMany = $false
+      $chromeReadinessClock = [Diagnostics.Stopwatch]::StartNew()
+      $chromeReadinessHistory = New-Object System.Collections.ArrayList
+      $originalChromeTab = $null; $originalChromeHwnd = 0; $restoreVerifiedC = $false
+      $deadlineC = (Get-Date).AddSeconds(20)   # one shared deadline covers the window wait AND every per-tab proof
+      while ((Get-Date) -lt $deadlineC -and -not $cw -and -not $tooMany) {
+        TracePhase 'chrome-window-lookup-start'
+        $ownedAtSample = @(ChromeFixturePids)
+        $nativeAtSample = Get-CaptureFixtureNativeSnapshot -OwnedPids $ownedAtSample
+        $w = ChromeFixtureWin
+        if ($chromeReadinessHistory.Count -lt 64) {
+          [void]$chromeReadinessHistory.Add([ordered]@{ elapsedMs=$chromeReadinessClock.ElapsedMilliseconds; profilePids=$ownedAtSample;
+            native=$nativeAtSample; acceptedUiaRootPresent=($null -ne $w) })
+        }
+        TracePhase 'chrome-window-lookup-end'
+        if ($w) {
+          $csawWin = $true
+          TracePhase 'chrome-tab-enumeration-start'
+          $tabs = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::TabItem))))
+          TracePhase 'chrome-tab-enumeration-end'
+          if ($tabs.Count -gt $csawTabs) { $csawTabs = $tabs.Count }
+          $tabTitles = (@($tabs | ForEach-Object { try { $_.Current.Name } catch { '?' } }) -join ' | ')
+          TracePhase 'chrome-title-reads-end'
+          if ($tabs.Count -gt 3) { $tooMany = $true; break }   # controlled fixture: never broaden acceptance
+          if ($tabs.Count -eq 3) {
+            TracePhase 'chrome-original-selection-start'
+            # Bind before ANY selection and never silently re-baseline to a later selected tab/window.
+            if ($null -eq $originalChromeTab) {
+              foreach ($t in $tabs) { try { if ($t.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { $originalChromeTab = $t } } catch { } }
+              if ($originalChromeTab) { $originalChromeHwnd = $w.Current.NativeWindowHandle }
+            }
+            if ($null -eq $originalChromeTab -or $w.Current.NativeWindowHandle -ne $originalChromeHwnd) { break }
+            $origTab = $originalChromeTab
+            TracePhase 'chrome-original-selection-end'
+            try {
+              # Round-robin short per-tab slices under the one shared 20s deadline: a mismatching tab can no
+              # longer consume the whole budget before the other tab is ever read (run 43490152034 starved tab1).
+              $ok = @($false, $false, $false)
+              while ((Get-Date) -lt $deadlineC -and -not ($ok[0] -and $ok[1] -and $ok[2])) {
+                foreach ($ti in 0..2) {
+                  if ($ok[$ti] -or (Get-Date) -ge $deadlineC) { continue }
+                  TracePhase 'chrome-per-tab-proof-start'
+                  $tabAttempts[$ti]++
+                  $slice = (Get-Date).AddSeconds(3); if ($slice -gt $deadlineC) { $slice = $deadlineC }
+                  $ok[$ti] = ChromeTabExpectHost $w $tabs[$ti] $expectedHosts[$ti] $ti $slice
+                }
+              }
+            } finally {
+              $restoreVerifiedC = $false
+              try {
+                $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+                while ((Get-Date) -lt $deadlineC) {
+                  $restoreVerifiedC = $origTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+                  if ($restoreVerifiedC) { break }
+                  Start-Sleep -Milliseconds 50
+                }
+              } catch { $restoreVerifiedC = $false }
+            }
+            $curl = "tab0=$($script:tabLastHosts[0]) tab1=$($script:tabLastHosts[1]) tab2=$($script:tabLastHosts[2]) attempts=$($tabAttempts[0])/$($tabAttempts[1])/$($tabAttempts[2]) reads=$($script:tabReads[0])/$($script:tabReads[1])/$($script:tabReads[2]) raw0='$($script:tabLastRaw[0])' raw1='$($script:tabLastRaw[1])' raw2='$($script:tabLastRaw[2])'"
+            if ($ok[0] -and $ok[1] -and $ok[2] -and $restoreVerifiedC) { $cw = $w; break }
+          }
+        }
+        Start-Sleep -Milliseconds 400
+      }
+      $chromeReadinessHistory.ToArray() | ConvertTo-Json -Depth 8 | Out-File -Encoding utf8 'diag/chrome-fixture-readiness-history.json'
+      if ($tooMany) {
+        Assert 'CROSS-BROWSER: exactly the three launched fixture tabs in launch order' $false "found $csawTabs tabs: $tabTitles"
+      } elseif (-not $cw) {
+        $procDiag = (@(ChromeFixturePids | ForEach-Object { "pid=$_" }) -join ',')
+        $launchState = ''; try { $launchState = "launchedHasExited=$($chrome.HasExited)"; if ($chrome.HasExited) { $launchState += " exitCode=$($chrome.ExitCode)" } } catch { $launchState = "launchedStateError=$_" }
+        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $false "$launchState windowSeen=$csawWin maxTabs=$csawTabs restoreVerified=$restoreVerifiedC tabTitles='$tabTitles' lastHosts='$curl' fixturePids=[$procDiag]"
+        # Failure-only, fixture-profile-bound metadata. No titles, unrelated process metadata or pixels.
+        # UIA/CIM run in a disposable child; parent waits at most 5s for collection, then terminates it.
+        # Explicit waits total at most 5s + 0.5s + 0.5s retry; OS launch/kill/filesystem are not bounded.
+        $diagnosticWorker = $null; $diagnosticOutcome = 'not-started'
+        $diagnosticPath = Join-Path $PWD 'diag/chrome-fixture-readiness-failure.json'
+        $workerPath = $null
+        $workerStopped = $false
+        $workerCode = @'
+$ErrorActionPreference = 'Stop'
+try {
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  $profile = '__PROFILE__'; $output = '__OUTPUT__'
+  . '__NATIVE_HELPER__'
+  $owned = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -OperationTimeoutSec 2 |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) } | Select-Object -First 20 |
+    ForEach-Object { [ordered]@{ pid = $_.ProcessId; parentPid = $_.ParentProcessId } })
+  $ids = @($owned | ForEach-Object { $_.pid })
+  $native = Get-CaptureFixtureNativeSnapshot -OwnedPids $ids
+  $fromHandles = New-Object System.Collections.ArrayList
+  $windows = New-Object System.Collections.ArrayList
+  $errors = New-Object System.Collections.ArrayList
+  $A = [System.Windows.Automation.AutomationElement]
+  $roots = $A::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $roots) {
+    try {
+      $pidOfWindow = $window.Current.ProcessId
+      if ($ids -notcontains $pidOfWindow) { continue }
+      if ($windows.Count -ge 20) { break }
+      $wc = $window.Current
+      [void]$windows.Add([ordered]@{ pid = $pidOfWindow; hwnd = $wc.NativeWindowHandle;
+        isWindow = ($wc.ControlType -eq [System.Windows.Automation.ControlType]::Window);
+        offscreen = $wc.IsOffscreen; rect = "$($wc.BoundingRectangle)";
+        positiveArea = ($wc.BoundingRectangle.Width -gt 0 -and $wc.BoundingRectangle.Height -gt 0) })
+    } catch { if ($errors.Count -lt 5) { [void]$errors.Add($_.Exception.GetType().Name) } }
+  }
+  foreach ($nativeWindow in $native.Windows) {
+    try {
+      # Revalidate both ownership and HWND/PID immediately before reading UIA.FromHandle.
+      $nowOwned = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" -OperationTimeoutSec 2 |
+        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) } | ForEach-Object { $_.ProcessId })
+      $nowNative = Get-CaptureFixtureNativeSnapshot -OwnedPids $nowOwned
+      $same = @($nowNative.Windows | Where-Object { Test-CaptureFixtureWindowIdentity $nativeWindow.Hwnd $nativeWindow.Pid $nowOwned $_.Hwnd $_.Pid })
+      if ($same.Count -ne 1) { [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='identity-changed' }); continue }
+      $element = $A::FromHandle([IntPtr]$nativeWindow.Hwnd)
+      $current = $element.Current
+      $identityMatches = Test-CaptureFixtureWindowIdentity $nativeWindow.Hwnd $nativeWindow.Pid $nowOwned $current.NativeWindowHandle $current.ProcessId
+      [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='read'; identityMatches=$identityMatches;
+        uiaPid=$current.ProcessId; uiaHwnd=$current.NativeWindowHandle; isWindow=($current.ControlType -eq [System.Windows.Automation.ControlType]::Window);
+        offscreen=$current.IsOffscreen; positiveArea=($current.BoundingRectangle.Width -gt 0 -and $current.BoundingRectangle.Height -gt 0) })
+    } catch { [void]$fromHandles.Add([ordered]@{ hwnd=$nativeWindow.Hwnd; pid=$nativeWindow.Pid; status='read-error'; errorType=$_.Exception.GetType().Name }) }
+  }
+  [ordered]@{ status = 'collected'; fixtureProcesses = $owned; fixtureWindows = $windows.ToArray(); native=$native; uiaFromHandles=$fromHandles.ToArray();
+    readErrors = $errors.ToArray(); maxProcesses = 20; maxWindows = 20; maxErrors = 5; processCapReached = ($owned.Count -eq 20); windowCapReached = ($windows.Count -eq 20);
+    scope = 'Failure-time fixture-profile snapshot only. Native EnumWindows and UIA-root/FromHandle observations are distinct. No titles, raw command lines or screenshots.' } |
+    ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 $output
+} catch {
+  [ordered]@{ status = 'worker-error'; errorType = $_.Exception.GetType().Name } |
+    ConvertTo-Json | Out-File -Encoding utf8 '__OUTPUT__'
+}
+'@
+        try {
+          # Fail closed before process creation. Require existing, distinct, non-reparse directories.
+          # Disallow either directory being an ancestor of the other, not only diag/out-images.
+          $safeTemp = $false; $diagnosticOutcome = 'skipped-temp-path-unverified'
+          if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) { $diagnosticOutcome = 'skipped-temp-missing' }
+          else {
+            $tempDir = Get-Item -LiteralPath $env:RUNNER_TEMP -Force -ErrorAction Stop
+            $workDir = Get-Item -LiteralPath $PWD.ProviderPath -Force -ErrorAction Stop
+            if (-not $tempDir.PSIsContainer -or -not $workDir.PSIsContainer -or
+                $tempDir.PSProvider.Name -ne 'FileSystem' -or $workDir.PSProvider.Name -ne 'FileSystem') {
+              $diagnosticOutcome = 'skipped-temp-or-workspace-not-filesystem-directory'
+            } else {
+              $pathLinks = $false
+              foreach ($directory in @($tempDir, $workDir)) {
+                for ($ancestor = $directory; $null -ne $ancestor; $ancestor = $ancestor.Parent) {
+                  if (($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $pathLinks = $true; break }
+                }
+              }
+              $tempRoot = [IO.Path]::GetFullPath($tempDir.FullName).TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+              $workRoot = [IO.Path]::GetFullPath($workDir.FullName).TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+              if ($pathLinks) { $diagnosticOutcome = 'skipped-temp-or-workspace-reparse-path' }
+              elseif ($tempRoot.StartsWith($workRoot, [StringComparison]::OrdinalIgnoreCase) -or
+                      $workRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                $diagnosticOutcome = 'skipped-temp-workspace-overlap'
+              } else { $safeTemp = $true }
+            }
+          }
+          if ($safeTemp) {
+            $workerPath = Join-Path $tempRoot ('chrome-failure-' + [Guid]::NewGuid().ToString('N') + '.json')
+            $workerCode = $workerCode.Replace('__PROFILE__', $chromeProfile.Replace("'", "''")).Replace('__OUTPUT__', $workerPath.Replace("'", "''")).Replace('__NATIVE_HELPER__', (Join-Path $PSScriptRoot 'chrome-fixture-observation.ps1').Replace("'", "''"))
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = (Join-Path $PSHOME 'pwsh.exe')
+            $startInfo.UseShellExecute = $false; $startInfo.CreateNoWindow = $true
+            $startInfo.ArgumentList.Add('-NoProfile'); $startInfo.ArgumentList.Add('-NonInteractive')
+            $startInfo.ArgumentList.Add('-EncodedCommand')
+            $startInfo.ArgumentList.Add([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($workerCode)))
+            $diagnosticWorker = [System.Diagnostics.Process]::Start($startInfo)
+            $workerStopped = $diagnosticWorker.WaitForExit(5000)
+            if ($workerStopped) { $diagnosticOutcome = "exited-$($diagnosticWorker.ExitCode)" }
+            else {
+              $diagnosticOutcome = 'collection-timeout'
+              $diagnosticWorker.Kill($true)
+              $workerStopped = $diagnosticWorker.WaitForExit(500)
+            }
+          }
+        } catch { $diagnosticOutcome = 'skipped-or-parent-error-' + $_.Exception.GetType().Name }
+        finally {
+          if ($diagnosticWorker) {
+            try {
+              if (-not $workerStopped) {
+                if (-not $diagnosticWorker.HasExited) { $diagnosticWorker.Kill($true) }
+                $workerStopped = $diagnosticWorker.WaitForExit(500)
+              }
+              # A successful Kill or Dispose is not proof of termination.
+              $workerStopped = $workerStopped -or $diagnosticWorker.HasExited
+            } catch { $workerStopped = $false }
+            finally { try { $diagnosticWorker.Dispose() } catch { $diagnosticOutcome += '-dispose-error' } }
+            if (-not $workerStopped) { $diagnosticOutcome += '-termination-unconfirmed' }
+          }
+        }
+        # A survivor can write only to a unique runner-temp path, never diag/ or upload paths.
+        # Promotion requires confirmed exit, parseable JSON and an explicit worker status.
+        try {
+          if ($workerStopped -and $diagnosticOutcome -eq 'exited-0') {
+            if (-not (Test-Path -LiteralPath $workerPath)) { $diagnosticOutcome = 'worker-artifact-missing' }
+            else {
+              $workerResult = Get-Content -LiteralPath $workerPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+              if ($workerResult.status -eq 'collected') {
+                Move-Item -LiteralPath $workerPath -Destination $diagnosticPath -Force -ErrorAction Stop
+                $diagnosticOutcome = 'collected-json-promoted'
+              } elseif ($workerResult.status -eq 'worker-error') {
+                Move-Item -LiteralPath $workerPath -Destination $diagnosticPath -Force -ErrorAction Stop
+                $diagnosticOutcome = 'worker-error-json-promoted'
+              } else { $diagnosticOutcome = 'worker-artifact-invalid-status' }
+            }
+          }
+        } catch { $diagnosticOutcome = 'worker-artifact-read-or-promote-error-' + $_.Exception.GetType().Name }
+        finally {
+          if ($workerPath -and ($workerStopped -or -not $diagnosticWorker)) {
+            try { Remove-Item -LiteralPath $workerPath -Force -ErrorAction Stop }
+            catch { if (Test-Path -LiteralPath $workerPath) { $diagnosticOutcome += '-partial-cleanup-error' } }
+          }
+        }
+        Info 'chrome fixture failure metadata collection' $diagnosticOutcome
+      } else {
+        Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
+        Assert 'CROSS-BROWSER: original fixture tab restored and verified before product scan' $restoreVerifiedC "hwnd=$originalChromeHwnd"
+        $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
+        Assert 'capture screen shown (chrome check)' (CaptureShown 10) ((Texts) -join ' | ')
+        Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+        $cnames = CheckNames
+        Info 'detected rows (chrome check)' ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab iana.org is listed with its browser label' ($null -ne (CheckByLike '*iana.org*(Chrome)*')) ($cnames -join ' | ')
+        Assert 'CROSS-BROWSER: Chrome window tab rfc-editor.org is listed with its browser label' ($null -ne (CheckByLike '*rfc-editor.org*(Chrome)*')) ($cnames -join ' | ')
+        # Owner decision Nov 14: the same site open in two browsers is TWO choices, each named with its browser, so the
+        # user picks - the software never picks a browser by scan order. The still-open Edge window (deep-staging
+        # relaunch, example.com) and this Chrome fixture (example.com tab 0) make exactly one row per browser.
+        $exChoices = @($cnames | Where-Object { $_ -like 'Select example.com (*)' })
+        Assert 'TWO-CHOICE: example.com appears exactly twice, one row per browser' ($exChoices.Count -eq 2) ($cnames -join ' | ')
+        Assert 'TWO-CHOICE: the two rows are labeled (Edge) and (Chrome)' (($exChoices -contains 'Select example.com (Edge)') -and ($exChoices -contains 'Select example.com (Chrome)')) ($exChoices -join ' | ')
+        Shot 'chrome-check-scan'
+        foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick all before the chrome retention create'); Start-Sleep -Milliseconds 150 }
+        $chromeChoice = CheckByLike 'Select example.com (Chrome)'; Assert 'TWO-CHOICE: the (Chrome) example.com row is uniquely addressable' ($null -ne $chromeChoice) ($cnames -join ' | ')
+        [void](ToggleEl $chromeChoice 'the user picks the Chrome choice'); Start-Sleep -Milliseconds 300
+        Assert 'chrome retention: exactly the (Chrome) example.com row ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
+        SetText (NamedEdit 'Capture workspace name') 'chrome ws'
+        $c = ClickBtn 'Create workspace from capture' 1200; Assert 'chrome retention create clicked' ($c -eq 'ok') $c
+        Assert 'chrome retention workspace opened in details' (DetailsShown 15) ((Texts) -join ' | ')
+        $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
+        $ianaId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
+        $chromeMems = @($wsChrome.items | Where-Object { $_.itemId -eq $ianaId })
+        Assert 'TWO-CHOICE create: exactly one example.com instance was saved (only the picked choice)' ($chromeMems.Count -eq 1) "count=$($chromeMems.Count)"
+        Assert 'CROSS-BROWSER: the picked (Chrome) example.com keeps the exact chrome.exe path as its default browser through create' ($chromeMems.Count -eq 1 -and $chromeMems[0].launch.browser -eq $chromeExe) ("browser=$($chromeMems[0].launch.browser) expected=$chromeExe")
+        Shot 'chrome-retention-created'
+        $c = ClickBtn 'Back' 900; Assert 'back to overview after the chrome retention create' ($c -eq 'ok') $c
+
+        # DUP-2BROWSER (P2 regression, Trello ObGZE66t): same site in two browsers inside the duplicate picker of an EXISTING
+        # workspace. Duplicate identity stays Type+Target (settled; owner Nov14 20:35) - the fix under test is that both
+        # 'Add again' choices carry their browser name, and the ticked (Chrome) choice is the instance actually added.
+        # Both fixtures are still alive here (Edge example.com + Chrome example.com); chrome ws holds example.com (Chrome).
+        $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'dup two-browser scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+        SetText (NamedEdit 'Capture workspace search') 'chrome ws'
+        Start-Sleep -Milliseconds 600
+        $c = ClickBtn 'Pick workspace chrome ws' 1000; Assert 'picked chrome ws for the dup two-browser pass' ($c -eq 'ok') $c
+        Assert 'dup pass: rows start unticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
+        $edgeRow = CheckByLike 'Select example.com (Edge)'; Assert 'DUP-2BROWSER: the (Edge) example.com row is listed' ($null -ne $edgeRow) ((CheckNames) -join ' | ')
+        $chromeRow2 = CheckByLike 'Select example.com (Chrome)'; Assert 'DUP-2BROWSER: the (Chrome) example.com row is listed' ($null -ne $chromeRow2) ((CheckNames) -join ' | ')
+        [void](ToggleEl $edgeRow 'tick the (Edge) row for the selective add'); Start-Sleep -Milliseconds 200
+        [void](ToggleEl $chromeRow2 'tick the (Chrome) row for the selective add'); Start-Sleep -Milliseconds 300
+        $c = ClickBtn 'Add selected capture items' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'הוסף שוב: example.com*(Edge)')) -and ($null -ne (CheckByLike 'הוסף שוב: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Shot 'dup-two-browser-choices'
+        $chromeDup = CheckByLike 'הוסף שוב: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
+        $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
+        Assert 'DUP-2BROWSER: exactly the Chrome duplicate staged' ((@(StagedNames) -join '|') -eq 'example.com') ((StagedNames) -join ' | ')
+        $c = ClickBtn 'Capture save' 1500; Assert 'save the Chrome duplicate (dup two-browser)' ($c -eq 'ok') $c
+        Assert 'the dup save saved exactly one row' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+        $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
+        $exampleId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
+        $exampleMems = @($wsChrome.items | Where-Object { $_.itemId -eq $exampleId })
+        Assert 'DUP-2BROWSER: chrome ws holds exactly two example.com instances (first + approved duplicate)' ($exampleMems.Count -eq 2) "count=$($exampleMems.Count)"
+        Assert 'DUP-2BROWSER: the approved duplicate kept the Chrome browser (both instances chrome.exe, none Edge)' (($exampleMems.Count -eq 2) -and (@($exampleMems | Where-Object { $_.launch.browser -ne $chromeExe })).Count -eq 0) ((@($exampleMems | ForEach-Object { $_.launch.browser })) -join ' | ')
+        Assert 'DUP-2BROWSER: no non-example rows saved by the dup pass' (@($wsChrome.items).Count -eq 2) ((@($wsChrome.items | ForEach-Object { $_.name })) -join ' | ')
+        $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the dup save' ($c -eq 'ok') $c
+        $c = ClickBtn 'Close capture' 900; Assert 'capture closed after the dup two-browser pass' ($c -eq 'ok') $c
+        if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (dup two-browser)' ($c -eq 'ok') $c }
+      }
+      foreach ($pidF in @(ChromeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }
+      Remove-Item $chromeProfile -Recurse -Force -ErrorAction SilentlyContinue
+    }
+  }
+
+  # 8. localized browser UI: Edge with Hebrew UI must still be detected (locale-independent omnibox lookup; the accessible Name is localized, the class name is not)
+  $edgeHe = $null; try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $edgeHe = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', '--lang=he', "--user-data-dir=$env:RUNNER_TEMP\edge-he-profile", 'https://example.com/' -PassThru } catch { Info 'edge-he start' "$_" }
+  if ($edgeHe) {
+    Start-Sleep -Seconds 7
+    try {
+      $heWin = $A::RootElement.FindFirst($TS::Children, (New-Object $PC($A::ProcessIdProperty, $edgeHe.Id)))
+      if ($heWin) { $heEdits = @($heWin.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | ForEach-Object { $_.Current.Name + ' [' + $_.Current.ClassName + ']' }); Info 'edge-he edit controls (proves whether the UI localized)' ($heEdits -join ' | ') }
+    } catch { Info 'edge-he UIA read' "$_" }
+    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (locale check)' ($c -eq 'ok') $c
+    Assert 'capture screen shown (locale check)' (CaptureShown 10) ((Texts) -join ' | ')
+    Assert 'locale-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
+    $lnames = CheckNames
+    Info 'detected rows (locale check)' ($lnames -join ' | ')
+    Assert 'LOCALE: Hebrew-UI Edge tab example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($lnames -join ' | ')
+    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after locale check' ($c -eq 'ok') $c
+    if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (locale check)' ($c -eq 'ok') $c }
+    Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  } else {
+    Info 'LOCALE: edge-he could not start' 'skipped'
+  }
+  # 9. multi-window scan (settled spec: סריקה של מה שפתוח - אין הגבלה לחלון אחד; EnumWindows path in product code).
+  # Sequential: window A fully ready (its own fixture URL visible in ITS omnibox) before B launches on the same profile (avoids the profile lock race).
+  # Missing/duplicate window is a HARD failure, not a skip. Readiness via bounded condition loops only.
+  try { Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 } catch { Info 'multi-window pre-clean' "$_" }
+  function EdgeWins() { $pids = @((Get-Process msedge -ErrorAction SilentlyContinue).Id); @($A::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { try { $pids -contains $_.Current.ProcessId -and $_.Current.ClassName -like 'Chrome_WidgetWin*' -and -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 } catch { $false } }) }
+  function WinUrl($w) { $e = @($w.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | Where-Object { $_.Current.ClassName -like '*OmniboxViewViews' } | Select-Object -First 1); if ($e) { ValOf $e } else { '' } }
+  try { $null = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\edge-mw-profile", 'https://example.com/' } catch { Info 'multi-window start A' "$_" }
+  $wA = $null; $urlA = ''; $swA = [Diagnostics.Stopwatch]::StartNew()
+  while ($swA.Elapsed.TotalSeconds -lt 20 -and $null -eq $wA) { foreach ($w in @(EdgeWins)) { $u = WinUrl $w; if ($u -like '*example.com*') { $wA = $w; $urlA = $u; break } }; if ($null -eq $wA) { Start-Sleep -Milliseconds 500 } }
+  Assert 'MULTI-WINDOW: window A present showing its own fixture URL' ($null -ne $wA) ("urlA='$urlA' after $($swA.Elapsed.TotalSeconds.ToString('0.0'))s")
+  $wB = $null; $urlB = ''; $hA = 0
+  if ($wA) {
+    $hA = $wA.Current.NativeWindowHandle
+    try { $null = Start-Process msedge -ArgumentList '--new-window', '--no-first-run', '--no-default-browser-check', "--user-data-dir=$env:RUNNER_TEMP\edge-mw-profile", 'https://www.iana.org/help/example-domains' } catch { Info 'multi-window start B' "$_" }
+    $swB = [Diagnostics.Stopwatch]::StartNew()
+    while ($swB.Elapsed.TotalSeconds -lt 20 -and $null -eq $wB) { foreach ($w in @(EdgeWins)) { if ($w.Current.NativeWindowHandle -ne $hA) { $u = WinUrl $w; if ($u -like '*iana.org*') { $wB = $w; $urlB = $u; break } } }; if ($null -eq $wB) { Start-Sleep -Milliseconds 500 } }
+    Assert 'MULTI-WINDOW: second DISTINCT window present showing its own fixture URL (hard gate)' ($null -ne $wB) ("urlB='$urlB' after $($swB.Elapsed.TotalSeconds.ToString('0.0'))s")
+  }
+  if ($wA -and $wB) {
+    $hB = $wB.Current.NativeWindowHandle
+    Assert 'MULTI-WINDOW: distinct window runtime handles' ($hA -ne 0 -and $hB -ne 0 -and $hA -ne $hB) ("hA=$hA hB=$hB")
+    Info 'MULTI-WINDOW: per-window fixture URLs' ("hA=$hA url='$urlA' | hB=$hB url='$urlB'")
+    $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (multi-window)' ($c -eq 'ok') $c
+    Assert 'capture screen shown (multi-window)' (CaptureShown 10) ((Texts) -join ' | ')
+    Assert 'multi-window scan finished' (WaitGone 'סורק' 40) ((Texts) -join ' | ')
+    $mnames = CheckNames
+    Info 'detected rows (multi-window)' ($mnames -join ' | ')
+    Assert 'MULTI-WINDOW: window-A tab example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($mnames -join ' | ')
+    Assert 'MULTI-WINDOW: window-B tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($mnames -join ' | ')
+    Shot 'multi-window-scan'
+    $c = ClickBtn 'Close capture' 900; Assert 'capture closed after multi-window' ($c -eq 'ok') $c
+    if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (multi-window)' ($c -eq 'ok') $c }
+  }
+  Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA
+}
+catch { $il = $_.InvocationInfo; "script error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Tee-Object -Append diag/errors.txt; [void]$results.Add([ordered]@{ name = 'script error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }); DumpState 'script-error' }
+finally {
+  $results | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json
+  # crash evidence from the app's CrashLogger (diagnostic): present only when the app died this run
+  $crashLog = Join-Path $storeDir 'crash.log'
+  if (Test-Path $crashLog) { Copy-Item $crashLog diag/app-crash.log -Force; 'app crash log captured into diag/app-crash.log' | Out-File -Append diag/errors.txt }
+  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  foreach ($pidF in @(EdgeFixturePids | Where-Object { $_ -ne $null })) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }   # fixture-profile-scoped cleanup, independent of the launcher process state (it may have handed off); null-guarded - a null -Id is a terminating binder error -ErrorAction cannot suppress
+  if ($edgeProfile) { Remove-Item $edgeProfile -Recurse -Force -ErrorAction SilentlyContinue }
+  if ($p -and -not $p.HasExited) { $null = $p.CloseMainWindow(); Start-Sleep 3; if (-not $p.HasExited) { $p.Kill() } }
+}
+if (@($results | Where-Object { $_.ok -eq $false }).Count -gt 0) { 'CAPTURE UI ASSERTIONS FAILED' | Out-File -Append diag/errors.txt; exit 1 }
+}
+catch { $il = $_.InvocationInfo; "capture harness setup error: $_ at line $($il.ScriptLineNumber): $($il.Line.Trim())" | Out-File -Append diag/errors.txt; $prior = @($results); $prior += [ordered]@{ name = 'capture harness setup error'; ok = $false; detail = "$_ at line $($il.ScriptLineNumber)" }; @($prior) | ConvertTo-Json -Depth 4 | Out-File diag/capture-assertions.json; exit 1 }   # evidence-preserving, current-run only: the harness failure is APPENDED to the IN-MEMORY current-run results (the same collection the finally serializes; initialized before the outer try) with exit 1 - a cleanup/setup crash stays an explicit failing outcome, current-run passing evidence is never erased, and a stale prior-run PASS/FLOW disk file can never be resurrected as this run's evidence (reviewer v13 finding)
