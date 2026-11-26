@@ -11,6 +11,7 @@ on:
     - feat/beta-installer-current
     - feat/installer-shared-icon
     - feat/installer-startup-opt-in
+    - review/installer-startup-edge-cases
     paths:
     - installer/**
     - .github/workflows/installer-windows.yml
