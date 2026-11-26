@@ -1,15 +1,14 @@
-<!DOCTYPE html>
-
-<html data-site-root=".." dir="ltr" lang="zh-Hans">
-<head>
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" rel="canonical"/>
-<meta content="Start-app：评估原型的用户指南，不是稳定版本。" name="description"/>
-<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
-<title>start app</title>
-<link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
-<link href="../styles.css" rel="stylesheet"/>
+<!doctype html>
+<html lang="zh-Hans" dir="ltr" data-site-root="..">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="canonical" href="https://my-sochen.github.io/Start-app/zh-Hans/docs.html" />
+    <meta name="description" content="Start-app：评估原型的用户指南，不是稳定版本。" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" />
+    <title>start app</title>
+    <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="stylesheet" href="../styles.css" />
 <link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
 <link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
 <link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
@@ -20,203 +19,187 @@
 <link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
 <link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
   </head>
-<body>
-<a class="skip" href="#main">跳至内容</a>
-<div class="pinned-top">
-<header>
-<a aria-label="Start-app, 主页" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
-<nav aria-label="主导航">
-<a aria-current="page" href="docs.html">用户指南</a><a href="index.html#download">下载</a>
-</nav>
-<details class="language-switch"><summary>语言</summary><nav aria-label="语言选择"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a aria-current="true" dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
-<div class="docs-jump">
-<a href="#toc">指南的章节</a><a href="#main">返回顶部 ↑</a>
-</div>
-</div>
-<main class="wrap" id="main">
-<div class="docs-intro">
-<p class="eyebrow">用户指南</p>
-<h1 tabindex="-1">指导 Start-app</h1>
-<p class="lead"> 一步一步：创建工作区、添加项目、捕获、启动和保存 - 使用应用程序的真实屏幕截图以及需要了解的重要限制。 </p>
-<p class="pill">评估原型，不是稳定版本</p>
-</div>
-<div class="doc-layout">
-<aside aria-label="目录" class="sidebar" tabindex="0" id="toc">
-<label for="doc-search">搜索指南的章节</label><input autocomplete="off" id="doc-search" placeholder="例如：保存或捕获" type="search"/>
-<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
-<nav aria-label="指南的章节">
-<a href="#about">这是什么 Start-app</a><a href="#install">系统和安装要求</a><a href="#main-screen">主屏幕：环境视图</a><a href="#create">创造新的工作环境</a><a href="#items">手动添加项目</a><a href="#capture">捕捉：扫描、选择和复制</a><a href="#edit">编辑环境和项目</a><a href="#launch">开通前启动环境及测试</a><a href="#limits">已知的限制</a><a href="#storage">保存和本地存储</a><a href="#privacy">简而言之，隐私</a><a href="#faq">常见问题</a>
-</nav>
-<p class="note">搜索是页面本地的。而不发送数据。</p>
-</aside>
-<div>
-<p class="no-results" hidden="" id="no-results"> 没有找到剧集。尝试其他单词或清除搜索。 </p>
-<section class="doc-section" data-doc="" id="about">
-<span class="doc-kicker">开始</span>
-<h2>这是什么 Start-app</h2>
-<p> Start-app 将程序、文件夹、文件和链接保存在一个环境名称下。下次打开计算机时，“运行”命令会一起打开所有项目，而无需再次选择每一项。 </p>
-<p> 本指南伴随整个路线：主屏幕、创建环境、手动或通过捕获、编辑、启动和保存添加项目。章 <a href="#limits">已知的限制</a> 将应用程序不执行的所有操作集中在一处。 </p>
-</section>
-<section class="doc-section" data-doc="" id="install">
-<span class="doc-kicker">开始</span>
-<h2>系统和安装要求</h2>
-<p> 打包目标是Windows x64。没有经过验证的 Mac 或 Linux 版本。 </p>
-<p> 显示下载可用性 <a href="index.html#download">在主页上</a> 并自动更新：当有经过验证的原型版本时，会有一个下载链接，以及版本号、文件大小及其 sha256，供安装前检查。 </p>
-<div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>无法下载</span><bdi data-cta-version hidden></bdi></button>
-<p aria-live="polite" class="note" id="docs-download-state"> 目前无法验证可下载版本。下载保持关闭状态。 </p>
-<details class="verify" hidden="">
-<summary>技术细节</summary>
-<p class="note" id="docs-verify-body"></p>
-</details>
-</div>
-<h3>下载后激活</h3>
-<p> 下载的是 ZIP 文件，而不是安装程序。下载后： </p>
-<ol class="steps-list" data-layout-legacy hidden>
-<li>将 ZIP 中的所有文件解压到一个文件夹中。</li>
-<li> 打开解压的文件夹并运行 <bdi><code>StartApp.App.exe</code></bdi>.
-              </li>
-<li>将 DLL 和运行时文件保留在该文件旁边的文件夹中。</li>
-</ol>
-            <p data-layout-unknown>将 ZIP 中的所有文件解压到一个文件夹。软件包布局未知；选择可执行文件前请查看该版本的说明。</p>
-            <p data-layout-portable hidden>解压 ZIP 中的所有文件。运行根文件夹中的 <bdi><code>Start-app.exe</code></bdi>，保留旁边的 <bdi><code>App</code></bdi> 文件夹，并始终整体移动文件夹。</p>
-<p data-layout-legacy-unqualified> 当前项目的设计是一个包含其运行时的软件包，无需注册或登录，数据本地存储在设备上。每个提供下载的软件包的属性将在其获得批准时公布并验证。</p>
-            <p data-layout-legacy-qualification hidden> 该应用程序包含其运行时环境，因此无需单独安装.NET。无需注册、帐户或登录。数据保存到本地文件中<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
-            </p>
-<p data-layout-legacy-qualification hidden> 测试内容：此原型是作为独立的 Windows x64 应用程序构建的，并在托管的 Windows Server 2025 服务器上成功启动和关闭。未在家用 Windows 11 上进行独立测试，并且没有最低 Windows 版本承诺。不保证不会出现安全警告或防病毒软件警报。 </p>
-</section>
-<section class="doc-section" data-doc="" id="main-screen">
-<span class="doc-kicker">界面</span>
-<h2>主屏幕：环境视图</h2>
-<p> 屏幕顶部是环境列表。每张环境卡片显示名称、描述、类别、所选的卡片颜色和图片、创建时间以及上次打开时间。上次打开时间在启动环境时更新，而不是在打开单个项目时更新。 </p>
-<p> 每张卡片都有一个“启动”按钮和一个包含更多操作的“...”菜单。列表下方是创建新环境的表单，角落里有进入捕获界面的入口。 </p>
-<figure class="shot">
-<img alt="主界面显示三张环境卡片，其中一张彩色卡片标有上次打开时间，下方是环境创建表单" height="560" loading="lazy" src="../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
-<figcaption> 主屏：环境卡片，包括颜色设计卡片和环境创建表单。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="create">
-<span class="doc-kicker">界面</span>
-<h2>创造新的工作环境</h2>
-<p> 在创建表单中，名称为必填项。默认类别为“常规”，您可以选择卡片颜色和图片。描述为选填项。保存后，会显示详细信息已保存的确认消息。 </p>
-<figure class="shot">
-<img alt="完整的环境创建表单：名称、描述、默认类别、调色板和图像字段以及已保存详细信息的状态行" height="560" loading="lazy" src="../shots/doc-feat-08-overview-after-guard.png" width="900"/>
-<figcaption> 环境创建形式：名称、描述、类别、颜色和图像。 </figcaption>
-</figure>
-<p> 如果您尝试启动尚无项目的环境，则会显示一条消息，引导您查看环境的详细信息以添加项目。 </p>
-<figure class="shot">
-<img alt="启动时显示空工作区消息，并过渡到环境详细信息" height="560" loading="lazy" src="../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
-<figcaption> 启动空环境会重定向到添加项目。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="items">
-<span class="doc-kicker">界面</span>
-<h2>手动添加项目</h2>
-<p> 在环境详细信息屏幕中，添加四种类型的项目：站点、文件、文件夹和软件。每个项目都可以指定您自己的名称和描述。本地路径需要完整的 Windows 路径，而不是简短的软件别名。 </p>
-<figure class="shot">
-<img alt="没有项目的环境详细信息屏幕，有一行用于添加项目和选择类型" height="560" loading="lazy" src="../shots/doc-feat-01-details-empty.png" width="900"/>
-<figcaption> 环境详细信息屏幕：添加行和选择项目类型。 </figcaption>
-</figure>
-<p> 屏幕上的项目按类型分组：网站、文件夹、文件和软件。每行都有一个编辑按钮和一个操作菜单。 </p>
-<figure class="shot">
-<img alt="完整的四组项目：网站、文件夹、文件和软件，每行均可编辑" height="560" loading="lazy" src="../shots/doc-feat-22-four-groups.png" width="900"/>
-<figcaption> 四组项目：站点、文件夹、文件和软件。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="capture">
-<span class="doc-kicker">运营</span>
-<h2>捕捉：扫描、选择和复制</h2>
-<p> 捕获扫描当前打开的内容：程序和 Windows 文件资源管理器，以及浏览器中的地址栏。浏览器来源有Chrome、Edge和Brave；目前还没有针对每个浏览器和版本的完整兼容性矩阵。扫描最多可能需要 10 秒。 </p>
-<p> 保存前会显示结果以供选择。您可以从它们创建新环境或将它们添加到现有环境 - 通过搜索找到它。 </p>
-<figure class="shot">
-<img alt="捕获屏幕：搜索现有环境以及标识为当前打开的项目列表" height="560" loading="lazy" src="../shots/doc-cap-pick-workspace-search.png" width="900"/>
-<figcaption> 捕获中存在环境选择，位于“立即打开”列表旁边。 </figcaption>
-</figure>
-<p> 创建新环境时，默认情况下会选中这些项目。添加到现有环境时：不带标记的操作为“添加全部”，带标记的操作为“添加选定的”。对环境中已保存的内容进行复制需要获得批准。并排屏幕添加内容将保持临时状态，直到您单击“保存”。 </p>
-<figure class="shot">
-<img alt="保存前的并排捕获屏幕：已添加和未保存的项目与检测到的项目" height="560" loading="lazy" src="../shots/doc-cap-side-by-side-staged.png" width="900"/>
-<figcaption> 保存前并排：单击“保存”之前不会保存任何内容。 </figcaption>
-</figure>
-<p> 当可以识别捕获的站点时，它还会保存找到它的浏览器。 </p>
-<figure class="shot">
-<img alt="具有六个捕获项目的捕获环境，站点保存发现它们的浏览器" height="560" loading="lazy" src="../shots/doc-cap-created-from-capture-details.png" width="900"/>
-<figcaption> 通过捕获创建的环境，包括保存每个站点的源浏览器。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="edit">
-<span class="doc-kicker">运营</span>
-<h2>编辑环境和项目</h2>
-<p> 环境卡的“...”菜单提供：查看、启动、添加项目、格式化卡和编辑类别。 </p>
-<figure class="shot">
-<img alt="环境卡操作菜单：查看、启动、添加项目、设计卡、编辑类别" height="560" loading="lazy" src="../shots/doc-feat-12-card-actions-menu.png" width="900"/>
-<figcaption>环境卡的操作菜单。</figcaption>
-</figure>
-<p> 设计卡片时，选择颜色和背景图像。对于每个项目，您可以编辑名称、描述和地址、复制地址、将其移动到列表中或将其从当前环境中删除。 “打开使用”保存到项目里面 Start-app 仅，而不更改 Windows 中的默认关联。 </p>
-<figure class="shot">
-<img alt="具有调色板和背景图像选择的卡片设计面板" height="560" loading="lazy" src="../shots/doc-feat-13-design-popup-open.png" width="900"/>
-<figcaption>卡片设计：颜色和背景图像。</figcaption>
-</figure>
-<p> 退出编辑且未保存更改会打开警告：保存并退出、退出而不保存或返回编辑。 </p>
-<figure class="shot">
-<img alt="使用“保存并退出”或“不保存退出”选项警告未保存的更改" height="560" loading="lazy" src="../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
-<figcaption>未保存更改时退出警告。</figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="launch">
-<span class="doc-kicker">运营</span>
-<h2>开通前启动环境及测试</h2>
-<p> “运行”命令在打开之前检查项目，并区分已准备好、缺失、不受支持、不可用或需要决定的项目。需要做出决定的项目不会获得一般旁路。链接仅以 http/https 打开，软件需要完整路径。 </p>
-<figure class="shot">
-<img alt="打开之前的决策面板，其中包含每个项目的警告、“仍然打开”和“取消”按钮，并澄清尚未打开任何内容" height="560" loading="lazy" src="../shots/doc-feat-09-decision-panel.png" width="900"/>
-<figcaption> 打开之前：对每件物品发出诚实的警告，在获得批准之前不得打开任何物品。 </figcaption>
-</figure>
-<p> 确认后，应用程序向 Windows 发送打开每个项目的请求。理解这意味着什么很重要：发送的请求并不能证明所需的窗口确实打开了。该应用程序也无法可靠地判断确切的项目是否已打开，因此重新打开可能会创建重复项。未找到文件的项目会失败，并显示“未找到文件”消息。 </p>
-</section>
-<section class="doc-section" data-doc="" id="limits">
-<span class="doc-kicker">可靠性</span>
-<h2>已知的限制</h2>
-<ul>
-<li> 软件无法自动识别打开的文档；打开的软件并不是在其中打开特定文件的证据。文档是手动添加的。 </li>
-<li> 不保证恢复未保存的内容或窗口放置。 </li>
-<li> “已经开放”无法可靠得知；重新打开可能会产生重复。 </li>
-<li> 捕获可以在选项卡之间公开切换以读取地址。 </li>
-<li> 部分捕获结果或空列表并不意味着没有任何打开的内容。 </li>
-<li> 界面中无环境删除操作；您可以从环境中删除项目，但不能删除整个环境。 </li>
-<li> “共享到另一个环境”可能会出现，但处于非活动状态。 </li>
-</ul>
-</section>
-<section class="doc-section" data-doc="" id="storage">
-<span class="doc-kicker">可靠性</span>
-<h2>保存和本地存储</h2>
-<p> 在当前项目设计中，工作区保存在计算机上的本地文件中： <code>%LOCALAPPDATA%\StartApp\store.json</code>。仅当您明确单击“保存”时才会保存更改。 </p>
-</section>
-<section class="doc-section" data-doc="" id="privacy">
-<span class="doc-kicker">可靠性</span>
-<h2>简而言之，隐私</h2>
-<p> 在当前设计中，环境数据保存在本地计算机上。打开链接或软件会创建该目的地的常规通信 - 例如，在浏览器中打开一个网站会导致该网站。 </p>
-<p> 本网站本身不包括表单、分析、远程字体或第三方服务。 </p>
-</section>
-<section class="doc-section" data-doc="" id="faq">
-<span class="doc-kicker">可靠性</span>
-<h2>常见问题</h2>
-<h3>什么 Start-app 正在做？</h3>
-<p> 将程序、文件夹、文件和链接保存在一个环境名称下，并通过“运行”命令将它们全部打开。 </p>
-<h3>所有打开的东西都会恢复原样吗？</h3>
-<p> 不保证。无法自动捕获程序中打开的文档、恢复未保存的内容或承诺窗口放置。打开是向操作系统发出请求，并进行初步检查和报告。 </p>
-<h3>如何添加在软件中打开的文档？</h3>
-<p> 手动：将文件本身添加为环境详细信息中的文件类型项。捕获无法从开放软件中自行识别它。 </p>
-<h3>信息存储在哪里？</h3>
-<p> 在计算机上的本地文件中。详细内容见章节 <a href="#storage">保存和本地存储</a>.
-            </p>
-</section>
-</div>
-</div>
-</main>
-<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
-<script src="../i18n.js"></script><script src="../download-pointer.js"></script>
+  <body>
+    <a class="skip" href="#main">跳至内容</a>
+    <div class="pinned-top">
+    <header>
+      <a class="brand" href="index.html" aria-label="Start-app, 主页"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+      <nav aria-label="主导航">
+        <a href="docs.html" aria-current="page">用户指南</a><a href="index.html?version=v0.1.0-proto.2#download">下载</a>
+      </nav>
+    <details class="language-switch"><summary>语言</summary><nav aria-label="语言选择"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a aria-current="true" dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details>
+    </header>
+        <div class="docs-jump">
+          <a href="#toc">指南的章节</a><a href="#main">返回顶部 ↑</a>
+        </div>
+    </div>
+    <main id="main" class="wrap">
+      <div class="docs-intro">
+        <p class="eyebrow">用户指南</p>
+        <h1 tabindex="-1">指导 Start-app</h1>
+        <p class="lead">在 0.1.0-proto.2 版本中逐步操作：创建工作区、添加项目、捕获、启动和保存——附有应用的真实截图和值得了解的限制。</p>
+        <p class="pill">评估原型，不是稳定版本</p>
+        <details class="version-switch"><summary>指南版本： <bdi>0.1.0-proto.2</bdi></summary><nav aria-label="选择指南版本"><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.2</a><a dir="ltr" href="../proto1/zh-Hans/docs.html">0.1.0-proto.1</a></nav></details>
+      </div>
+      <div class="doc-layout">
+        <aside class="sidebar" tabindex="0" id="toc" aria-label="目录">
+          <label for="doc-search">搜索指南的章节</label><input id="doc-search" type="search" placeholder="例如：保存或捕获" autocomplete="off" />
+          <p id="search-status" class="search-status" role="status" aria-live="polite"></p>
+          <nav aria-label="指南的章节">
+            <a href="#about">这是什么 Start-app</a><a href="#install">系统和安装要求</a><a href="#main-screen">主屏幕：环境视图</a><a href="#create">创造新的工作环境</a><a href="#items">手动添加项目</a><a href="#capture">捕捉：扫描、选择和复制</a><a href="#edit">编辑环境和项目</a><a href="#launch">开通前启动环境及测试</a><a href="#limits">已知的限制</a><a href="#storage">保存和本地存储</a><a href="#privacy">简而言之，隐私</a><a href="#faq">常见问题</a>
+          </nav>
+          <p class="note">搜索是页面本地的。而不发送数据。</p>
+        </aside>
+        <div>
+          <p class="no-results" id="no-results" hidden>没有找到剧集。尝试其他单词或清除搜索。</p>
+          <section id="about" class="doc-section" data-doc>
+            <span class="doc-kicker">开始</span>
+            <h2>这是什么 Start-app</h2>
+            <p>Start-app 将程序、文件夹、文件和链接保存在一个环境名称下。下次打开计算机时，“运行”命令会一起打开所有项目，而无需再次选择每一项。</p>
+            <p>本指南描述 0.1.0-proto.2 版本，并涵盖整个流程：主屏幕、创建工作区、手动或通过捕获添加项目、编辑、启动和保存。章节 <a href="#limits">已知的限制</a> 将应用程序不执行的所有操作集中在一处。</p>
+          </section>
+          <section id="install" class="doc-section" data-doc>
+            <span class="doc-kicker">开始</span>
+            <h2>系统和安装要求</h2>
+            <p>打包目标是Windows x64。没有经过验证的 Mac 或 Linux 版本。</p>
+            <p class="doc-version-download">本指南描述的版本 0.1.0-proto.2 的下载位于 <a href="index.html?version=v0.1.0-proto.2#download">在首页的版本列表中</a>，附有版本号、文件大小及其 sha256，供安装前核对。下载仅在该处进行，不在指南页面。</p>
+            <h3>下载后激活</h3>
+            <p>下载的是 ZIP 文件，而不是安装程序。下载后：</p>
+            <ol class="steps-list">
+              <li>将 ZIP 中的所有文件解压到一个文件夹中。</li>
+              <li>运行 <bdi><code>Start-app.exe</code></bdi> 位于主文件夹中。</li>
+              <li>请将文件夹 <bdi><code>App</code></bdi> 保留在文件旁边，并始终整体移动整个文件夹。</li>
+            </ol>
+            <p>该应用程序包含其运行时环境，因此无需单独安装.NET。无需注册、帐户或登录。数据保存到本地文件中<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.</p>
+            <p>测试内容：此原型是作为独立的 Windows x64 应用程序构建的，并在托管的 Windows Server 2025 服务器上成功启动和关闭。未在家用 Windows 11 上进行独立测试，并且没有最低 Windows 版本承诺。不保证不会出现安全警告或防病毒软件警报。</p>
+            <h3>版本更新</h3>
+            <p>更新检查在应用的设置屏幕中进行，仅提供已批准的版本。从官方网站下载并手动安装：没有自动更新。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-06-update-settings.png" alt="0.1.0-proto.2 版本的设置屏幕：已安装版本 0.1.0-proto.2、已批准版本检查、从官方网站下载并手动安装" width="706" height="393" loading="lazy" />
+              <figcaption>设置屏幕：版本和更新。从官方网站下载并手动安装。</figcaption>
+            </figure>
+          </section>
+          <section id="main-screen" class="doc-section" data-doc>
+            <span class="doc-kicker">界面</span>
+            <h2>主屏幕：环境视图</h2>
+            <p>屏幕顶部是环境列表。每张环境卡片显示名称、描述、类别、所选的卡片颜色和图片、创建时间以及上次打开时间。上次打开时间在启动环境时更新，而不是在打开单个项目时更新。</p>
+            <p>每张卡片旁边都有"启动"按钮。右键点击卡片或按键盘上的 Shift+F10 会打开操作菜单：显示、启动、添加项目、设计卡片和编辑类别。列表下方是创建新工作区的表单，角落里有进入捕获屏幕的入口。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-01-home-create.png" alt="0.1.0-proto.2 版本的主屏幕：两张带有相邻&quot;启动&quot;按钮的工作区卡片，以及包含名称、描述、类别、颜色和图片的工作区创建表单" width="926" height="643" loading="lazy" />
+              <figcaption>主屏幕：工作区卡片和创建表单，0.1.0-proto.2 版本。</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="../shots/doc-p2-09-workspace-context-menu.png" alt="工作区卡片右键菜单：显示、启动、添加项目、设计卡片和编辑类别" width="926" height="643" loading="lazy" />
+              <figcaption>操作菜单通过右键点击卡片或按 Shift+F10 打开。</figcaption>
+            </figure>
+          </section>
+          <section id="create" class="doc-section" data-doc>
+            <span class="doc-kicker">界面</span>
+            <h2>创造新的工作环境</h2>
+            <p>在创建表单中，名称为必填项。默认类别为"常规"，可以选择颜色和卡片图片。描述为选填项。</p>
+          </section>
+          <section id="items" class="doc-section" data-doc>
+            <span class="doc-kicker">界面</span>
+            <h2>手动添加项目</h2>
+            <p>在环境详细信息屏幕中，添加四种类型的项目：站点、文件、文件夹和软件。每个项目都可以指定您自己的名称和描述。本地路径需要完整的 Windows 路径，而不是简短的软件别名。</p>
+            <p>项目在屏幕上按类型分组：网站、文件夹、文件和程序。每行旁边都有"编辑"按钮。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-02-workspace-details.png" alt="0.1.0-proto.2 版本的工作区详情屏幕：名称、类别、描述、添加项目行、选择现有工作区和捕获按钮，以及按网站、文件夹和文件分组的已保存项目" width="926" height="643" loading="lazy" />
+              <figcaption>工作区详情，包含已保存项目和添加行。</figcaption>
+            </figure>
+            <p>"选择现有工作区"按钮可将已保存在其他工作区中的项目添加到当前工作区：选择类型、搜索并选取。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-04-existing-resource-picker.png" alt="&quot;选择现有工作区&quot;窗口，包含类型选择、搜索字段和带&quot;选择&quot;按钮的结果" width="926" height="643" loading="lazy" />
+              <figcaption>添加已保存在其他工作区中的项目。</figcaption>
+            </figure>
+          </section>
+          <section id="capture" class="doc-section" data-doc>
+            <span class="doc-kicker">运营</span>
+            <h2>捕捉：扫描、选择和复制</h2>
+            <p>捕获扫描当前打开的内容：程序和 Windows 文件资源管理器，以及浏览器中的地址栏。浏览器来源有Chrome、Edge和Brave；目前还没有针对每个浏览器和版本的完整兼容性矩阵。扫描最多可能需要 10 秒。</p>
+            <p>从捕获创建新工作区时，找到的项目默认被勾选，只有勾选的项目才会添加到工作区。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-07-capture-new.png" alt="0.1.0-proto.2 版本的捕获到新工作区屏幕：创建表单和带勾选项目的&quot;当前打开&quot;列表" width="926" height="643" loading="lazy" />
+              <figcaption>捕获到新工作区：仅添加勾选的项目。</figcaption>
+            </figure>
+            <p>添加到现有工作区时，新增内容与已保存项目并排显示，标记为 Added, not saved yet。在点击"保存"之前不会保存任何内容。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-08-capture-draft.png" alt="0.1.0-proto.2 版本中在现有工作区并排捕获：已保存项目、&quot;当前打开&quot;列表和空的 Added, not saved yet 区域" width="926" height="643" loading="lazy" />
+              <figcaption>保存前并排：单击“保存”之前不会保存任何内容。</figcaption>
+            </figure>
+            <p>拖动已在工作区中的单个项目时，会针对此次拖动显示单独的确认：是否将其作为单独副本再次添加？在批量添加（"全部添加"或"添加所选"）中，仅添加所选项目；如果未选择任何项目，则添加全部。非重复项目会立即添加到屏幕，所有重复项会收集到一个分组选择窗口中，由您勾选要添加的项目。</p>
+            <p>没有完全的重复防护：同一项目可以添加多次，即使它已保存在工作区中。建议在保存前检查列表。</p>
+          </section>
+          <section id="edit" class="doc-section" data-doc>
+            <span class="doc-kicker">运营</span>
+            <h2>编辑环境和项目</h2>
+            <p>工作区卡片的右键菜单提供：显示、启动、添加项目、设计卡片和编辑类别。</p>
+            <p>在卡片设计中可以选择颜色和背景图片。</p>
+            <p>点击项目旁边的"编辑"会打开行内编辑器，包含名称、描述和地址。"取消"关闭编辑器且不保存更改。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-03-item-editor.png" alt="0.1.0-proto.2 版本的行内项目编辑器：名称、描述和地址字段以及&quot;取消&quot;按钮" width="926" height="643" loading="lazy" />
+              <figcaption>行内项目编辑：名称、描述和地址。</figcaption>
+            </figure>
+            <p>更改仅在明确保存后才会保存；详见章节 <a href="#storage">保存和本地存储</a>.</p>
+          </section>
+          <section id="launch" class="doc-section" data-doc>
+            <span class="doc-kicker">运营</span>
+            <h2>开通前启动环境及测试</h2>
+            <p>"启动"命令首先打开选择窗口"在工作区中打开什么？"：所有项目默认勾选，可以取消勾选不想打开的项目。"取消"关闭窗口且不打开任何内容。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-05-opening-selection.png" alt="0.1.0-proto.2 版本中打开前的选择窗口：所有项目已勾选，带&quot;取消&quot;和&quot;启动&quot;按钮" width="926" height="643" loading="lazy" />
+              <figcaption>打开前：选择要启动的项目。未经确认不会打开任何内容。</figcaption>
+            </figure>
+            <p>如果检查明确识别出某个项目已打开，会出现重新打开的选项：这些项目默认不勾选。仅勾选要再次打开的项目；可以返回选择或取消。检测不确定并不能证明项目已关闭。打开结果区分已发送请求、跳过、失败和选择不重新打开。已发送请求并不确认窗口已打开。</p>
+            <p>链接仅通过 http/https 打开，程序需要完整路径。</p>
+            <p>确认后，应用会向 Windows 发送打开每个项目的请求。已发送请求并不能证明目标窗口确实已打开。在保存路径中未找到的项目会被跳过，并说明未在保存路径中找到该项目，建议检查路径后重试。"已打开"检查是部分性的：只有被明确识别为已打开的项目才会作为重新打开的选项提供；当检查无法确定时，重新打开可能会产生重复项。</p>
+          </section>
+          <section id="limits" class="doc-section" data-doc>
+            <span class="doc-kicker">可靠性</span>
+            <h2>已知的限制</h2>
+            <ul>
+              <li>软件无法自动识别打开的文档；打开的软件并不是在其中打开特定文件的证据。文档是手动添加的。</li>
+              <li>不保证恢复未保存的内容或窗口放置。</li>
+              <li>"已打开"检查是部分性的：确认检测到时会提供重新打开选项；无法确定时，重新打开可能会产生重复项。</li>
+              <li>部分捕获结果或空列表并不意味着没有任何打开的内容。</li>
+              <li>已保存项目与新项目之间没有完全的重复防护。</li>
+              <li>界面中无环境删除操作；您可以从环境中删除项目，但不能删除整个环境。</li>
+              <li>没有自动更新；可在设置屏幕中检查已批准的版本，并从官方网站手动安装。</li>
+              <li>不支持将驱动器根目录或网络共享根目录路径作为文件夹目标，无论是手动添加还是捕获；常规子文件夹路径受支持。</li>
+            </ul>
+          </section>
+          <section id="storage" class="doc-section" data-doc>
+            <span class="doc-kicker">可靠性</span>
+            <h2>保存和本地存储</h2>
+            <p>在当前项目设计中，工作区保存在计算机上的本地文件中： <code>%LOCALAPPDATA%\StartApp\store.json</code>. 只有明确点击"保存"时更改才会被保存。</p>
+          </section>
+          <section id="privacy" class="doc-section" data-doc>
+            <span class="doc-kicker">可靠性</span>
+            <h2>简而言之，隐私</h2>
+            <p>在当前设计中，环境数据保存在本地计算机上。打开链接或软件会创建该目的地的常规通信 - 例如，在浏览器中打开一个网站会导致该网站。</p>
+            <p>本网站本身不包括表单、分析、远程字体或第三方服务。</p>
+          </section>
+          <section id="faq" class="doc-section" data-doc>
+            <span class="doc-kicker">可靠性</span>
+            <h2>常见问题</h2>
+            <h3>什么 Start-app 正在做？</h3>
+            <p>将程序、文件夹、文件和链接保存在一个环境名称下，并通过“运行”命令将它们全部打开。</p>
+            <h3>所有打开的东西都会恢复原样吗？</h3>
+            <p>不保证。无法自动捕获程序中打开的文档、恢复未保存的内容或承诺窗口放置。打开是向操作系统发出请求，并进行初步检查和报告。</p>
+            <h3>如何添加在软件中打开的文档？</h3>
+            <p>手动：将文件本身添加为环境详细信息中的文件类型项。捕获无法从开放软件中自行识别它。</p>
+            <h3>信息存储在哪里？</h3>
+            <p>在计算机上的本地文件中。详细内容见章节 <a href="#storage">保存和本地存储</a>.</p>
+          </section></div>
+      </div>
+    </main>
+      <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <script src="../i18n.js"></script>
+    <script src="../download-pointer.js"></script>
 <script src="../download-catalog.js"></script>
-    <script src="../download-wire.js"></script>
+<script src="../download-wire.js"></script>
+<script src="../version-link.js"></script>
 <script src="../docs.js"></script>
-<script src="../site-nav.js"></script>
-</body>
+    <script src="../site-nav.js"></script>
+  </body>
 </html>

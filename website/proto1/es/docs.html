@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+
+<html data-site-root=".." dir="ltr" lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="https://my-sochen.github.io/Start-app/proto1/es/docs.html" rel="canonical"/>
+<meta content="Start-app: Guía de usuario para prototipo de evaluación, versión no estable." name="description"/>
+<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
+<title>start app</title>
+<link rel="icon" href="../../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+<link href="../../styles.css" rel="stylesheet"/>
+<link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+<link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/proto1/en/docs.html" />
+<link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/proto1/ru/docs.html" />
+<link rel="alternate" hreflang="zh-Hans" href="https://my-sochen.github.io/Start-app/proto1/zh-Hans/docs.html" />
+<link rel="alternate" hreflang="ja" href="https://my-sochen.github.io/Start-app/proto1/ja/docs.html" />
+<link rel="alternate" hreflang="fr" href="https://my-sochen.github.io/Start-app/proto1/fr/docs.html" />
+<link rel="alternate" hreflang="es" href="https://my-sochen.github.io/Start-app/proto1/es/docs.html" />
+<link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/proto1/de/docs.html" />
+<link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/proto1/docs.html" />
+  </head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<div class="pinned-top">
+<header>
+<a aria-label="Start-app, página de inicio" class="brand" href="../../es/index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+<nav aria-label="navegación principal">
+<a aria-current="page" href="docs.html">guía de usuario</a><a href="../../es/index.html?version=v0.1.0-proto.1#download">Descargar</a>
+</nav>
+<details class="language-switch"><summary>idioma</summary><nav aria-label="Selección de idioma"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a aria-current="true" dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
+<div class="docs-jump">
+<a href="#toc">Los capítulos de la guía.</a><a href="#main">Volver arriba ↑</a>
+</div>
+</div>
+<main class="wrap" id="main">
+<div class="docs-intro">
+<p class="eyebrow">guía de usuario</p>
+<h1 tabindex="-1">guía Start-app</h1>
+<p class="lead"> Paso a paso: crear un espacio de trabajo, agregar elementos, capturar, iniciar y guardar, con capturas de pantalla reales de la aplicación y con las limitaciones que es importante conocer. </p>
+<p class="pill">Un prototipo de evaluación, no una versión estable</p>
+        <details class="version-switch"><summary>Versión de la guía: <bdi>0.1.0-proto.1</bdi></summary><nav aria-label="Elegir la versión de la guía"><a dir="ltr" href="../../es/docs.html">0.1.0-proto.2</a><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.1</a></nav></details>
+</div>
+<div class="doc-layout">
+<aside aria-label="Tabla de contenido" class="sidebar" tabindex="0" id="toc">
+<label for="doc-search">Buscar los capítulos de la guía.</label><input autocomplete="off" id="doc-search" placeholder="Por ejemplo: guardar o capturar" type="search"/>
+<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
+<nav aria-label="Los capítulos de la guía.">
+<a href="#about">¿qué es? Start-app</a><a href="#install">Requisitos del sistema y de instalación.</a><a href="#main-screen">La pantalla principal: la vista del entorno.</a><a href="#create">Creando un nuevo ambiente de trabajo</a><a href="#items">Agregar elementos manualmente</a><a href="#capture">Captura: escaneo, selección y duplicación</a><a href="#edit">Editar entorno y elementos</a><a href="#launch">Entorno de lanzamiento y pruebas antes de abrir.</a><a href="#limits">Limitaciones conocidas</a><a href="#storage">Guardar y almacenamiento local</a><a href="#privacy">Privacidad en pocas palabras</a><a href="#faq">preguntas frecuentes</a>
+</nav>
+<p class="note">La búsqueda es local a la página. sin enviar los datos.</p>
+</aside>
+<div>
+<p class="no-results" hidden="" id="no-results"> No se encontraron episodios. Pruebe con otra palabra o borre la búsqueda. </p>
+<section class="doc-section" data-doc="" id="about">
+<span class="doc-kicker">comenzar</span>
+<h2>¿qué es? Start-app</h2>
+<p> Start-app Guarda programas, carpetas, archivos y enlaces bajo un nombre de entorno. La próxima vez que abras la computadora, el comando "Ejecutar" abre todos los elementos juntos, sin seleccionar cada uno nuevamente. </p>
+<p> Esta guía acompaña toda la ruta: la pantalla principal, creando un entorno, añadiendo elementos manualmente o capturando, editando, lanzando y guardando. capítulo <a href="#limits">Limitaciones conocidas</a> Centraliza en un solo lugar todo lo que no hace la aplicación. </p>
+</section>
+<section class="doc-section" data-doc="" id="install">
+<span class="doc-kicker">comenzar</span>
+<h2>Requisitos del sistema y de instalación.</h2>
+<p> El destino del paquete es Windows x64. No existe una versión verificada para Mac o Linux. </p>
+<p class="doc-version-download">La descarga de la versión que documenta esta guía, <bdi>0.1.0-proto.1</bdi>, está en la <a href="../../es/index.html?version=v0.1.0-proto.1#download">lista de versiones de la página principal</a>. La descarga se realiza solo allí, no desde la página de la guía.</p>
+<h3>Activación después de la descarga</h3>
+<p> La descarga es un archivo ZIP, no un instalador. Después de descargar: </p>
+<ol class="steps-list" data-layout-legacy>
+<li>Extraiga todos los archivos del ZIP a una carpeta.</li>
+<li> Abra la carpeta extraída y ejecute el <bdi><code>StartApp.App.exe</code></bdi>.
+              </li>
+<li>Deje los archivos DLL y de tiempo de ejecución en la carpeta, al lado del archivo.</li>
+</ol>
+            <p data-layout-legacy-qualification> La aplicación incluye su entorno de ejecución, por lo que no es necesario instalar .NET por separado. Sin registro, cuenta o inicio de sesión. Los datos se guardan en un archivo local en<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
+            </p>
+<p data-layout-legacy-qualification> Qué se probó: este prototipo se creó como una aplicación Windows x64 independiente y se inició y cerró con éxito en un servidor Windows Server 2025 alojado. No se ha probado de forma independiente en Windows 11 doméstico y no existe un compromiso de versión mínima de Windows. No hay garantía de que no aparezcan advertencias de seguridad o alertas de software antivirus. </p>
+</section>
+<section class="doc-section" data-doc="" id="main-screen">
+<span class="doc-kicker">Pantallas</span>
+<h2>La pantalla principal: la vista del entorno.</h2>
+<p> En la parte superior de la pantalla se encuentra la lista de entornos. Cada tarjeta muestra el nombre, la descripción, la categoría, el color y la imagen elegidos, la fecha de creación y la última apertura. La fecha de última apertura se actualiza al iniciar un entorno, no al abrir un elemento individual. </p>
+<p> Cada tarjeta tiene un botón "Iniciar" y un menú "..." con acciones adicionales. Debajo de la lista hay un formulario para crear un nuevo entorno y en la esquina hay un acceso a la pantalla de captura. </p>
+<figure class="shot">
+<img alt="Pantalla principal con tres tarjetas de entorno, una tarjeta de color con la fecha de última apertura y un formulario de creación de entorno debajo" height="560" loading="lazy" src="../../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
+<figcaption> La pantalla principal: tarjetas de entorno, incluida una tarjeta diseñada en color y un formulario de creación de entorno. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="create">
+<span class="doc-kicker">Pantallas</span>
+<h2>Creando un nuevo ambiente de trabajo</h2>
+<p> En el formulario de creación, el nombre es obligatorio. La categoría predeterminada es "General" y puede elegir el color y la imagen de la tarjeta. La descripción es opcional. Después de guardar, aparece una confirmación de que los datos se han guardado. </p>
+<figure class="shot">
+<img alt="Formulario completo de creación de entorno: nombre, descripción, categoría con valor predeterminado, paleta de colores y campo de imagen, y una línea de estado que indica que se han guardado los detalles." height="560" loading="lazy" src="../../shots/doc-feat-08-overview-after-guard.png" width="900"/>
+<figcaption> Formulario de creación del entorno: nombre, descripción, categoría, color e imagen. </figcaption>
+</figure>
+<p> Si intenta iniciar un entorno que aún no tiene elementos, aparece un mensaje que le dirige a los detalles del entorno para agregar elementos. </p>
+<figure class="shot">
+<img alt="Un mensaje de espacio de trabajo vacío en el lanzamiento, con una transición a los detalles del entorno." height="560" loading="lazy" src="../../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
+<figcaption> Al iniciar un entorno vacío se redirige a agregar elementos. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="items">
+<span class="doc-kicker">Pantallas</span>
+<h2>Agregar elementos manualmente</h2>
+<p> En la pantalla de detalles del entorno, agregue elementos de cuatro tipos: sitio, archivo, carpeta y software. A cada artículo se le puede dar su propio nombre y descripción. Las rutas locales requieren una ruta completa de Windows, no un alias corto de software. </p>
+<figure class="shot">
+<img alt="Pantalla de detalles del entorno sin elementos, con una línea para agregar un elemento y seleccionar un tipo" height="560" loading="lazy" src="../../shots/doc-feat-01-details-empty.png" width="900"/>
+<figcaption> Pantalla de detalles del entorno: la línea de adición y selección del tipo de elemento. </figcaption>
+</figure>
+<p> Los elementos se agrupan en la pantalla por tipo: sitios web, carpetas, archivos y software. Cada línea tiene un botón de edición y un menú de acciones. </p>
+<figure class="shot">
+<img alt="Los cuatro grupos de elementos al completo: sitios web, carpetas, archivos y software, con edición para cada línea" height="560" loading="lazy" src="../../shots/doc-feat-22-four-groups.png" width="900"/>
+<figcaption> Los cuatro grupos de elementos: sitios, carpetas, archivos y software. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="capture">
+<span class="doc-kicker">operaciones</span>
+<h2>Captura: escaneo, selección y duplicación</h2>
+<p> La captura escanea lo que está abierto ahora: programas y Explorador de archivos de Windows, y en el navegador la barra de direcciones. La fuente del navegador conoce Chrome, Edge y Brave; Actualmente no existe una matriz de compatibilidad completa para cada navegador y versión. El escaneo puede tardar hasta 10 segundos. </p>
+<p> Los resultados se muestran para su selección antes de guardarlos. Puede crear un nuevo entorno a partir de ellos o agregarlos a un entorno existente, con una búsqueda que lo ubique. </p>
+<figure class="shot">
+<img alt="Capturar pantalla: busque un entorno existente junto con la lista de elementos identificados como abiertos actualmente" height="560" loading="lazy" src="../../shots/doc-cap-pick-workspace-search.png" width="900"/>
+<figcaption> Hay una selección de entorno presente en la captura, junto a la lista "abrir ahora". </figcaption>
+</figure>
+<p> Al crear un nuevo entorno, los elementos se marcan de forma predeterminada. Al agregar a un entorno existente: sin marcas, la acción es "Agregar todo", y con marcas, "Agregar seleccionados". Las duplicaciones con respecto a lo que ya está guardado en el entorno requieren aprobación. Las adiciones de pantalla en paralelo permanecen temporales hasta que haga clic en Guardar. </p>
+<figure class="shot">
+<img alt="La pantalla de captura de lado a lado antes de guardar: elementos agregados y no guardados versus elementos detectados" height="560" loading="lazy" src="../../shots/doc-cap-side-by-side-staged.png" width="900"/>
+<figcaption> Lado a lado antes de guardar: no se guarda nada hasta que se hace clic en Guardar. </figcaption>
+</figure>
+<p> Un sitio capturado también guarda el navegador desde el que se encontró, cuando se puede identificar. </p>
+<figure class="shot">
+<img alt="Un entorno capturado con seis elementos capturados, los sitios guardan el navegador desde el que fueron encontrados" height="560" loading="lazy" src="../../shots/doc-cap-created-from-capture-details.png" width="900"/>
+<figcaption> Un entorno creado mediante la captura, incluido el almacenamiento del navegador de origen de cada sitio. </figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="edit">
+<span class="doc-kicker">operaciones</span>
+<h2>Editar entorno y elementos</h2>
+<p> El menú "..." de una tarjeta de entorno ofrece: Ver, Iniciar, Agregar elemento, Formatear tarjeta y Editar categoría. </p>
+<figure class="shot">
+<img alt="Menú de acciones de la tarjeta de entorno: Ver, Iniciar, Agregar elemento, Diseñar tarjeta, Editar categoría" height="560" loading="lazy" src="../../shots/doc-feat-12-card-actions-menu.png" width="900"/>
+<figcaption>El menú de acciones de una tarjeta de entorno.</figcaption>
+</figure>
+<p> Al diseñar una tarjeta, elija un color y una imagen de fondo. Para cada elemento, puede editar el nombre, la descripción y la dirección, copiar una dirección, moverla en la lista o eliminarla del entorno actual. "Abrir usando" se guarda en el elemento interior Start-app únicamente, sin cambiar las asociaciones predeterminadas en Windows. </p>
+<figure class="shot">
+<img alt="Panel de diseño de tarjetas con paleta de colores y selección de imágenes de fondo." height="560" loading="lazy" src="../../shots/doc-feat-13-design-popup-open.png" width="900"/>
+<figcaption>Diseño de la tarjeta: color e imagen de fondo.</figcaption>
+</figure>
+<p> Al salir de la edición con cambios no guardados se abre una advertencia: guardar y salir, salir sin guardar o volver a editar. </p>
+<figure class="shot">
+<img alt="Aviso de cambios no guardados con las opciones guardar y salir o salir sin guardar" height="560" loading="lazy" src="../../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
+<figcaption>Advertencia de salida con cambios no guardados.</figcaption>
+</figure>
+</section>
+<section class="doc-section" data-doc="" id="launch">
+<span class="doc-kicker">operaciones</span>
+<h2>Entorno de lanzamiento y pruebas antes de abrir.</h2>
+<p> El comando "ejecutar" verifica los elementos antes de abrirlos y separa los elementos que están listos, los que faltan, los que no son compatibles, los que no están disponibles o los que necesitan una decisión. Los elementos que requieren una decisión no reciben una omisión general. Los enlaces se abren únicamente en http/https y el software requiere una ruta completa. </p>
+<figure class="shot">
+<img alt="El panel de decisión antes de abrir con advertencias para cada elemento, botones Abrir de todos modos y Cancelar, y aclaración de que todavía no se ha abierto nada." height="560" loading="lazy" src="../../shots/doc-feat-09-decision-panel.png" width="900"/>
+<figcaption> Antes de abrir: advertencias honestas para cada artículo y no se abre nada hasta que se apruebe. </figcaption>
+</figure>
+<p> Después de la confirmación, la aplicación envía a Windows una solicitud para abrir cada elemento. Es importante comprender lo que esto significa: una solicitud enviada no es prueba de que la ventana deseada realmente se haya abierto. La aplicación tampoco puede determinar de manera confiable si el elemento exacto ya está abierto, por lo que volver a abrirlo puede crear duplicados. Un elemento cuyo archivo no se encuentra falla con el mensaje "archivo no encontrado". </p>
+</section>
+<section class="doc-section" data-doc="" id="limits">
+<span class="doc-kicker">fiabilidad</span>
+<h2>Limitaciones conocidas</h2>
+<ul>
+<li> No existe una identificación automática del documento que se abre dentro del software; Un software abierto no es evidencia de que se haya abierto un archivo en particular. Los documentos se agregan manualmente. </li>
+<li> No hay garantía de recuperación del contenido no guardado o de la ubicación de la ventana. </li>
+<li> "ya abierto" no se conoce de manera confiable; La reapertura puede crear duplicados. </li>
+<li> La captura puede cambiar abiertamente entre pestañas para leer direcciones. </li>
+<li> Un resultado de captura parcial o una lista vacía no significa que no haya nada abierto. </li>
+<li> No hay ninguna operación de eliminación del entorno en la interfaz; Puede eliminar elementos de un entorno, no eliminar un entorno completo. </li>
+<li> Puede aparecer "Compartir con otro entorno", pero está inactivo. </li>
+</ul>
+</section>
+<section class="doc-section" data-doc="" id="storage">
+<span class="doc-kicker">fiabilidad</span>
+<h2>Guardar y almacenamiento local</h2>
+<p> En el diseño actual del proyecto, los espacios de trabajo se guardan en un archivo local en la computadora: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Los cambios solo se guardan cuando hace clic explícitamente en Guardar. </p>
+</section>
+<section class="doc-section" data-doc="" id="privacy">
+<span class="doc-kicker">fiabilidad</span>
+<h2>Privacidad en pocas palabras</h2>
+<p> En el diseño actual, los datos de los entornos se guardan localmente en el ordenador. Abrir un enlace o software crea la comunicación habitual de ese destino; por ejemplo, abrir un sitio web en un navegador conduce a ese sitio web. </p>
+<p> Este sitio en sí no incluye formularios, análisis, fuentes remotas ni servicios de terceros. </p>
+</section>
+<section class="doc-section" data-doc="" id="faq">
+<span class="doc-kicker">fiabilidad</span>
+<h2>preguntas frecuentes</h2>
+<h3>qué Start-app ¿haciendo?</h3>
+<p> Guarda programas, carpetas, archivos y enlaces bajo un nombre de entorno y los abre todos junto con el comando "Ejecutar". </p>
+<h3>¿Todo lo abierto volverá exactamente como estaba?</h3>
+<p> No garantizado. No hay captura automática de documentos que están abiertos dentro de los programas, recuperación de contenido no guardado ni promesa de colocación de ventanas. La apertura es una solicitud al sistema operativo, con comprobaciones e informes preliminares. </p>
+<h3>¿Cómo se agrega un documento que está abierto en un software?</h3>
+<p> Manualmente: agregue el archivo como un elemento de tipo de archivo en los detalles del entorno. La captura no la reconoce por sí sola del software abierto. </p>
+<h3>¿Dónde se almacena la información?</h3>
+<p> en un archivo local en la computadora. Detalles en el capitulo <a href="#storage">Guardar y almacenamiento local</a>.
+            </p>
+</section>
+</div>
+</div>
+</main>
+<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
+<script src="../../i18n.js"></script>
+<script src="../../docs.js"></script>
+<script src="../../site-nav.js"></script>
+</body>
+</html>

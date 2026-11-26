@@ -396,3 +396,12 @@ body[data-page="index.html"]::before{content:"";position:fixed;inset:-720px 0 -7
 @media(prefers-reduced-motion:reduce){body[data-page="index.html"]::before{transform:none!important}}
 @media print{body[data-page="index.html"]::before{display:none}}
 body[data-page="index.html"] .page-line-art,body[data-page="index.html"] .page-line-top,body[data-page="index.html"] .page-line-bottom{display:none}
+
+/* Guide archives share the live site's typography, not its release pointer. */
+.version-switch { position:relative; display:table; margin:1rem 0; max-width:100%; }
+.version-switch summary { cursor:pointer; padding:.6rem .9rem; border:1px solid var(--muted,#888); border-radius:.5rem; overflow-wrap:anywhere; }
+.version-switch nav { display:flex; flex-wrap:wrap; gap:1rem; padding:.8rem; }
+.version-switch a[aria-current] { font-weight:700; text-decoration:underline; }
+.prototype-offer.version-target { outline:3px solid #087f8c; outline-offset:5px; border-radius:.4rem; scroll-margin-block:8rem; }
+.version-request-note { padding:1rem; border-inline-start:4px solid #b36b00; }
+@media print { .version-switch nav { display:flex; } }

@@ -1,15 +1,14 @@
-<!DOCTYPE html>
-
-<html data-site-root=".." dir="ltr" lang="ja">
-<head>
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://my-sochen.github.io/Start-app/ja/docs.html" rel="canonical"/>
-<meta content="Start-app: 評価用プロトタイプのユーザーガイドであり、安定版ではありません。" name="description"/>
-<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
-<title>start app</title>
-<link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
-<link href="../styles.css" rel="stylesheet"/>
+<!doctype html>
+<html lang="ja" dir="ltr" data-site-root="..">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="canonical" href="https://my-sochen.github.io/Start-app/ja/docs.html" />
+    <meta name="description" content="Start-app: 評価用プロトタイプのユーザーガイドであり、安定版ではありません。" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" />
+    <title>start app</title>
+    <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="stylesheet" href="../styles.css" />
 <link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
 <link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
 <link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
@@ -20,203 +19,187 @@
 <link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
 <link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
   </head>
-<body>
-<a class="skip" href="#main">コンテンツにスキップ</a>
-<div class="pinned-top">
-<header>
-<a aria-label="Start-app、ホームページ" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
-<nav aria-label="メインナビゲーション">
-<a aria-current="page" href="docs.html">ユーザーガイド</a><a href="index.html#download">ダウンロード</a>
-</nav>
-<details class="language-switch"><summary>言語</summary><nav aria-label="言語の選択"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a aria-current="true" dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
-<div class="docs-jump">
-<a href="#toc">ガイドの章</a><a href="#main">トップに戻る ↑</a>
-</div>
-</div>
-<main class="wrap" id="main">
-<div class="docs-intro">
-<p class="eyebrow">ユーザーガイド</p>
-<h1 tabindex="-1">ガイド Start-app</h1>
-<p class="lead"> ステップバイステップ: ワークスペースの作成、項目の追加、キャプチャ、起動、保​​存 - アプリケーションの実際のスクリーンショットと、知っておくべき重要な制限事項を示します。 </p>
-<p class="pill">評価用プロトタイプであり、安定版ではありません</p>
-</div>
-<div class="doc-layout">
-<aside aria-label="目次" class="sidebar" tabindex="0" id="toc">
-<label for="doc-search">ガイドの章を検索する</label><input autocomplete="off" id="doc-search" placeholder="例: 保存またはキャプチャ" type="search"/>
-<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
-<nav aria-label="ガイドの章">
-<a href="#about">それは何ですか Start-app</a><a href="#install">システムとインストールの要件</a><a href="#main-screen">メイン画面: 環境ビュー</a><a href="#create">新しい作業環境の構築</a><a href="#items">項目を手動で追加する</a><a href="#capture">キャプチャ: スキャン、選択、複製</a><a href="#edit">編集環境とアイテム</a><a href="#launch">環境を起動し、開く前にテストする</a><a href="#limits">既知の制限事項</a><a href="#storage">保存とローカルストレージ</a><a href="#privacy">プライバシーを一言で言うと</a><a href="#faq">よくある質問</a>
-</nav>
-<p class="note">検索はページに対してローカルに行われます。データを送信せずに。</p>
-</aside>
-<div>
-<p class="no-results" hidden="" id="no-results"> エピソードは見つかりませんでした。別の単語を試すか、検索をクリアしてください。 </p>
-<section class="doc-section" data-doc="" id="about">
-<span class="doc-kicker">始める</span>
-<h2>それは何ですか Start-app</h2>
-<p> Start-app プログラム、フォルダー、ファイル、リンクを 1 つの環境名で保存します。次回コンピュータを開くとき、「ファイル名を指定して実行」コマンドを実行すると、各項目を再度選択することなく、すべての項目がまとめて開きます。 </p>
-<p> このガイドには、メイン画面、環境の作成、手動またはキャプチャ、編集、起動、保​​存によるアイテムの追加というルート全体が含まれています。章 <a href="#limits">既知の制限事項</a> アプリケーションが実行しないすべてのことを 1 か所に集中化します。 </p>
-</section>
-<section class="doc-section" data-doc="" id="install">
-<span class="doc-kicker">始める</span>
-<h2>システムとインストールの要件</h2>
-<p> パッケージ化対象は Windows x64 です。検証済みの Mac または Linux バージョンはありません。 </p>
-<p> ダウンロードの可用性が表示されます <a href="index.html#download">ホームページで</a> そして自動的に更新されます。検証済みのプロトタイプ バージョンがある場合は、インストール前に確認できるバージョン番号、ファイル サイズ、sha256 とともにダウンロード リンクが表示されます。 </p>
-<div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>ダウンロードは利用できません</span><bdi data-cta-version hidden></bdi></button>
-<p aria-live="polite" class="note" id="docs-download-state"> 現時点ではダウンロード可能なバージョンを確認できません。ダウンロードはオフのままです。 </p>
-<details class="verify" hidden="">
-<summary>技術的な詳細</summary>
-<p class="note" id="docs-verify-body"></p>
-</details>
-</div>
-<h3>ダウンロード後のアクティベーション</h3>
-<p> ダウンロードはインストーラーではなく ZIP ファイルです。ダウンロード後: </p>
-<ol class="steps-list" data-layout-legacy hidden>
-<li>ZIP からすべてのファイルをフォルダーに抽出します。</li>
-<li> 解凍したフォルダーを開き、実行します <bdi><code>StartApp.App.exe</code></bdi>.
-              </li>
-<li>DLL とランタイム ファイルは、ファイルの隣のフォルダーに残しておきます。</li>
-</ol>
-            <p data-layout-unknown>ZIP 内のすべてのファイルをフォルダーに展開してください。パッケージ構成は不明です。実行ファイルを選ぶ前に、その版の説明を確認してください。</p>
-            <p data-layout-portable hidden>ZIP 内のすべてのファイルを展開します。ルートフォルダーの <bdi><code>Start-app.exe</code></bdi> を実行し、App フォルダーを隣に保ち、移動時はフォルダー全体を移動してください。</p>
-<p data-layout-legacy-unqualified> 現在のプロジェクト設計は、ランタイムを含み、登録やサインインが不要で、データをデバイスにローカル保存するパッケージです。ダウンロード提供される各パッケージの特性は、承認時に公開・検証されます。</p>
-            <p data-layout-legacy-qualification hidden> アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
-            </p>
-<p data-layout-legacy-qualification hidden> テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。 </p>
-</section>
-<section class="doc-section" data-doc="" id="main-screen">
-<span class="doc-kicker">画面</span>
-<h2>メイン画面: 環境ビュー</h2>
-<p> 画面上部には環境の一覧があります。各環境カードには、名前、説明、カテゴリ、選択したカードの色と画像、作成日時、最終オープン日時が表示されます。最終オープン日時は、個別のアイテムを開いたときではなく、環境を起動したときに更新されます。 </p>
-<p> 各カードには「起動」ボタンと、その他の操作を含む「...」メニューがあります。一覧の下には新しい環境を作成するフォームがあり、画面の隅からキャプチャ画面に移動できます。 </p>
-<figure class="shot">
-<img alt="3つの環境カード、最終オープン日時を表示する色付きカード、その下に環境作成フォームがあるメイン画面" height="560" loading="lazy" src="../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
-<figcaption> メイン画面: カラーデザインされたカードを含む環境カードと環境作成フォーム。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="create">
-<span class="doc-kicker">画面</span>
-<h2>新しい作業環境の構築</h2>
-<p> 作成フォームでは名前は必須です。デフォルトのカテゴリは「一般」で、カードの色と画像を選択できます。説明は任意です。保存すると、詳細が保存されたことを示す確認メッセージが表示されます。 </p>
-<figure class="shot">
-<img alt="完全な環境作成フォーム: 名前、説明、デフォルトのカテゴリ、カラーパレットと画像フィールド、および詳細が保存されたことを示すステータス行" height="560" loading="lazy" src="../shots/doc-feat-08-overview-after-guard.png" width="900"/>
-<figcaption> 環境作成フォーム: 名前、説明、カテゴリ、色、イメージ。 </figcaption>
-</figure>
-<p> 項目がまだ存在しない環境を起動しようとすると、項目を追加するための環境の詳細を指示するメッセージが表示されます。 </p>
-<figure class="shot">
-<img alt="起動時に空のワークスペースのメッセージが表示され、環境の詳細に移動します" height="560" loading="lazy" src="../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
-<figcaption> 空の環境を起動すると、アイテムの追加にリダイレクトされます。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="items">
-<span class="doc-kicker">画面</span>
-<h2>項目を手動で追加する</h2>
-<p> 環境詳細画面では、サイト、ファイル、フォルダー、ソフトウェアの4種類の項目を追加します。各項目には独自の名前と説明を付けることができます。ローカル パスには、短いソフトウェア エイリアスではなく、完全な Windows パスが必要です。 </p>
-<figure class="shot">
-<img alt="項目のない環境詳細画面。項目を追加してタイプを選択する行がある" height="560" loading="lazy" src="../shots/doc-feat-01-details-empty.png" width="900"/>
-<figcaption> 環境詳細画面：追加行と項目の種類の選択。 </figcaption>
-</figure>
-<p> 項目は、Web サイト、フォルダー、ファイル、ソフトウェアなどの種類ごとに画面上でグループ化されます。各行には編集ボタンとアクション メニューがあります。 </p>
-<figure class="shot">
-<img alt="4 つのアイテム グループ全体: Web サイト、フォルダー、ファイル、ソフトウェア。各行を編集" height="560" loading="lazy" src="../shots/doc-feat-22-four-groups.png" width="900"/>
-<figcaption> アイテムの 4 つのグループ: サイト、フォルダー、ファイル、およびソフトウェア。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="capture">
-<span class="doc-kicker">オペレーション</span>
-<h2>キャプチャ: スキャン、選択、複製</h2>
-<p> キャプチャでは、プログラム、Windows ファイル エクスプローラー、ブラウザーのアドレス バーなど、現在開いているものをスキャンします。ブラウザのソースは Chrome、Edge、Brave を認識します。現在、各ブラウザとバージョンの完全な互換性マトリックスはありません。スキャンには最大 10 秒かかる場合があります。 </p>
-<p> 結果は保存する前に選択用に表示されます。これらから新しい環境を作成したり、検索を使用して既存の環境に追加したりできます。 </p>
-<figure class="shot">
-<img alt="キャプチャ画面: 現在開いていると識別された項目のリストとともに既存の環境を検索します。" height="560" loading="lazy" src="../shots/doc-cap-pick-workspace-search.png" width="900"/>
-<figcaption> キャプチャ内の「今すぐ開く」リストの隣に環境の選択が表示されます。 </figcaption>
-</figure>
-<p> 新しい環境を作成する場合、これらの項目はデフォルトでチェックされます。既存の環境に追加する場合: マークなしのアクションは「すべて追加」、マークありの場合は「選択を追加」です。環境内に既に保存されているものと重複する場合は、承認が必要です。並べて表示される画面の追加は、[保存] をクリックするまで一時的なものになります。 </p>
-<figure class="shot">
-<img alt="保存前のサイドバイサイドキャプチャ画面: 追加されたアイテムと未保存のアイテムと検出されたアイテム" height="560" loading="lazy" src="../shots/doc-cap-side-by-side-staged.png" width="900"/>
-<figcaption> 保存前に並べて保存: [保存] をクリックするまで何も保存されません。 </figcaption>
-</figure>
-<p> キャプチャされたサイトは、特定できる場合には、そのサイトが見つかったブラウザも保存します。 </p>
-<figure class="shot">
-<img alt="キャプチャされた 6 つのアイテムを含むキャプチャされた環境、サイトはアイテムが見つかったブラウザーに保存されます。" height="560" loading="lazy" src="../shots/doc-cap-created-from-capture-details.png" width="900"/>
-<figcaption> 各サイトのソースブラウザを保存するなどキャプチャして作成した環境。 </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="edit">
-<span class="doc-kicker">オペレーション</span>
-<h2>編集環境とアイテム</h2>
-<p> 環境カードの「...」メニューでは、表示、起動、項目の追加、カードのフォーマット、カテゴリの編集が提供されます。 </p>
-<figure class="shot">
-<img alt="環境カードのアクション メニュー: 表示、起動、項目の追加、カードのデザイン、カテゴリの編集" height="560" loading="lazy" src="../shots/doc-feat-12-card-actions-menu.png" width="900"/>
-<figcaption>環境カードのアクション メニュー。</figcaption>
-</figure>
-<p> カードをデザインするときは、色と背景画像を選択します。各項目について、名前、説明、アドレスを編集したり、アドレスをコピーしたり、リスト内で移動したり、現在の環境から削除したりできます。 「使用して開く」は中の項目に保存されます Start-app Windows のデフォルトの関連付けのみを変更しません。 </p>
-<figure class="shot">
-<img alt="カラーパレットと背景画像を選択できるカードデザインパネル" height="560" loading="lazy" src="../shots/doc-feat-13-design-popup-open.png" width="900"/>
-<figcaption>カードのデザイン: 色と背景画像。</figcaption>
-</figure>
-<p> 変更を保存せずに編集を終了すると、保存して終了するか、保存せずに終了するか、編集に戻るかの警告が表示されます。 </p>
-<figure class="shot">
-<img alt="「保存して終了」または「保存せずに終了」オプションによる未保存の変更の警告" height="560" loading="lazy" src="../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
-<figcaption>変更が保存されていない場合に警告を終了します。</figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="launch">
-<span class="doc-kicker">オペレーション</span>
-<h2>環境を起動し、開く前にテストする</h2>
-<p> 「run」コマンドは開く前に項目をチェックし、準備ができている項目、欠落している項目、サポートされていない項目、使用できない項目、または決定が必要な項目を分離します。決定が必要なアイテムは一般的なバイパスを受け取りません。リンクは http/https でのみ開き、ソフトウェアにはフルパスが必要です。 </p>
-<figure class="shot">
-<img alt="開く前の決定パネル。各項目の警告、「とにかく開く」ボタンと「キャンセル」ボタン、およびまだ何も開かれていないことの説明が表示されます。" height="560" loading="lazy" src="../shots/doc-feat-09-decision-panel.png" width="900"/>
-<figcaption> 開封前: 各アイテムについて正直に警告し、承認されるまで何も開封しません。 </figcaption>
-</figure>
-<p> 確認後、アプリケーションは Windows に各項目を開く要求を送信します。これが何を意味するかを理解することが重要です。送信されたリクエストは、目的のウィンドウが実際に開いたことを証明するものではありません。また、アプリは正確なアイテムがすでに開いているかどうかを確実に判断できないため、再度開くと重複が作成される可能性があります。ファイルが見つからない項目は、「ファイルが見つかりません」というメッセージが表示されて失敗します。 </p>
-</section>
-<section class="doc-section" data-doc="" id="limits">
-<span class="doc-kicker">信頼性</span>
-<h2>既知の制限事項</h2>
-<ul>
-<li> ソフトウェア内で開かれたドキュメントを自動的に識別する機能はありません。開いているソフトウェアは、そのソフトウェアで特定のファイルが開かれたという証拠ではありません。ドキュメントは手動で追加されます。 </li>
-<li> 保存されていないコンテンツやウィンドウの配置が回復される保証はありません。 </li>
-<li> 「すでにオープンしている」かどうかは確実にはわかりません。再開すると重複が作成される可能性があります。 </li>
-<li> キャプチャでは、タブ間を公然と切り替えてアドレスを読み取ることができます。 </li>
-<li> 部分的なキャプチャ結果または空のリストは、開いているものが何もないことを意味するわけではありません。 </li>
-<li> インターフェイスには環境の削除操作はありません。環境全体を削除することはできませんが、環境から項目を削除することはできます。 </li>
-<li> 「別の環境と共有」が表示される場合がありますが、無効になっています。 </li>
-</ul>
-</section>
-<section class="doc-section" data-doc="" id="storage">
-<span class="doc-kicker">信頼性</span>
-<h2>保存とローカルストレージ</h2>
-<p> 現在のプロジェクト設計では、ワークスペースは、コンピューター上のローカル ファイルに保存されます。 <code>%LOCALAPPDATA%\StartApp\store.json</code>。変更は、明示的に「保存」をクリックした場合にのみ保存されます。 </p>
-</section>
-<section class="doc-section" data-doc="" id="privacy">
-<span class="doc-kicker">信頼性</span>
-<h2>プライバシーを一言で言うと</h2>
-<p> 現在の設計では、環境のデータはコンピューター上にローカルに保存されます。リンクまたはソフトウェアを開くと、その宛先での通常のコミュニケーションが作成されます。たとえば、ブラウザで Web サイトを開くと、その Web サイトにアクセスします。 </p>
-<p> このサイト自体には、フォーム、分析、リモート フォント、またはサードパーティのサービスは含まれません。 </p>
-</section>
-<section class="doc-section" data-doc="" id="faq">
-<span class="doc-kicker">信頼性</span>
-<h2>よくある質問</h2>
-<h3>何 Start-app やってる？</h3>
-<p> プログラム、フォルダー、ファイル、リンクを 1 つの環境名で保存し、「実行」コマンドでまとめて開きます。 </p>
-<h3>開いているものはすべて元の状態に戻りますか?</h3>
-<p> 保証されていません。プログラム内で開かれているドキュメントの自動キャプチャ、保存されていないコンテンツの回復、またはウィンドウの配置の約束はありません。オープニングはオペレーティング システムへのリクエストであり、事前チェックとレポートが行われます。 </p>
-<h3>ソフトウェアで開いているドキュメントを追加するにはどうすればよいですか?</h3>
-<p> 手動: ファイル自体を環境の詳細のファイル タイプ項目として追加します。オープンソフトウェアからはキャプチャ自体が認識しません。 </p>
-<h3>情報はどこに保存されますか?</h3>
-<p> コンピューター上のローカル ファイルにあります。詳細は章で <a href="#storage">保存とローカルストレージ</a>.
-            </p>
-</section>
-</div>
-</div>
-</main>
-<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
-<script src="../i18n.js"></script><script src="../download-pointer.js"></script>
+  <body>
+    <a class="skip" href="#main">コンテンツにスキップ</a>
+    <div class="pinned-top">
+    <header>
+      <a class="brand" href="index.html" aria-label="Start-app、ホームページ"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+      <nav aria-label="メインナビゲーション">
+        <a href="docs.html" aria-current="page">ユーザーガイド</a><a href="index.html?version=v0.1.0-proto.2#download">ダウンロード</a>
+      </nav>
+    <details class="language-switch"><summary>言語</summary><nav aria-label="言語の選択"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a aria-current="true" dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details>
+    </header>
+        <div class="docs-jump">
+          <a href="#toc">ガイドの章</a><a href="#main">トップに戻る ↑</a>
+        </div>
+    </div>
+    <main id="main" class="wrap">
+      <div class="docs-intro">
+        <p class="eyebrow">ユーザーガイド</p>
+        <h1 tabindex="-1">ガイド Start-app</h1>
+        <p class="lead">バージョン 0.1.0-proto.2 でのステップバイステップ: ワークスペースの作成、項目の追加、キャプチャ、起動、保存。実際のアプリのスクリーンショットと、知っておくべき制限事項付き。</p>
+        <p class="pill">評価用プロトタイプであり、安定版ではありません</p>
+        <details class="version-switch"><summary>ガイドのバージョン: <bdi>0.1.0-proto.2</bdi></summary><nav aria-label="ガイドのバージョンを選択"><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.2</a><a dir="ltr" href="../proto1/ja/docs.html">0.1.0-proto.1</a></nav></details>
+      </div>
+      <div class="doc-layout">
+        <aside class="sidebar" tabindex="0" id="toc" aria-label="目次">
+          <label for="doc-search">ガイドの章を検索する</label><input id="doc-search" type="search" placeholder="例: 保存またはキャプチャ" autocomplete="off" />
+          <p id="search-status" class="search-status" role="status" aria-live="polite"></p>
+          <nav aria-label="ガイドの章">
+            <a href="#about">それは何ですか Start-app</a><a href="#install">システムとインストールの要件</a><a href="#main-screen">メイン画面: 環境ビュー</a><a href="#create">新しい作業環境の構築</a><a href="#items">項目を手動で追加する</a><a href="#capture">キャプチャ: スキャン、選択、複製</a><a href="#edit">編集環境とアイテム</a><a href="#launch">環境を起動し、開く前にテストする</a><a href="#limits">既知の制限事項</a><a href="#storage">保存とローカルストレージ</a><a href="#privacy">プライバシーを一言で言うと</a><a href="#faq">よくある質問</a>
+          </nav>
+          <p class="note">検索はページに対してローカルに行われます。データを送信せずに。</p>
+        </aside>
+        <div>
+          <p class="no-results" id="no-results" hidden>エピソードは見つかりませんでした。別の単語を試すか、検索をクリアしてください。</p>
+          <section id="about" class="doc-section" data-doc>
+            <span class="doc-kicker">始める</span>
+            <h2>それは何ですか Start-app</h2>
+            <p>Start-app プログラム、フォルダー、ファイル、リンクを 1 つの環境名で保存します。次回コンピュータを開くとき、「ファイル名を指定して実行」コマンドを実行すると、各項目を再度選択することなく、すべての項目がまとめて開きます。</p>
+            <p>このガイドはバージョン 0.1.0-proto.2 を説明し、全体的な流れを案内します: メイン画面、ワークスペースの作成、手動またはキャプチャによる項目の追加、編集、起動、保存。章 <a href="#limits">既知の制限事項</a> アプリケーションが実行しないすべてのことを 1 か所に集中化します。</p>
+          </section>
+          <section id="install" class="doc-section" data-doc>
+            <span class="doc-kicker">始める</span>
+            <h2>システムとインストールの要件</h2>
+            <p>パッケージ化対象は Windows x64 です。検証済みの Mac または Linux バージョンはありません。</p>
+            <p class="doc-version-download">このガイドが説明するバージョン 0.1.0-proto.2 のダウンロードは <a href="index.html?version=v0.1.0-proto.2#download">ホームページのバージョン一覧にあります</a>。バージョン番号、ファイルサイズ、インストール前確認用の sha256 が記載されています。ダウンロードはそこからのみで、ガイドページからは行いません。</p>
+            <h3>ダウンロード後のアクティベーション</h3>
+            <p>ダウンロードはインストーラーではなく ZIP ファイルです。ダウンロード後:</p>
+            <ol class="steps-list">
+              <li>ZIP からすべてのファイルをフォルダーに抽出します。</li>
+              <li>実行: <bdi><code>Start-app.exe</code></bdi> メインフォルダ内。</li>
+              <li>フォルダを <bdi><code>App</code></bdi> ファイルの横に残し、常にフォルダ全体を一緒に移動してください。</li>
+            </ol>
+            <p>アプリケーションにはランタイム環境が含まれているため、.NET を個別にインストールする必要はありません。登録、アカウント、ログインは必要ありません。データはローカル ファイルに保存されます。<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.</p>
+            <p>テスト内容: このプロトタイプはスタンドアロン Windows x64 アプリケーションとして構築され、ホストされた Windows Server 2025 サーバー上で正常に起動およびシャットダウンされました。家庭用 Windows 11 では独自にテストされておらず、Windows の最小バージョンの保証もありません。セキュリティ警告やウイルス対策ソフトウェアの警告が表示されないという保証はありません。</p>
+            <h3>バージョン更新</h3>
+            <p>更新チェックはアプリの設定画面から行い、承認済みバージョンのみが提案されます。ダウンロードは公式サイトから、インストールは手動です: 自動更新はありません。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-06-update-settings.png" alt="バージョン 0.1.0-proto.2 の設定画面: インストール済みバージョン 0.1.0-proto.2、承認済みバージョンのチェック、公式サイトからのダウンロードと手動インストール" width="706" height="393" loading="lazy" />
+              <figcaption>設定画面: バージョンと更新。公式サイトからのダウンロードと手動インストール。</figcaption>
+            </figure>
+          </section>
+          <section id="main-screen" class="doc-section" data-doc>
+            <span class="doc-kicker">画面</span>
+            <h2>メイン画面: 環境ビュー</h2>
+            <p>画面上部には環境の一覧があります。各環境カードには、名前、説明、カテゴリ、選択したカードの色と画像、作成日時、最終オープン日時が表示されます。最終オープン日時は、個別のアイテムを開いたときではなく、環境を起動したときに更新されます。</p>
+            <p>各カードには隣接する「起動」ボタンがあります。カードを右クリックするか、キーボードで Shift+F10 を押すと操作メニューが開きます: 表示、起動、項目を追加、カードをデザイン、カテゴリを編集。リストの下には新しいワークスペースの作成フォームがあり、隅にキャプチャ画面への入口があります。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-01-home-create.png" alt="バージョン 0.1.0-proto.2 のメイン画面: 隣接する「起動」ボタン付きの 2 つのワークスペースカードと、名前、説明、カテゴリ、色、画像のワークスペース作成フォーム" width="926" height="643" loading="lazy" />
+              <figcaption>メイン画面: ワークスペースカードと作成フォーム。バージョン 0.1.0-proto.2。</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="../shots/doc-p2-09-workspace-context-menu.png" alt="ワークスペースカードの右クリックメニュー: 表示、起動、項目を追加、カードをデザイン、カテゴリを編集" width="926" height="643" loading="lazy" />
+              <figcaption>操作メニューはカードの右クリックまたは Shift+F10 で開きます。</figcaption>
+            </figure>
+          </section>
+          <section id="create" class="doc-section" data-doc>
+            <span class="doc-kicker">画面</span>
+            <h2>新しい作業環境の構築</h2>
+            <p>作成フォームでは名前が必須項目です。デフォルトのカテゴリは「一般」で、色とカード画像を選択できます。説明は任意項目です。</p>
+          </section>
+          <section id="items" class="doc-section" data-doc>
+            <span class="doc-kicker">画面</span>
+            <h2>項目を手動で追加する</h2>
+            <p>環境詳細画面では、サイト、ファイル、フォルダー、ソフトウェアの4種類の項目を追加します。各項目には独自の名前と説明を付けることができます。ローカル パスには、短いソフトウェア エイリアスではなく、完全な Windows パスが必要です。</p>
+            <p>項目は種類ごとに画面にグループ化されます: サイト、フォルダ、ファイル、プログラム。各行には隣接する「編集」ボタンがあります。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-02-workspace-details.png" alt="バージョン 0.1.0-proto.2 のワークスペース詳細画面: 名前、カテゴリ、説明、項目追加行、既存のワークスペース選択ボタンとキャプチャボタン、サイト・フォルダ・ファイルのグループに保存された項目" width="926" height="643" loading="lazy" />
+              <figcaption>保存済み項目と追加行を含むワークスペースの詳細。</figcaption>
+            </figure>
+            <p>「既存のワークスペースを選択」ボタンは、別のワークスペースに保存済みの項目をワークスペースに追加します: 種類を選び、検索して選択します。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-04-existing-resource-picker.png" alt="種類選択、検索フィールド、「選択」ボタン付きの結果を持つ「既存のワークスペースを選択」ウィンドウ" width="926" height="643" loading="lazy" />
+              <figcaption>別のワークスペースに保存済みの項目の追加。</figcaption>
+            </figure>
+          </section>
+          <section id="capture" class="doc-section" data-doc>
+            <span class="doc-kicker">オペレーション</span>
+            <h2>キャプチャ: スキャン、選択、複製</h2>
+            <p>キャプチャでは、プログラム、Windows ファイル エクスプローラー、ブラウザーのアドレス バーなど、現在開いているものをスキャンします。ブラウザのソースは Chrome、Edge、Brave を認識します。現在、各ブラウザとバージョンの完全な互換性マトリックスはありません。スキャンには最大 10 秒かかる場合があります。</p>
+            <p>キャプチャから新しいワークスペースを作成すると、見つかった項目がデフォルトでチェックされ、チェックした項目のみがワークスペースに追加されます。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-07-capture-new.png" alt="バージョン 0.1.0-proto.2 の新規ワークスペースへのキャプチャ画面: 作成フォームとチェック済み項目のある「現在開いている」リスト" width="926" height="643" loading="lazy" />
+              <figcaption>新規ワークスペースへのキャプチャ: チェックした項目のみが追加されます。</figcaption>
+            </figure>
+            <p>既存のワークスペースに追加する場合、追加項目は保存済み項目と並べて Added, not saved yet のマーク付きで表示されます。「保存」をクリックするまで何も保存されません。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-08-capture-draft.png" alt="バージョン 0.1.0-proto.2 の既存ワークスペースでの並列キャプチャ: 保存済み項目、「現在開いている」リスト、空の Added, not saved yet エリア" width="926" height="643" loading="lazy" />
+              <figcaption>保存前に並べて保存: [保存] をクリックするまで何も保存されません。</figcaption>
+            </figure>
+            <p>ワークスペースに既にある単一の項目をドラッグすると、そのドラッグに対して個別の確認が表示されます: 別のインスタンスとして再度追加しますか? 一括追加（「すべて追加」または「選択を追加」）では、選択した項目のみが追加されます。何も選択されていない場合はすべてが追加されます。重複していない項目はすぐに画面に追加され、重複はすべて 1 つのグループ化された選択ダイアログに集められ、追加するものをチェックします。</p>
+            <p>完全な重複防止はありません: 同じ項目は、すでにワークスペースに保存されていても、複数回追加できます。保存前にリストを確認することをお勧めします。</p>
+          </section>
+          <section id="edit" class="doc-section" data-doc>
+            <span class="doc-kicker">オペレーション</span>
+            <h2>編集環境とアイテム</h2>
+            <p>ワークスペースカードの右クリックメニュー: 表示、起動、項目を追加、カードをデザイン、カテゴリを編集。</p>
+            <p>カードのデザインでは色と背景画像を選択します。</p>
+            <p>項目の横の「編集」をクリックすると、名前、説明、アドレスのインラインエディタが開きます。「キャンセル」は変更せずにエディタを閉じます。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-03-item-editor.png" alt="バージョン 0.1.0-proto.2 のインライン項目エディタ: 名前、説明、アドレスのフィールドと「キャンセル」ボタン" width="926" height="643" loading="lazy" />
+              <figcaption>項目のインライン編集: 名前、説明、アドレス。</figcaption>
+            </figure>
+            <p>変更は明示的な保存の後にのみ保存されます。詳細は章 <a href="#storage">保存とローカルストレージ</a>.</p>
+          </section>
+          <section id="launch" class="doc-section" data-doc>
+            <span class="doc-kicker">オペレーション</span>
+            <h2>環境を起動し、開く前にテストする</h2>
+            <p>「起動」コマンドはまず選択ウィンドウ「ワークスペースで何を開きますか?」を開きます: すべての項目がデフォルトでチェックされ、開きたくないもののチェックを外せます。「キャンセル」は何も開かずにウィンドウを閉じます。</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-05-opening-selection.png" alt="バージョン 0.1.0-proto.2 の開く前の選択ウィンドウ: すべての項目がチェック済み、「キャンセル」と「起動」ボタン付き" width="926" height="643" loading="lazy" />
+              <figcaption>開く前: 起動する項目の選択。確認なしには何も開きません。</figcaption>
+            </figure>
+            <p>チェックによって項目が既に開いていると確実に識別された場合、再度開くかどうかの選択が表示されます。これらの項目はデフォルトでチェックされていません。再度開きたい項目だけをチェックします。選択に戻るか、キャンセルできます。検出が不確実でも、項目が閉じている証拠にはなりません。開いた結果では、リクエスト送信、スキップ、失敗、再度開かない選択を区別します。リクエスト送信はウィンドウが開いた確認ではありません。</p>
+            <p>リンクは http/https のみで開き、プログラムには完全なパスが必要です。</p>
+            <p>確認後、アプリは Windows に各項目を開くリクエストを送信します。リクエスト送信は、目的のウィンドウが実際に開いた証拠ではありません。保存されたパスで見つからなかった項目はスキップされ、保存されたパスで見つからなかった旨の説明と、パスを確認して再試行する提案が表示されます。「既に開いている」チェックは部分的です: 確実に開いていると識別された項目のみが再度開く選択肢として表示され、チェックが判断できない場合、再度開くと重複が生じる可能性があります。</p>
+          </section>
+          <section id="limits" class="doc-section" data-doc>
+            <span class="doc-kicker">信頼性</span>
+            <h2>既知の制限事項</h2>
+            <ul>
+              <li>ソフトウェア内で開かれたドキュメントを自動的に識別する機能はありません。開いているソフトウェアは、そのソフトウェアで特定のファイルが開かれたという証拠ではありません。ドキュメントは手動で追加されます。</li>
+              <li>保存されていないコンテンツやウィンドウの配置が回復される保証はありません。</li>
+              <li>「既に開いている」チェックは部分的です: 確実な検出では再度開く選択肢が表示されます。確実でない場合、再度開くと重複が生じる可能性があります。</li>
+              <li>部分的なキャプチャ結果または空のリストは、開いているものが何もないことを意味するわけではありません。</li>
+              <li>保存済み項目と新規項目の間に完全な重複防止はありません。</li>
+              <li>インターフェイスには環境の削除操作はありません。環境全体を削除することはできませんが、環境から項目を削除することはできます。</li>
+              <li>自動更新はありません。承認済みバージョンのチェックは設定画面で利用でき、インストールは公式サイトから手動で行います。</li>
+              <li>ドライブのルートやネットワーク共有のルートへのパスは、手動追加でもキャプチャでもフォルダの対象としてサポートされていません。通常のサブフォルダへのパスはサポートされています。</li>
+            </ul>
+          </section>
+          <section id="storage" class="doc-section" data-doc>
+            <span class="doc-kicker">信頼性</span>
+            <h2>保存とローカルストレージ</h2>
+            <p>現在のプロジェクト設計では、ワークスペースは、コンピューター上のローカル ファイルに保存されます。 <code>%LOCALAPPDATA%\StartApp\store.json</code>. 変更は明示的に「保存」をクリックした場合にのみ保存されます。</p>
+          </section>
+          <section id="privacy" class="doc-section" data-doc>
+            <span class="doc-kicker">信頼性</span>
+            <h2>プライバシーを一言で言うと</h2>
+            <p>現在の設計では、環境のデータはコンピューター上にローカルに保存されます。リンクまたはソフトウェアを開くと、その宛先での通常のコミュニケーションが作成されます。たとえば、ブラウザで Web サイトを開くと、その Web サイトにアクセスします。</p>
+            <p>このサイト自体には、フォーム、分析、リモート フォント、またはサードパーティのサービスは含まれません。</p>
+          </section>
+          <section id="faq" class="doc-section" data-doc>
+            <span class="doc-kicker">信頼性</span>
+            <h2>よくある質問</h2>
+            <h3>何 Start-app やってる？</h3>
+            <p>プログラム、フォルダー、ファイル、リンクを 1 つの環境名で保存し、「実行」コマンドでまとめて開きます。</p>
+            <h3>開いているものはすべて元の状態に戻りますか?</h3>
+            <p>保証されていません。プログラム内で開かれているドキュメントの自動キャプチャ、保存されていないコンテンツの回復、またはウィンドウの配置の約束はありません。オープニングはオペレーティング システムへのリクエストであり、事前チェックとレポートが行われます。</p>
+            <h3>ソフトウェアで開いているドキュメントを追加するにはどうすればよいですか?</h3>
+            <p>手動: ファイル自体を環境の詳細のファイル タイプ項目として追加します。オープンソフトウェアからはキャプチャ自体が認識しません。</p>
+            <h3>情報はどこに保存されますか?</h3>
+            <p>コンピューター上のローカル ファイルにあります。詳細は章で <a href="#storage">保存とローカルストレージ</a>.</p>
+          </section></div>
+      </div>
+    </main>
+      <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <script src="../i18n.js"></script>
+    <script src="../download-pointer.js"></script>
 <script src="../download-catalog.js"></script>
-    <script src="../download-wire.js"></script>
+<script src="../download-wire.js"></script>
+<script src="../version-link.js"></script>
 <script src="../docs.js"></script>
-<script src="../site-nav.js"></script>
-</body>
+    <script src="../site-nav.js"></script>
+  </body>
 </html>
