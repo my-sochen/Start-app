@@ -1,3 +1,4 @@
+. "$PSScriptRoot/workspace-colors.ps1"
 $results = New-Object System.Collections.ArrayList   # initialized BEFORE the outer try: the outer catch appends to this in-memory CURRENT-RUN collection and never loads a disk file that could hold a stale prior run's PASS/FLOW evidence
 try {
 . (Join-Path $PSScriptRoot 'capture-readiness.ps1')
@@ -506,7 +507,7 @@ try {
   # design-only dirty guard on X: typed design without a name is unsaved; discarding closes the capture screen and
   # resets the shared create form; reopening scans fresh with the form at its defaults
   $oPreDisc = StoreObj; $wsCountPreDisc = if ($null -ne $oPreDisc) { @($oPreDisc.workspaces).Count } else { 0 }
-  SetText (NamedEdit 'Capture card color') '#E9D5FF'
+  SetWorkspaceColor '#E9D5FF'
   Shot 'new-form-design-filled'
   $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
   Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'You have changes that were not saved' 5) ((Texts) -join ' | ')
@@ -515,11 +516,11 @@ try {
   Assert 'capture screen closed after discard' (-not (WaitText 'Open now' 2)) ''
   $oDisc = StoreObj
   Assert 'discard saved nothing (workspace count unchanged from before the capture-new form)' ($null -ne $oDisc -and @($oDisc.workspaces).Count -eq $wsCountPreDisc) ("before=$wsCountPreDisc after=$(if ($null -ne $oDisc) { @($oDisc.workspaces).Count } else { 'no-store' })")
-  Assert 'discard reset the shared create form design fields' ((ValOf (NamedEdit 'Create card color')) -eq '' -and (ValOf (NamedEdit 'Create card image path')) -eq '') ''
+  Assert 'discard writes no advanced-color history' (@((StoreObj).advancedColorHistory).Count -eq 0) ''
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
   Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
-  Assert 'reopened capture-new form has empty design fields' ((ValOf (NamedEdit 'Capture card color')) -eq '' -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
+  Assert 'reopened capture-new form has empty design fields' (-not (TestWorkspaceColorSelected) -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
   $rescanComplete = (($null -ne (CheckByLike '*example.com*')) -and ($null -ne (CheckByLike '*example.org*')) -and ($null -ne (CheckByLike '*example.net*')))
   Assert 'REAL rescan after discard: the three Edge tabs are listed again' $rescanComplete ($names -join ' | ')
@@ -548,9 +549,9 @@ try {
   $capCardImg = "$PWD\diag\cap-create-card.png"
   $cb2 = New-Object System.Drawing.Bitmap 40, 40; $cg2 = [System.Drawing.Graphics]::FromImage($cb2); $cg2.Clear([System.Drawing.Color]::FromArgb(30, 140, 70)); $cg2.Dispose(); $cb2.Save($capCardImg, [System.Drawing.Imaging.ImageFormat]::Png); $cb2.Dispose()
   $capPalAnchor = CapPalette; Assert 'capture palette anchor uniquely found for the swatch click' ($null -ne $capPalAnchor) 'missing or ambiguous Capture palette list - window-wide hex lookup refused'
-  $csw = CapSwatch '#BFDBFE'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
-  [void](InvokeEl $csw 'capture palette #BFDBFE'); Start-Sleep -Milliseconds 400
-  Assert 'capture palette click fills the color' ((ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') (ValOf (NamedEdit 'Capture card color'))
+  $csw = CapSwatch '#8BAA9D'; Assert 'capture palette swatch present with its color as the automation name' ($null -ne $csw) ''
+  [void](InvokeEl $csw 'capture palette #8BAA9D'); Start-Sleep -Milliseconds 400
+  Assert 'capture palette click fills the color' ((ReadWorkspaceColor) -eq '#8BAA9D') (ReadWorkspaceColor)
   SetText (NamedEdit 'Capture card image path') $capCardImg
   $crm = Btn 'Remove capture image'; Assert 'remove capture image button present' ($null -ne $crm) ''
   [void](InvokeEl $crm 'remove capture image'); Start-Sleep -Milliseconds 300
@@ -564,7 +565,7 @@ try {
   $openedCap = $false; for ($t = 0; $t -lt 20 -and -not $openedCap; $t++) { Start-Sleep -Milliseconds 200; if (@(FindPickers).Count -ge 1) { $openedCap = $true } }
   Assert 'native picker opened from the capture form' $openedCap (AppWindowDump)
   Close-OwnedPickers 'capture-image picker cancelled from an empty path'
-  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ValOf (NamedEdit 'Capture card color')) -eq '#BFDBFE') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ValOf (NamedEdit 'Capture card color'))'")
+  Assert 'capture cancel from an empty path sets nothing and keeps the typed values' ((ValOf (NamedEdit 'Capture card image path')) -eq '' -and (ValOf (NamedEdit 'Capture workspace name')) -eq 'From capture' -and (ReadWorkspaceColor) -eq '#8BAA9D') ("image='$(ValOf (NamedEdit 'Capture card image path'))' name='$(ValOf (NamedEdit 'Capture workspace name'))' color='$(ReadWorkspaceColor)'")
   SetText (NamedEdit 'Capture card image path') $capCardImg
   Assert 'capture typed image path shown' ((ValOf (NamedEdit 'Capture card image path')) -eq $capCardImg) ''
   [void](InvokeEl (Btn 'Upload capture image') 'upload capture image (preserve cancel flow)')
@@ -596,8 +597,8 @@ try {
   $dpiX = 0
   if ($hdcCap -ne [IntPtr]::Zero) { try { $dpiX = [CapGuard.Dpi]::GetDeviceCaps($hdcCap, 88) } finally { [void][CapGuard.Dpi]::ReleaseDC($p.MainWindowHandle, $hdcCap) } }
   $dpiOk = ($hdcCap -ne [IntPtr]::Zero -and $dpiX -gt 0)
-  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(22.0 * $dpiX / 96.0) }
-  $palHex = @('#FFFFFF', '#FDE68A', '#BFDBFE', '#BBF7D0', '#FECACA', '#E9D5FF', '#E5E7EB')
+  $swExpected = 0; if ($dpiOk) { $swExpected = [int][math]::Round(28.0 * $dpiX / 96.0) }
+  $palHex = @('#7189BB', '#8BAA9D', '#B4A0C5', '#E6CE9A', '#D6AEB5', '#D9DEE6', '#90B5B8', '#D9B390', '#C78F87')
   $wrCap = (CurWin).Current.BoundingRectangle
   $palBox = CapPalette
   $palBad = @()
@@ -612,6 +613,8 @@ try {
     foreach ($hex in $palHex) {
       $sw = $palBox.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex)))))
       if ($null -eq $sw) { $palBad += "$hex=missing in the anchored capture palette"; continue }
+      RevealColorSwatch $sw
+      $pr0 = $palBox.Current.BoundingRectangle
       $sr = $sw.Current.BoundingRectangle
       $palInfo += "$hex=$([int]$sr.Width)x$([int]$sr.Height)@$([int]$sr.Left),$([int]$sr.Top)$(if ($sw.Current.IsOffscreen) { ' OFFSCREEN' })"
       if ($sw.Current.IsOffscreen) { $palBad += "$hex=offscreen"; continue }
@@ -621,7 +624,7 @@ try {
       if ($sr.Left -lt $wrCap.Left -or $sr.Right -gt $wrCap.Right -or $sr.Top -lt $wrCap.Top -or $sr.Bottom -gt $wrCap.Bottom) { $palBad += "$hex outside window" }
     }
   }
-  Assert 'all 7 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
+  Assert 'all 9 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
   Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
@@ -631,7 +634,7 @@ try {
   Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
   $o = StoreObj
   $wsCap = @($o.workspaces | Where-Object { $_.name -eq 'From capture' })[0]
-  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#BFDBFE' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
+  Assert 'create-time design from the capture form persisted (color + image)' ($null -ne $wsCap -and $wsCap.color -eq '#8BAA9D' -and $wsCap.imagePath -eq $capCardImg) ("color=$($wsCap.color) image=$($wsCap.imagePath)")
   # SiteFromAddressText returns the scheme-prefixed host exactly as read (no forced trailing slash): accept the two
   # exact forms, never a wildcard; the membership null-check and the launch check are the assertion.
   $capSiteItemId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
@@ -710,8 +713,10 @@ try {
   Assert 'staged row took the new address, store unchanged' (@(StagedAddrs)[2] -eq 'C:\Windows\System32\notepad.exe' -and -not (StoreJson).Contains('System32')) ((StagedAddrs) -join ' | ')
   $btns = @(StagedActionBtns)
   [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
-  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address'); Start-Sleep -Milliseconds 700
-  Assert 'העתק כתובת on a staged row reports the copy' ([System.Windows.Forms.Clipboard]::GetText().Length -gt 0) ((Texts) -join ' | ')
+  $mi = MenuItemByName 'העתק כתובת'; [void](InvokeEl $mi 'staged copy address')
+  # clipboard read races on a loaded runner: poll up to 5s, and GetText itself can throw while the clipboard is held
+  $clipLen = 0; for ($ci = 0; $ci -lt 10 -and $clipLen -le 0; $ci++) { Start-Sleep -Milliseconds 500; try { $clipLen = [System.Windows.Forms.Clipboard]::GetText().Length } catch { $clipLen = 0 } }
+  Assert 'העתק כתובת on a staged row reports the copy' ($clipLen -gt 0) ((Texts) -join ' | ')
   $btns = @(StagedActionBtns)
   [void](OpenContextEl $btns[2]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete moved program'); Start-Sleep -Milliseconds 700
@@ -781,24 +786,24 @@ try {
   Shot 'side-by-side-drag-staged'
   $c = ClickBtn 'Remove added example.com' 800; Assert 'staged drag row removed' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row'
-  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'dragging an existing item shows the per-drag duplicate warning' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
   Shot 'drag-duplicate-warning'
   $c = ClickBtn 'Capture duplicate cancel' 800; Assert 'cancel keeps the duplicate out' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   DragRowToStage '*capfolder*' 'saved folder row again'
-  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'already in this workspace' 5) ((Texts) -join ' | ')
+  Assert 'the per-drag warning fires for every drag, not once' (WaitText 'כבר קיים בסביבה' 5) ((Texts) -join ' | ')
   $c = ClickBtn 'Capture duplicate add anyway' 900; Assert 'add anyway stages the duplicate as a normal second instance' ($c -eq 'ok' -and (@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) $c
   Assert 'the drag-confirmed duplicate is still unsaved' (([regex]::Matches((StoreJson), 'my capture folder')).Count -eq 1) (StoreJson)
   $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
-  Assert 'grouped duplicate dialog shown' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'Add again: capfolder*')) ((CheckNames) -join ' | ')
+  Assert 'grouped duplicate dialog shown' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'הוסף שוב: capfolder*')) ((CheckNames) -join ' | ')
   Shot 'duplicate-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
   Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
-  $dup = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
+  $dup = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
   Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
 
@@ -818,7 +823,7 @@ try {
   Assert 'nothing ticked before save-and-exit (tick state does not leak between sections)' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
   $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
-  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'Add again: *')) ((CheckNames) -join ' | ')
+  Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'הוסף שוב: *')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
   Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'Unsaved changes' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
   $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
@@ -840,17 +845,17 @@ try {
   $stagedAll = @(StagedNames)
   Assert 'add-all staged the non-duplicate terminal at once' ($stagedAll -contains 'Windows Terminal Host') ($stagedAll -join ' | ')
   Assert 'duplicates not staged before the dialog choice' (($stagedAll -notcontains 'capfolder') -and ($stagedAll -notcontains 'Notepad')) ($stagedAll -join ' | ')
-  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'Add again: capfolder*')) -and ($null -ne (CheckByLike 'Add again: Notepad*'))) ((CheckNames) -join ' | ')
-  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'Add again: *Terminal*')) ((CheckNames) -join ' | ')
+  Assert 'ONE grouped dialog for BOTH duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  Assert 'dialog lists each duplicate with its own checkbox' (($null -ne (CheckByLike 'הוסף שוב: capfolder*')) -and ($null -ne (CheckByLike 'הוסף שוב: Notepad*'))) ((CheckNames) -join ' | ')
+  Assert 'dialog does NOT list the non-duplicates' ($null -eq (CheckByLike 'הוסף שוב: *Terminal*')) ((CheckNames) -join ' | ')
   Assert 'add-all changed nothing in the store' ((StoreJson) -eq $storeBeforeAll) ''
   Shot 'add-all-grouped-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip both duplicates' ($c -eq 'ok') $c
   Assert 'non-duplicates stay staged after skipping' (@(StagedNames) -contains 'Windows Terminal Host') ((StagedNames) -join ' | ')
   foreach ($sn in @(StagedNames)) { $c = ClickBtn "Remove added $sn" 800; Assert "remove staged $sn before the selective pass" ($c -eq 'ok') $c }
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
-  Assert 'grouped dialog again for the selective pass' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  $dupF = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
+  Assert 'grouped dialog again for the selective pass' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupF = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
   $stagedNow = @(StagedRowRecords)
   $foldersNow = @($stagedNow | Where-Object { $_.Address -like '*capfolder*' })
@@ -876,7 +881,7 @@ try {
   $c = ClickBtn 'Pick workspace Cap A' 1000; Assert 'picked Cap A' ($c -eq 'ok') $c
   $namesBeforeSwitch = @(CheckNames)
   DragRowToStage '*capfolder*' 'folder row into Cap A'
-  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'already in this workspace' 2)) ((Texts) -join ' | ')
+  Assert 'no false duplicate warning when the address exists only in another workspace' (-not (WaitText 'כבר קיים בסביבה' 2)) ((Texts) -join ' | ')
   Shot '4c-after-drag-cap-a'
   Assert 'the dragged folder staged in Cap A with the capture default name' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Capture save' 1200; Assert 'saved into Cap A' ($c -eq 'ok') $c
@@ -898,8 +903,8 @@ try {
   Assert 'the capture list is identical after switching workspaces' ((@(CheckNames) -join '|') -eq ($namesBeforeSwitch -join '|')) ((CheckNames) -join ' | ')
   $folderTick = CheckByLike '*capfolder*'; [void](ToggleEl $folderTick 'folder tick for re-add'); Start-Sleep -Milliseconds 400
   $c = ClickBtn 'הוסף נבחרים' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
-  Assert 'duplicate dialog for the re-add' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  $dupR = CheckByLike 'Add again: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
+  Assert 'duplicate dialog for the re-add' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  $dupR = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
   Assert 'the re-added instance gets the capture default name, not a locally renamed one' ((@(StagedNames) -join '|') -eq 'capfolder') ((StagedNames) -join ' | ')
   $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
@@ -948,18 +953,19 @@ try {
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep staging' ($c -eq 'ok') $c
   $storeBeforeDeep = StoreJson
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
-  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'Already in this workspace' 5) -and $null -ne (CheckByLike 'Add again: capfolder*') -and $null -eq (CheckByLike 'Add again: *example*')) ((CheckNames) -join ' | ')
+  Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) -and $null -ne (CheckByLike 'הוסף שוב: capfolder*') -and $null -eq (CheckByLike 'הוסף שוב: *example*')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
   $deepStaged = @(StagedAddrsDeep)
-  $expectDeep = @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*', '*example.net*')
+  $expectDeep = @('*WindowsTerminal.exe*', '*example.com*', '*example.org*', '*example.net*')   # msedge.exe is excluded from every capture by the seeded global blacklist (approved 22.11)
   $missingDeep = @(); foreach ($e in $expectDeep) { if (@($deepStaged | Where-Object { $_ -like $e }).Count -eq 0) { $missingDeep += $e } }
-  Assert 'deep staging: exactly the 5 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 5) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: exactly the 4 non-duplicate rows staged beyond the rendered viewport' (($deepStaged.Count -eq 4) -and $missingDeep.Count -eq 0) (($deepStaged -join ' | ') + ' || missing: ' + ($missingDeep -join ' | '))
+  Assert 'deep staging: msedge.exe excluded by the seeded global blacklist (approved 22.11)' (@($deepStaged | Where-Object { $_ -like '*msedge.exe*' }).Count -eq 0) ($deepStaged -join ' | ')
   Assert 'deep staging: nothing saved before the choice' ((StoreJson) -eq $storeBeforeDeep) ''
   Shot 'deep-staging-staged'
   $c = ClickBtn 'Capture save' 1500; Assert 'deep staging save clicked' ($c -eq 'ok') $c
-  Assert 'deep staging: app reports saving all 5 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  Assert 'deep staging: app reports saving all 4 rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
-  Assert 'deep staging: store holds the previous 3 plus exactly the 5 new in Cap B' (@($wsB.items).Count -eq 8) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep staging: store holds the previous 3 plus exactly the 4 new in Cap B' (@($wsB.items).Count -eq 7) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   foreach ($ds in @($o.items.PSObject.Properties.Value | Where-Object { $_.target -like 'https://example.*' })) {
     $mem = @($wsB.items | Where-Object { $_.itemId -eq $ds.id })[0]
     Assert "deep staging: staged site $($ds.target) kept its source browser (Edge) through the existing-workspace save" ($null -ne $mem -and $mem.launch.browser -like '*msedge.exe') ("browser=$($mem.launch.browser)")
@@ -976,11 +982,11 @@ try {
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
   $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
-  Assert 'deep removal: grouped dialog for every row now that all six are duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'Add again:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
-  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the five ticked duplicates (deep removal)' ($c -eq 'ok') $c
+  Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
+  $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the four ticked duplicates (deep removal)' ($c -eq 'ok') $c
   $deep2 = @(StagedAddrsDeep)
-  Assert 'deep removal: five duplicate rows staged beyond the viewport' (($deep2.Count -eq 5) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
+  Assert 'deep removal: four duplicate rows staged beyond the viewport' (($deep2.Count -eq 4) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
   $removedNet = $false
   for ($i = 0; $i -lt 20 -and -not $removedNet; $i++) {
     $rb = Btn 'Remove added example.net'
@@ -989,13 +995,13 @@ try {
   }
   Assert 'below-viewport staged row example.net realized and removed' $removedNet ''
   $deep3 = @(StagedAddrsDeep)
-  Assert 'deep removal: staged set is the four kept rows' (($deep3.Count -eq 4) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
+  Assert 'deep removal: staged set is the three kept rows' (($deep3.Count -eq 3) -and @($deep3 | Where-Object { $_ -like '*example.net*' }).Count -eq 0) ($deep3 -join ' | ')
   $c = ClickBtn 'Capture save' 1500; Assert 'deep removal save clicked' ($c -eq 'ok') $c
-  Assert 'deep removal: app reports saving the 4 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
+  Assert 'deep removal: app reports saving the 3 kept rows' ($null -ne (Btn 'Capture save') -and -not (Btn 'Capture save').Current.IsEnabled) ((Texts) -join ' | ')
   $o = StoreObj; $wsB = @($o.workspaces | Where-Object { $_.name -eq 'Cap B' })[0]
-  Assert 'deep removal: Cap B holds exactly 12 rows after the kept four saved' (@($wsB.items).Count -eq 12) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
+  Assert 'deep removal: Cap B holds exactly 10 rows after the kept three saved' (@($wsB.items).Count -eq 10) ((@($wsB.items | ForEach-Object { $_.name })) -join ' | ')
   Assert 'deep removal: example.net stayed saved exactly once (removal kept it out)' ((WsCountByTarget $wsB $o '*example.net*') -eq 1) "count=$(WsCountByTarget $wsB $o '*example.net*')"
-  foreach ($e in @('*WindowsTerminal.exe*', '*msedge.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
+  foreach ($e in @('*WindowsTerminal.exe*', '*example.com*', '*example.org*')) { Assert "deep removal: $e now twice in Cap B" ((WsCountByTarget $wsB $o $e) -eq 2) "count=$(WsCountByTarget $wsB $o $e)" }
   Assert 'deep removal: the folder stayed at its two instances' ((WsCountByTarget $wsB $o '*capfolder*') -eq 2) "count=$(WsCountByTarget $wsB $o '*capfolder*')"
   Assert 'deep removal: every instance effective name still non-empty (membership or catalog fallback)' (@(EffectiveNames $wsB $o | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -eq 0) ((EffectiveNames $wsB $o) -join ' | ')
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
@@ -1330,11 +1336,11 @@ try {
         [void](ToggleEl $edgeRow 'tick the (Edge) row for the selective add'); Start-Sleep -Milliseconds 200
         [void](ToggleEl $chromeRow2 'tick the (Chrome) row for the selective add'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'הוסף נבחרים' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
-        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'Already in this workspace' 5) ((Texts) -join ' | ')
-        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'Add again: example.com*(Edge)')) -and ($null -ne (CheckByLike 'Add again: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
-        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'Add again: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
+        Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'הוסף שוב: example.com*(Edge)')) -and ($null -ne (CheckByLike 'הוסף שוב: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
         Shot 'dup-two-browser-choices'
-        $chromeDup = CheckByLike 'Add again: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
+        $chromeDup = CheckByLike 'הוסף שוב: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
         Assert 'DUP-2BROWSER: exactly the Chrome duplicate staged' ((@(StagedNames) -join '|') -eq 'example.com') ((StagedNames) -join ' | ')
         $c = ClickBtn 'Capture save' 1500; Assert 'save the Chrome duplicate (dup two-browser)' ($c -eq 'ok') $c

@@ -1,0 +1,17 @@
+<local:DialogFrame x:Class="StartApp.App.OpenWithEditorView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" MinWidth="420">
+    <local:DialogFrame.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V"/>
+    </local:DialogFrame.Resources>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding CloseOpenWithCommand}" Style="{StaticResource CompactIconButton}" AutomationProperties.Name="Close open with" ToolTip="סגור"/>
+                        <TextBlock Text="פתח באמצעות" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock FlowDirection="RightToLeft" Text="{Binding OpenWithLabel}" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"/>
+                    <TextBox Text="{Binding OpenWithProgram, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Program path"/>
+                    <CheckBox HorizontalAlignment="Right" Content="הגדר כברירת מחדל" IsChecked="{Binding OpenWithSetDefault}" Margin="0,6,0,0" AutomationProperties.Name="Set as default"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button Content="פתח" Command="{Binding OpenWithGoCommand}" Style="{StaticResource CompactActionButton}" AutomationProperties.Name="Open with chosen program"/>
+                    </StackPanel>
+                </StackPanel>
+            </local:DialogFrame>

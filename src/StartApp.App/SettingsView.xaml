@@ -1,0 +1,215 @@
+<UserControl x:Class="StartApp.App.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FlowDirection="LeftToRight" Background="#f7f8fb"
+             FontFamily="./Assets/Fonts/#Noto Sans Hebrew, Arial"
+             AutomationProperties.Name="Settings screen">
+    <!-- Approved הגדרות handoff (22.11, corrected package): in-window settings screen.
+         DataContext is the window's UpdateViewModel; the back command binds to the
+         hosting window's MainViewModel. Pixel tokens come from the handoff spec. -->
+    <UserControl.Resources>
+
+
+        <Style x:Key="FutureTag" TargetType="Border">
+            <Setter Property="Background" Value="#f4f6f9"/>
+            <Setter Property="BorderBrush" Value="#dbe0e8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="6,1"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#667388"/>
+            <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FlowDirection" Value="RightToLeft"/><Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- header: breadcrumbs, title, back -->
+        <Grid Grid.Row="0" Margin="32,22,32,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="סביבות העבודה / הגדרות" FontSize="12" Foreground="#636e7d" HorizontalAlignment="Right"/>
+            <DockPanel Grid.Row="1" Margin="0,17,0,0">
+                <Button DockPanel.Dock="Left" Content="חזרה לסביבות" Style="{StaticResource SettingsSecondaryButton}" Height="38" MinWidth="123" VerticalAlignment="Top"
+                        Command="{Binding DataContext.CloseSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        AutomationProperties.Name="Back to workspaces"/>
+                <StackPanel>
+                    <TextBlock Text="הגדרות" FontSize="22" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"
+                               AutomationProperties.Name="Settings title"/>
+                    <TextBlock Text="ניהול עדכונים והתנהגות החלון. שפה, מצב יום/לילה וערכת נושא יצטרפו בהמשך." FontSize="13" Foreground="#626b79"
+                               HorizontalAlignment="Right" Margin="0,2,0,0"/>
+                </StackPanel>
+            </DockPanel>
+        </Grid>
+
+        <!-- body -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="40,24,32,12">
+
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0"><TextBlock Text="מגש המערכת" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833"/></Border>
+                        <CheckBox Content="להמשיך לרוץ במגש בסגירת החלון" FlowDirection="RightToLeft" Margin="14,12" HorizontalAlignment="Right"
+                                  IsChecked="{Binding DataContext.KeepRunningInTray, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                  IsEnabled="{Binding DataContext.CanChangeTrayPreference, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Keep running in tray"/>
+                        <TextBlock Text="כבוי כברירת מחדל. כשהאפשרות פעילה, סגירת החלון מסתירה אותו ללא אובדן הטיוטה. האייקון ליד השעון פותח את החלון, משגר סביבה או מאפשר יציאה מלאה. הגדרה זו אינה משנה הפעלה עם Windows." Style="{StaticResource HintText}" Margin="14,0,14,12"/>
+                        <TextBlock Text="{Binding DataContext.TrayPreferenceError, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#9B3030" FlowDirection="RightToLeft" TextWrapping="Wrap" Margin="14,0,14,8" AutomationProperties.Name="Tray preference error"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0"><TextBlock Text="הפעלה עם Windows" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833"/></Border>
+                        <CheckBox Content="להפעיל את Start App בכניסה ל-Windows" FlowDirection="RightToLeft" Margin="14,12" HorizontalAlignment="Right"
+                                  IsChecked="{Binding DataContext.StartsWithWindows, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                  IsEnabled="{Binding DataContext.CanChangeWindowsStartup, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Start with Windows"/>
+                        <TextBlock Text="כבוי כברירת מחדל, אלא אם נבחר בהתקנה. המתג מציג ומשנה את אותה הגדרה של המתקין. בהפעלה ידנית לא תיפתח הסביבה אוטומטית." Style="{StaticResource HintText}" Margin="14,0,14,10"/>
+                        <TextBlock Text="סביבה לפתיחה בכניסה:" FontSize="12" HorizontalAlignment="Right" Margin="14,0,14,4"/>
+                        <DockPanel Margin="14,0,14,10">
+                            <Button Content="בחירת סביבה" Click="ChooseStartupWorkspace_Click" Style="{StaticResource SettingsSecondaryButton}" DockPanel.Dock="Left" AutomationProperties.Name="Choose startup workspace"/>
+                            <TextBlock Text="{Binding DataContext.StartupWorkspaceDisplay, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                        <TextBlock Text="בכניסה בלבד: תוכנות, קבצים ותיקיות נפתחים אחרי 10 שניות. אתרים נפתחים יחד איתם אם זוהה אינטרנט, אחרת עם זיהוי החיבור ועד 25 שניות לכל היותר, גם בלי אינטרנט. הסביבה תיפתח אוטומטית ללא דיאלוג הבחירה. פריטים חסומים או לא זמינים ידולגו ויופיעו בדוח. הזמנים קובעים מתי נשלחות בקשות הפתיחה; בדיקות הפריטים ו-Windows עלולים לעכב בפועל. פריטי הסביבה הגלובלית ימשיכו להיפתח בכניסה. בחירת הסביבה משותפת להגדרת ברירת המחדל בתפריט ובכרטיסים. בגרסה ניידת, העברת התוכנה למיקום אחר מחייבת להפעיל מחדש את המתג." Style="{StaticResource HintText}" Margin="14,0,14,10"/>
+                        <TextBlock Text="{Binding DataContext.StartupError, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#9B3030" FlowDirection="RightToLeft" TextWrapping="Wrap" Margin="14,0,14,8" AutomationProperties.Name="Windows startup error"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- group 1: עדכונים -->
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0">
+                            <DockPanel>
+                                <TextBlock Text="{Binding LastCheckedDisplay}" FontSize="12" Foreground="#566173" DockPanel.Dock="Left"
+                                           AutomationProperties.Name="Last checked"/>
+                                <TextBlock Text="עדכונים" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833"
+                                           AutomationProperties.Name="Updates group"/>
+                            </DockPanel>
+                        </Border>
+                        <DockPanel Margin="14,10">
+                            <TextBlock Text="{Binding VersionValueDisplay}" FontSize="13" Foreground="#222833" DockPanel.Dock="Left"
+                                       FlowDirection="LeftToRight" AutomationProperties.Name="Installed version value"/>
+                            <TextBlock Text="גרסה נוכחית" HorizontalAlignment="Right" FontSize="13" Foreground="#222833"/>
+                        </DockPanel>
+                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="14,8" MinHeight="46" x:Name="UncheckedNotice" Background="#F4F6F9" BorderBrush="#D3DBEA" AutomationProperties.Name="Updates not verified notice"><TextBlock x:Name="UncheckedText" FlowDirection="RightToLeft" TextAlignment="Left" VerticalAlignment="Center" FontSize="12" Foreground="#626B79" TextWrapping="Wrap"/></Border>
+                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpToDateNotice"
+                                Background="#eef7f3" BorderBrush="#cbded6" AutomationProperties.Name="Up to date notice">
+                            <TextBlock Text="המערכת מעודכנת. אין עדכון זמין כרגע." FlowDirection="RightToLeft" TextAlignment="Left" FontSize="12" Foreground="#2e6556" TextWrapping="Wrap"/>
+                        </Border>
+                        <Border Margin="14,4" CornerRadius="4" BorderThickness="1" Padding="10,8" x:Name="UpdateNotice"
+                                Background="#eef3fd" BorderBrush="#b9cae8" Visibility="Collapsed"
+                                AutomationProperties.Name="Update available notice">
+                            <StackPanel>
+                                <TextBlock Text="{Binding OfferedVersionDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#2c4a8a"
+                                           AutomationProperties.Name="Offered version"/>
+                                <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="#2c4a8a" TextWrapping="Wrap"
+                                           Text="הגרסה אושרה להפצה; לחיצה על &quot;עדכן עכשיו&quot; מורידה ומתקינה אותה בתוך האפליקציה - בלי אתר ובלי התקנה ידנית."/>
+                            </StackPanel>
+                        </Border>
+                        <DockPanel Margin="14,8">
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                <Button x:Name="CheckButton" Content="בדוק עדכונים" Style="{StaticResource SettingsPrimaryButton}"
+                                        Command="{Binding CheckCommand}" AutomationProperties.Name="Check for updates"/>
+                                <Button x:Name="UpdateNowButton" Content="עדכן עכשיו" Style="{StaticResource SettingsPrimaryButton}"
+                                        Command="{Binding DownloadCommand}" Visibility="Collapsed" AutomationProperties.Name="Update now"/>
+                                <Button x:Name="RecheckButton" Content="בדוק שוב" Style="{StaticResource SettingsSecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding CheckCommand}" Visibility="Collapsed" AutomationProperties.Name="Check again"/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource HintText}" Text="בדיקה ידנית מלבד הבדיקה האוטומטית בכל הפעלה"
+                                       VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                        </DockPanel>
+                        <TextBlock x:Name="StatusLine" Style="{StaticResource HintText}" Margin="14,0,14,4" Text="{Binding Status}"
+                                   AutomationProperties.Name="Update status line"/>
+                        <Border BorderBrush="#e8ecf2" BorderThickness="0,1,0,0" Margin="0,4,0,0">
+                            <TextBlock Style="{StaticResource HintText}" Margin="14,8" LineHeight="20" TextAlignment="Left"
+                                       Text="האפליקציה בודקת עדכונים פעם אחת בכל הפעלה, בלי להפריע לעבודה, ומציגה הודעה רק כשקיימת גרסה שאושרה להפצה. אין התקנה אוטומטית: העדכון מותקן רק בלחיצה שלך. בלחיצה על עדכן עכשיו האפליקציה מורידה את הגרסה המלאה, נסגרת לכמה שניות, מתעדכנת ונפתחת מחדש מעצמה; הנתונים וההגדרות נשמרים בצד; דילוג על גרסאות ביניים מוביל ישירות לעדכנית ביותר; ללא חיבור לאינטרנט האפליקציה ממשיכה לעבוד כרגיל."
+                                       AutomationProperties.Name="Update behavior note"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- group 2: שפה ומראה (future) -->
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4" Margin="0,16,0,0" Opacity="0.55">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0">
+                            <DockPanel>
+                                <Border Style="{StaticResource FutureTag}" DockPanel.Dock="Left">
+                                    <TextBlock Text="ימומשו בהמשך" FontSize="11" Foreground="#566173"/>
+                                </Border>
+                                <TextBlock Text="שפה ומראה" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="#222833"
+                                           AutomationProperties.Name="Language and appearance group"/>
+                            </DockPanel>
+                        </Border>
+
+                        <DockPanel Margin="14,10" AutomationProperties.Name="Language row">
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <Border Style="{StaticResource FutureTag}">
+                                    <TextBlock Text="ימומש בהמשך" FontSize="11" Foreground="#566173"/>
+                                </Border>
+                                <ComboBox IsEnabled="False" SelectedIndex="0" MinWidth="110" Margin="8,0,0,0"
+                                          AutomationProperties.Name="Language picker">
+                                    <ComboBoxItem Content="עברית"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="שפה" FontSize="13" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                <TextBlock Text="שפת הממשק של האפליקציה" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border BorderBrush="#e8ecf2" BorderThickness="0,1,0,0">
+                            <DockPanel Margin="14,10" AutomationProperties.Name="Day night row">
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                    <Border Style="{StaticResource FutureTag}">
+                                        <TextBlock Text="ימומש בהמשך" FontSize="11" Foreground="#566173"/>
+                                    </Border>
+                                    <Border Width="46" Height="24" CornerRadius="12" Background="#c9d2df" Margin="8,0,0,0"
+                                            AutomationProperties.Name="Day night toggle">
+                                        <Ellipse Width="18" Height="18" Fill="White" HorizontalAlignment="Right" Margin="0,0,3,0"/>
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="מצב יום ולילה" FontSize="13" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="מעבר בין מראה בהיר לכהה" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <Border BorderBrush="#e8ecf2" BorderThickness="0,1,0,0">
+                            <DockPanel Margin="14,10" AutomationProperties.Name="Theme row">
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                    <Border Style="{StaticResource FutureTag}">
+                                        <TextBlock Text="ימומש בהמשך" FontSize="11" Foreground="#566173"/>
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0" AutomationProperties.Name="Theme swatches">
+                                        <Border Width="28" Height="28" CornerRadius="4" BorderBrush="#b8c0cf" BorderThickness="1" Background="#315cc5" Margin="0,0,6,0"/>
+                                        <Border Width="28" Height="28" CornerRadius="4" BorderBrush="#b8c0cf" BorderThickness="1" Background="#3f9d63" Margin="0,0,6,0"/>
+                                        <Border Width="28" Height="28" CornerRadius="4" BorderBrush="#b8c0cf" BorderThickness="1" Background="#8a6fae" Margin="0,0,6,0"/>
+                                        <Border Width="28" Height="28" CornerRadius="4" BorderBrush="#b8c0cf" BorderThickness="1" Background="#c1995c"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="ערכת נושא" FontSize="13" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="ערכת הצבעים של הממשק" FontSize="11" Foreground="#667388" HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- footer -->
+        <Border Grid.Row="2" Height="0" Background="#eef1f6" BorderBrush="#dde2ea" BorderThickness="0,1,0,0">
+            <TextBlock Text="הגדרות" FontSize="11" Foreground="#566173" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="14,0,0,0"/>
+        </Border>
+    </Grid>
+</UserControl>

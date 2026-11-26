@@ -1,0 +1,45 @@
+name: dialog-capture-design
+on:
+  push:
+    branches: [feat/dialog-capture-design]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Focused behavior contracts
+        shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~SavedItemTransfer|FullyQualifiedName~CaptureFlow|FullyQualifiedName~CaptureSession|FullyQualifiedName~CreateFormDesign|FullyQualifiedName~WorkspaceColor|FullyQualifiedName~UpdateViewModel"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actual Windows dialogs and capture form
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.DialogDesignCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary=Join-Path $PWD 'tests/StartApp.DialogDesignCapture/bin/Release/net10.0-windows/StartApp.DialogDesignCapture.exe'
+          $p=Start-Process $binary -ArgumentList ('"'+(Join-Path $PWD 'dialog-evidence')+'"') -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'dialog capture timeout' }
+          if ($p.ExitCode -ne 0) { Get-Content dialog-evidence/error.txt; throw 'dialog capture failed' }
+      - name: Existing advanced color behavior
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.ColorCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $binary=Join-Path $PWD 'tests/StartApp.ColorCapture/bin/Release/net10.0-windows/StartApp.ColorCapture.exe'
+          $p=Start-Process $binary -ArgumentList ('"'+(Join-Path $PWD 'color-evidence')+'"') -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill($true); throw 'color capture timeout' }
+          if ($p.ExitCode -ne 0) { Get-Content color-evidence/error.txt; throw 'color capture failed' }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: dialog-capture-design
+          path: |
+            dialog-evidence/
+            color-evidence/

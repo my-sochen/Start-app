@@ -14,19 +14,26 @@ if (Test-Path $destination) { throw 'capture destination already exists; refusin
 $binary = Join-Path $PWD 'tests/StartApp.UpdateUiCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
 # Bounded child lifetime; only this capture process tree is terminated. No
 # machine-wide cleanup or real LOCALAPPDATA access by this test program.
-$capture = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '"') -PassThru
+$captureOut = Join-Path $env:RUNNER_TEMP ("update-capture-" + [guid]::NewGuid().ToString('N') + '.out.log')
+$captureErr = Join-Path $env:RUNNER_TEMP ("update-capture-" + [guid]::NewGuid().ToString('N') + '.err.log')
+$capture = Start-Process -FilePath $binary -ArgumentList ('"' + $output + '"') -PassThru -RedirectStandardOutput $captureOut -RedirectStandardError $captureErr
 try {
   if (-not $capture.WaitForExit(60000)) {
     $capture.Kill($true)
     throw 'synthetic WPF capture timed out'
   }
-  if ($capture.ExitCode -ne 0) { throw "capture exited $($capture.ExitCode)" }
+  if ($capture.ExitCode -ne 0) {
+    # Dump the child's own output before failing: an unhandled .NET exception (exit -532462766) lands here.
+    if (Test-Path $captureOut) { '--- capture stdout ---'; Get-Content $captureOut }
+    if (Test-Path $captureErr) { '--- capture stderr ---'; Get-Content $captureErr }
+    throw "capture exited $($capture.ExitCode)"
+  }
 } finally {
   if (Test-Path $output) { Copy-Item -Path $output -Destination $destination -Recurse }
   $capture.Dispose()
 }
 $pngs = @(Get-ChildItem out-images/update-states -Filter '*.png')
-if ($pngs.Count -ne 30) { throw "Expected thirty WPF state images (eighteen original states plus twelve beta/event/MAIN states), found $($pngs.Count)" }
+if ($pngs.Count -ne 34) { throw "Expected thirty-four WPF state images (eighteen original states plus twelve beta/event/MAIN states plus four capture-hover frames), found $($pngs.Count)" }
 if (-not (Test-Path out-images/update-states/capture-evidence.json)) { throw 'capture metadata missing' }
 $evidence = @(Get-Content out-images/update-states/capture-evidence.json -Raw | ConvertFrom-Json)
 $identity = @($evidence | Where-Object { $_.state -ceq 'loaded-App-identity' })

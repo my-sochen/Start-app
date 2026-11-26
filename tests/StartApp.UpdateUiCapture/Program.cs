@@ -44,6 +44,8 @@ internal static class Program
             Evidence.Add(new { state="default-factory-source-selection", factory="UpdateComposition.Create", selectedSource="MainBetaNoticeSource", installedVersion=defaultUpdates.InstalledVersionDisplay, scope="construction and source type only; no commands, startup, HTTP or browser execution" });
         }
         var app = new Application();
+        // Harness: bare Application + the shared resource dictionary. Do NOT construct StartApp.App.App: its Startup wiring (OnStartup, real adapters, real store) fires on Run().
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new System.Uri("pack://application:,,,/StartApp.App;component/SharedResources.xaml") });
         // Explicitly isolated root for fixtures. Production default composition is
         // now live-read capable and must not run against public APIs in this test.
         var window = new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected fixture browser"))) { Width = 900, Height = 560 };
@@ -53,8 +55,8 @@ internal static class Program
         {
             try
             {
-                // Find the real production update row via its existing view-model type.
-                var row = ((Grid)window.Content).Children.OfType<Border>().Single(b => b.DataContext is UpdateViewModel);
+                // Update state now lives in SettingsView, not in a home header row.
+                // Keep home captures, and verify each injected state in the actual settings view below.
                 foreach (var width in new[] { 900, 720 })
                 {
                     window.Width = width;
@@ -63,7 +65,7 @@ internal static class Program
                     CaptureSettings(window, window.Updates, output, $"{width}-settings-inactive", width);
                     var opened = new List<string>();
                     using var available = new UpdateViewModel(new SyntheticSource(_ => Task.FromResult<ApprovedUpdate?>(Patch)), "1.0.0", uri => opened.Add(uri.AbsoluteUri));
-                    row.DataContext = available;
+
                     await available.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-available");
@@ -83,27 +85,72 @@ internal static class Program
                     beta.DownloadCommand.Execute(null); await beta.CurrentCheck;
                     if (betaOpened.Count != 1 || betaOpened[0] != UpdateViewModel.OfficialWebsite) throw new Exception("Beta handoff mismatch");
                     using var failure = new UpdateViewModel(new SyntheticSource(_ => throw new HttpRequestException("synthetic")), "1.0.0", _ => throw new Exception("Unexpected browser call"));
-                    row.DataContext = failure; await failure.CheckAsync();
+                    await failure.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-failure");
                     CaptureSettings(window, failure, output, $"{width}-settings-failure", width);
                     var gate = new TaskCompletionSource<ApprovedUpdate?>();
                     using var busy = new UpdateViewModel(new SyntheticSource(_ => gate.Task), "1.0.0", _ => throw new Exception("Unexpected browser call"));
-                    row.DataContext = busy; var pending = busy.CheckAsync();
+                    var pending = busy.CheckAsync();
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                     Capture(window, output, $"{width}-busy");
                     CaptureSettings(window, busy, output, $"{width}-settings-busy", width);
                     gate.SetResult(null); await pending;
-                    row.DataContext = window.Updates;
+
                 }
+                await CaptureCaptureHoverFrames(window, output);
                 await CaptureProductionEventPath(window, output);
                 await CaptureMainNoticeEventPath(window, output);
                 File.WriteAllText(Path.Combine(output, "capture-evidence.json"), JsonSerializer.Serialize(Evidence, new JsonSerializerOptions { WriteIndented = true }));
                 app.Shutdown(0);
             }
-            catch (Exception ex) { File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
+            catch (Exception ex) { Console.Error.WriteLine(ex); File.WriteAllText(Path.Combine(output, "capture-error.txt"), ex.ToString()); app.Shutdown(1); }
         };
         return app.Run(window);
+    }
+    private static async Task CaptureCaptureHoverFrames(MainWindow window, string output)
+    {
+        // Sample the product's own period, not a historical animation duration.
+        // Compare only the icon, with the same dispatcher boundary for both endpoints.
+        window.Width = 900;
+        await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        var icon = Descendants(window).OfType<CaptureHoverIcon>().Single();
+        var period = CaptureHoverMotion.LoopSeconds;
+        var hashes = new Dictionary<string, string>();
+        foreach (var fraction in new[] { 0.0, 0.25, 0.5, 0.75 })
+        {
+            var t = fraction * period;
+            icon.RenderFrameAt(t);
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            var name = $"900-capture-hover-t{(int)Math.Round(t * 1000):0000}";
+            Capture(window, output, name);
+            hashes[name] = RenderHash(window, icon);
+        }
+        icon.RenderFrameAt(period);
+        await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        var looped = RenderHash(window, icon);
+        icon.RenderFrameAt(0);
+        await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+        var reset = RenderHash(window, icon);
+        if (hashes.Values.Distinct().Count() != 4) throw new Exception("Hover animation frames do not move");
+        if (looped != reset || reset != hashes.Values.First()) throw new Exception("Hover animation frame changed after loop wrap");
+        Evidence.Add(new { state = "900-capture-hover-frames", frames = hashes, loopSeconds = period, seamless = "one complete product period renders identical icon pixels to frame zero", comparison = "exact icon-region pixel hashes; same dispatcher flush for every frame", driving = "CaptureHoverIcon.RenderFrameAt exact-time hook; no mouse or real hover" });
+    }
+    private static string RenderHash(Window window, FrameworkElement icon)
+    {
+        window.UpdateLayout();
+        var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var bounds = icon.TransformToAncestor(window).TransformBounds(new Rect(icon.RenderSize));
+        var x = checked((int)Math.Floor(bounds.Left)); var y = checked((int)Math.Floor(bounds.Top));
+        var right = checked((int)Math.Ceiling(bounds.Right)); var bottom = checked((int)Math.Ceiling(bounds.Bottom));
+        if (x < 0 || y < 0 || right > width || bottom > height || right <= x || bottom <= y)
+            throw new Exception("Hover icon is outside the capture");
+        var region = new CroppedBitmap(bitmap, new Int32Rect(x, y, right - x, bottom - y));
+        var pixels = new byte[checked(region.PixelWidth * region.PixelHeight * 4)];
+        region.CopyPixels(pixels, checked(region.PixelWidth * 4), 0);
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(pixels));
     }
     private sealed class CatalogHandler(byte[] body) : HttpMessageHandler
     {
@@ -195,7 +242,7 @@ internal static class Program
     }
     private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
-        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460, Height = 300 };
+        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460 };
         popup.Show(); popup.UpdateLayout();
         var buttons = Descendants(popup).OfType<Button>().ToArray();
         if (!buttons.Any(b => ReferenceEquals(b.Command, updates.DownloadCommand) && b.IsEnabled))
@@ -206,19 +253,21 @@ internal static class Program
     }
     private static void CaptureSettings(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
-        // Actual settings XAML, shared synthetic VM. Closing this owned window
-        // must not dispose the shared updater or make a second network call.
-        var settings = new UpdateSettingsWindow(updates) { Owner = owner, Width = width, Height = 400 };
-        settings.Show(); settings.UpdateLayout();
-        var buttons = Descendants(settings).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
+        // Actual settings screen XAML (the in-window הגדרות view), shared synthetic VM,
+        // hosted standalone for the capture. Production embeds the same view as an overlay.
+        var host = new Window { Owner = owner, Width = width, Height = 560, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        host.Content = new SettingsView { DataContext = updates };
+        host.Show(); host.UpdateLayout();
+        var buttons = Descendants(host).OfType<Button>().Where(b => b.Content is string text && text == "בדוק עדכונים").ToArray();
         if (buttons.Length != 1) throw new Exception("Settings must own exactly one manual check");
-        if (Descendants(owner).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
+        var topBar = ((Grid)((Border)owner.Content).Child).Children.OfType<Border>().Single(b => Grid.GetRow(b) == 0 && Grid.GetRowSpan(b) == 1);
+        if (Descendants(topBar).OfType<Button>().Any(b => b.Content is string text && text == "בדוק עדכונים"))
             throw new Exception("Manual check must not remain in main top bar");
-        if (!Descendants(settings).OfType<TextBlock>().Any(t => t.Text == "גרסאות ועדכונים"))
-            throw new Exception("Exact versions/settings section missing");
-        if (!Descendants(settings).OfType<TextBlock>().Any(t => (t is VersionDisplayText versionDisplay ? versionDisplay.DisplayText : t.Text) == updates.InstalledVersionDisplay))
-            throw new Exception("Installed version display missing");
-        CheckVersionInlines(settings);Capture(settings, output, name); settings.Close();
+        if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == "עדכונים"))
+            throw new Exception("Updates group header missing");
+        if (!Descendants(host).OfType<TextBlock>().Any(t => t.Text == updates.VersionValueDisplay))
+            throw new Exception("Installed version value missing");
+        Capture(host, output, name); host.Close();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
@@ -233,7 +282,22 @@ internal static class Program
         // inherited RTL transforms, avoiding clipped/mirrored child-only renders.
         var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
         var popup = window is UpdateAvailableWindow;
-        if (width < (popup ? 460 : 720) || height < (popup ? 260 : 400))
+        // The popup sizes to content, unlike the main window. Its content is the
+        // lower bound, not a stale screenshot height from the former fixed layout.
+        if (popup)
+        {
+            if (window.Content is not FrameworkElement content) throw new Exception("Popup content missing");
+            content.Measure(new Size(Math.Max(0, width), double.PositiveInfinity));
+            if (height + 1 < content.DesiredSize.Height || content.ActualHeight + 1 < content.DesiredSize.Height)
+                throw new Exception("Popup content is clipped vertically");
+            foreach (var element in Descendants(content).OfType<FrameworkElement>().Where(e => e.IsVisible && (e is Button || e is TextBlock)))
+            {
+                var bounds = element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
+                if (bounds.Left < -1 || bounds.Top < -1 || bounds.Right > width + 1 || bounds.Bottom > height + 1)
+                    throw new Exception("Popup visible text or control is outside the capture");
+            }
+        }
+        if (width < (popup ? 460 : 720) || height < (popup ? 1 : 400))
             throw new Exception($"Invalid window render bounds: {width}x{height}");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(window);

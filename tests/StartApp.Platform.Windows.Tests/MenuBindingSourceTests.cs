@@ -13,7 +13,7 @@ public class MenuBindingSourceTests
         for (var i = 0; i < 10 && dir is not null; i++, dir = dir.Parent)
         {
             var p = Path.Combine(dir.FullName, "src", "StartApp.App", "MainWindow.xaml");
-            if (File.Exists(p)) return File.ReadAllText(p);
+            if (File.Exists(p)) return File.ReadAllText(p) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","CaptureView.xaml")) + File.ReadAllText(Path.Combine(dir.FullName,"src","StartApp.App","WorkspaceDetailsView.xaml"));
         }
         throw new FileNotFoundException("src/StartApp.App/MainWindow.xaml not found above " + AppContext.BaseDirectory);
     }
@@ -21,8 +21,8 @@ public class MenuBindingSourceTests
     [Fact] public void ContextMenu_bindings_reach_the_view_model_through_the_button_Tag()
     {
         var xaml = Xaml();
-        var menus = Regex.Matches(xaml, "<ContextMenu>.*?</ContextMenu>", RegexOptions.Singleline);
-        Assert.Equal(4, menus.Count); // workspace card menu + item actions menu + staged capture item menu + capture dropdown
+        var menus = Regex.Matches(xaml, "<ContextMenu(?:\\s[^>]*)?>.*?</ContextMenu>", RegexOptions.Singleline);
+        Assert.Equal(5, menus.Count); // shared workspace actions menu resource (card/list/icons templates) + item actions menu + staged capture item menu + capture dropdown + עזרה tab menu (approved 22.11 title-bar tabs)
         foreach (Match m in menus)
         {
             Assert.DoesNotContain("AncestorType=Window", m.Value);
@@ -45,29 +45,51 @@ public class MenuBindingSourceTests
             Assert.Contains(tag, xaml.Substring(open, close - open));
         }
     }
-    [Fact] public void Contextual_actions_replace_ellipsis_and_item_editor_is_row_local()
+    [Fact] public void Contextual_actions_replace_ellipsis_and_open_the_full_item_dialog()
     {
         var xaml=Xaml(); Assert.DoesNotContain("Content=\"⋯\"",xaml);
-        Assert.Equal(3,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count);
+        Assert.Equal(5,Regex.Matches(xaml,"ContextMenuOpening=\"RowContextMenu_Opening\"").Count); // card + list + icons workspace templates + item row + staged item row
         var start=xaml.IndexOf("<ListView.ItemTemplate>",StringComparison.Ordinal);
         var end=xaml.IndexOf("</ListView.ItemTemplate>",start,StringComparison.Ordinal);
         var row=xaml.Substring(start,end-start);
-        Assert.Contains("Content=\"ערוך\"",row);Assert.Contains("ItemEditorVisibility",row);
-        Assert.Contains("EditingItemInstanceId",row);Assert.Contains("SaveItemEditCommand",row);Assert.Contains("CancelItemEditCommand",row);
-        Assert.Equal(1,Regex.Matches(xaml,"AutomationProperties.Name=\"Edit item name\"").Count);
+        Assert.Contains("Content=\"ערוך\"",row);
+        Assert.Contains("EditItemCommand",row);
+        var dialog=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml"));
+        var dialogCode=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml.cs"));
+        Assert.Contains("EditItemTarget",dialog); Assert.Contains("EditItemDescription",dialog);
+        Assert.Contains("SaveItemEditCommand",dialogCode); Assert.Contains("CancelItemEditCommand",dialogCode);
+        Assert.Equal(1,Regex.Matches(dialog,"AutomationProperties.Name=\"Edit item name\"").Count);
     }
     [Fact] public void Minimum_height_details_and_text_context_contracts_remain_explicit()
     {
         var xaml=Xaml();
         Assert.Contains("AutomationProperties.Name=\"Workspace details viewport\"",xaml);
-        Assert.Contains("AutomationProperties.Name=\"Cancel item edit\"",xaml);
+        Assert.Contains("AutomationProperties.Name=\"Cancel item edit\"",File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"ItemEditWindow.xaml")));
         Assert.Contains("Focusable=\"True\" KeyboardNavigation.IsTabStop=\"True\"",xaml);
-        Assert.Equal(2,Regex.Matches(xaml,"Header=\"שיתוף לסביבה אחרת\" IsEnabled=\"False\" Visibility=\"Collapsed\"").Count);
+        Assert.DoesNotContain("Header=\"שיתוף לסביבה אחרת\" IsEnabled=\"False\"", xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
         Assert.Contains("if (source is TextBox) return;",code);
-        Assert.Contains("HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed",code);
-        Assert.Contains("Math.Max(8, anchorY - popupSize.Height)",code);
-        Assert.Contains("ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom)",code);
+        Assert.Contains("ShowItemActions(anchor, allRow, detail)",code);
+        var actions=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"AllItemsView.xaml.cs"));
+        Assert.Contains("vm.AddItemToEnvironments(row, ids)",actions);
+        Assert.Contains("menu.Items.Add(BuildSavedItemAddMenu(vm, source))",actions);
+        var submenu=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"SavedItemAddMenu.cs"));
+        Assert.Contains("selectedEnvironment.IsEnabled = vm.SavedItemDestinations(source).Count > 0",submenu);
+        Assert.Contains("destination.IsEnabled = !vm.SavedItemIsSourceList(source, kind)",submenu);
+        foreach(var destination in new[]{"GlobalListKind.Blacklist","GlobalListKind.Whitelist","GlobalListKind.GlobalItems"}) Assert.Contains(destination,submenu);
+        code+=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"Components","ActionMenu.cs"));
+        // flip/clamp uses a padded height: the callback's popupSize under-measures the final rendered menu.
+        Assert.Contains("WindowPopupPlacement.AnchorY(origin.Y, host.ActualHeight, _owner.ActualHeight)",code);
+        Assert.Contains("WindowPopupPlacement.Offset(origin.X, origin.Y, targetSize.Width",code);
+        var placement=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"WindowPopupPlacement.cs"));
+        Assert.Contains("popupHeight + 18",placement);
+        Assert.Contains("Math.Max(8, anchorY - safeHeight)",placement);
+        // Context menus are re-placed on the next dispatcher tick after any open: ContextMenuService
+        // overrides the placement for keyboard/mouse opens, so the anchored/clamped Custom placement is
+        // re-applied post-open (reopen) where it always wins.
+        Assert.Contains("capturedMenu.Dispatcher.BeginInvoke",code);
+        Assert.Contains("capturedMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom",code);
+        Assert.Contains("capturedMenu.IsOpen = false;",code);
     }
     [Fact] public void Staged_fields_use_pixel_scrolling_when_row_is_taller_than_viewport()
     {
@@ -88,13 +110,15 @@ public class MenuBindingSourceTests
         var editorStart=row.IndexOf("AutomationProperties.Name=\"Staged item editor\"",StringComparison.Ordinal);
         Assert.True(editorStart>=0);
         Assert.DoesNotContain("<TextBox",row.Substring(0,editorStart));
-        Assert.Equal(4,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
+        Assert.Equal(3,Regex.Matches(row.Substring(editorStart),"<TextBox").Count);
+        Assert.Contains("<ComboBox",row.Substring(editorStart)); Assert.Contains("OpenWithPicker.Path=\"{Binding OpenWith",row.Substring(editorStart));
         Assert.DoesNotContain("SelectionChanged=",row); Assert.DoesNotContain("OpenItemCommand",row);
     }
-    [Fact] public void Explicit_staged_Edit_and_Done_request_identity_bound_product_reveal()
+    [Fact] public void Explicit_staged_toggle_requests_identity_bound_product_reveal()
     {
-        var xaml=Xaml(); Assert.Contains("Click=\"EditStaged_Click\"",xaml); Assert.Contains("Click=\"DoneStaged_Click\"",xaml);
+        var xaml=Xaml(); Assert.Contains("Click=\"ToggleStaged_Click\"",xaml);
         var code=File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"MainWindow.xaml.cs"));
+        code += File.ReadAllText(Path.Combine(Path.GetDirectoryName(FindViewPath())!,"CaptureView.xaml.cs"));
         Assert.Contains("row.IsEditing != editing",code); Assert.Contains("!vm.StagedRows.Contains(row)",code);
         Assert.Contains("ReferenceEquals(host.DataContext, row)",code);
         Assert.Contains("FindStagedRevealTarget(host, row, editing)",code);

@@ -1,0 +1,31 @@
+name: skipped-beta-upgrade
+on:
+  push:
+    branches: [test/skipped-beta-upgrade]
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - shell: pwsh
+        run: |
+          foreach($pair in @(@('old','0.2.0-beta.1'),@('latest','0.2.0-beta.9'))) {
+            dotnet publish src/StartApp.App -c Release -r win-x64 --self-contained true "-p:StartAppReleaseVersion=$($pair[1])" "-p:StartAppSourceCommit=$env:GITHUB_SHA" -o "upgrade-evidence/$($pair[0])"
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          }
+          dotnet run --project tests/StartApp.UpgradeLifecycle -c Release -- "$PWD/upgrade-evidence"
+          if($LASTEXITCODE -ne 0){Get-Content upgrade-evidence/error.txt;exit $LASTEXITCODE}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: skipped-beta-upgrade-evidence
+          path: |
+            upgrade-evidence/checks.json
+            upgrade-evidence/error.txt
+          retention-days: 7

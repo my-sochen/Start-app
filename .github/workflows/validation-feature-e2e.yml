@@ -14,7 +14,23 @@
 name: validation-feature-e2e
 on:
   push:
-    branches: [feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, dev, test/validation]
+    branches: [feat/settings-tab, feat/validation-profiles-v1, fix/notice-validation-binding, feat/prototype-ux-capture-integration, fix/capture-ui-readiness, fix/native-picker-readiness, feat/update-settings-placement, feat/approved-update-notifier, feat/portable-release-wiring-local, feat/portable-candidate-integration, feat/per-instance-items, feat/browser-icon-display, feat/release-integration-unified, feat/capture-hover-animation, dev, test/validation]
+  # Targeted dev cadence (owner 22.11): per-push full UI runs burn ~25 min on infra flakes.
+  # Push to feat/settings-tab runs resolve+unit tests only; UI runs come from a manual dispatch.
+  # ui_scope=cycle1-only: synthetic captures + cycle-1 flow (+readiness tests) - the capture
+  #   producers; the hard capture-flow, checker evaluation, package and profile result are
+  #   skipped, cycle1-flow.ps1 hard-fails the job on its own assertions.
+  # ui_scope=full: identical to a push full run (used for TEST promotion evidence).
+  # While main lacks the dispatch trigger (registration gate), an opt-in commit message token
+  # [ui] on feat/settings-tab runs the same cycle1-only scope on that push.
+  workflow_dispatch:
+    inputs:
+      ui_scope:
+        description: 'UI scope for this run'
+        required: true
+        default: 'cycle1-only'
+        type: choice
+        options: ['cycle1-only', 'full']
 concurrency:
   group: validation-feature-e2e-${{ github.ref }}
   cancel-in-progress: false
@@ -80,6 +96,7 @@ jobs:
   ui-gate:          # DEV subset is NOT QA or a candidate. Full profile HARD GATE: UI flows on this exact sha, evaluated by the checker (trusted path exercised mechanically)
     name: UI checks (${{ needs.resolve.outputs.profile }}, not human QA)
     needs: [resolve, tests]
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref_name != 'feat/settings-tab' || contains(github.event.head_commit.message, '[ui]') }}   # feat/settings-tab pushes: resolve+tests only (targeted cadence); UI via dispatch, or an opt-in [ui] commit while dispatch is unregistered on main
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -131,14 +148,14 @@ jobs:
           pwsh -NoProfile -File tests/capture-policy/test_capture_readiness.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Capture flow UI run (hard)
-        if: needs.resolve.outputs.profile == 'full'
+        if: needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only' && !contains(github.event.head_commit.message, '[ui]')
         shell: pwsh
         run: |
           $env:GITHUB_SHA = $env:SHA
           pwsh -NoProfile -File .github/e2e/capture-flow.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Evaluate assertions with the checker (same rules as windows-open-flow-feat)
-        if: ${{ always() && needs.resolve.outputs.profile == 'full' }}
+        if: ${{ always() && needs.resolve.outputs.profile == 'full' && github.event.inputs.ui_scope != 'cycle1-only' && !contains(github.event.head_commit.message, '[ui]') }}
         shell: pwsh
         run: |
           python trusted/.github/release/ui_gate_check.py --diag diag --sha $env:SHA
@@ -155,7 +172,7 @@ jobs:
 
   package:          # same steps as the proposed package job; runs after tests passed on this sha
     needs: [resolve, tests, ui-gate]
-    if: ${{ always() && needs.resolve.result == 'success' && needs.resolve.outputs.profile == 'full' && needs.tests.result == 'success' }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed
+    if: ${{ always() && needs.resolve.result == 'success' && needs.resolve.outputs.profile == 'full' && needs.tests.result == 'success' && github.event.inputs.ui_scope != 'cycle1-only' && !(github.event_name == 'push' && github.ref_name == 'feat/settings-tab') }}   # still packages when ui-gate failed, so the artifact can be inspected; manifest then says ui_gate=failed. Skipped on feat/settings-tab pushes and cycle1-only dispatches (targeted cadence).
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -284,7 +301,7 @@ jobs:
 
   validation-status:
     name: Profile result (automation only, not QA approval)
-    if: always()
+    if: ${{ always() && github.event.inputs.ui_scope != 'cycle1-only' && !(github.event_name == 'push' && github.ref_name == 'feat/settings-tab') }}   # ui-gate/package intentionally skipped in the narrowed modes; do not fail the run on them
     needs: [resolve, tests, ui-gate, package]
     runs-on: ubuntu-latest
     timeout-minutes: 5

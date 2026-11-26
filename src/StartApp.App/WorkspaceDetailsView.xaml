@@ -1,0 +1,128 @@
+<DockPanel x:Class="StartApp.App.WorkspaceDetailsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:StartApp.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime" Margin="32,22,32,22">
+    <DockPanel.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V"/>
+        <local:DetailsGroupConverter x:Key="DetailsGroup"/>
+        <CollectionViewSource x:Key="ItemsView" Source="{Binding Items}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group"><PropertyGroupDescription.CustomSort><local:DetailsGroupComparer/></PropertyGroupDescription.CustomSort></PropertyGroupDescription>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+    </DockPanel.Resources>
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock FlowDirection="RightToLeft" FontSize="12" Foreground="#636E7D" Margin="0,0,0,17" TextTrimming="CharacterEllipsis" ToolTip="{Binding Selected.Name}"><Run Text="סביבות העבודה"/><Run Text="   /   "/><Run Text="{Binding Selected.Name, Mode=OneWay}" Foreground="#222833"/></TextBlock>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top">
+                            <Button Content="שגר" Command="{Binding OpenWorkspaceCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="57" Height="38"/>
+                            <Button Content="שמור פרטים" AutomationProperties.Name="Save workspace details" Command="{Binding SaveDetailsCommand}" Style="{StaticResource DialogPrimaryButton}" Padding="16,8" MinWidth="112" Margin="8,0,0,0" Visibility="{Binding DetailsDirty, Converter={StaticResource B2V}}"/>
+                            <Button Content="חזרה לסביבות" Command="{Binding BackCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="123" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Back to workspaces"/>
+                            <Button Content="{Binding DefaultToggleLabel}" Style="{StaticResource QuietTextButton}" FontSize="15" Foreground="#39414F" Command="{Binding ToggleDefaultForCommand}" CommandParameter="{Binding Selected}" Margin="18,0,0,0" AutomationProperties.Name="Toggle default workspace" PreviewMouseLeftButtonDown="CaptionTab_MouseDown" PreviewKeyDown="CaptionTab_KeyDown" LostKeyboardFocus="CaptionTab_LostKeyboardFocus"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" FlowDirection="RightToLeft" MinWidth="0">
+                            <DockPanel>
+                                <Ellipse DockPanel.Dock="Right" Width="11" Height="11" Fill="#3F9D63" Margin="7,0,0,0" VerticalAlignment="Center" Visibility="{Binding SelectedIsDefault, Converter={StaticResource B2V}}" AutomationProperties.Name="Default workspace badge"/>
+                                <TextBlock Text="{Binding Selected.Name}" FontWeight="SemiBold" FontSize="22" TextTrimming="CharacterEllipsis" ToolTip="{Binding Selected.Name}" AutomationProperties.Name="Workspace heading"/>
+                            </DockPanel>
+                            <TextBlock Text="יש שינויים בפרטי הסביבה שעדיין לא נשמרו" Foreground="#626B79" FontSize="13" Margin="0,5,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding DetailsDirty}" Value="False"><Setter Property="Visibility" Value="Hidden"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="0.65*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.2*"/></Grid.ColumnDefinitions>
+                        <StackPanel FlowDirection="RightToLeft"><TextBlock Text="תיאור" Style="{StaticResource DetailsLabel}"/><TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" MaxLength="500" AutomationProperties.Name="Workspace description"/></StackPanel>
+                        <StackPanel Grid.Column="2" FlowDirection="RightToLeft"><TextBlock Text="קטגוריה" Style="{StaticResource DetailsLabel}"/><local:CategoryPicker SelectedCategory="{Binding EditCategory}" Target="details"/></StackPanel>
+                        <StackPanel Grid.Column="4" FlowDirection="RightToLeft"><TextBlock Text="שם הסביבה" Style="{StaticResource DetailsLabel}"/><TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DetailsInput}" AutomationProperties.Name="Workspace name"/></StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding DetailsError}" Foreground="#9B3030" TextWrapping="Wrap" FlowDirection="RightToLeft">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                    <Border BorderBrush="#DBE0E8" BorderThickness="0,0,0,1" Padding="0,8,0,12" Margin="0,18,0,0">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Content="+ הוסף אייטם" Click="ShowDetailsAddForm_Click" Style="{StaticResource HomeToolbarButton}" MinWidth="126" Height="38"/>
+                                <Button Content="הוסף ממה שפתוח" Command="{Binding AddFromOpenCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="147" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Add from open items"/>
+                                <Button Content="סדר לשוניות (בקרוב)" IsEnabled="False" Style="{StaticResource HomeToolbarButton}" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Arrange existing tabs unavailable" ToolTip="סידור לשוניות קיימות אינו זמין עדיין. הוא יופעל רק כשאפשר יהיה לעשות זאת בלי לפגוע בעבודה אחרת."/>
+                            </StackPanel>
+                            <TextBlock FlowDirection="RightToLeft" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Right"><Run Text="אייטמים בסביבה "/><Run Text="{Binding Items.Count, Mode=OneWay}" FontSize="12" Foreground="#626B79"/></TextBlock>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" AutomationProperties.Name="Workspace details viewport" FlowDirection="RightToLeft" Margin="0,5,0,0">
+                    <ScrollViewer.Resources><sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarWidthKey}">8</sys:Double><Style TargetType="ScrollBar"><Setter Property="Width" Value="8"/><Setter Property="Background" Value="#EEF1F6"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton><Track.Thumb><Thumb MinHeight="20"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="2" Background="#ADB8CA"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter></Style></ScrollViewer.Resources>
+                <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0" Visibility="{Binding ShowEmptyItemsMessage, Converter={StaticResource B2V}}">
+                    <StackPanel FlowDirection="RightToLeft" HorizontalAlignment="Right">
+                        <TextBlock Text="עדיין אין אייטמים בסביבה" FontSize="14" Foreground="#626B79"/>
+                        <Button Content="הוסף אייטם" Command="{Binding FocusAddCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="126" Height="38" HorizontalAlignment="Right" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+                <Border x:Name="DetailsAddForm" Visibility="Collapsed" DockPanel.Dock="Top" Margin="0,8,8,12" Padding="16" Background="White" BorderBrush="#DCE1E9" BorderThickness="1" CornerRadius="6">
+                  <StackPanel FlowDirection="RightToLeft">
+                    <TextBlock Text="הוספת אייטם לסביבה" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    <local:ManualAddForm x:Name="AddForm"/>
+                    <Button Content="הוסף ממה שפתוח" Command="{Binding AddFromOpenCommand}" Style="{StaticResource HomeToolbarButton}" HorizontalAlignment="Left" Margin="0,8,0,0" AutomationProperties.Name="Add from open items"/>
+                  </StackPanel>
+                </Border>
+                <ListView ItemsSource="{Binding Source={StaticResource ItemsView}}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="0" FlowDirection="RightToLeft">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListViewItem"><Border BorderBrush="#EEF0F4" BorderThickness="0,0,0,1"><ContentPresenter/></Border></ControlTemplate></Setter.Value></Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.ContainerStyle><Style TargetType="GroupItem"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="GroupItem"><Border BorderBrush="#DCE1E9" BorderThickness="1" Background="White" CornerRadius="4" Margin="0,8,0,0"><DockPanel><ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/><ItemsPresenter/></DockPanel></Border></ControlTemplate></Setter.Value></Setter></Style></GroupStyle.ContainerStyle>
+                            <GroupStyle.HeaderTemplate><DataTemplate>
+                                <Border Background="#F0F3F8" BorderBrush="#DFE4EC" BorderThickness="0,0,0,1" Padding="14,6">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" FontSize="12" Foreground="#414856"><Run Text="{Binding Name, Mode=OneWay, Converter={StaticResource DetailsGroup}}"/><Run Text=" · "/><Run Text="{Binding ItemCount, Mode=OneWay}"/></TextBlock>
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource DetailsGroup}, ConverterParameter=hint}" HorizontalAlignment="Right" FontSize="11" Foreground="#626B79"/>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate></GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ContextMenuOpening="RowContextMenu_Opening" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Item row" FlowDirection="RightToLeft" MinHeight="48" Margin="14,0">
+                                <Grid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="מחיקה" Command="{Binding PlacementTarget.Tag.RemoveItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="העתק כתובת" Command="{Binding PlacementTarget.Tag.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="עריכת כתובת" Command="{Binding PlacementTarget.Tag.EditAddressCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="פתח באמצעות" Command="{Binding PlacementTarget.Tag.OpenWithCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}">
+                                                    <MenuItem.Style><Style TargetType="MenuItem" BasedOn="{StaticResource SharedMenuItem}"><Style.Triggers>
+                                                        <!-- a program item IS the program; open-with does not apply to it -->
+                                                        <DataTrigger Binding="{Binding IsProgram}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                                                    </Style.Triggers></Style></MenuItem.Style>
+                                                </MenuItem>
+                                                <Separator/><MenuItem Header="הזז למעלה" Command="{Binding PlacementTarget.Tag.MoveItemUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <MenuItem Header="הזז למטה" Command="{Binding PlacementTarget.Tag.MoveItemDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                                <!-- הוסף סקריפט למפתחים: shown only "אם רלוונטי" and that relevance is still undefined (הפרטים טרם הוגדרו), so it is deliberately not in the menu -->
+                                            </ContextMenu>
+                                        </Grid.ContextMenu>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="0"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="330"/><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/><ColumnDefinition Width="62"/></Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Command="{Binding DataContext.OpenItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Style="{StaticResource QuietTextButton}" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" VerticalAlignment="Center" Cursor="Hand" ToolTip="פתיחת האייטם" Padding="0" AutomationProperties.Name="{Binding Name}">
+                                    <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                                        <Border Width="30" Height="30" VerticalAlignment="Center" Background="#EEF2F9" BorderBrush="#D9E0EF" BorderThickness="1" CornerRadius="6" Margin="0,0,12,0"><local:TargetIcon Target="{Binding Target}" ItemType="{Binding Type}"/></Border>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="260" FontSize="13" FontWeight="SemiBold" TextDecorations="Underline" Foreground="#315CC5"/>
+                                            <TextBlock Text="{Binding Description}" Foreground="#677282" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="260">
+                                                <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger><Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style>
+                                            </TextBlock>
+                                            <local:ProgramIconView Program="{Binding Program}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock Grid.Column="2" Text="{Binding Target}" ToolTip="{Binding Target}" TextTrimming="CharacterEllipsis" FontFamily="Arial" FontSize="12" Foreground="#606D80" Margin="12,0" VerticalAlignment="Center" FlowDirection="LeftToRight" TextAlignment="Left"/>
+                                <Button Grid.Column="3" Content="ערוך" AutomationProperties.Name="Edit item" Style="{StaticResource HomeToolbarButton}" Height="38" VerticalAlignment="Center" ToolTip="עריכת האייטם, ללא פתיחה" Command="{Binding DataContext.EditItemCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
+
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                </DockPanel>
+                </ScrollViewer>
+            </DockPanel>

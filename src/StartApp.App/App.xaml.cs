@@ -11,20 +11,33 @@ public partial class App : Application
 {
     // Composition root: the only place that wires concrete implementations to the Core ports.
     private JsonStore? _store;
+    private SingleInstanceSession? _instance;
     private void OnStartup(object sender, StartupEventArgs e)
     {
+        // Phase 2 apply-helper mode: the staged-copy instance performs the post-close swap and exits.
+        if (e.Args.Length > 0 && e.Args[0] == "--apply-update") { Shutdown(UpdateApplyCli.Run(e.Args)); return; }
+        _instance = new SingleInstanceSession(() => Dispatcher.BeginInvoke(() =>
+        {
+            if (MainWindow is MainWindow window) { window.Show(); if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal; window.Activate(); }
+        }));
+        if (!_instance.IsFirst) { Shutdown(); return; }
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StartApp");
         // crash evidence is opt-in (the e2e harnesses set STARTAPP_CRASHLOG=1): the product binary keeps no diagnostic surface
         if (Environment.GetEnvironmentVariable("STARTAPP_CRASHLOG") == "1")
             CrashLogger.Attach(Path.Combine(dir, "crash.log"), this); // evidence only; never marks anything handled
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
-        var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()));
+        var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()), fileRevealer: new WindowsFileRevealer());
+        vm.ConfigureWindowsStartup(new WindowsStartupRegistration(Environment.ProcessPath ?? throw new InvalidOperationException("Missing process path")));
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
-        new MainWindow { DataContext = vm }.Show();
+        var window = new MainWindow { DataContext = vm };
+        window.Closed += (_, _) => vm.CancelSignInStartup();
+        window.Show();
+        // Sign-in only: settle/network wait, then shared global/default opening with normal checks and results.
+        if (Array.IndexOf(e.Args, "--autostart") >= 0) vm.StartSignInStartup(new SignInReadiness());
     }
-    protected override void OnExit(ExitEventArgs e) { _store?.Dispose(); base.OnExit(e); }
+    protected override void OnExit(ExitEventArgs e) { _instance?.Dispose(); _store?.Dispose(); base.OnExit(e); }
 }
 
 /// <summary>Site detection: reads the address bar of each open Chrome/Edge/Brave window through UI Automation, briefly selecting EVERY tab

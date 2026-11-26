@@ -1,0 +1,27 @@
+name: beta-build-identity
+on:
+  push:
+    branches: [fix/beta-build-identity]
+permissions:
+  contents: read
+jobs:
+  stamps:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - shell: pwsh
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter FullyQualifiedName~InstalledBuildIdentityTests
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          foreach($version in @('0.1.0-proto.2','0.2.0-beta.0','0.2.0-beta.9')) {
+            dotnet build src/StartApp.App -c Release "-p:StartAppReleaseVersion=$version" "-p:StartAppSourceCommit=$env:GITHUB_SHA"
+            if($LASTEXITCODE -ne 0){throw "valid identity rejected: $version"}
+          }
+          foreach($version in @('0.2.0-preview.1','00.2.0-beta.1','0.2.0-beta.-1','0.2.0-beta.1x','0.2.0')) {
+            dotnet build src/StartApp.App -c Release "-p:StartAppReleaseVersion=$version" "-p:StartAppSourceCommit=$env:GITHUB_SHA"
+            if($LASTEXITCODE -eq 0){throw "invalid identity accepted: $version"}
+          }
+          exit 0

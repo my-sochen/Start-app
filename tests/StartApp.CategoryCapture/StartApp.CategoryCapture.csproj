@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>StartApp.CategoryCapture</AssemblyName></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../../src/StartApp.App/StartApp.App.csproj"/></ItemGroup>
+</Project>

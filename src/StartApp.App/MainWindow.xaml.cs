@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -7,65 +8,80 @@ namespace StartApp.App;
 public partial class MainWindow : Window
 {
     public UpdateViewModel Updates { get; }
-    private UpdateSettingsWindow? _settingsWindow;
-    private UpdateAvailableWindow? _updateAvailableWindow;
-    private bool _closeApproved;
-    private MainViewModel? _hooked;
+    private readonly WindowUpdateSession<UpdateAvailableWindow> _updateWindow = new();
+    private readonly WindowSessionSubscriptions _sessionSubscriptions;
+    private readonly DialogFocusSession<System.Windows.IInputElement> _defaultDialogFocus;
+    private MainViewModel? _hooked => _sessionSubscriptions.Current;
     public MainWindow() : this(UpdateComposition.Create()) { }
     internal MainWindow(UpdateViewModel updates)
     {
         Updates = updates ?? throw new ArgumentNullException(nameof(updates));
+        _sessionSubscriptions = new(OnFocusAddRequested, OnCopyAddressRequested, OnAppCloseApproved, OnPickImageRequested, OnPickCreateImageRequested, OnViewOptionChanged);
+        _defaultDialogFocus = new(
+            () => System.Windows.Input.Keyboard.FocusedElement,
+            () => System.Windows.Input.InputManager.Current.MostRecentInputDevice is System.Windows.Input.KeyboardDevice,
+            keyboard => { if (keyboard) DefaultConfirmPrimaryButton.Focus(); else DefaultConfirmOverlay.Focus(); },
+            (element, keyboard) =>
+            {
+                if (element is not UIElement { IsVisible: true, IsEnabled: true } target) return;
+                if (!keyboard && target is Control control) control.FocusVisualStyle = null;
+                target.Focus();
+            });
         InitializeComponent();
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
+        Updates.StagedUpdateReady += OnStagedUpdateReady;
         DataContextChanged += (_, _) => Hook();
-        Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
-        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.Dispose(); };
+        Loaded += async (_, _) => { Hook(); InitializeTray(); await Updates.CheckOnStartupOnceAsync(); };
+        Closed += (_, _) => { _tray?.Dispose(); _tray = null; Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.StagedUpdateReady -= OnStagedUpdateReady; Updates.Dispose(); };
+    }
+    // Phase 2: the verified package is staged - launch the apply helper and close for the swap.
+    private void OnStagedUpdateReady(StagedUpdate staged)
+    {
+        try { UpdateApplyLauncher.Launch(staged); _updateWindow.ApproveClose(); Close(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { Updates.NotifyApplyFailed(); }
     }
     private void ShowStartupUpdate()
     {
-        if (_closeApproved || !IsLoaded || _updateAvailableWindow is not null) return;
-        _updateAvailableWindow = new UpdateAvailableWindow(Updates) { Owner = this };
-        _updateAvailableWindow.Closed += (_, _) => _updateAvailableWindow = null;
         // Non-modal: dismissing or ignoring an optional update never blocks work.
-        _updateAvailableWindow.Show();
+        _updateWindow.ShowStartup(IsLoaded,
+            () => new UpdateAvailableWindow(Updates) { Owner = this },
+            (window, closed) => window.Closed += (_, _) => closed(),
+            window => window.Show());
     }
-    private void Settings_Click(object sender, RoutedEventArgs e)
-    {
-        if (_settingsWindow is not null) { _settingsWindow.Activate(); return; }
-        _settingsWindow = new UpdateSettingsWindow(Updates) { Owner = this };
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow.Show();
-    }
-
     // Attach at most once per view model: DataContext assignment and Loaded both reach here, and a
     // re-assigned DataContext must not keep the old view model's subscriptions alive (double subscription
     // made one upload click queue two sequential OpenFileDialogs).
-    private void Hook()
+    private void Hook() => _sessionSubscriptions.Replace(DataContext as MainViewModel);
+    private void Detach() => _sessionSubscriptions.Dispose();
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void ToggleMaximizeWindow_Click(object sender, RoutedEventArgs e)
     {
-        var vm = DataContext as MainViewModel;
-        if (ReferenceEquals(vm, _hooked)) return;
-        Detach();
-        if (vm is null) return;
-        vm.FocusAddRequested += OnFocusAddRequested;
-        vm.CopyAddressRequested += OnCopyAddressRequested;
-        vm.AppCloseApproved += OnAppCloseApproved;
-        vm.PickImageRequested += OnPickImageRequested;
-        vm.PickCreateImageRequested += OnPickCreateImageRequested;
-        _hooked = vm;
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
     }
-    private void Detach()
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+    protected override void OnStateChanged(EventArgs e)
     {
-        if (_hooked is null) return;
-        _hooked.FocusAddRequested -= OnFocusAddRequested;
-        _hooked.CopyAddressRequested -= OnCopyAddressRequested;
-        _hooked.AppCloseApproved -= OnAppCloseApproved;
-        _hooked.PickImageRequested -= OnPickImageRequested;
-        _hooked.PickCreateImageRequested -= OnPickCreateImageRequested;
-        _hooked = null;
+        base.OnStateChanged(e);
+        if (MaximizeWindowButton is not null)
+        {
+            MaximizeWindowButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+            System.Windows.Automation.AutomationProperties.SetName(MaximizeWindowButton,
+                WindowState == WindowState.Maximized ? "Restore window" : "Maximize window");
+        }
     }
-    private void OnFocusAddRequested() => TargetBox.Focus();
+    private void OnFocusAddRequested()
+    {
+        if (DataContext is MainViewModel vm && vm.CardAddSession is { } session)
+        {
+            try { new CardAddWindow(session) { Owner = this }.ShowDialog(); }
+            finally { vm.FinishCardAdd(); }
+        }
+        else DetailsView.FocusAddForm();
+    }
     private void OnCopyAddressRequested(string a) => Clipboard.SetText(a);
-    private void OnAppCloseApproved() { _closeApproved = true; Close(); }
+    private void OnAppCloseApproved() { _updateWindow.ApproveClose(); Close(); }
     private void OnPickImageRequested()
     {
         var dlg = new OpenFileDialog { Title = "העלה תמונה", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*" };
@@ -78,102 +94,52 @@ public partial class MainWindow : Window
     }
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_closeApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
+        if (!_updateWindow.CloseApproved && !_trayExitRequested && _tray is { CanHide: true } && DataContext is MainViewModel { KeepRunningInTray: true })
+        {
+            e.Cancel = true; Hide(); // Preserve all drafts and running work. Explicit tray Exit still uses the normal guard.
+        }
+        else if (!_updateWindow.CloseApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
         base.OnClosing(e);
     }
     // Capture dropdown (לכידה): anchored under its button at the window's left edge, so it opens downward and stays inside the window.
-    private void CaptureMenu_Click(object sender, RoutedEventArgs e)
+    private void HelpMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b && b.ContextMenu is { } m)
+            {
+                NewAnchoredMenu(b, m).IsOpen = true;
+            }
+        }
+
+        private void AboutMenuItem_Click(object sender, RoutedEventArgs e) =>
+            System.Windows.MessageBox.Show(this, "Start-app\n" + Updates?.Status, "אודות Start-app", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        private void NewWorkspaceFocus_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+            vm.ShowCreateScreen();
+            if (vm.InCreate) Dispatcher.BeginInvoke(new Action(() => CreateView.FocusName()));
+        }
+
+        private void CaptureMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu } button)
         {
-            menu.PlacementTarget = button;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            menu.IsOpen = true;
+            NewAnchoredMenu(button, menu).IsOpen = true;
         }
     }
-    // Drag from the capture list onto the workspace side. Each drop is one item and goes through the per-drag duplicate warning in the view model.
-    private Point _dragStart;
-    private bool _captureDragActive;
-    private void CaptureList_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _dragStart = e.GetPosition(null);
-    private void CaptureList_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    internal void CaptionTab_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    { if (sender is Control tab) tab.FocusVisualStyle = null; }
+    internal void CaptionTab_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
+    internal void CaptionTab_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    { if (sender is Control tab) tab.ClearValue(Control.FocusVisualStyleProperty); }
+    private void UpdateDefaultDialogFocus() => _defaultDialogFocus.Update(_hooked?.DefaultConfirmOpen == true);
+    private void DefaultConfirm_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        // DoDragDrop pumps mouse messages in its modal loop, so PreviewMouseMove re-enters while a drag
-        // is active; without the guard a single physical drag starts a second session whose extra Drop
-        // stages the item and then flags it as its own duplicate (CI v37/v38 evidence).
-        if (_captureDragActive) return;
-        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
-        var pos = e.GetPosition(null);
-        if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        if (e.OriginalSource is DependencyObject src && ItemsControl.ContainerFromElement(CaptureList, src) is ListBoxItem { DataContext: MainViewModel.CaptureRow row })
-        {
-            _captureDragActive = true;
-            try { DragDrop.DoDragDrop(CaptureList, new DataObject(typeof(MainViewModel.CaptureRow), row), DragDropEffects.Copy); }
-            finally { _captureDragActive = false; }
-        }
+        if (e.Key != System.Windows.Input.Key.Escape || _hooked?.DefaultConfirmOpen != true) return;
+        _hooked.CancelDefaultReplaceCommand.Execute(null); e.Handled = true;
     }
-    private void CaptureDropZone_DragOver(object sender, DragEventArgs e) { e.Effects = e.Data.GetDataPresent(typeof(MainViewModel.CaptureRow)) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
-    private void CaptureDropZone_Drop(object sender, DragEventArgs e)
-    {
-        if (DataContext is MainViewModel vm && e.Data.GetData(typeof(MainViewModel.CaptureRow)) is MainViewModel.CaptureRow row) vm.DropCaptured(row);
-        e.Handled = true;
-    }
-    private void EditItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: ItemRow row }) return;
-        // Command execution follows Click. Bring the newly opened, identity-bound local editor
-        // into view after binding/layout; a refused dirty-editor switch must not steal focus.
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
-        {
-            if (DataContext is not MainViewModel vm || vm.EditingItemInstanceId != row.InstanceId) return;
-            var input = FindEditInput(this);
-            if (input is null) return;
-            input.BringIntoView(); input.Focus();
-        }));
-    }
-    private void EditStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: true);
-    private void DoneStaged_Click(object sender, RoutedEventArgs e) => RevealStagedRow(sender, editing: false);
-    private void RevealStagedRow(object sender, bool editing)
-    {
-        if (sender is not Button { DataContext: MainViewModel.StagedRow row } button) return;
-        DependencyObject? ancestor = button;
-        while (ancestor is not null && ancestor is not StackPanel { ContextMenu: not null, DataContext: MainViewModel.StagedRow })
-            ancestor = System.Windows.Media.VisualTreeHelper.GetParent(ancestor);
-        if (ancestor is not StackPanel host || !ReferenceEquals(host.DataContext, row)) return;
-        // Click precedes the command. Wait for its state and layout, then reveal only this row's input or summary button.
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
-        {
-            if (DataContext is not MainViewModel vm || !vm.IsCaptureSide || !vm.StagedRows.Contains(row) ||
-                row.IsEditing != editing || !host.IsVisible || !ReferenceEquals(host.DataContext, row)) return;
-            var target = FindStagedRevealTarget(host, row, editing);
-            if (target is null) return;
-            target.BringIntoView(); target.Focus();
-        }));
-    }
-    private static FrameworkElement? FindStagedRevealTarget(DependencyObject root, MainViewModel.StagedRow row, bool editing)
-    {
-        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
-            if (child is FrameworkElement element && element.IsVisible && ReferenceEquals(element.DataContext, row))
-            {
-                if (editing && element is TextBox input && System.Windows.Automation.AutomationProperties.GetName(input) == "Added item name") return input;
-                if (!editing && element is Button edit && System.Windows.Automation.AutomationProperties.GetName(edit) == "Edit added " + row.OriginalName) return edit;
-            }
-            var found = FindStagedRevealTarget(child, row, editing); if (found is not null) return found;
-        }
-        return null;
-    }
-    private static TextBox? FindEditInput(DependencyObject root)
-    {
-        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
-            if (child is TextBox box && box.IsVisible && System.Windows.Automation.AutomationProperties.GetName(box) == "Edit item name") return box;
-            var found = FindEditInput(child); if (found is not null) return found;
-        }
-        return null;
-    }
-    private void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
+    internal void RowContextMenu_Opening(object sender, ContextMenuEventArgs e)
     {
         if (sender is not FrameworkElement { ContextMenu: { } menu } host) return;
         // TextBox keeps WPF's ordinary text-edit context menu, including Apps and Shift+F10.
@@ -184,29 +150,9 @@ public partial class MainWindow : Window
             source = source is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
                 ? System.Windows.Media.VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
         }
-        // Keep row identity separate from window commands across the popup boundary.
-        menu.PlacementTarget = host;
-        menu.DataContext = host.DataContext;
-        foreach (var item in menu.Items.OfType<MenuItem>())
-            if (item.Header as string == "שיתוף לסביבה אחרת")
-                item.Visibility = (host.Tag as MainViewModel)?.HasOtherWorkspaces == true ? Visibility.Visible : Visibility.Collapsed;
-        // Do not anchor below the whole expanded editor or a partly scrolled-out row.
-        // Compute the final popup origin inside the owner, then express it relative to the host.
-        var origin = host.TransformToAncestor(this).Transform(new Point(0, 0));
-        var anchorY = Math.Clamp(origin.Y + Math.Min(32, host.ActualHeight), 8, Math.Max(8, ActualHeight - 8));
-        menu.MaxHeight = Math.Max(0, ActualHeight - 16);
-        menu.MaxWidth = Math.Max(0, ActualWidth - 16);
-        // ContextMenuService otherwise replaces menu.Placement for mouse/keyboard opening.
-        ContextMenuService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Custom);
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-        menu.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
-        {
-            var x = Math.Clamp(origin.X + targetSize.Width - popupSize.Width, 8, Math.Max(8, ActualWidth - popupSize.Width - 8));
-            var y = anchorY + popupSize.Height <= ActualHeight - 8 ? anchorY : Math.Max(8, anchorY - popupSize.Height);
-            return new[] { new System.Windows.Controls.Primitives.CustomPopupPlacement(new Point(x - origin.X, y - origin.Y),
-                System.Windows.Controls.Primitives.PopupPrimaryAxis.None) };
-        };
-        // Let WPF open its normal context menu: mouse right-click or keyboard Menu / Shift+F10.
-        // Neither route invokes the name/open button.
+        if (host.DataContext is ItemRow detail && DataContext is MainViewModel viewModel && viewModel.AllItemFromDetail(detail) is { } allRow && FindItemActionButton(host) is { } anchor)
+        { e.Handled = true; ShowItemActions(anchor, allRow, detail); return; }
+        Menus.AnchorRow(host,menu);
+
     }
 }

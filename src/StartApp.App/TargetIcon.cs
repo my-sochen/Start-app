@@ -113,7 +113,8 @@ internal static class TargetIconLoader
             "Program" => "M2,2 L18,2 18,18 2,18 Z M2,6 L18,6 M5,4 L6,4 M8,4 L9,4",
             _ => "M4,1 L12,1 17,6 17,19 4,19 Z M12,1 L12,6 17,6 M7,10 L14,10 M7,14 L14,14"
         };
-        var drawing = new GeometryDrawing(Brushes.Transparent, new Pen(Brushes.SlateGray, 1.25), Geometry.Parse(geometry));
+        var fallbackBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4766A5")); fallbackBrush.Freeze();
+        var drawing = new GeometryDrawing(Brushes.Transparent, new Pen(fallbackBrush, 1.25), Geometry.Parse(geometry));
         var image = new DrawingImage(drawing); image.Freeze(); return image;
     }
 }

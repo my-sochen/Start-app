@@ -29,14 +29,14 @@ public class DescriptionStorageTests
         var old = "{\"schemaVersion\":1,\"items\":{\"it_1\":{\"id\":\"it_1\",\"type\":\"file\",\"name\":\"a\",\"target\":\"C:\\\\a.txt\"}},\"workspaces\":[{\"id\":\"w\",\"name\":\"n\",\"items\":[{\"itemId\":\"it_1\"}]}]}";
         File.WriteAllText(p, old);
         using (var js = new JsonStore(p)) js.Mutate(c => c.CreateWorkspace("second"));
-        Assert.Contains("\"schemaVersion\": 4", File.ReadAllText(p)); Assert.Equal(old, File.ReadAllText(p + ".schema1.bak"));
+        Assert.Contains($"\"schemaVersion\": {JsonStore.SupportedSchema}", File.ReadAllText(p)); Assert.Equal(old, File.ReadAllText(p + ".schema1.bak"));
         using (var js = new JsonStore(p)) { var s = js.Load(); Assert.Equal(2, s.Workspaces.Count); Assert.Equal("a", s.Items["it_1"].Name); js.Mutate(c => c.CreateWorkspace("third")); }
         Assert.Equal(old, File.ReadAllText(p + ".schema1.bak"));   // never overwritten by later saves
     }
     [Fact] public void Fresh_store_writes_the_current_schema_and_makes_no_backup()
     {
         var p = Tmp(); using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
-        Assert.Contains("\"schemaVersion\": 4", File.ReadAllText(p)); Assert.False(File.Exists(p + ".schema1.bak")); Assert.False(File.Exists(p + ".schema2.bak"));
+        Assert.Contains($"\"schemaVersion\": {JsonStore.SupportedSchema}", File.ReadAllText(p)); Assert.False(File.Exists(p + ".schema1.bak")); Assert.False(File.Exists(p + ".schema2.bak"));
     }
     [Fact] public void Newer_than_current_schema_is_too_new_and_left_untouched()
     {
@@ -49,7 +49,7 @@ public class DescriptionStorageTests
         var old = "{\"schemaVersion\":2,\"items\":{\"it_1\":{\"id\":\"it_1\",\"type\":\"file\",\"name\":\"a\",\"target\":\"C:\\\\a.txt\",\"description\":\"shared\"}},\"workspaces\":[{\"id\":\"w\",\"name\":\"n\",\"items\":[{\"itemId\":\"it_1\"}]}]}";
         File.WriteAllText(p, old);
         using (var js = new JsonStore(p)) js.Mutate(c => c.CreateWorkspace("second"));
-        Assert.Contains("\"schemaVersion\": 4", File.ReadAllText(p)); Assert.Equal(old, File.ReadAllText(p + ".schema2.bak"));
+        Assert.Contains($"\"schemaVersion\": {JsonStore.SupportedSchema}", File.ReadAllText(p)); Assert.Equal(old, File.ReadAllText(p + ".schema2.bak"));
         var s = new JsonStore(p).Load();
         Assert.Null(s.Items["it_1"].Description);                                  // cleared from the item (no leak channel)
         Assert.Equal("shared", s.Workspaces.Single(w => w.Id == "w").Items[0].Description); // moved onto the old instance
@@ -71,7 +71,7 @@ public class DescriptionStorageTests
     {
         var p = Tmp(); Directory.CreateDirectory(Path.GetDirectoryName(p)!); var b = Schema1Bytes(); File.WriteAllBytes(p, b);
         using var js = new JsonStore(p); js.Mutate(c => c.CreateWorkspace("w"));
-        Assert.Equal(b, File.ReadAllBytes(p + ".schema1.bak")); Assert.Contains("\"schemaVersion\": 4", File.ReadAllText(p));
+        Assert.Equal(b, File.ReadAllBytes(p + ".schema1.bak")); Assert.Contains($"\"schemaVersion\": {JsonStore.SupportedSchema}", File.ReadAllText(p));
     }
 
     [Fact] public void Partial_backup_is_not_trusted_and_not_overwritten_exact_copy_goes_elsewhere()

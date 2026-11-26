@@ -7,20 +7,27 @@ public class CategoriesDesignTests
 {
     private static Catalog Cat() => new(new Store());
 
-    [Fact] public void Default_list_is_the_builtin_general_only()
+    [Fact] public void Default_list_contains_the_settled_builtins_in_order()
     {
         var c = Cat();
-        Assert.Equal(new[] { Workspace.DefaultCategory }, c.AllCategories());
+        Assert.Equal(Catalog.BuiltInCategories, c.AllCategories());
         Assert.True(Catalog.IsBuiltInCategory(Workspace.DefaultCategory));
+        Assert.Equal(21, c.AllCategories().Count);
+        Assert.Equal(21, c.AllCategories().Distinct().Count());
+        Assert.All(Catalog.BuiltInCategories, name => {
+            Assert.True(Catalog.IsBuiltInCategory(name));
+            Assert.Throws<ArgumentException>(() => c.DeleteCustomCategory(name));
+            Assert.Throws<ArgumentException>(() => c.RenameCustomCategory(name, "replacement"));
+        });
         Assert.Empty(c.Store.CustomCategories);
     }
 
     [Fact] public void Add_custom_category_and_reject_duplicates_and_builtin_shadowing()
     {
         var c = Cat();
-        c.AddCustomCategory("מוזיקה");
-        Assert.Equal(new[] { Workspace.DefaultCategory, "מוזיקה" }, c.AllCategories());
-        Assert.Throws<ArgumentException>(() => c.AddCustomCategory("מוזיקה"));
+        c.AddCustomCategory("מוזיקה אישית");
+        Assert.Equal(Catalog.BuiltInCategories.Concat(new[] { "מוזיקה אישית" }), c.AllCategories());
+        Assert.Throws<ArgumentException>(() => c.AddCustomCategory("מוזיקה אישית"));
         Assert.Throws<ArgumentException>(() => c.AddCustomCategory("כללי"));
         Assert.Throws<ArgumentException>(() => c.AddCustomCategory("  "));
         c.AddCustomCategory("Graphics");
@@ -40,37 +47,37 @@ public class CategoriesDesignTests
     [Fact] public void Rename_updates_every_assigned_workspace()
     {
         var c = Cat();
-        c.AddCustomCategory("מוזיקה");
+        c.AddCustomCategory("מוזיקה אישית");
         var a = c.CreateWorkspace("a"); var b = c.CreateWorkspace("b");
-        c.SetCategory(a.Id, "מוזיקה"); c.SetCategory(b.Id, "מוזיקה");
-        c.RenameCustomCategory("מוזיקה", "פרויקט מוזיקה");
+        c.SetCategory(a.Id, "מוזיקה אישית"); c.SetCategory(b.Id, "מוזיקה אישית");
+        c.RenameCustomCategory("מוזיקה אישית", "פרויקט מוזיקה");
         Assert.Equal("פרויקט מוזיקה", a.Category); Assert.Equal("פרויקט מוזיקה", b.Category);
-        Assert.Equal(new[] { Workspace.DefaultCategory, "פרויקט מוזיקה" }, c.AllCategories());
+        Assert.Equal(Catalog.BuiltInCategories.Concat(new[] { "פרויקט מוזיקה" }), c.AllCategories());
         Assert.Empty(c.Validate());
     }
 
     [Fact] public void Delete_moves_assigned_workspaces_to_general_without_deleting_them()
     {
         var c = Cat();
-        c.AddCustomCategory("מוזיקה"); c.AddCustomCategory("גרפיקה");
+        c.AddCustomCategory("מוזיקה אישית"); c.AddCustomCategory("גרפיקה אישית");
         var a = c.CreateWorkspace("a"); var b = c.CreateWorkspace("b"); var other = c.CreateWorkspace("c");
-        c.SetCategory(a.Id, "מוזיקה"); c.SetCategory(b.Id, "מוזיקה"); c.SetCategory(other.Id, "גרפיקה");
-        Assert.Equal(2, c.WorkspacesInCategory("מוזיקה").Count);
-        c.DeleteCustomCategory("מוזיקה");
+        c.SetCategory(a.Id, "מוזיקה אישית"); c.SetCategory(b.Id, "מוזיקה אישית"); c.SetCategory(other.Id, "גרפיקה אישית");
+        Assert.Equal(2, c.WorkspacesInCategory("מוזיקה אישית").Count);
+        c.DeleteCustomCategory("מוזיקה אישית");
         Assert.Equal(3, c.Store.Workspaces.Count); // no workspace was deleted
         Assert.Equal(Workspace.DefaultCategory, a.EffectiveCategory); Assert.Null(a.Category);
         Assert.Equal(Workspace.DefaultCategory, b.EffectiveCategory);
-        Assert.Equal("גרפיקה", other.EffectiveCategory); // other categories untouched
-        Assert.Equal(new[] { Workspace.DefaultCategory, "גרפיקה" }, c.AllCategories());
+        Assert.Equal("גרפיקה אישית", other.EffectiveCategory); // other categories untouched
+        Assert.Equal(Catalog.BuiltInCategories.Concat(new[] { "גרפיקה אישית" }), c.AllCategories());
         Assert.Empty(c.Validate());
     }
 
     [Fact] public void SetCategory_accepts_list_values_and_stores_the_default_as_none()
     {
         var c = Cat();
-        c.AddCustomCategory("מוזיקה");
+        c.AddCustomCategory("מוזיקה אישית");
         var w = c.CreateWorkspace("a");
-        c.SetCategory(w.Id, "מוזיקה"); Assert.Equal("מוזיקה", w.Category);
+        c.SetCategory(w.Id, "מוזיקה אישית"); Assert.Equal("מוזיקה אישית", w.Category);
         c.SetCategory(w.Id, Workspace.DefaultCategory); Assert.Null(w.Category);
         c.SetCategory(w.Id, null); Assert.Null(w.Category);
         Assert.Throws<ArgumentException>(() => c.SetCategory(w.Id, "לא קיים"));

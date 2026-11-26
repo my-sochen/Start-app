@@ -1,0 +1,74 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using StartApp.Presentation;
+
+namespace StartApp.App;
+
+/// <summary>Shared preset swatches and a full-spectrum editor. The caller owns its unsaved color.</summary>
+public sealed class WorkspaceColorPicker : StackPanel
+{
+    public static readonly DependencyProperty SelectedColorProperty = DependencyProperty.Register(nameof(SelectedColor), typeof(string), typeof(WorkspaceColorPicker), new FrameworkPropertyMetadata("", FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+    public string SelectedColor { get => (string)GetValue(SelectedColorProperty); set => SetValue(SelectedColorProperty, value); }
+    public static readonly DependencyProperty TargetProperty = DependencyProperty.Register(nameof(Target), typeof(string), typeof(WorkspaceColorPicker), new PropertyMetadata("create"));
+    public string Target { get => (string)GetValue(TargetProperty); set => SetValue(TargetProperty, value); }
+    public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(nameof(Palette), typeof(IEnumerable<string>), typeof(WorkspaceColorPicker));
+    public IEnumerable<string> Palette { get => (IEnumerable<string>)GetValue(PaletteProperty); set => SetValue(PaletteProperty, value); }
+
+    public static readonly DependencyProperty PaletteNameProperty = DependencyProperty.Register(nameof(PaletteName), typeof(string), typeof(WorkspaceColorPicker), new PropertyMetadata("Workspace palette"));
+    public string PaletteName { get => (string)GetValue(PaletteNameProperty); set => SetValue(PaletteNameProperty, value); }
+
+    public WorkspaceColorPicker()
+    {
+        FlowDirection = FlowDirection.RightToLeft;
+        var swatches = new ItemsControl();
+        var panel = new FrameworkElementFactory(typeof(WrapPanel));
+        swatches.ItemsPanel = new ItemsPanelTemplate(panel);
+        var button = new FrameworkElementFactory(typeof(Button));
+        button.SetResourceReference(StyleProperty, "SwatchButton");
+        button.SetValue(WidthProperty, 28d); button.SetValue(HeightProperty, 28d);
+        button.SetValue(MarginProperty, new Thickness(0, 0, 8, 6));
+        button.SetBinding(BackgroundProperty, new Binding(".") { Converter = new ColorBrushConverter() });
+        button.SetBinding(ToolTipProperty, new Binding("."));
+        button.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty, new Binding("."));
+        button.AddHandler(Button.ClickEvent, new RoutedEventHandler((s, _) => SetCurrentValue(SelectedColorProperty, ((Button)s).DataContext as string ?? "")));
+        swatches.ItemTemplate = new DataTemplate { VisualTree = button };
+        swatches.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty, new Binding(nameof(PaletteName)) { Source = this });
+        swatches.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(Palette)) { Source = this });
+        swatches.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
+        Children.Add(swatches);
+        var historyLabel = new TextBlock { Text = "צבעים נוספים", FontSize = 11, Margin = new Thickness(0, 2, 0, 4) };
+        historyLabel.SetBinding(VisibilityProperty, new Binding("HasAdvancedColorOptions") { Converter = new BooleanToVisibilityConverter() });
+        Children.Add(historyLabel);
+        var history = new ItemsControl { ItemsPanel = swatches.ItemsPanel, ItemTemplate = swatches.ItemTemplate };
+        history.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AdvancedColorOptions"));
+        history.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
+        history.SetBinding(VisibilityProperty, new Binding("HasAdvancedColorOptions") { Converter = new BooleanToVisibilityConverter() });
+        System.Windows.Automation.AutomationProperties.SetName(history, "Advanced color history");
+        Children.Add(history);
+        var current = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 4), HorizontalAlignment = HorizontalAlignment.Right };
+        var preview = new Border { Width = 18, Height = 18, BorderThickness = new Thickness(1), BorderBrush = System.Windows.Media.Brushes.Gray, Margin = new Thickness(0, 0, 6, 0) };
+        preview.SetBinding(Border.BackgroundProperty, new Binding(nameof(SelectedColor)) { Source = this, Converter = new ColorBrushConverter() });
+        var value = new TextBlock { FlowDirection = FlowDirection.LeftToRight, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(value, "Selected workspace color");
+        value.SetBinding(TextBlock.TextProperty, new Binding(nameof(SelectedColor)) { Source = this });
+        current.Children.Add(preview); current.Children.Add(value);
+        var currentStyle = new Style(typeof(StackPanel));
+        currentStyle.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible));
+        var empty = new DataTrigger { Binding = new Binding(nameof(SelectedColor)) { Source = this }, Value = "" };
+        empty.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed)); currentStyle.Triggers.Add(empty); current.Style = currentStyle;
+        Children.Add(current);
+        var advanced = new Button { Content = "בחירה מתקדמת", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0) };
+        advanced.SetResourceReference(StyleProperty, "HomeToolbarButton");
+        System.Windows.Automation.AutomationProperties.SetName(advanced, "Advanced color selection");
+        advanced.Click += (_, _) =>
+        {
+            if (DataContext is not MainViewModel vm || vm.ReadOnly) return;
+            var editor = new AdvancedColorWindow(SelectedColor) { Owner = Window.GetWindow(this) };
+            if (editor.ShowDialog() == true)
+                vm.ApplyAdvancedColorCommand.Execute(new AdvancedColorChoice(Target, editor.ChosenColor));
+        };
+        advanced.SetBinding(IsEnabledProperty, new Binding("CanChooseWorkspaceColor"));
+        Children.Add(advanced);
+    }
+}

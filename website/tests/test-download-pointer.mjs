@@ -389,7 +389,7 @@ t("package-specific claims are identity-gated; design wording is the default", (
 t("loading never claims unavailable; render failure fails closed (review delta)", () => {
   assert.ok(WIRE.includes("renderOffers(null, true)"), "offers region shows checking while loading");
   assert.ok(WIRE.includes("function failClosed()"), "fail-closed render fallback present");
-  assert.ok(WIRE.includes("} catch (_) { failClosed(); return; }"), "pointer render phase guarded");
+  assert.ok(WIRE.includes("} catch (_) { failClosed(); settle(); return; }"), "pointer render phase guarded and still signals settlement");
 });
 
 t("history controls carry version and tag in their accessible label", () => {

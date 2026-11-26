@@ -361,3 +361,38 @@ body[data-page="docs.html"]::before{content:"";position:fixed;inset:-720px 0 -72
 @media(max-width:700px){body[data-page="docs.html"]::before{background-size:600px 360px}}
 @media(prefers-reduced-motion:reduce){body[data-page="docs.html"]::before{transform:none!important}}
 @media print{body[data-page="docs.html"]::before{display:none}}
+
+/* Owner feedback (Nov 19), desktop guide: the chapter list must scroll on its
+ * own wherever the main page is, not only after the page reaches a boundary.
+ * The sticky sidebar becomes its own viewport-capped scroll container; the
+ * aside is focusable (tabindex) so keyboard users can scroll it too. Mobile
+ * keeps the static inline chapter list.
+ * Clearance follow-up (Nov 19): the pinned header is taller than the base
+ * 85px when the nav wraps (narrow widths) or text is enlarged, and a fixed
+ * offset docked the list's top controls underneath it. The dock now follows
+ * the header's MEASURED height via --pinned-top-h, published from the live
+ * layout by site-nav.js; the fallback reproduces the base 85px header. */
+@media (min-width: 701px) {
+  .sidebar { top: calc(var(--pinned-top-h, 85px) + 12px); max-height: calc(100vh - var(--pinned-top-h, 85px) - 32px); overflow-y: auto; }
+}
+.sidebar:focus-visible { outline: 3px solid #975016; outline-offset: 3px; }
+
+/* Owner feedback (Nov 19), home: opening/closing "All versions" must not move
+ * the decorative line art. The art used to be stretched to the hero box
+ * (height:100%), so any change in hero height refit the artwork. Sizing it by
+ * width alone (the SVG's intrinsic 1200x720 ratio) keeps its geometry constant
+ * however tall the hero grows; overflow stays clipped as before. */
+.page-line-art img { height: auto; }
+
+/* OPTIONAL PREVIEW PROPOSAL (owner suggestion, Nov 19, via Yitzhak) - NOT an
+ * approved redesign, kept as a separable candidate for review: give the home
+ * page the guide's continuous fixed line-art backdrop instead of the dedicated
+ * hero illustration composition. Same tile, opacity and half-speed depth drift
+ * as the guide; the hero/top/bottom illustrations are hidden while this
+ * proposal is applied. Progressive enhancement: needs the same data-page
+ * marker the guide backdrop already relies on. */
+body[data-page="index.html"]::before{content:"";position:fixed;inset:-720px 0 -720px;z-index:-1;pointer-events:none;user-select:none;background-image:url("illustrations/page-lines-desktop.svg");background-repeat:repeat-y;background-position:center top;background-size:1200px 720px;opacity:.2;transform:translate3d(0,var(--depth-y,0px),0)}
+@media(max-width:700px){body[data-page="index.html"]::before{background-size:600px 360px}}
+@media(prefers-reduced-motion:reduce){body[data-page="index.html"]::before{transform:none!important}}
+@media print{body[data-page="index.html"]::before{display:none}}
+body[data-page="index.html"] .page-line-art,body[data-page="index.html"] .page-line-top,body[data-page="index.html"] .page-line-bottom{display:none}
