@@ -21,14 +21,14 @@ try{
    $helper=Join-Path $PWD 'tests/StartApp.BrowserWindowProbe/bin/Release/net10.0-windows/StartApp.BrowserWindowProbe.exe'
    & $helper $browser.Exe $profile "http://127.0.0.1:$port/Unrelated.html"
    Check "$($browser.Name) unrelated fixture started" ($LASTEXITCODE -eq 0)
-   $first=@(WaitWindows $profile 1);$original=$first[0];$originalToken=(Tabs $original)[0].Current.Name
+   $first=@(WaitWindows $profile 1);$original=$first[0];$originalToken=[regex]::Match((Tabs $original)[0].Current.Name,'^Probe-Unrelated-[a-z0-9]+').Value
    Write-Output ("Initial "+$browser.Name+" "+$originalToken)
    foreach($iteration in 1..2){
     & $helper $browser.Exe $profile "http://127.0.0.1:$port/C.html?x=1&y=2" "http://127.0.0.1:$port/A.html#fragment" "http://127.0.0.1:$port/B.html"
     Check "$($browser.Name) product batch $iteration submitted" ($LASTEXITCODE -eq 0)
     $ws=@(WaitWindows $profile ($iteration+1))
     $currentOriginal=@(Tabs $original);$currentNames=@($currentOriginal|ForEach-Object {$_.Current.Name});Write-Output ("Original after "+$browser.Name+" iteration "+$iteration+" "+($currentNames -join ','));$snapshot=@($ws|ForEach-Object {@{handle=$_.Current.NativeWindowHandle;title=$_.Current.Name;tabs=@((Tabs $_)|ForEach-Object {$_.Current.Name})}});$snapshot|ConvertTo-Json -Depth 5|Set-Content (Join-Path $out ($browser.Name+"-iteration-"+$iteration+".json"))
-    Check "$($browser.Name) unrelated tab state preserved $iteration" ($currentNames -contains $originalToken)
+    Check "$($browser.Name) unrelated tab state preserved $iteration" ($originalToken.Length -gt 0 -and @($currentNames|Where-Object {[regex]::Match($_,'^Probe-Unrelated-[a-z0-9]+').Value -eq $originalToken}).Count -eq 1)
     $new=@($ws|Where-Object {(Tabs $_).Count -eq 3})
     Check "$($browser.Name) dedicated windows remain separate $iteration" ($new.Count -eq $iteration)
     foreach($w in $new){$names=@((Tabs $w)|ForEach-Object {$_.Current.Name});Check "$($browser.Name) C A B order $iteration" ($names[0] -like 'Probe-C-*' -and $names[1] -like 'Probe-A-*' -and $names[2] -like 'Probe-B-*')}
