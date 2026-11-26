@@ -97,8 +97,8 @@ const ctaState = (page) => page.evaluate(() => {
 });
 const guideState = (page) => page.evaluate(() => ({
   noInline: !document.querySelector('[data-download-cta],a[href*="releases/download"]'),
-  exactLink: !!document.querySelector('a[href="index.html?version=v0.1.0-proto.2#download"]'),
-  selector: !!document.querySelector('.version-switch a[href="proto1/docs.html"]'),
+  exactLink: !!document.querySelector('a[href$="index.html?version=v0.1.0-proto.2#download"]'),
+  selector: !!document.querySelector('.version-switch a[href$="proto1/docs.html"]'),
 }));
 async function clickCta(page) {
   const urls = [];
@@ -208,7 +208,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   const pre = `nav@${w}`;
   await page.evaluate(() => { window.__marker = 42; });
   const navLinks = await page.$$("header nav a");
-  await page.click('header nav a[href="docs.html"]');
+  await page.click('header nav a[href$="docs.html"]');
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await settle(page);
   let s = await page.evaluate(() => ({
@@ -223,7 +223,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await sleep(150);
   s.ann = await page.evaluate(() => document.getElementById("route-announcer").textContent);
   ok(s.ann.includes("מדריך Start-app"), pre + ": polite announcement of the new page");
-  ok(s.cur.length === 1 && s.cur[0] === "docs.html", pre + ": aria-current moved to the guide");
+  ok(s.cur.length === 1 && s.cur[0].endsWith("/docs.html"), pre + ": aria-current moved to the guide");
   ok(s.sections === 12 && s.status.includes("12"), pre + ": guide initialized (12 chapters, search status)");
   ok(s.y === 0, pre + ": scrolled to top on forward navigation");
   const gs = await guideState(page);
@@ -237,11 +237,11 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   await page.evaluate(() => window.scrollTo(0, 1500));
   await sleep(200);
   const y1 = await page.evaluate(() => scrollY);
-  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="index.html"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/") || location.pathname.endsWith("index.html"), { timeout: 5000 });
   await sleep(300);
   s = await page.evaluate(() => ({ marker: window.__marker, hash: location.hash, title: document.title, hasHero: !!document.querySelector(".download-direct, .hero-download-button") }));
-  ok(s.marker === 42 && s.hash === "#download" && s.hasHero, pre + ": guide to home#download deeplink without reload");
+  ok(s.marker === 42 && s.hash === "" && s.hasHero, pre + ": guide to home top without reload");
   await settle(page);
   const cs2 = await ctaState(page);
   ok(!cs2.disabled && cs2.onclick, pre + ": home CTA rendered after swap (cached validated result)");
@@ -258,7 +258,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   ok(s.marker === 42 && s.hasHero && s.t === "start app" && s.page === "index.html" && s.sections === 0, pre + ": Forward returns home without reload");
   // modifier click is NOT intercepted (new-tab semantics preserved)
   const prevented = await page.evaluate(() => {
-    const a = document.querySelector('header nav a[href="docs.html"]');
+    const a = document.querySelector('header nav a[href$="docs.html"]');
     const ev = new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true, button: 0 });
     a.dispatchEvent(ev);
     return ev.defaultPrevented;
@@ -319,12 +319,12 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
 async function delayedBackFlow(userWheel) {
   const page = await open("/", "ok", { width: 1440, height: 900 });
   await page.evaluate(() => { window.__marker = 42; });
-  await page.click('header nav a[href="docs.html"]');
+  await page.click('header nav a[href$="docs.html"]');
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await settle(page);
   await page.evaluate(() => window.scrollTo(0, 1500));
   await sleep(200);
-  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="index.html"]').click());
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await page.setRequestInterception(true);
   page.on("request", (r) => { if (r.url().endsWith("/pointer.json")) setTimeout(() => r.continue(), 1000); else r.continue(); });
@@ -399,12 +399,12 @@ async function delayedBackFlow(userWheel) {
 {
   const page = await open("/", "ok", { width: 1440, height: 900 });
   await page.evaluate(() => { window.__marker = 42; });
-  await page.click('header nav a[href="docs.html"]');
+  await page.click('header nav a[href$="docs.html"]');
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await settle(page);
   await page.evaluate(() => window.scrollTo(0, 1500));
   await sleep(200);
-  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="index.html"]').click());
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await page.setRequestInterception(true);
   page.on("request", (r) => { if (r.url().endsWith("/pointer.json")) setTimeout(() => r.continue(), 3000); else r.continue(); });
@@ -434,12 +434,12 @@ async function delayedBackFlow(userWheel) {
 {
   const page = await open("/", "ok", { width: 1440, height: 900 });
   await page.evaluate(() => { window.__marker = 42; });
-  await page.click('header nav a[href="docs.html"]');
+  await page.click('header nav a[href$="docs.html"]');
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await settle(page);
   await page.evaluate(() => window.scrollTo(0, 1500));
   await sleep(200);
-  await page.evaluate(() => document.querySelector('header nav a[href="index.html#download"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="index.html"]').click());
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"), { timeout: 5000 });
   await page.evaluate(() => { window.StartAppPointer = null; });
   await page.goBack();
@@ -480,7 +480,7 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   // cross-page restore in both directions
   const page = await open("/", "ok", { width: 390, height: 400 });
   await page.evaluate(() => { window.__m = 1; });
-  await page.evaluate(() => document.querySelector('header nav a[href="docs.html"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="docs.html"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"));
   await sleep(300);
   await page.evaluate(() => window.scrollTo({ top: 194, behavior: "instant" }));
@@ -513,7 +513,7 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   page.on("request", (r) => { if (r.url().endsWith("/docs.html")) setTimeout(() => r.continue(), 1500); else r.continue(); });
   await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
   await settle(page);
-  await page.evaluate(() => { window.__m = 5; document.querySelector('header nav a[href="docs.html"]').click(); });
+  await page.evaluate(() => { window.__m = 5; document.querySelector('header nav a[href$="docs.html"]').click(); });
   await sleep(300);
   await page.evaluate(() => document.querySelector('header .brand').click());
   await sleep(2500);
@@ -526,7 +526,7 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   const page = await open("/", "ok", { width: 1440, height: 900 });
   const meta = () => page.evaluate(() => ({ c: document.querySelector('link[rel="canonical"]').href, d: document.querySelector('meta[name="description"]').content }));
   const m0 = await meta();
-  await page.evaluate(() => document.querySelector('header nav a[href="docs.html"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="docs.html"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html")); await sleep(200);
   const m1 = await meta();
   ok(m1.c.endsWith("/docs.html") && m1.d.includes("מדריך"), "guide canonical + description after swap");
@@ -548,7 +548,7 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   const page = await open("/", "ok", { width: 1440, height: 900 });
   ok(!(await ctaState(page)).disabled, "withdrawal setup: home CTA enabled");
   setFixture("none");
-  await page.evaluate(() => document.querySelector('header nav a[href="docs.html"]').click());
+  await page.evaluate(() => document.querySelector('header nav a[href$="docs.html"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"));
   await settle(page);
   const gs = await guideState(page);
@@ -600,7 +600,7 @@ for (const [delay, root] of [[0, ""], [50, ""], [0, "/Start-app"], [50, "/Start-
   const page = await open("/", "ok", { width: 1440, height: 900 });
   await page.evaluate(() => { window.__marker = 7; });
   rmSync(join(SITE, "docs.html"), { force: true });
-  await page.click('header nav a[href="docs.html"]');
+  await page.click('header nav a[href$="docs.html"]');
   await sleep(1200);
   const s = await page.evaluate(() => ({ marker: window.__marker, p: location.pathname }));
   ok(s.p.endsWith("/docs.html") && s.marker !== 7, "fetch failure falls back to a real full navigation to the same URL");

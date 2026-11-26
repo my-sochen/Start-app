@@ -29,16 +29,16 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
 (function () {
   var TEXTS = {
     ok: {
-      badge: tr("גרסת אב-טיפוס זמינה להורדה"),
-      heading: tr("גרסת אב-טיפוס זמינה."),
+      badge: "גרסת אב-טיפוס זמינה להורדה",
+      heading: "גרסת אב-טיפוס זמינה.",
     },
     none: {
-      badge: tr("אין עדיין גרסה מאומתת להורדה"),
-      heading: tr("אין הורדה זמינה כרגע."),
+      badge: "אין עדיין גרסה מאומתת להורדה",
+      heading: "אין הורדה זמינה כרגע.",
     },
     invalid: {
-      badge: tr("לא ניתן לאמת הורדה כרגע"),
-      heading: tr("לא ניתן לאמת הורדה כרגע."),
+      badge: "לא ניתן לאמת הורדה כרגע",
+      heading: "לא ניתן לאמת הורדה כרגע.",
     },
   };
   var seq = 0;
@@ -61,8 +61,8 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     var texts = TEXTS[state] || TEXTS.invalid;
     var badge = document.getElementById("availability-badge");
     var heading = document.getElementById("download-heading");
-    if (badge) badge.textContent = texts.badge;
-    if (heading) heading.textContent = texts.heading;
+    if (badge) badge.textContent = tr(texts.badge);
+    if (heading) heading.textContent = tr(texts.heading);
   }
 
   // With JavaScript running we CAN check: upgrade the static no-JS state to
@@ -187,7 +187,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     });
   }
 
-  function init(navToken) {
+  function init(navToken, restoreScroll) {
     var mine = ++seq;
     var settled = false;
     // Exactly one settlement signal per init that reaches its terminal render.
@@ -196,7 +196,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
       settled = true;
       document.dispatchEvent(
         new CustomEvent("startapp:download-settled", {
-          detail: { token: navToken === undefined ? null : navToken },
+          detail: { token: navToken === undefined ? null : navToken, restoreScroll: restoreScroll === true },
         })
       );
     }
@@ -208,7 +208,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     applyLoading();
     guideLayout({state: "invalid"});
     historyHint(false);
-    var root = (document.documentElement.getAttribute("data-site-root") || ".") + "/";
+    var root = new URL((document.documentElement.getAttribute("data-site-root") || ".").replace(/\/?$/, "/"), window.location.href).href;
     var url = new URL(root + "pointer.json", window.location.href).href;
     window.StartAppPointer.load(url).then(function (result) {
       if (mine !== seq) return;

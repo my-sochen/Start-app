@@ -405,3 +405,6 @@ body[data-page="index.html"] .page-line-art,body[data-page="index.html"] .page-l
 .prototype-offer.version-target { outline:3px solid #087f8c; outline-offset:5px; border-radius:.4rem; scroll-margin-block:8rem; }
 .version-request-note { padding:1rem; border-inline-start:4px solid #b36b00; }
 @media print { .version-switch nav { display:flex; } }
+
+/* Shared approved blue app mark, never distort its square viewBox. */
+.brand i img { display: block; width: 29px; height: 29px; object-fit: contain; }

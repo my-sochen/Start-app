@@ -3,7 +3,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
 
 /*
  * Progressive-enhancement client-side navigation between the two real pages
- * (index.html, docs.html) of this site directory. Every link keeps its real
+ * (home and current/archived guides) across supported locales. Every link keeps its real
  * href, so with no JavaScript, a failed fetch, a new-tab/modifier click, or a
  * crawler, the browser performs a normal full page load to the same URL.
  *
@@ -18,7 +18,6 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
  * to a real navigation. No inline script, no eval, same-origin fetch only.
  */
 (function () {
-  var PAGES = { "index.html": "index.html", "docs.html": "docs.html", "": "index.html" };
   var cache = {};
   var token = 0;
   var saveTimer = null;
@@ -47,32 +46,45 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   document.addEventListener("focusin", function () {
     if (!internalFocus) noteUserScroll();
   });
-  // Site directory (e.g. "/Start-app/"), taken once from the page that loaded
-  // this script. A same-named file in another directory is not enhanced.
-  var BASE = location.pathname.replace(/[^\/]*$/, "");
-
+  // The shared script URL fixes the site root even on an archived/localized page.
+  var BASE = new URL(".", document.currentScript.src).pathname;
+  var renderedRoute = null;
   function pageOf(url) {
     var u = new URL(url, location.href);
-    if (u.origin !== location.origin) return null;
-    if (u.pathname.slice(0, BASE.length) !== BASE) return null;
+    if (u.origin !== location.origin || u.pathname.slice(0, BASE.length) !== BASE) return null;
     var name = u.pathname.slice(BASE.length);
-    return Object.prototype.hasOwnProperty.call(PAGES, name) ? PAGES[name] : null;
+    var match = /^(?:(proto1)\/)?(?:(en|ru|zh-hans|ja|fr|es|de)\/)?(index(?:\.html)?|docs(?:\.html)?)?\/?$/i.exec(name);
+    if (!match) return null;
+    var page = match[3] && /^docs/i.test(match[3]) ? "docs.html" : "index.html";
+    if (match[1] && page !== "docs.html") return null;
+    var query = new URLSearchParams(u.search);
+    if ([...query.keys()].some(function (k) { return k !== "version"; }) || (u.search && (page !== "index.html" || query.getAll("version").length !== 1 || !/^v0\.1\.0-proto\.[1-9]\d*$/.test(query.get("version"))))) return null;
+    var lang = match[2] ? (match[2].toLowerCase() === "zh-hans" ? "zh-Hans" : match[2].toLowerCase()) + "/" : "";
+    return BASE + (match[1] ? "proto1/" : "") + lang + page + u.search;
   }
-  function currentPage() {
-    return pageOf(location.href);
-  }
-
-  function fetchPage(page) {
-    if (cache[page]) return Promise.resolve(cache[page]);
-    var url = new URL(page, location.href).href;
-    return fetch(url, { credentials: "omit" }).then(function (res) {
+  function currentPage() { return pageOf(location.href); }
+  function pageName(route) { return route.split("?")[0].endsWith("docs.html") ? "docs.html" : "index.html"; }
+  function fetchPage(route) {
+    if (cache[route]) return Promise.resolve(cache[route]);
+    return fetch(route, { credentials: "same-origin" }).then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.text();
-    }).then(function (html) {
-      var doc = new DOMParser().parseFromString(html, "text/html");
-      if (!doc.querySelector("main#main")) throw new Error("no main");
-      cache[page] = doc;
-      return doc;
+      return res.text().then(function (html) {
+        var doc = new DOMParser().parseFromString(html, "text/html");
+        if (!doc.querySelector("main#main") || !doc.querySelector("header")) throw new Error("invalid page");
+        // Imported relative resources must keep the destination document's base.
+        doc.querySelectorAll("[href], [src]").forEach(function (el) {
+          ["href", "src"].forEach(function (attr) {
+            var value = el.getAttribute(attr);
+            if (value && value[0] !== "#") el.setAttribute(attr, new URL(value, res.url).href);
+          });
+        });
+        // Keep the old page visible while destination images decode, avoiding
+        // a blank frame or image-driven layout jump immediately after a swap.
+        return Promise.all(Array.prototype.map.call(doc.images, function (node) {
+          var image = new Image(); image.src = node.getAttribute("src");
+          return image.decode().catch(function () {});
+        })).then(function () { cache[route] = doc; return doc; });
+      });
     });
   }
 
@@ -101,7 +113,13 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
   }
 
   function swapIn(doc, page) {
+    document.documentElement.lang = doc.documentElement.lang;
+    document.documentElement.dir = doc.documentElement.dir;
+    document.documentElement.setAttribute("data-site-root", BASE);
     document.title = doc.title;
+    copyChildren(doc.querySelector("header"), document.querySelector("header"));
+    var skip = document.querySelector("a.skip"), nextSkip = doc.querySelector("a.skip");
+    if (skip && nextSkip) skip.textContent = nextSkip.textContent;
     [["link[rel=\"canonical\"]", "href"], ["meta[name=\"description\"]", "content"]].forEach(function (p) {
       var cur = document.head.querySelector(p[0]);
       var nxt = doc.head.querySelector(p[0]);
@@ -144,7 +162,8 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     var nextLanguageMenu = doc.querySelector(".language-switch");
     if (languageMenu && nextLanguageMenu) copyChildren(nextLanguageMenu, languageMenu);
     setCurrentNav(page);
-    document.body.setAttribute("data-page", page);
+    document.body.setAttribute("data-page", pageName(page));
+    renderedRoute = page;
     if (window.StartAppDocs) window.StartAppDocs.init();
   }
 
@@ -180,7 +199,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     // synchronously (the missing-StartAppPointer fail-closed path) dispatches
     // its settlement immediately, and it must find the restore already armed
     // instead of being lost before it.
-    if (window.StartAppDownload) window.StartAppDownload.init(token);
+    if (window.StartAppDownload) window.StartAppDownload.init(token, typeof restoreY === "number");
   }
 
   function flushScroll() {
@@ -212,7 +231,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     var page = pageOf(a.href);
     if (!page) return;
     var u = new URL(a.href);
-    if (page === currentPage()) {
+    if (page === renderedRoute) {
       // Clicking a link to the page already shown cancels a pending
       // navigation to the other page (the user changed their mind).
       token++;
@@ -227,19 +246,17 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
       }
       return;
     }
-    // Only exact site URLs are enhanced; a query string is never carried by
-    // the swap, so such links navigate natively and stay URL/content-true.
-    if (u.search) return;
     e.preventDefault();
     go(u.pathname + u.search + u.hash, true);
   });
 
   window.addEventListener("popstate", function (e) {
     token++;
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
     var page = pageOf(location.href);
     if (!page) { location.reload(); return; }
     var y = e.state && typeof e.state.y === "number" ? e.state.y : undefined;
-    if (page === document.body.getAttribute("data-page")) {
+    if (page === renderedRoute) {
       // Same page (hash step). scrollRestoration is manual, so restore the
       // position saved for that entry.
       if (typeof y === "number") window.scrollTo({ top: y, left: 0, behavior: "instant" });
@@ -274,7 +291,9 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
     pendingRestore = null;
   });
 
-  document.body.setAttribute("data-page", currentPage() || "");
+  renderedRoute = currentPage();
+  document.documentElement.setAttribute("data-site-root", BASE);
+  document.body.setAttribute("data-page", renderedRoute ? pageName(renderedRoute) : "");
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 })();
 
