@@ -7,7 +7,11 @@ public sealed partial class MainViewModel
     private bool _signInStarted;
     private bool _automaticSignInOpening;
     public Task SignInTask { get; private set; } = Task.CompletedTask;
-    public void CancelSignInStartup() => _signInStop.Cancel();
+    public void CancelSignInStartup()
+    {
+        _signInStop.Cancel();
+        if (_automaticSignInOpening) ClearPending();
+    }
     public void StartSignInStartup(ISignInReadiness readiness)
     {
         if (_signInStarted) return;
