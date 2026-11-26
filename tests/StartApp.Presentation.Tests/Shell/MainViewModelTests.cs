@@ -54,7 +54,7 @@ public class MainViewModelTests
         vm.NewItemType = ItemType.Link; vm.NewTarget = "https://example.com/x"; vm.AddItemCommand.Execute(null);
         Assert.Single(vm.Items); Assert.False(vm.DuplicatePending);
         vm.NewItemType = ItemType.Link; vm.NewTarget = "https://example.com/x"; vm.NewItemName = "again"; vm.AddItemCommand.Execute(null);
-        Assert.True(vm.DuplicatePending); Assert.Single(vm.Items); Assert.Contains("already in the workspace", vm.DuplicateMessage);
+        Assert.True(vm.DuplicatePending); Assert.Single(vm.Items); Assert.Equal("הכתובת כבר קיימת בסביבה. להוסיף עותק נפרד עם שם והגדרות משלו?", vm.DuplicateMessage);
         vm.ConfirmDuplicateCommand.Execute(null);
         Assert.False(vm.DuplicatePending); Assert.Equal(2, vm.Items.Count);
         Assert.Equal("again", vm.Items[1].Name); Assert.NotEqual(vm.Items[0].InstanceId, vm.Items[1].InstanceId);
