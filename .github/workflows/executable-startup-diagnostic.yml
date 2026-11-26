@@ -1,0 +1,43 @@
+name: executable-startup-diagnostic
+on:
+  push:
+    branches: [diagnostic/executable-startup]
+    paths: [.github/workflows/executable-startup-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: current-test
+            revision: a59bd2d7d65e19def56464968448ba4c48f8e49a
+          - label: before-startup
+            revision: 142a178c34509c55c211d03df4c994268d20dce2
+          - label: before-tray
+            revision: 90b06d8de8f409730ce1698dcf6fbd563cf84be4
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: harness
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ matrix.revision }}
+          path: source
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Exact revision executable and extracted ZIP diagnosis
+        shell: pwsh
+        run: |
+          & ./harness/.github/e2e/executable-startup-diagnostic.ps1 -Source source -Revision '${{ matrix.revision }}' -Output 'evidence/${{ matrix.label }}'
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: executable-startup-${{ matrix.label }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 5
