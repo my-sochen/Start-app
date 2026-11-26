@@ -3,8 +3,8 @@ Only selected contract actions run. This is not FLOW-COMPLETE or full TEST evide
 """
 from pathlib import Path
 p=Path(__file__).parent
-cycle=(p/'cycle1-flow.ps1').read_text()
-cap=(p/'capture-flow.ps1').read_text()
+cycle=(p/'cycle1-flow.ps1').read_text(encoding='utf-8-sig')
+cap=(p/'capture-flow.ps1').read_text(encoding='utf-8-sig')
 common=r'''
 function Section($name,[scriptblock]$work) {
   $before=$results.Count
@@ -157,4 +157,4 @@ Info 'excluded product path' 'No verdict on missing capabilities-help affordance
 for name,source,marker,work in [('cycle',cycle,'  # 1. overview:',cyclework),('capture',cap,'  # 1. dropdown ->',capwork)]:
     end=source.index(marker)
     cleanup=source.rindex('catch { $il = $_.InvocationInfo; "script error:')
-    (p/f'contract-{name}.generated.ps1').write_text(source[:end]+common+work+'\n}\n'+source[cleanup:])
+    (p/f'contract-{name}.generated.ps1').write_text(source[:end]+common+work+'\n}\n'+source[cleanup:], encoding='utf-8-sig')
