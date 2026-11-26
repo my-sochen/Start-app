@@ -71,14 +71,16 @@ function Btn($name) { (CurWin).FindFirst($TS::Descendants, (New-Object System.Wi
 # picked the OVERVIEW palette in run 43577316808 - a false pass). The capture palette ItemsControl carries
 # the unique automation name 'Capture palette'; EVERY capture palette lookup must go through this anchor
 # (exactly one match) and search only inside its subtree - never the window-wide tree.
-function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::List)), (New-Object $PC($A::NameProperty, 'Capture palette')))))); if ($m.Count -eq 1) { return $m[0] }; return $null }
+function CapPalette() { $m = @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, 'Capture palette')))); if ($m.Count -eq 1) { return $m[0] }; return $null }
 function CapSwatch($hex) { $pal = CapPalette; if ($null -eq $pal) { return $null }; return $pal.FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, $hex))))) }
 function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button)))) | Where-Object { $_.Current.Name -like "*$needle*" } | Select-Object -First 1 }
 function OpenContextEl($el, $settle = 900) {
   if ($null -eq $el) { return 'context anchor missing' }
   try {
-    $el.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    $r=$el.Current.BoundingRectangle
+    if($el.Current.IsOffscreen -or $r.Width -le 0 -or $r.Height -le 0){return 'context anchor offscreen'}
+    [void][W]::SetCursorPos([int]($r.Left+$r.Width/2),[int]($r.Top+$r.Height/2))
+    [W]::mouse_event(0x0008,0,0,0,[UIntPtr]::Zero);[W]::mouse_event(0x0010,0,0,0,[UIntPtr]::Zero)
     Start-Sleep -Milliseconds $settle
     if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
     return 'ok'
@@ -88,14 +90,57 @@ function ContextAnchors($name) {
   $hostWindow = (CurWin)
   if ($name -eq 'Workspace actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'WorkspaceTitle')))) }
   if ($name -eq 'Item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Button)), (New-Object $PC($A::NameProperty, 'Edit item')))))) }
-  if ($name -eq 'Staged item actions') { return @($hostWindow.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Remove added *' }) }
+  if ($name -eq 'Staged item actions') { return @(StagedRowRecords | ForEach-Object { $_.Host }) }
   return @()
 }
 function ClickBtn($name, $settle = 900) {
+  if ($name -eq 'Back') { $name = 'Back to workspaces' }
+  if ($name -like 'Remove added *') { return RemoveStagedRow ($name.Substring(13)) $settle }
   if ($name -in @('Workspace actions','Item actions','Staged item actions')) { return OpenContextEl (@(ContextAnchors $name) | Select-Object -First 1) $settle }
   $b = $null; for ($i = 0; $i -lt 40; $i++) { $b = Btn $name; if ($b -and $b.Current.IsEnabled) { break }; Start-Sleep -Milliseconds 250 }
   if (-not $b) { return "button '$name' not found" }; if (-not $b.Current.IsEnabled) { return "button '$name' stayed disabled" }
   $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds $settle; return 'ok'
+}
+function OpenCreateScreen() {
+  if (Btn 'Create workspace') { return }
+  $b = Btn 'New workspace button'
+  if (-not $b) { throw 'New workspace button missing from home' }
+  $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  $deadline = [Diagnostics.Stopwatch]::StartNew()
+  while ($deadline.Elapsed.TotalSeconds -lt 10 -and -not (Btn 'Create workspace')) { Start-Sleep -Milliseconds 100 }
+  if (-not (Btn 'Create workspace')) { throw 'Dedicated create screen did not open' }
+}
+function StateVisible($name, $seconds) {
+  $clock=[Diagnostics.Stopwatch]::StartNew()
+  do {
+    $matches=@((CurWin).FindAll($TS::Descendants,(New-Object $PC($A::NameProperty,$name))) | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 0 -and $_.Current.BoundingRectangle.Height -gt 0 })
+    if($matches.Count -eq 1){return $true}
+    Start-Sleep -Milliseconds 100
+  } while($clock.Elapsed.TotalSeconds -lt $seconds)
+  return $false
+}
+function CaptureShown($seconds=2) { StateVisible 'Open now list' $seconds }
+function DetailsShown($seconds=2) { (StateVisible 'Back to workspaces' $seconds) -and $null -ne (NamedEdit 'Workspace name') }
+function ComboValue($combo) {
+  if($null -eq $combo){return ''}
+  $selected=@($combo.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection())
+  if($selected.Count -ne 1){return ''}
+  return $selected[0].Current.Name
+}
+function CaptureAddLabelMatches($count) {
+  $button=Btn 'Add selected capture items'; if(-not $button){return $false}
+  $expected=if($count -eq 0){'הוסף הכל ←'}elseif($count -eq 1){'הוסף נבחר אחד ←'}else{"הוסף $count נבחרים ←"}
+  return @($button.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::Text))) | Where-Object { $_.Current.Name -ceq $expected }).Count -eq 1
+}
+function RemoveStagedRow($original,$settle=600) {
+  $matches=@(StagedRowRecords | Where-Object { $_.Edit.Current.Name -ceq "Toggle added $original" })
+  if($matches.Count -ne 1){return "staged identity missing or ambiguous: $original"}
+  $record=$matches[0]; $record.Edit.SetFocus()
+  $opened=OpenContextEl $record.Host 300; if($opened -ne 'ok'){return $opened}
+  $delete=MenuItemByName 'מחיקה'
+  if(-not $delete -or -not $delete.Current.IsEnabled){return 'staged delete unavailable'}
+  [void](InvokeEl $delete 'exact staged row delete'); Start-Sleep -Milliseconds $settle
+  return 'ok'
 }
 function EnsureToggle($el, $what, $wantOn) {
   if ($null -eq $el) { Assert "$what found" $false 'missing'; return $false }
@@ -303,9 +348,13 @@ function Close-OwnedPickers { param([string]$why)
 }
 
 function CaptureTargetText() { $tw = (CurWin).FindFirst($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::Text)), (New-Object $PC($A::AutomationIdProperty, 'CaptureTargetWorkspace'))))); if ($null -eq $tw) { return '<no header element>' }; return $tw.Current.Name }
-function Checks() { @((CurWin).FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox)))) }
+function Checks() {
+  $list=(CurWin).FindFirst($TS::Descendants,(New-Object $PC($A::NameProperty,'Open now list')))
+  if($null -eq $list){return @()}
+  @($list.FindAll($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::CheckBox))))
+}
 function CheckNames() { @(Checks | ForEach-Object { $_.Current.Name }) }
-function CheckByLike($needle) { Checks | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
+function CheckByLike($needle) { $scope=if($needle -like 'הוסף שוב:*'){ @(UiaAll $CT::CheckBox) }else{ @(Checks) }; $scope | Where-Object { $_.Current.Name -like $needle } | Select-Object -First 1 }
 # Pair summaries and buttons inside each exact staged row, never by parallel window-wide arrays.
 function StagedRowRecords() {
   $hostWindow = CurWin
@@ -316,16 +365,16 @@ function StagedRowRecords() {
   foreach ($row in $rows) {
     $names = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemName'))))
     $addresses = @($row.FindAll($TS::Descendants, (New-Object $PC($A::AutomationIdProperty, 'StagedItemAddress'))))
-    $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Edit added *' })
+    $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *' })
     $null = Assert 'staged row has one paired summary and Edit button' ($names.Count -eq 1 -and $addresses.Count -eq 1 -and $edits.Count -eq 1) ("names=$($names.Count) addresses=$($addresses.Count) edits=$($edits.Count)")
     if ($names.Count -ne 1 -or $addresses.Count -ne 1 -or $edits.Count -ne 1) { throw 'Ambiguous staged row structure' }
-    [pscustomobject]@{ Row=$row; Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
+    [pscustomobject]@{ Row=$row; Host=$names[0]; Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
   }
 }
 function StagedNames() { @(StagedRowRecords | ForEach-Object { $_.Name }) }
 function StagedAddrs() { @(StagedRowRecords | ForEach-Object { $_.Address }) }
 function OpenStagedEditor($original) {
-  $matches = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq "Edit added $original" })
+  $matches = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq "Toggle added $original" })
   Assert "explicit Edit has unique row identity for $original" ($matches.Count -eq 1) ("matches=$($matches.Count)")
   if ($matches.Count -ne 1) { throw 'Ambiguous or missing staged Edit target' }
   $record = $matches[0]; $button = $record.Edit; $br = $button.Current.BoundingRectangle
@@ -469,13 +518,13 @@ try {
   Start-Sleep -Milliseconds 600
   $wr0 = (CurWin).Current.BoundingRectangle
   Assert 'app window fully inside the virtual screen' ($wr0.Left -ge $vsB.Left -and $wr0.Top -ge $vsB.Top -and $wr0.Right -le $vsB.Right -and $wr0.Bottom -le $vsB.Bottom) ("window=$([int]$wr0.Left),$([int]$wr0.Top)-$([int]$wr0.Right),$([int]$wr0.Bottom) screen=$($vsB.Left),$($vsB.Top)-$($vsB.Right),$($vsB.Bottom)")
-  Assert 'overview shown' (WaitText 'Create workspace' 10) ((Texts) -join ' | ')
+  Assert 'overview shown' ($null -ne (Btn 'New workspace button')) ((Texts) -join ' | ')
   Assert 'capture button is on the overview page' ($null -ne (Btn 'Capture')) ''
-  foreach ($n in 'Cap A', 'Cap B') { SetText (NamedEdit 'Workspace name') $n; $c = ClickBtn 'Create workspace' 900; Assert "create $n" ($c -eq 'ok') $c; $c = ClickBtn 'Back' 900; Assert "back after $n" ($c -eq 'ok') $c }
+  foreach ($n in 'Cap A', 'Cap B') { OpenCreateScreen; SetText (NamedEdit 'Workspace name') $n; $c = ClickBtn 'Create workspace' 900; Assert "create $n" ($c -eq 'ok') $c; $c = ClickBtn 'Back' 900; Assert "back after $n" ($c -eq 'ok') $c }
 
   # 1. dropdown -> new workspace: real scan, all rows ticked, read-only list
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> סביבה חדשה' ($c -eq 'ok') $c
-  $shown = WaitText 'Open now' 10; Assert 'capture screen shown' $shown ((Texts) -join ' | ')
+  $shown = CaptureShown 10; Assert 'capture screen shown' $shown ((Texts) -join ' | ')
   if (-not $shown) {
     DumpState 'no-capture-screen'
     'capture screen never appeared; every later capture step depends on it, so the flow stops here (fail fast, no fake cascade)' | Out-File -Append diag/errors.txt
@@ -510,15 +559,15 @@ try {
   SetWorkspaceColor '#E9D5FF'
   Shot 'new-form-design-filled'
   $c = ClickBtn 'Close capture' 900; Assert 'capture X clicked with design-only input' ($c -eq 'ok') $c
-  Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'You have changes that were not saved' 5) ((Texts) -join ' | ')
+  Assert 'unsaved guard shown for capture-new design-only input' (WaitText 'יש שינויים שלא נשמרו' 5) ((Texts) -join ' | ')
   Shot 'capture-new-design-unsaved-guard'
   $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discard the design-only capture-new form' ($c -eq 'ok') $c
-  Assert 'capture screen closed after discard' (-not (WaitText 'Open now' 2)) ''
+  Assert 'capture screen closed after discard' (-not (CaptureShown 2)) ''
   $oDisc = StoreObj
   Assert 'discard saved nothing (workspace count unchanged from before the capture-new form)' ($null -ne $oDisc -and @($oDisc.workspaces).Count -eq $wsCountPreDisc) ("before=$wsCountPreDisc after=$(if ($null -ne $oDisc) { @($oDisc.workspaces).Count } else { 'no-store' })")
   Assert 'discard writes no advanced-color history' (@((StoreObj).advancedColorHistory).Count -eq 0) ''
   $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (after the design discard)' ($c -eq 'ok') $c
-  Assert 'capture screen shown after the design discard' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+  Assert 'capture screen shown after the design discard' (CaptureShown 10) ((Texts) -join ' | ')
   Assert 'rescan after discard finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
   Assert 'reopened capture-new form has empty design fields' (-not (TestWorkspaceColorSelected) -and (ValOf (NamedEdit 'Capture card image path')) -eq '') ''
   $names = CheckNames
@@ -627,8 +676,8 @@ try {
   Assert 'all 9 capture palette swatches full-size and fully inside the capture palette container at minimum size' ($palBad.Count -eq 0) ("dpi=$dpiX expectedSwatch=${swExpected}px window=$([int]$wrCap.Left),$([int]$wrCap.Top)-$([int]$wrCap.Right),$([int]$wrCap.Bottom) $palGeom swatches=[$($palInfo -join ' ')] violators=[$($palBad -join '; ')]")
   [void][W]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, 0, 0, ($rCapMin.Rt - $rCapMin.L), ($rCapMin.B - $rCapMin.T), 0x0002 -bor 0x0010); Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Create workspace from capture' 1200; Assert 'create from capture clicked' ($c -eq 'ok') $c
-  Assert 'details opened after create (spec: after creation details open)' (WaitText 'Created:' 15) ((Texts) -join ' | ')
-  Assert 'capture screen closed after create' (-not (WaitText 'Open now' 2)) ''
+  Assert 'details opened after create (spec: after creation details open)' (DetailsShown 15) ((Texts) -join ' | ')
+  Assert 'capture screen closed after create' (-not (CaptureShown 2)) ''
   $sj = StoreJson
   Assert 'store holds the captured folder' ($sj.Contains('capfolder')) $sj
   Assert 'store does NOT hold the unticked Notepad program' (-not $sj.ToLower().Contains('notepad.exe')) $sj
@@ -656,7 +705,7 @@ try {
 
   # 2. dropdown -> existing workspace: search, side by side, staged until Save
   $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> סביבה קיימת' ($c -eq 'ok') $c
-  Assert 'workspace search shown' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'workspace search shown' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
   Info 'scanning state observed (existing)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
   Assert 'existing-mode scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
   Assert 'existing mode: rows start unticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0 -and (Checks).Count -gt 0) ''
@@ -665,10 +714,10 @@ try {
   Shot 'pick-workspace-search'
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B' ($c -eq 'ok') $c
   Assert 'side by side: target workspace named' ((CaptureTargetText) -eq 'Cap B') (CaptureTargetText)
-  Assert 'add button reads הוסף הכל while nothing is ticked' ($null -ne (Btn 'הוסף הכל')) ''
+  Assert 'add-all button has current Hebrew label when nothing is ticked' (CaptureAddLabelMatches 0) ''
   $folderRow = CheckByLike '*capfolder*'; [void](ToggleEl $folderRow 'folder row'); Start-Sleep -Milliseconds 500
-  Assert 'add button becomes הוסף נבחרים when a row is ticked' ($null -ne (Btn 'הוסף נבחרים')) ''
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected clicked' ($c -eq 'ok') $c
+  Assert 'add-one button has current Hebrew label' (CaptureAddLabelMatches 1) ''
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected clicked' ($c -eq 'ok') $c
   Assert 'staged row is normal until explicit Edit' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
   Shot 'staged-normal-before-edit'
   OpenStagedEditor 'capfolder'
@@ -684,14 +733,13 @@ try {
   [void](ToggleEl $npRow 'notepad row'); Start-Sleep -Milliseconds 400
   $termRow = CheckByLike '*Terminal*'; Assert 'Windows Terminal Host row present' ($null -ne $termRow) ((CheckNames) -join ' | ')
   [void](ToggleEl $termRow 'terminal row'); Start-Sleep -Milliseconds 500
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'two programs staged beside the folder' ($c -eq 'ok' -and @(StagedNames).Count -eq 3) $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'two programs staged beside the folder' ($c -eq 'ok' -and @(StagedNames).Count -eq 3) $c
   $c = ClickBtn 'Staged item actions' 900; Assert 'staged item actions menu opened' ($c -eq 'ok') $c
   $sfound = @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'staged menu shows the six settled entries' (@($sfound).Count -eq 6) ("found: $($sfound -join ', ')")
   foreach ($h in @('מחיקה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה')) { $e = MenuItemByName $h; Assert "staged menu entry actually visible: $h" ($null -ne $e -and -not $e.Current.IsOffscreen) '' }
   MenuInsideWindow 'staged item menu'
-  $shareMi = MenuItemByName 'שיתוף לסביבה אחרת'
-  Assert 'שיתוף לסביבה אחרת visible but disabled (action undefined) with another workspace present' ($null -ne $shareMi -and -not $shareMi.Current.IsOffscreen -and -not $shareMi.Current.IsEnabled) ("found=$($null -ne $shareMi) enabled=$(if ($shareMi) { $shareMi.Current.IsEnabled } else { 'n/a' })")
+  Assert 'unsaved staged rows offer no sharing or add-to action' ($null -eq (MenuItemByName 'שיתוף לסביבה אחרת') -and $null -eq (MenuItemByName 'הוסף ל...')) ''
   Shot 'side-by-side-staged-menu'
   $mi = MenuItemByName 'הזז למטה'; [void](InvokeEl $mi 'folder at its group edge'); Start-Sleep -Milliseconds 600
   Assert 'הזז למטה at the group edge changes nothing (four-group rule)' (@(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
@@ -725,33 +773,14 @@ try {
   [void](OpenContextEl $btns[1]); Start-Sleep -Milliseconds 800
   $mi = MenuItemByName 'מחיקה'; [void](InvokeEl $mi 'staged delete other program'); Start-Sleep -Milliseconds 700
   Assert 'second delete leaves the folder row only' (@(StagedNames).Count -eq 1 -and @(StagedNames)[0] -eq 'my capture folder') ((StagedNames) -join ' | ')
-  $c = ClickBtn 'Staged item actions' 900; Assert 'staged menu reopened for open-with' ($c -eq 'ok') $c
-  $mi = MenuItemByName 'פתח באמצעות'; [void](InvokeEl $mi 'staged open-with entry'); Start-Sleep -Milliseconds 800
-  $prog = NamedEdit 'Program path'; Assert 'open-with popup opened on a staged row' ($null -ne $prog) ''
-  SetText $prog 'C:\Windows\notepad.exe'
-  $cb = AnyByName 'Set as default'; [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
-  $npBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-  $sourceTicksBeforeOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
-  $c = ClickBtn 'Open with chosen program' 900; Assert 'staged open-with go clicked' ($c -eq 'ok') $c
-  if (Btn 'Confirm duplicate choices') {
-    # Only opening-decision choices, never source capture checkboxes behind the modal.
-    $duplicateList = AnyByName 'Confirmed duplicate list'
-    Assert 'staged duplicate decision list found' ($null -ne $duplicateList) ''
-    if ($duplicateList) {
-      $reopenChecks = @($duplicateList.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::CheckBox))))
-      Assert 'staged duplicate decision has reopen choices' ($reopenChecks.Count -gt 0) ''
-      foreach ($check in $reopenChecks) { [void](EnsureToggle $check 'explicit staged duplicate reopen choice' $true) }
-    }
-    $c = ClickBtn 'Confirm duplicate choices' 900; Assert 'staged duplicate choices accepted' ($c -eq 'ok') $c
-  }
-  $sourceTicksAfterOpen = @((Checks) | Where-Object { $_.Current.Name -like 'Select *' } | ForEach-Object { "$($_.Current.Name)=$(IsOn $_)" }) -join '|'
-  Assert 'staged reopen choices never change source capture tick state' ($sourceTicksAfterOpen -eq $sourceTicksBeforeOpen) ("before=$sourceTicksBeforeOpen after=$sourceTicksAfterOpen")
-  Assert 'staged open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
+  $c = ClickBtn 'Staged item actions' 900; Assert 'staged folder menu opened' ($c -eq 'ok') $c
+  $mi = MenuItemByName 'פתח באמצעות'
+  Assert 'folder open-with remains visible and disabled' ($null -ne $mi -and -not $mi.Current.IsEnabled) ''
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+  # Folder defaults cannot be edited. Selectable site/file defaults are covered independently.
   OpenStagedEditor 'capfolder'
-  Assert 'the chosen default is staged on the row, NOT in the store' ((ValOf (NamedEdit 'Added item open with')) -like '*notepad.exe' -and -not (StoreJson).Contains('notepad.exe')) ("field=$(ValOf (NamedEdit 'Added item open with'))")
-  $npNew = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $npBefore -notcontains $_.Id })
-  Assert 'staged open-with really started a new notepad process' ($npNew.Count -gt 0) ("before=$($npBefore.Count) now=$((@(Get-Process notepad -ErrorAction SilentlyContinue)).Count)")
-  $npNew | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1
+  $folderOpener = NamedCombo 'Added item open with'
+  Assert 'folder inline open-with dropdown is disabled' ($null -ne $folderOpener -and -not $folderOpener.Current.IsEnabled) ''
   Assert 'the source capture list is unchanged by all staged actions' ((Checks).Count -eq $rowCount -and $null -ne (CheckByLike '*capfolder*')) ("rows=$((Checks).Count) before=$rowCount")
   # restore the tick state the duplicate flow below expects: only the saved folder ticked
   $npRow2 = CheckByLike '*Notepad*'; [void](ToggleEl $npRow2 'notepad row untick'); Start-Sleep -Milliseconds 300
@@ -764,9 +793,9 @@ try {
   # Assert and detail use the SAME accepted (or last failed) observation, with no second read.
   $savedObservation = Wait-CaptureTextObservation -Read { StoreJson } -Accept {
     param($json)
-    Test-CaptureSavedInstance $json 'Cap B' $capdir 'my capture folder' 'added from capture' 'C:\Windows\notepad.exe'
+    Test-CaptureSavedInstance $json 'Cap B' $capdir 'my capture folder' 'added from capture' ''
   }
-  Assert 'after Save the instance name, description and staged open-with default are persisted' $savedObservation.Matched ("attempts=$($savedObservation.Attempts) elapsedMs=$($savedObservation.ElapsedMilliseconds) readError=$($savedObservation.ReadErrorType) snapshot=$($savedObservation.Value)")
+  Assert 'after Save exact folder name and description persist without an opener' $savedObservation.Matched ("attempts=$($savedObservation.Attempts) elapsedMs=$($savedObservation.ElapsedMilliseconds) readError=$($savedObservation.ReadErrorType) snapshot=$($savedObservation.Value)")
   Assert 'after Save the capture list stays open' ((Checks).Count -gt 0 -and $null -ne (Btn 'Capture save')) ''
   Assert 'staged area is empty again after Save' (@(StagedNames).Count -eq 0) ''
   Shot 'side-by-side-after-save'
@@ -779,7 +808,7 @@ try {
   Assert 'drag stages a normal row without opening editing' ((@(StagedNames) -join '|') -eq 'example.com' -and $null -eq (NamedEdit 'Added item name')) ''
   OpenStagedEditor 'example.com'
   Assert 'explicit editor retains the dragged default name' ((ValOf (NamedEdit 'Added item name')) -eq 'example.com') (ValOf (NamedEdit 'Added item name'))
-  Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ValOf (NamedEdit 'Added item open with')) -like '*msedge.exe') (ValOf (NamedEdit 'Added item open with'))
+  Assert 'staged site prefills the source browser it was captured in (Edge) as its open-with default' ((ComboValue (NamedCombo 'Added item open with')) -like '*Edge*') (ValOf (NamedEdit 'Added item open with'))
   Assert 'the prefilled browser is staged on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   Assert 'drag stages on screen only: store unchanged' ((StoreJson) -eq $storeBeforeDrag) ''
   $exRow = CheckByLike '*example.com*'; Assert 'drag does not tick or remove the source row' ($null -ne $exRow -and -not (IsOn $exRow)) ''
@@ -796,20 +825,20 @@ try {
   $c = ClickBtn 'Remove added capfolder' 800; Assert 'drag cleanup: nothing staged for the grouped flow below' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
 
   # 3. duplicates: add the ticked folder again -> one grouped dialog
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected again' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected again' ($c -eq 'ok') $c
   Assert 'grouped duplicate dialog shown' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
   Assert 'dialog lists the duplicate with its own checkbox' ($null -ne (CheckByLike 'הוסף שוב: capfolder*')) ((CheckNames) -join ' | ')
   Shot 'duplicate-dialog'
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip duplicates' ($c -eq 'ok') $c
   Assert 'nothing staged after skipping' (@(StagedNames).Count -eq 0) ''
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'add selected a third time' ($c -eq 'ok') $c
   $dup = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dup 'dup checkbox'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add ticked duplicate' ($c -eq 'ok') $c
   Assert 'the ticked duplicate is staged as a normal second instance' ((@(StagedNames) -join '|') -eq 'capfolder' -and $null -eq (NamedEdit 'Added item name')) ''
 
   # 4. back with unsaved staging -> guard; exit without saving keeps the snapshot; earlier save stays
   $c = ClickBtn 'Capture back' 1000; Assert 'back clicked' ($c -eq 'ok') $c
-  Assert 'unsaved-changes dialog on back' (WaitText 'Unsaved changes' 5) ((Texts) -join ' | ')
+  Assert 'unsaved-changes dialog on back' (WaitText 'יש שינויים שלא נשמרו' 5) ((Texts) -join ' | ')
   Shot 'back-unsaved-dialog'
   $c = ClickBtn 'צא בלי לשמור' 1000; Assert 'exit without saving' ($c -eq 'ok') $c
   Assert 'back at the workspace search with the capture list still there' ($null -ne (NamedEdit 'Capture workspace search') -and (Checks).Count -gt 0) ''
@@ -822,10 +851,10 @@ try {
   foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick all before save-and-exit'); Start-Sleep -Milliseconds 200 }
   Assert 'nothing ticked before save-and-exit (tick state does not leak between sections)' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
   $npTick = CheckByLike '*Notepad*'; [void](ToggleEl $npTick 'notepad tick for save-and-exit'); Start-Sleep -Milliseconds 400
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'notepad staged for save-and-exit' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
   Assert 'no duplicate dialog for the single non-duplicate stage' ($null -eq (CheckByLike 'הוסף שוב: *')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture back' 1000; Assert 'back with an unsaved staged row' ($c -eq 'ok') $c
-  Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'Unsaved changes' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
+  Assert 'unsaved dialog offers the save-and-exit path' ((WaitText 'יש שינויים שלא נשמרו' 5) -and $null -ne (Btn 'שמור וצא')) ((Texts) -join ' | ')
   $c = ClickBtn 'שמור וצא' 1500; Assert 'save-and-exit clicked' ($c -eq 'ok') $c
   Assert 'save-and-exit returns to the workspace search' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
   $o = StoreObj
@@ -841,7 +870,7 @@ try {
   foreach ($cbx in @(Checks | Where-Object { IsOn $_ })) { [void](ToggleEl $cbx 'untick before add-all'); Start-Sleep -Milliseconds 200 }
   Assert 'nothing ticked before add-all' (@(Checks | Where-Object { IsOn $_ }).Count -eq 0) ((CheckNames) -join ' | ')
   $storeBeforeAll = StoreJson
-  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked' ($c -eq 'ok') $c
   $stagedAll = @(StagedNames)
   Assert 'add-all staged the non-duplicate terminal at once' ($stagedAll -contains 'Windows Terminal Host') ($stagedAll -join ' | ')
   Assert 'duplicates not staged before the dialog choice' (($stagedAll -notcontains 'capfolder') -and ($stagedAll -notcontains 'Notepad')) ($stagedAll -join ' | ')
@@ -853,7 +882,7 @@ try {
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip both duplicates' ($c -eq 'ok') $c
   Assert 'non-duplicates stay staged after skipping' (@(StagedNames) -contains 'Windows Terminal Host') ((StagedNames) -join ' | ')
   foreach ($sn in @(StagedNames)) { $c = ClickBtn "Remove added $sn" 800; Assert "remove staged $sn before the selective pass" ($c -eq 'ok') $c }
-  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all again for the selective pass' ($c -eq 'ok') $c
   Assert 'grouped dialog again for the selective pass' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
   $dupF = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupF 'tick only the folder duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked duplicate' ($c -eq 'ok') $c
@@ -892,7 +921,7 @@ try {
   Assert 'both workspaces now hold the captured folder as separate instances' ((@($wsA.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 1 -and (@($wsB.items | Where-Object { $_.itemId -eq $capItemId })).Count -eq 2) (StoreJson)
   $storeBeforeDiscard = StoreJson
   $npTick2 = CheckByLike '*Notepad*'; [void](ToggleEl $npTick2 'notepad tick for the discard test'); Start-Sleep -Milliseconds 400
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 'notepad staged in Cap A for the discard test' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 'notepad staged in Cap A for the discard test' ($c -eq 'ok' -and (@(StagedNames) -contains 'Notepad')) $c
   $c = ClickBtn 'Capture back' 1000; Assert 'back with the staged notepad' ($c -eq 'ok') $c
   $c = ClickBtn 'צא בלי לשמור' 1000; Assert 'exit without saving from Cap A' ($c -eq 'ok') $c
   Assert 'exit without saving changed nothing: every earlier save in both workspaces intact' ((StoreJson) -eq $storeBeforeDiscard) (StoreJson)
@@ -902,7 +931,7 @@ try {
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B again' ($c -eq 'ok') $c
   Assert 'the capture list is identical after switching workspaces' ((@(CheckNames) -join '|') -eq ($namesBeforeSwitch -join '|')) ((CheckNames) -join ' | ')
   $folderTick = CheckByLike '*capfolder*'; [void](ToggleEl $folderTick 'folder tick for re-add'); Start-Sleep -Milliseconds 400
-  $c = ClickBtn 'הוסף נבחרים' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 900; Assert 're-add the folder to Cap B' ($c -eq 'ok') $c
   Assert 'duplicate dialog for the re-add' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
   $dupR = CheckByLike 'הוסף שוב: capfolder*'; [void](ToggleEl $dupR 'tick the re-add duplicate'); Start-Sleep -Milliseconds 300
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the re-add duplicate' ($c -eq 'ok') $c
@@ -910,12 +939,12 @@ try {
   $c = ClickBtn 'Remove added capfolder' 800; Assert 're-add cleanup' ($c -eq 'ok' -and @(StagedNames).Count -eq 0) $c
   $folderUntick = CheckByLike '*capfolder*'; if ($folderUntick -and (IsOn $folderUntick)) { [void](ToggleEl $folderUntick 'folder untick after re-add'); Start-Sleep -Milliseconds 300 }
   $c = ClickBtn 'Capture back' 1000
-  if (WaitText 'Unsaved changes' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }
+  if (WaitText 'יש שינויים שלא נשמרו' 2) { $c2 = ClickBtn 'צא בלי לשמור' 1000; Assert 'discard after the re-add cleanup' ($c2 -eq 'ok') $c2 }
   Assert 'back at the search for the reset flow' ($null -ne (NamedEdit 'Capture workspace search')) ((Texts) -join ' | ')
 
   # 5. X resets; a new scan reflects what is open at that moment (Notepad closed first)
   $c = ClickBtn 'Close capture' 900; Assert 'X clicked' ($c -eq 'ok') $c
-  Assert 'capture screen closed' (-not (WaitText 'Open now' 2)) ''
+  Assert 'capture screen closed' (-not (CaptureShown 2)) ''
   Assert 'capture list was cleared on close' ((Checks).Count -eq 0) ''
   Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2
   # back to three tabs so the details rescan re-proves background-tab detection
@@ -925,9 +954,9 @@ try {
   Assert 'edge relaunched with three tabs for the details rescan' ($null -ne (Get-Process msedge -ErrorAction SilentlyContinue)) ''
   # entry from the workspace details screen
   $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details' ($c -eq 'ok') $c
-  Assert 'details screen shown' (WaitText 'Created:' 10) ''
+  Assert 'details screen shown' (DetailsShown 10) ''
   $c = ClickBtn 'Add from open items' 1500; Assert 'add-from-open clicked' ($c -eq 'ok') $c
-  Assert 'goes straight to side by side for the current workspace' ((WaitText 'Open now' 10) -and $null -ne (Btn 'Capture save')) ((Texts) -join ' | ')
+  Assert 'goes straight to side by side for the current workspace' ((CaptureShown 10) -and $null -ne (Btn 'Capture save')) ((Texts) -join ' | ')
   $script:sawScanning = $false; $swS = [Diagnostics.Stopwatch]::StartNew()
   while ($swS.Elapsed.TotalMilliseconds -lt 2000) { if (@(Texts) | Where-Object { $_ -like '*סורק*' }) { $script:sawScanning = $true; break }; Start-Sleep -Milliseconds 200 }
   Info 'scanning state observed (details entry)' $(if ($script:sawScanning) { 'yes' } else { 'not seen - scan faster than the poll' })
@@ -946,13 +975,13 @@ try {
   # Staged set, save and below-viewport removal are verified against the store, not the rendered rows.
   $c = ClickBtn 'Back' 900; Assert 'back to overview for deep staging' ($c -eq 'ok') $c
   $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep staging)' ($c -eq 'ok') $c
-  Assert 'capture screen shown (deep staging)' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'capture screen shown (deep staging)' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
   Assert 'deep staging scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
   SetText (NamedEdit 'Capture workspace search') 'Cap B'
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep staging' ($c -eq 'ok') $c
   $storeBeforeDeep = StoreJson
-  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked (deep staging)' ($c -eq 'ok') $c
   Assert 'deep staging: duplicate dialog lists only the folder' ((WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) -and $null -ne (CheckByLike 'הוסף שוב: capfolder*') -and $null -eq (CheckByLike 'הוסף שוב: *example*')) ((CheckNames) -join ' | ')
   $c = ClickBtn 'Capture duplicates skip' 900; Assert 'skip the folder duplicate (deep staging)' ($c -eq 'ok') $c
   $deepStaged = @(StagedAddrsDeep)
@@ -976,21 +1005,21 @@ try {
 
   # 5c. below-viewport removal: restage five duplicate rows, wheel to a row the panel does not render, remove it, save the rest
   $c = OpenCaptureMenu 'סביבה קיימת'; Assert 'capture dropdown -> existing (deep removal)' ($c -eq 'ok') $c
-  Assert 'capture screen shown (deep removal)' ((WaitText 'Open now' 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
+  Assert 'capture screen shown (deep removal)' ((CaptureShown 10) -and $null -ne (NamedEdit 'Capture workspace search')) ''
   Assert 'deep removal scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
   SetText (NamedEdit 'Capture workspace search') 'Cap B'
   Start-Sleep -Milliseconds 600
   $c = ClickBtn 'Pick workspace Cap B' 1000; Assert 'picked Cap B for deep removal' ($c -eq 'ok') $c
-  $c = ClickBtn 'הוסף הכל' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
+  $c = ClickBtn 'Add selected capture items' 1500; Assert 'add-all clicked (deep removal)' ($c -eq 'ok') $c
   Assert 'deep removal: grouped dialog for every row now that all five are duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
-  foreach ($cbx in @(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
+  foreach ($cbx in @(UiaAll $CT::CheckBox | Where-Object { $_.Current.Name -like 'הוסף שוב:*' -and $_.Current.Name -notlike '*capfolder*' })) { if (-not (IsOn $cbx)) { [void](ToggleEl $cbx ('tick ' + $cbx.Current.Name)); Start-Sleep -Milliseconds 200 } }
   $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add the four ticked duplicates (deep removal)' ($c -eq 'ok') $c
   $deep2 = @(StagedAddrsDeep)
   Assert 'deep removal: four duplicate rows staged beyond the viewport' (($deep2.Count -eq 4) -and @($deep2 | Where-Object { $_ -like '*example.net*' }).Count -eq 1) ($deep2 -join ' | ')
   $removedNet = $false
   for ($i = 0; $i -lt 20 -and -not $removedNet; $i++) {
-    $rb = Btn 'Remove added example.net'
-    if ($rb) { try { $rb.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); $removedNet = $true } catch { }; Start-Sleep -Milliseconds 600; break }
+    $row = @(StagedRowRecords | Where-Object { $_.Edit.Current.Name -eq 'Toggle added example.net' -and -not $_.Edit.Current.IsOffscreen })
+    if ($row.Count -eq 1) { $removedNet = (RemoveStagedRow 'example.net' 600) -eq 'ok'; break }
     ScrollStaged -360
   }
   Assert 'below-viewport staged row example.net realized and removed' $removedNet ''
@@ -1007,7 +1036,7 @@ try {
   $c = ClickBtn 'Close capture' 900; Assert 'capture closed after deep removal' ($c -eq 'ok') $c
 
   # 6. instance independence across workspaces: renaming Cap A's instance never touches Cap B's
-  if (-not (WaitText 'Created:' 2)) { $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details (independence)' ($c -eq 'ok') $c; Assert 'Cap A details shown' (WaitText 'Created:' 10) '' }
+  if (-not (DetailsShown 2)) { $c = ClickBtn 'Cap A' 1000; Assert 'open Cap A details (independence)' ($c -eq 'ok') $c; Assert 'Cap A details shown' (DetailsShown 10) '' }
   $c = ClickBtn 'Edit item' 900; Assert 'edit Cap A folder instance' ($c -eq 'ok') $c
   SetText (NamedEdit 'Edit item name') 'folder in A'
   $c = ClickBtn 'Save item edit' 900; Assert 'Cap A instance rename saved' ($c -eq 'ok') $c
@@ -1293,7 +1322,7 @@ try {
         Assert 'CROSS-BROWSER: chrome window with all three fixture tabs at their expected hosts within 20s shared deadline (fixture-profile identity)' $true "$curl"
         Assert 'CROSS-BROWSER: original fixture tab restored and verified before product scan' $restoreVerifiedC "hwnd=$originalChromeHwnd"
         $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (chrome check)' ($c -eq 'ok') $c
-        Assert 'capture screen shown (chrome check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+        Assert 'capture screen shown (chrome check)' (CaptureShown 10) ((Texts) -join ' | ')
         Assert 'chrome-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
         $cnames = CheckNames
         Info 'detected rows (chrome check)' ($cnames -join ' | ')
@@ -1312,7 +1341,7 @@ try {
         Assert 'chrome retention: exactly the (Chrome) example.com row ticked' (@(Checks | Where-Object { IsOn $_ }).Count -eq 1) ((CheckNames) -join ' | ')
         SetText (NamedEdit 'Capture workspace name') 'chrome ws'
         $c = ClickBtn 'Create workspace from capture' 1200; Assert 'chrome retention create clicked' ($c -eq 'ok') $c
-        Assert 'chrome retention workspace opened in details' (WaitText 'Created:' 15) ((Texts) -join ' | ')
+        Assert 'chrome retention workspace opened in details' (DetailsShown 15) ((Texts) -join ' | ')
         $o = StoreObj; $wsChrome = @($o.workspaces | Where-Object { $_.name -eq 'chrome ws' })[0]
         $ianaId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -in @('https://example.com', 'https://example.com/') } | Select-Object -First 1).id
         $chromeMems = @($wsChrome.items | Where-Object { $_.itemId -eq $ianaId })
@@ -1335,10 +1364,10 @@ try {
         $chromeRow2 = CheckByLike 'Select example.com (Chrome)'; Assert 'DUP-2BROWSER: the (Chrome) example.com row is listed' ($null -ne $chromeRow2) ((CheckNames) -join ' | ')
         [void](ToggleEl $edgeRow 'tick the (Edge) row for the selective add'); Start-Sleep -Milliseconds 200
         [void](ToggleEl $chromeRow2 'tick the (Chrome) row for the selective add'); Start-Sleep -Milliseconds 300
-        $c = ClickBtn 'הוסף נבחרים' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
+        $c = ClickBtn 'Add selected capture items' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
         Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
         Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'הוסף שוב: example.com*(Edge)')) -and ($null -ne (CheckByLike 'הוסף שוב: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
-        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(UiaAll $CT::CheckBox | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
         Shot 'dup-two-browser-choices'
         $chromeDup = CheckByLike 'הוסף שוב: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c
@@ -1353,7 +1382,7 @@ try {
         Assert 'DUP-2BROWSER: no non-example rows saved by the dup pass' (@($wsChrome.items).Count -eq 2) ((@($wsChrome.items | ForEach-Object { $_.name })) -join ' | ')
         $c = ClickBtn 'Capture back' 1000; Assert 'back to search after the dup save' ($c -eq 'ok') $c
         $c = ClickBtn 'Close capture' 900; Assert 'capture closed after the dup two-browser pass' ($c -eq 'ok') $c
-        if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (dup two-browser)' ($c -eq 'ok') $c }
+        if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (dup two-browser)' ($c -eq 'ok') $c }
       }
       foreach ($pidF in @(ChromeFixturePids)) { Stop-Process -Id $pidF -Force -ErrorAction SilentlyContinue }
       Remove-Item $chromeProfile -Recurse -Force -ErrorAction SilentlyContinue
@@ -1369,13 +1398,13 @@ try {
       if ($heWin) { $heEdits = @($heWin.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Edit))) | ForEach-Object { $_.Current.Name + ' [' + $_.Current.ClassName + ']' }); Info 'edge-he edit controls (proves whether the UI localized)' ($heEdits -join ' | ') }
     } catch { Info 'edge-he UIA read' "$_" }
     $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (locale check)' ($c -eq 'ok') $c
-    Assert 'capture screen shown (locale check)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+    Assert 'capture screen shown (locale check)' (CaptureShown 10) ((Texts) -join ' | ')
     Assert 'locale-check scan finished' (WaitGone 'סורק' 30) ((Texts) -join ' | ')
     $lnames = CheckNames
     Info 'detected rows (locale check)' ($lnames -join ' | ')
     Assert 'LOCALE: Hebrew-UI Edge tab example.com is listed' ($null -ne (CheckByLike '*example.com*')) ($lnames -join ' | ')
     $c = ClickBtn 'Close capture' 900; Assert 'capture closed after locale check' ($c -eq 'ok') $c
-    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (locale check)' ($c -eq 'ok') $c }
+    if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (locale check)' ($c -eq 'ok') $c }
     Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   } else {
     Info 'LOCALE: edge-he could not start' 'skipped'
@@ -1403,7 +1432,7 @@ try {
     Assert 'MULTI-WINDOW: distinct window runtime handles' ($hA -ne 0 -and $hB -ne 0 -and $hA -ne $hB) ("hA=$hA hB=$hB")
     Info 'MULTI-WINDOW: per-window fixture URLs' ("hA=$hA url='$urlA' | hB=$hB url='$urlB'")
     $c = OpenCaptureMenu 'סביבה חדשה'; Assert 'capture dropdown -> new (multi-window)' ($c -eq 'ok') $c
-    Assert 'capture screen shown (multi-window)' (WaitText 'Open now' 10) ((Texts) -join ' | ')
+    Assert 'capture screen shown (multi-window)' (CaptureShown 10) ((Texts) -join ' | ')
     Assert 'multi-window scan finished' (WaitGone 'סורק' 40) ((Texts) -join ' | ')
     $mnames = CheckNames
     Info 'detected rows (multi-window)' ($mnames -join ' | ')
@@ -1411,7 +1440,7 @@ try {
     Assert 'MULTI-WINDOW: window-B tab iana.org is listed' ($null -ne (CheckByLike '*iana.org*')) ($mnames -join ' | ')
     Shot 'multi-window-scan'
     $c = ClickBtn 'Close capture' 900; Assert 'capture closed after multi-window' ($c -eq 'ok') $c
-    if (WaitText 'Unsaved changes' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (multi-window)' ($c -eq 'ok') $c }
+    if (WaitText 'יש שינויים שלא נשמרו' 2) { $c = ClickBtn 'צא בלי לשמור' 900; Assert 'discarded unsaved capture selections (multi-window)' ($c -eq 'ok') $c }
   }
   Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Assert 'FLOW-COMPLETE' $true $env:GITHUB_SHA

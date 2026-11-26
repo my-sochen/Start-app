@@ -163,13 +163,16 @@ function AppWindowDump() {
 }
 function FindPickers() { @([WinN]::TopLevelOfPid([uint32]$p.Id) | Where-Object { PickerEligible $_ }) }
 function SetType($typeName) {
-  $combo = NamedCombo 'Item type'
-  if (-not $combo) { return 'item type combo not found' }
-  $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
-  $it = $combo.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName)))
-  if (-not $it) { $it = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $typeName))) }
-  if (-not $it) { return "type item '$typeName' not found" }
-  $it.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 400; return 'ok'
+  $labels = @{ Link='אתר'; File='קובץ'; Folder='תיקייה'; Program='תוכנה' }
+  if (-not $labels.ContainsKey($typeName)) { throw "Unknown item type: $typeName" }
+  $label = $labels[$typeName]; $combo = NamedCombo 'Item type'
+  if (-not $combo) { throw 'Item type combo missing' }
+  $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 200
+  $matches = @($combo.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ListItem)), (New-Object $PC($A::NameProperty, $label))))))
+  if ($matches.Count -ne 1) { throw "Expected one type choice $label, found $($matches.Count)" }
+  $matches[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 200
+  Assert "manual type selected: $typeName" ((ComboValue $combo) -eq $label) (ComboValue $combo)
+  return 'ok'
 }
 function NotepadCount() { @(Get-Process notepad -ErrorAction SilentlyContinue).Count }
 function AnyByName($name) { $e = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))); if (-not $e) { $e = $A::RootElement.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, $name))) }; $e }
@@ -223,30 +226,30 @@ try {
   EnsureDetailsAddForm
   $targetBox = NamedEdit 'Item target'; $itemNameBox = NamedEdit 'Item name'; $descBox = NamedEdit 'Item description'
   Assert 'add form boxes found' ($null -ne $targetBox -and $null -ne $itemNameBox -and $null -ne $descBox) ''
-  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add' 600; Assert "add link" ($c -eq 'ok') $c
+  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; SetText $itemNameBox 'My link'; $c = ClickBtn 'Add item' 600; Assert "add link" ($c -eq 'ok') $c
   Assert 'instance name shown instead of derived name' (WaitText 'My link' 10) ((Texts) -join ' | ')
   Assert 'empty message gone after first add' (-not (WaitText 'עדיין אין אייטמים בסביבה' 2)) ''
-  [void](SetType 'File'); SetText $targetBox "$root\ok.txt"; $c = ClickBtn 'Add' 600; Assert "add existing file" ($c -eq 'ok') $c
-  [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add' 600; Assert "add missing file" ($c -eq 'ok') $c
+  [void](SetType 'File'); SetText $targetBox "$root\ok.txt"; $c = ClickBtn 'Add item' 600; Assert "add existing file" ($c -eq 'ok') $c
+  [void](SetType 'File'); SetText $targetBox $missing; $c = ClickBtn 'Add item' 600; Assert "add missing file" ($c -eq 'ok') $c
   Start-Sleep -Milliseconds 600
   Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')
   $groups = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-  Assert 'items grouped: Sites and Files headers shown (four groups settled Nov 12: sites/folders/files/programs)' (($groups -contains 'Sites') -and ($groups -contains 'Files')) ("groups: $($groups -join ', ')")
+  Assert 'sites and files groups exposed by current UIA identity' (($groups -contains 'Sites') -and ($groups -contains 'Files')) ("groups: $($groups -join ', ')")
   Assert 'details category combo still shows כללי after adds' ((ComboValue (NamedCombo 'Workspace category')) -eq 'כללי') (ComboValue (NamedCombo 'Workspace category'))
   Shot 'details-items-added'
   # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
-  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked" ($c -eq 'ok') $c
-  Assert 'duplicate warning shown, nothing added yet' (WaitText 'already in the workspace' 10) ((Texts) -join ' | ')
+  [void](SetType 'Link'); SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add item' 600; Assert "re-add link clicked" ($c -eq 'ok') $c
+  Assert 'duplicate warning shown, nothing added yet' (WaitText 'הכתובת כבר קיימת בסביבה' 10) ((Texts) -join ' | ')
   Shot 'duplicate-warning'
-  $c = ClickBtn 'Cancel' 800; Assert 'duplicate cancel clicked' ($c -eq 'ok') $c
+  $c = ClickBtn 'ביטול' 800; Assert 'duplicate cancel clicked' ($c -eq 'ok') $c
   Start-Sleep -Milliseconds 500
   $o = StoreObj; $wsItems = @($o.workspaces[0].items)
   $linkId = ($o.items.PSObject.Properties.Value | Where-Object { $_.target -eq 'https://example.com/' } | Select-Object -First 1).id
   $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count
   Assert 'cancel kept a single instance' ($wsItems.Count -eq 3 -and $linkCount -eq 1) "items=$($wsItems.Count) linkInstances=$linkCount"
-  SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add' 600; Assert "re-add link clicked again" ($c -eq 'ok') $c
-  Assert 'duplicate warning shown again' (WaitText 'already in the workspace' 10) ''
-  $c = ClickBtn 'Add anyway' 800; Assert 'add anyway clicked' ($c -eq 'ok') $c
+  SetText $targetBox 'https://example.com/'; $c = ClickBtn 'Add item' 600; Assert "re-add link clicked again" ($c -eq 'ok') $c
+  Assert 'duplicate warning shown again' (WaitText 'הכתובת כבר קיימת בסביבה' 10) ''
+  $c = ClickBtn 'הוסף בכל זאת' 800; Assert 'add anyway clicked' ($c -eq 'ok') $c
   Start-Sleep -Milliseconds 500
   $o = StoreObj; $wsItems = @($o.workspaces[0].items); $linkCount = @($wsItems | Where-Object { $_.itemId -eq $linkId }).Count
   Assert 'confirm added a second independent instance' ($wsItems.Count -eq 4 -and $linkCount -eq 2) "items=$($wsItems.Count) linkInstances=$linkCount"
@@ -292,12 +295,16 @@ try {
   }
   Info 'details viewport scroll before the first-row menu' $scrollDiag
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened' ($c -eq 'ok') $c
-  $ifound = @('פתח','מחק','ערוך','הוסף לסביבה','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
+  $ifound = @('פתח','מחק','ערוך','הוסף ל...','העתק כתובת','עריכת כתובת','פתח באמצעות','הזז למעלה','הזז למטה') | Where-Object { $null -ne (MenuItemByName $_) }
   Assert 'item menu offers the current nine actions' (@($ifound).Count -eq 9) ("found: $($ifound -join ', ')")
   MenuInsideWindow 'first-row item menu'
   Assert 'full edit action is offered directly and in the item menu' ($null -ne (Btn 'Edit item') -and $null -ne (MenuItemByName 'ערוך')) ''
-  $shareMi = MenuItemByName 'הוסף לסביבה'
-  Assert 'share cannot target a nonexistent other workspace' ($null -ne $shareMi -and -not $shareMi.Current.IsEnabled) ''
+  $shareMi = MenuItemByName 'הוסף ל...'
+  Assert 'saved item add-to submenu is available even with one workspace' ($null -ne $shareMi -and $shareMi.Current.IsEnabled) ''
+  $shareMi.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
+  $destinations = @('סביבה חדשה','סביבה נבחרת','רשימה שחורה','רשימה לבנה','סביבה גלובלית')
+  Assert 'saved item add-to offers all five destinations' (@($destinations | Where-Object { $null -ne (MenuItemByName $_) }).Count -eq 5) ''
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 200
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep -Milliseconds 500
   $c = ClickBtn 'Edit item' 900; Assert 'direct row edit button clicked' ($c -eq 'ok') $c
   $eName = $null; for ($t=0; $t -lt 40 -and -not $eName; $t++) { $eName = NamedEdit 'Edit item name'; if (-not $eName) { Start-Sleep -Milliseconds 100 } }; Assert 'item edit form opened' ($null -ne $eName) ''
@@ -2719,7 +2726,7 @@ public static class WinCap {
   # SKIPPED per owner 22.11 17:45 (design phase, dropped Nov 11 frame design): Assert-PwGate 'no-image'
   $c = ClickBtn 'Workspace actions' 900; Assert 'card menu opened for category' ($c -eq 'ok') $c
   $mi = MenuItemByName 'ערוך קטגוריה'; [void](InvokeEl $mi 'category menu entry'); Start-Sleep -Milliseconds 900
-  Assert 'category popup opened with כללי current' (WaitText 'Current: כללי' 10) ((Texts) -join ' | ')
+  Assert 'category popup opened with כללי current' (WaitText 'קטגוריה נוכחית: כללי' 10) ((Texts) -join ' | ')
   $newCat = NamedEdit 'New category name'; Assert 'new category box found' ($null -ne $newCat) ''
   if ($newCat) { SetText $newCat 'E2Ecat' }
   $c = ClickBtn 'Add category' 900; Assert 'custom category added' ($c -eq 'ok') $c
@@ -2734,7 +2741,7 @@ public static class WinCap {
   Assert 'details opened for the picker' (DetailsShown) ''
   EnsureDetailsAddForm
   $c = ClickBtn 'Pick from existing resources' 900; Assert 'picker opened' ($c -eq 'ok') $c
-  Assert 'picker shows the four type buttons' ((WaitText 'Program' 5) -and (WaitText 'Folder' 5)) ((Texts) -join ' | ')
+  Assert 'picker shows the four type buttons' ((WaitText 'תוכנה' 5) -and (WaitText 'תיקייה' 5)) ((Texts) -join ' | ')
   Shot 'resource-picker'
   $c = ClickBtn 'Pick resource' 900; Assert 'resource picked' ($c -eq 'ok') $c
   $targetVal = ValOf (NamedEdit 'Item target')
@@ -2760,13 +2767,13 @@ public static class WinCap {
   EnsureDetailsAddForm
   $targetBox4 = NamedEdit 'Item target'; $itemNameBox4 = NamedEdit 'Item name'
   Assert 'four-group add form boxes found' ($null -ne $targetBox4 -and $null -ne $itemNameBox4) ''
-  [void](SetType 'Link'); SetText $targetBox4 'https://four.example/'; SetText $itemNameBox4 'Four link'; $c = ClickBtn 'Add' 600; Assert 'add four link' ($c -eq 'ok') $c
-  [void](SetType 'Folder'); SetText $targetBox4 "$root"; SetText $itemNameBox4 'Four folder'; $c = ClickBtn 'Add' 600; Assert 'add four folder' ($c -eq 'ok') $c
-  [void](SetType 'File'); SetText $targetBox4 "$root\ok.txt"; SetText $itemNameBox4 'Four file'; $c = ClickBtn 'Add' 600; Assert 'add four file' ($c -eq 'ok') $c
-  [void](SetType 'Program'); SetText $targetBox4 'C:\Windows\notepad.exe'; SetText $itemNameBox4 'Four program'; $c = ClickBtn 'Add' 600; Assert 'add four program' ($c -eq 'ok') $c
+  [void](SetType 'Link'); SetText $targetBox4 'https://four.example/'; SetText $itemNameBox4 'Four link'; $c = ClickBtn 'Add item' 600; Assert 'add four link' ($c -eq 'ok') $c
+  [void](SetType 'Folder'); SetText $targetBox4 "$root"; SetText $itemNameBox4 'Four folder'; $c = ClickBtn 'Add item' 600; Assert 'add four folder' ($c -eq 'ok') $c
+  [void](SetType 'File'); SetText $targetBox4 "$root\ok.txt"; SetText $itemNameBox4 'Four file'; $c = ClickBtn 'Add item' 600; Assert 'add four file' ($c -eq 'ok') $c
+  [void](SetType 'Program'); SetText $targetBox4 'C:\Windows\notepad.exe'; SetText $itemNameBox4 'Four program'; $c = ClickBtn 'Add item' 600; Assert 'add four program' ($c -eq 'ok') $c
   Start-Sleep -Milliseconds 800
   $groups4 = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-  Assert 'four group headers shown: Sites, Folders, Files, Programs' (($groups4 -contains 'Sites') -and ($groups4 -contains 'Folders') -and ($groups4 -contains 'Files') -and ($groups4 -contains 'Programs')) ("groups: $($groups4 -join ', ')")
+  Assert 'four type groups exposed by current UIA identity' ((@(@('Sites','Programs','Files','Folders') | Where-Object { $groups4 -notcontains $_ }).Count -eq 0)) ("groups: $($groups4 -join ', ')")
   Assert 'four rows listed, one per type' ((@(Texts) | Where-Object { $_ -eq 'https://four.example/' -or $_ -like '*ok.txt' -or $_ -like '*notepad.exe' -or $_ -eq "$root" }).Count -ge 4) ((Texts) -join ' | ')
   Shot 'four-groups'
   # 13. saved-item delete (מחיקה): removes exactly one membership by id; canonical full-field snapshots prove the rest untouched
