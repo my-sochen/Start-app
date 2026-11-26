@@ -2,7 +2,7 @@ name: tray-icon-resource-fix
 on:
   push:
     branches: [fix/tray-icon-resource]
-    paths: [.github/workflows/tray-icon-resource-fix.yml]
+    paths: [.github/workflows/tray-icon-resource-fix.yml, .github/e2e/tray-icon-product-probe.ps1, src/StartApp.App/**, tests/StartApp.TrayCapture/**, tests/app-icon/**]
 env:
   PYTHONUTF8: 1
 permissions:
