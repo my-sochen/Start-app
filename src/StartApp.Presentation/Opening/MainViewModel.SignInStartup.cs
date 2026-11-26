@@ -47,13 +47,11 @@ public sealed partial class MainViewModel
             if (snapshot.Count == 0) return;
             _opening.WorkspaceId = workspace?.Id ?? ""; _opening.SingleItem = workspace is null; DedicatedBrowserWindows = false;
             _automaticSignInOpening = true;
-            _startupOffline = !online;
-            StartSelectedCheck(snapshot);
+            StartSelectedCheck(snapshot, automaticSignIn: true, offline: !online);
             await OpenTask;
             if (missing) ShowToast("סביבת ברירת המחדל לא נמצאה. נבדקו רק הפריטים הגלובליים; לא נפתחה סביבה אחרת במקומה.", true);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        finally { _automaticSignInOpening = false; _startupOffline = false; }
+        finally { _automaticSignInOpening = false; }
     }
-    private bool _startupOffline;
 }
