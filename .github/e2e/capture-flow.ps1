@@ -77,8 +77,10 @@ function BtnLike($needle) { @((CurWin).FindAll($TS::Descendants, (New-Object $PC
 function OpenContextEl($el, $settle = 900) {
   if ($null -eq $el) { return 'context anchor missing' }
   try {
-    $el.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('+{F10}')
+    $r=$el.Current.BoundingRectangle
+    if($el.Current.IsOffscreen -or $r.Width -le 0 -or $r.Height -le 0){return 'context anchor offscreen'}
+    [void][W]::SetCursorPos([int]($r.Left+$r.Width/2),[int]($r.Top+$r.Height/2))
+    [W]::mouse_event(0x0008,0,0,0,[UIntPtr]::Zero);[W]::mouse_event(0x0010,0,0,0,[UIntPtr]::Zero)
     Start-Sleep -Milliseconds $settle
     if ($null -eq (MenuItemByName 'מחיקה') -and $null -eq (MenuItemByName 'הצג')) { return 'native context menu did not open' }
     return 'ok'
@@ -366,7 +368,7 @@ function StagedRowRecords() {
     $edits = @($row.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Button))) | Where-Object { $_.Current.Name -like 'Toggle added *' })
     $null = Assert 'staged row has one paired summary and Edit button' ($names.Count -eq 1 -and $addresses.Count -eq 1 -and $edits.Count -eq 1) ("names=$($names.Count) addresses=$($addresses.Count) edits=$($edits.Count)")
     if ($names.Count -ne 1 -or $addresses.Count -ne 1 -or $edits.Count -ne 1) { throw 'Ambiguous staged row structure' }
-    [pscustomobject]@{ Row=$row; Host=$row.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Staged item row'))); Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
+    [pscustomobject]@{ Row=$row; Host=$names[0]; Name=$names[0].Current.Name; NameElement=$names[0]; Address=$addresses[0].Current.Name; Edit=$edits[0] }
   }
 }
 function StagedNames() { @(StagedRowRecords | ForEach-Object { $_.Name }) }
@@ -1365,7 +1367,7 @@ try {
         $c = ClickBtn 'Add selected capture items' 1500; Assert 'selective add clicked (dup two-browser)' ($c -eq 'ok') $c
         Assert 'ONE grouped dialog for the same-site two-browser duplicates' (WaitText 'הפריטים האלה כבר קיימים בסביבה' 5) ((Texts) -join ' | ')
         Assert 'DUP-2BROWSER: both duplicate choices carry their browser name' (($null -ne (CheckByLike 'הוסף שוב: example.com*(Edge)')) -and ($null -ne (CheckByLike 'הוסף שוב: example.com*(Chrome)'))) ((CheckNames) -join ' | ')
-        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(Checks | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
+        Assert 'DUP-2BROWSER: exactly two same-name duplicate choices, no third' (@(UiaAll $CT::CheckBox | Where-Object { $_.Current.Name -like 'הוסף שוב: example.com*' }).Count -eq 2) ((CheckNames) -join ' | ')
         Shot 'dup-two-browser-choices'
         $chromeDup = CheckByLike 'הוסף שוב: example.com*(Chrome)'; [void](ToggleEl $chromeDup 'the user picks the Chrome duplicate'); Start-Sleep -Milliseconds 300
         $c = ClickBtn 'Capture duplicates add ticked' 900; Assert 'add only the ticked Chrome duplicate' ($c -eq 'ok') $c

@@ -168,7 +168,7 @@ function SetType($typeName) {
   $label = $labels[$typeName]; $combo = NamedCombo 'Item type'
   if (-not $combo) { throw 'Item type combo missing' }
   $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 200
-  $matches = @($combo.FindAll($TS::Descendants, (New-Object $PC($A::NameProperty, $label))))
+  $matches = @($combo.FindAll($TS::Descendants, (New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty, $CT::ListItem)), (New-Object $PC($A::NameProperty, $label))))))
   if ($matches.Count -ne 1) { throw "Expected one type choice $label, found $($matches.Count)" }
   $matches[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 200
   Assert "manual type selected: $typeName" ((ComboValue $combo) -eq $label) (ComboValue $combo)
@@ -234,7 +234,7 @@ try {
   Start-Sleep -Milliseconds 600
   Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')
   $groups = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-  Assert 'items grouped: Sites and Files headers shown (four groups settled Nov 12: sites/folders/files/programs)' (($groups -contains 'Sites') -and ($groups -contains 'Files')) ("groups: $($groups -join ', ')")
+  Assert 'items grouped: current Hebrew sites and files headers shown' ((WaitText 'אתרים' 2) -and (WaitText 'קבצים' 2)) ("groups: $($groups -join ', ')")
   Assert 'details category combo still shows כללי after adds' ((ComboValue (NamedCombo 'Workspace category')) -eq 'כללי') (ComboValue (NamedCombo 'Workspace category'))
   Shot 'details-items-added'
   # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
