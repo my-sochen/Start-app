@@ -17,7 +17,7 @@ public static class OpeningLaunchRunner
             {
                 var p = plan[i];
                 if (token.IsCancellationRequested) { results.Add(new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה.")); continue; }
-                if (declined?.Contains(i) == true) { results.Add(new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. בחרת שלא לפתוח שוב.")); continue; }
+                if (declined?.Contains(i) == true) { results.Add(new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. לא נשלחה בקשת פתיחה נוספת.")); continue; }
                 if (NeverLaunched(p.Finding.State)) { results.Add(new(p.Item, OpeningOutcome.Skipped, SkipExplanation(p.Finding), p.Finding.Detail)); continue; }
                 var r = launcher.Launch(p.Item, p.Launch);
                 results.Add(r.Status == LaunchStatus.Started
