@@ -48,9 +48,15 @@ try{
    check(await p.evaluate(()=>!document.querySelector('[data-download-cta]').textContent.includes('הורדה')||document.documentElement.lang==='he'),'download initializer current language');
    await clickTo(p,'header > nav a:first-child',()=>document.body.dataset.page==='docs.html');
    check(await p.evaluate(()=>window.__documentProbe==='retained'),'guide return without reload');
-   if(lang==='en'||lang==='he')await p.screenshot({path:out+`/router-${entry.replaceAll('/','-')}-${lang}-${width}.png`});
+   if(lang==='en'||lang==='he')await p.screenshot({path:out+`/current-proto2-after-entry-${entry.replaceAll('/','-')}-${lang}-${width}.png`});
   }
   await p.close();
+ }
+ // Capture a named archive only after checking its actual route and picker.
+ for(const lang of ['he','en']){
+  const folder=lang==='he'?'':lang+'/';const archive=await pageFor('proto1/'+folder+'docs.html',1440);
+  check(await archive.evaluate(()=>location.pathname.includes('/proto1/')&&document.querySelector('.version-switch summary').textContent.includes('0.1.0-proto.1')),'archive screenshot route and picker are proto1');
+  await archive.screenshot({path:out+`/archive-proto1-${lang}-desktop.png`});await archive.close();
  }
  // Deep version links, history and relative media after cross-locale/archive routes.
  let p=await pageFor('proto1/ru/docs.html',390);await p.evaluate(()=>window.__documentProbe='retained');
