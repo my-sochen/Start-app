@@ -2,7 +2,8 @@
 /* Deep-link only to the requested, validated inventory row. Never select latest
  * as a substitute. The native #download anchor remains useful without JS. */
 (function () {
-  function locate() {
+  function locate(event) {
+    const restoreScroll = event && event.detail && event.detail.restoreScroll;
     const requested = new URLSearchParams(location.search).get("version");
     const inventory = document.querySelector("[data-prototype-offers]");
     if (!requested || !inventory) return;
@@ -22,13 +23,15 @@
       note.hidden = true;
       row.classList.add("version-target");
       row.setAttribute("tabindex", "-1");
-      row.scrollIntoView({block: "center", behavior: "instant"});
-      row.focus({preventScroll: true});
+      if (!restoreScroll) {
+        row.scrollIntoView({block: "center", behavior: "instant"});
+        row.focus({preventScroll: true});
+      }
     } else {
       const text = "הגרסה המבוקשת אינה מוצעת כרגע ברשימת הגרסאות.";
       note.textContent = window.StartAppI18n ? window.StartAppI18n.t(text) : text;
       note.hidden = false;
-      note.scrollIntoView({block: "center", behavior: "instant"});
+      if (!restoreScroll) note.scrollIntoView({block: "center", behavior: "instant"});
     }
   }
   document.addEventListener("startapp:download-settled", locate);

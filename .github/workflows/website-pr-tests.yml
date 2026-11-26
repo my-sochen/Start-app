@@ -130,3 +130,9 @@ jobs:
       - name: Run locale harness (all 8 locales, default run)
         working-directory: website/tests/dom-harness
         run: node test-locales.mjs
+      - name: Run guide and cross-locale router regressions
+        working-directory: website/tests/dom-harness
+        run: |
+          node test-page-identity.mjs
+          node test-versioned-guides.mjs
+          node test-cross-locale-router.mjs
