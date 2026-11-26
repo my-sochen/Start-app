@@ -1,4 +1,4 @@
-// DOM behavior harness: download-pointer states on every CTA (home + guide) and
+// DOM behavior harness: home download CTA, version-specific guide links and
 // no-full-reload navigation (history, scroll, focus, announcements, fallbacks).
 // Self-contained: builds a temp site from ../../ (the website directory), serves it
 // over local HTTPS, and drives real Chrome via puppeteer-core. See RUNBOOK.md.
@@ -27,7 +27,7 @@ if (!existsSync(join(CERTS, "cert.pem"))) {
 }
 
 // Temp site: website files + asset directories + fixtures (repo tree stays clean).
-const ASSET_DIRS = ["shots", "fonts", "icons", "illustrations", "locales", "en", "de", "es", "fr", "ja", "ru", "zh-Hans"];
+const ASSET_DIRS = ["shots", "fonts", "icons", "illustrations", "locales", "proto1", "en", "de", "es", "fr", "ja", "ru", "zh-Hans"];
 const SITE = mkdtempSync(join(tmpdir(), "dom-harness-site-"));
 for (const name of readdirSync(SITE_SRC)) {
   if (name === "tests") continue;
@@ -78,6 +78,7 @@ async function open(path, state, vp, js = true) {
 const settle = (page) => page.waitForFunction(
   () => {
     const b = document.querySelector("[data-download-cta]");
+    if (!b) return !!document.querySelector(".version-switch") && !!document.querySelector('a[href*="?version=v0.1.0-proto.2#download"]');
     const n = document.getElementById(b.getAttribute("aria-describedby"));
     return !n.textContent.includes("בודק אם קיימת");
   }, { timeout: 8000 });
@@ -94,6 +95,11 @@ const ctaState = (page) => page.evaluate(() => {
     badge: undefined,
   };
 });
+const guideState = (page) => page.evaluate(() => ({
+  noInline: !document.querySelector('[data-download-cta],a[href*="releases/download"]'),
+  exactLink: !!document.querySelector('a[href="index.html?version=v0.1.0-proto.2#download"]'),
+  selector: !!document.querySelector('.version-switch a[href="proto1/docs.html"]'),
+}));
 async function clickCta(page) {
   const urls = [];
   await page.setRequestInterception(true);
@@ -121,6 +127,11 @@ for (const path of ["/", "/docs.html"]) {
   const tag = path === "/" ? "home" : "guide";
   for (const state of ["ok", "none", "invalid", "missing"]) {
     const page = await open(path, state, { width: 1440, height: 900 });
+    if (path === "/docs.html") {
+      const g = await guideState(page);
+      ok(g.noInline && g.exactLink && g.selector, `guide ${state}: version-specific list link, selector, no inline download`);
+      await page.close(); continue;
+    }
     const s = await ctaState(page);
     if (state === "ok") {
       ok(!s.disabled && s.onclick && s.cursor === "pointer", `${tag} ok: CTA enabled with handler`);
@@ -142,7 +153,7 @@ for (const path of ["/", "/docs.html"]) {
   }
   for (const [w, h] of VIEWPORTS) {
     const page = await open(path, "ok", { width: w, height: h });
-    const s = await ctaState(page);
+    const s = await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1}));
     ok(!s.overflow, `${tag} ${w}px: no horizontal overflow`);
     if (s.overflow) console.log("OVF", await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map((e) => e.tagName + "." + e.className + ":" + Math.round(e.getBoundingClientRect().right))));
     const el = path === "/" ? null : await page.$("#install");
@@ -215,11 +226,8 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
   ok(s.cur.length === 1 && s.cur[0] === "docs.html", pre + ": aria-current moved to the guide");
   ok(s.sections === 12 && s.status.includes("12"), pre + ": guide initialized (12 chapters, search status)");
   ok(s.y === 0, pre + ": scrolled to top on forward navigation");
-  const cs = await ctaState(page);
-  ok(!cs.disabled, pre + ": guide CTA enabled after swap");
-  ok(cs.onclick, pre + ": guide CTA has a handler after swap");
-  ok(cs.label === "הורדה חינם", pre + ": guide CTA label is the current wording after swap");
-  ok(cs.note.includes("Windows x64"), pre + ": guide CTA platform tag carried in the visible note after swap");
+  const gs = await guideState(page);
+  ok(gs.noInline && gs.exactLink && gs.selector, pre + ": guide version link and selector survive SPA swap without inline CTA");
   // guide search still works after swap
   await page.type("#doc-search", "פרטיות");
   s = await page.evaluate(() => ({ vis: [...document.querySelectorAll("[data-doc]")].filter((e) => !e.hidden).length }));
@@ -272,7 +280,7 @@ for (const [w, h] of [[1440, 900], [390, 844]]) {
 // ---- mobile guide: sticky jump bar, back-to-top ----
 {
   const page = await open("/docs.html", "ok", { width: 390, height: 844 });
-  ok(await page.evaluate(() => !document.querySelector("details.verify").open && !document.querySelector("#hero-verify-body, #docs-verify-body").closest("details").open), "verification panel is collapsed by default");
+  ok((await guideState(page)).noInline, "guide has no inline verification/download controls");
   await page.evaluate(() => window.scrollTo(0, 2500));
   await sleep(300);
   const s = await page.evaluate(() => {
@@ -330,7 +338,7 @@ async function delayedBackFlow(userWheel) {
   ok(await page.evaluate(() => scrollY) === 1500, "slow revalidation Back: restored position holds at 400ms");
   await sleep(1200);
   ok((await page.evaluate(() => scrollY)) === 1500, "slow revalidation Back: restored position survives the late panel un-hide");
-  ok((await page.evaluate(() => !document.querySelector("[data-download-cta]").disabled)), "slow revalidation Back: CTA settled enabled after the delayed pointer");
+  ok((await guideState(page)).exactLink, "Back preserves exact guide-version link independently of pointer state");
   await page.evaluate(() => window.scrollTo({ top: 3000, left: 0, behavior: "instant" }));
   await sleep(300);
   ok((await page.evaluate(() => scrollY)) === 3000, "slow revalidation Back: correction ends at CTA settlement (later programmatic scroll stands)");
@@ -406,7 +414,7 @@ async function delayedBackFlow(userWheel) {
   ok(await page.evaluate(() => scrollY) === 1500, "pre-settlement focus: restored position holds at 400ms");
   await page.evaluate(() => { const h = document.querySelector("#faq h2"); h.setAttribute("tabindex", "-1"); h.focus(); });
   ok((await page.evaluate(() => document.activeElement.closest("section").id)) === "faq", "pre-settlement focus: FAQ heading took focus");
-  ok((await page.evaluate(() => document.querySelector("[data-download-cta]").disabled)), "pre-settlement focus: CTA still unsettled at focus time");
+  ok((await guideState(page)).noInline, "guide has no pointer-dependent CTA during focus navigation");
   await page.waitForFunction(() => scrollY !== 1500, { timeout: 2000 });
   ok(true, "pre-settlement focus: the correction yields to the focus move while the pointer is still in flight");
   await page.waitForFunction(() => {
@@ -543,13 +551,13 @@ const clickPrevented = (page, href) => page.evaluate((href) => new Promise((reso
   await page.evaluate(() => document.querySelector('header nav a[href="docs.html"]').click());
   await page.waitForFunction(() => location.pathname.endsWith("/docs.html"));
   await settle(page);
-  let s = await ctaState(page);
-  ok(s.disabled && !s.onclick && s.detailHidden && s.label === "אין הורדה זמינה כרגע", "withdrawn pointer: guide CTA fails closed after soft navigation (handler removed, panel hidden)");
+  const gs = await guideState(page);
+  ok(gs.noInline && gs.exactLink, "withdrawn home pointer: guide keeps explicit version link, never substitutes latest download");
   setFixture("ok");
   await page.evaluate(() => document.querySelector('header .brand').click());
   await page.waitForFunction(() => !location.pathname.endsWith("/docs.html"));
   await settle(page);
-  s = await ctaState(page);
+  const s = await ctaState(page);
   ok(!s.disabled && s.onclick, "re-activated pointer re-enables only after a fresh validation");
   await page.close();
 }
@@ -569,13 +577,13 @@ for (const [delay, root] of [[0, ""], [50, ""], [0, "/Start-app"], [50, "/Start-
 }
 {
   // idempotent init on an ALREADY-ENABLED DOM fails closed immediately and never nests the version
-  const page = await open("/docs.html", "ok", { width: 1440, height: 900 });
-  ok(!(await ctaState(page)).disabled, "idempotent-init setup: guide CTA enabled");
+  const page = await open("/", "ok", { width: 1440, height: 900 });
+  ok(!(await ctaState(page)).disabled, "idempotent-init setup: home CTA enabled");
   const s = await page.evaluate(() => {
     window.StartAppDownload.init();
     const b = document.querySelector("[data-download-cta]");
     const det = document.getElementById(b.getAttribute("data-verify"));
-    return { dis: b.disabled, onclick: typeof b.onclick === "function", hidden: det.parentNode.hidden, empty: det.textContent === "", nested: b.querySelectorAll(".ptr-ltr").length, text: b.textContent.trim() };
+    return { dis: b.disabled, onclick: typeof b.onclick === "function", hidden: det.parentNode.hidden, empty: det.textContent === "", nested: b.querySelectorAll(".ptr-ltr").length, text: b.querySelector("[data-cta-label]").textContent.trim() };
   });
   ok(s.dis && !s.onclick && s.hidden && s.empty && s.nested === 0 && s.text === "בודק זמינות הורדה…", "re-init on an enabled CTA: disabled, handler removed, panel hidden/empty, plain checking label (no nested version)");
   await settle(page);
@@ -603,13 +611,13 @@ for (const [delay, root] of [[0, ""], [50, ""], [0, "/Start-app"], [50, "/Start-
 // ---- no JavaScript: real hrefs, disabled CTAs ----
 for (const path of ["/", "/docs.html"]) {
   const page = await open(path, "ok", { width: 1440, height: 900 }, false);
-  const s = await page.evaluate(() => {
-    const b = document.querySelector("[data-download-cta]");
-    return { disabled: b.disabled, label: (b.querySelector("[data-cta-label]") || b).textContent.trim(), hidden: document.querySelector("details.verify").hidden,
-      hrefs: [...document.querySelectorAll("header > nav a")].map((a) => a.getAttribute("href")) };
-  });
-  ok(s.disabled && s.label === "הורדה לא זמינה" && s.hidden, `no-JS ${path}: CTA disabled with truthful label, no verification panel`);
-  ok(s.hrefs.every((h) => /^(index|docs)\.html/.test(h)), `no-JS ${path}: nav links are real hrefs`);
+  const hrefs = await page.evaluate(()=>[...document.querySelectorAll("header > nav a")].map(a=>a.getAttribute("href")));
+  if (path === "/docs.html") {
+    const gs=await guideState(page); ok(gs.noInline&&gs.exactLink&&gs.selector,"no-JS guide: real version selector and exact-version list link, no direct download");
+  } else {
+    const cs=await ctaState(page); ok(cs.disabled&&cs.label==="הורדה לא זמינה"&&cs.detailHidden,"no-JS home: disabled truthful CTA and hidden verification panel");
+  }
+  ok(hrefs.every(h=>/^(index|docs)\.html/.test(h)), `no-JS ${path}: nav links are real hrefs`);
   await page.close();
 }
 

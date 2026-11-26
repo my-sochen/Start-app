@@ -1,15 +1,14 @@
-<!DOCTYPE html>
-
-<html data-site-root=".." dir="ltr" lang="de">
-<head>
-<meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://my-sochen.github.io/Start-app/de/docs.html" rel="canonical"/>
-<meta content="Start-app: Benutzerhandbuch für den Evaluierungsprototyp, keine stabile Version." name="description"/>
-<meta content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" http-equiv="Content-Security-Policy"/>
-<title>start app</title>
-<link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
-<link href="../styles.css" rel="stylesheet"/>
+<!doctype html>
+<html lang="de" dir="ltr" data-site-root="..">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="canonical" href="https://my-sochen.github.io/Start-app/de/docs.html" />
+    <meta name="description" content="Start-app: Benutzerhandbuch für den Evaluierungsprototyp, keine stabile Version." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; form-action 'none'; base-uri 'none'" />
+    <title>start app</title>
+    <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="stylesheet" href="../styles.css" />
 <link rel="alternate" hreflang="he" href="https://my-sochen.github.io/Start-app/docs.html" />
 <link rel="alternate" hreflang="en" href="https://my-sochen.github.io/Start-app/en/docs.html" />
 <link rel="alternate" hreflang="ru" href="https://my-sochen.github.io/Start-app/ru/docs.html" />
@@ -20,203 +19,187 @@
 <link rel="alternate" hreflang="de" href="https://my-sochen.github.io/Start-app/de/docs.html" />
 <link rel="alternate" hreflang="x-default" href="https://my-sochen.github.io/Start-app/docs.html" />
   </head>
-<body>
-<a class="skip" href="#main">Zum Inhalt springen</a>
-<div class="pinned-top">
-<header>
-<a aria-label="Start-app, Homepage" class="brand" href="index.html"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
-<nav aria-label="Hauptnavigation">
-<a aria-current="page" href="docs.html">Benutzerhandbuch</a><a href="index.html#download">Herunterladen</a>
-</nav>
-<details class="language-switch"><summary>Sprache</summary><nav aria-label="Sprachauswahl"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a aria-current="true" dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details></header>
-<div class="docs-jump">
-<a href="#toc">Die Kapitel des Leitfadens</a><a href="#main">Zurück nach oben ↑</a>
-</div>
-</div>
-<main class="wrap" id="main">
-<div class="docs-intro">
-<p class="eyebrow">Benutzerhandbuch</p>
-<h1 tabindex="-1">Führung Start-app</h1>
-<p class="lead"> Schritt für Schritt: Arbeitsbereich erstellen, Elemente hinzufügen, erfassen, starten und speichern - mit echten Screenshots der Anwendung und mit den Einschränkungen, die es zu wissen gilt. </p>
-<p class="pill">Ein Evaluierungsprototyp, keine stabile Version</p>
-</div>
-<div class="doc-layout">
-<aside aria-label="Inhaltsverzeichnis" class="sidebar" tabindex="0" id="toc">
-<label for="doc-search">Durchsuchen Sie die Kapitel des Leitfadens</label><input autocomplete="off" id="doc-search" placeholder="Zum Beispiel: Speichern oder Erfassen" type="search"/>
-<p aria-live="polite" class="search-status" id="search-status" role="status"></p>
-<nav aria-label="Die Kapitel des Leitfadens">
-<a href="#about">Was ist das Start-app</a><a href="#install">System- und Installationsanforderungen</a><a href="#main-screen">Der Hauptbildschirm: die Umgebungsansicht</a><a href="#create">Eine neue Arbeitsumgebung schaffen</a><a href="#items">Elemente manuell hinzufügen</a><a href="#capture">Erfassung: Scannen, Auswählen und Duplizieren</a><a href="#edit">Bearbeitungsumgebung und Elemente</a><a href="#launch">Starten Sie die Umgebung und testen Sie sie vor dem Öffnen</a><a href="#limits">Bekannte Einschränkungen</a><a href="#storage">Speichern und lokaler Speicher</a><a href="#privacy">Privatsphäre auf den Punkt gebracht</a><a href="#faq">häufig gestellte Fragen</a>
-</nav>
-<p class="note">Die Suche erfolgt lokal auf der Seite. ohne die Daten zu senden.</p>
-</aside>
-<div>
-<p class="no-results" hidden="" id="no-results"> Keine Episoden gefunden. Versuchen Sie es mit einem anderen Wort oder löschen Sie die Suche. </p>
-<section class="doc-section" data-doc="" id="about">
-<span class="doc-kicker">Start</span>
-<h2>Was ist das Start-app</h2>
-<p> Start-app Speichert Programme, Ordner, Dateien und Links unter einem Umgebungsnamen. Wenn Sie den Computer das nächste Mal öffnen, öffnet der Befehl „Ausführen“ alle Elemente zusammen, ohne jedes einzelne erneut auszuwählen. </p>
-<p> Dieser Leitfaden begleitet den gesamten Weg: den Hauptbildschirm, das Erstellen einer Umgebung, das manuelle Hinzufügen von Elementen oder durch Erfassen, Bearbeiten, Starten und Speichern. Kapitel <a href="#limits">Bekannte Einschränkungen</a> Zentralisieren Sie an einem Ort alles, was die Anwendung nicht tut. </p>
-</section>
-<section class="doc-section" data-doc="" id="install">
-<span class="doc-kicker">Start</span>
-<h2>System- und Installationsanforderungen</h2>
-<p> Das Verpackungsziel ist Windows x64. Es gibt keine verifizierte Mac- oder Linux-Version. </p>
-<p> Die Download-Verfügbarkeit wird angezeigt <a href="index.html#download">auf der Homepage</a> Und automatisch aktualisiert: Wenn es eine verifizierte Prototypversion gibt, gibt es einen Download-Link zusammen mit der Versionsnummer, der Dateigröße und dem sha256-Wert zur Überprüfung vor der Installation. </p>
-<div class="doc-download">
-<button aria-describedby="docs-download-state" class="primary" data-download-cta="" data-verify="docs-verify-body" disabled="" type="button"><span data-cta-label>Download nicht verfügbar</span><bdi data-cta-version hidden></bdi></button>
-<p aria-live="polite" class="note" id="docs-download-state"> Eine herunterladbare Version kann derzeit nicht überprüft werden. Der Download bleibt ausgeschaltet. </p>
-<details class="verify" hidden="">
-<summary>technische Details</summary>
-<p class="note" id="docs-verify-body"></p>
-</details>
-</div>
-<h3>Aktivierung nach Download</h3>
-<p> Der Download ist eine ZIP-Datei, kein Installationsprogramm. Nach dem Herunterladen: </p>
-<ol class="steps-list" data-layout-legacy hidden>
-<li>Extrahieren Sie alle Dateien aus der ZIP-Datei in einen Ordner.</li>
-<li> Öffnen Sie den extrahierten Ordner und führen Sie den aus <bdi><code>StartApp.App.exe</code></bdi>.
-              </li>
-<li>Belassen Sie die DLL- und Laufzeitdateien im Ordner neben der Datei.</li>
-</ol>
-            <p data-layout-unknown>Entpacke alle ZIP-Dateien in einen Ordner. Der Paketaufbau ist unbekannt; lies die Versionshinweise, bevor du eine ausführbare Datei auswählst.</p>
-            <p data-layout-portable hidden>Entpacke alle ZIP-Dateien. Starte <bdi><code>Start-app.exe</code></bdi> im Stammordner, behalte den Ordner <bdi><code>App</code></bdi> daneben und verschiebe immer den gesamten Ordner.</p>
-<p data-layout-legacy-unqualified> Das aktuelle Projektdesign ist ein Paket, das seine Laufzeitumgebung enthält, ohne Registrierung oder Anmeldung, und Daten lokal auf dem Gerät speichert. Die Eigenschaften jedes zum Download angebotenen Pakets werden bei seiner Freigabe veröffentlicht und überprüft.</p>
-            <p data-layout-legacy-qualification hidden> Die Anwendung beinhaltet ihre Laufzeitumgebung, sodass .NET nicht separat installiert werden muss. Keine Registrierung, kein Konto oder Login. Die Daten werden in einer lokalen Datei gespeichert<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.
-            </p>
-<p data-layout-legacy-qualification hidden> Was wurde getestet: Dieser Prototyp wurde als eigenständige Windows x64-Anwendung erstellt und erfolgreich auf einem gehosteten Windows Server 2025-Server gestartet und heruntergefahren. Nicht unabhängig getestet unter Windows 11 zu Hause, und es gibt keine Verpflichtung zur Mindestversion von Windows. Es gibt keine Garantie dafür, dass keine Sicherheitswarnungen oder Antivirensoftware-Warnungen angezeigt werden. </p>
-</section>
-<section class="doc-section" data-doc="" id="main-screen">
-<span class="doc-kicker">Ansichten</span>
-<h2>Der Hauptbildschirm: die Umgebungsansicht</h2>
-<p> Oben auf dem Bildschirm befindet sich die Liste der Umgebungen. Jede Umgebungskarte zeigt den Namen, die Beschreibung, die Kategorie, die gewählte Farbe und das Kartenbild sowie den Erstellungszeitpunkt und den Zeitpunkt des letzten Öffnens. Der Zeitpunkt des letzten Öffnens wird beim Starten einer Umgebung aktualisiert, nicht beim Öffnen eines einzelnen Elements. </p>
-<p> Jede Karte hat eine Schaltfläche „Starten“ und ein Menü „...“ mit weiteren Aktionen. Unter der Liste befindet sich ein Formular zum Erstellen einer neuen Umgebung. In der Ecke führt ein Zugang zur Erfassungsansicht. </p>
-<figure class="shot">
-<img alt="Hauptbildschirm mit drei Umgebungskarten, einer farbigen Karte mit dem Zeitpunkt des letzten Öffnens und einem Formular zum Erstellen einer Umgebung darunter" height="560" loading="lazy" src="../shots/doc-feat-24-create-form-design-controls.png" width="900"/>
-<figcaption> Der Hauptbildschirm: Umgebungskarten, einschließlich einer farblich gestalteten Karte, und ein Formular zur Umgebungserstellung. </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="create">
-<span class="doc-kicker">Ansichten</span>
-<h2>Eine neue Arbeitsumgebung schaffen</h2>
-<p> Im Erstellungsformular ist der Name erforderlich. Die Standardkategorie ist „Allgemein“. Sie können eine Kartenfarbe und ein Bild auswählen. Die Beschreibung ist optional. Nach dem Speichern erscheint eine Bestätigung, dass die Angaben gespeichert wurden. </p>
-<figure class="shot">
-<img alt="Vollständiges Formular zur Umgebungserstellung: Name, Beschreibung, Kategorie mit Standard, Farbpalette und Bildfeld sowie eine Statuszeile, in der die Details gespeichert werden" height="560" loading="lazy" src="../shots/doc-feat-08-overview-after-guard.png" width="900"/>
-<figcaption> Formular zur Umgebungserstellung: Name, Beschreibung, Kategorie, Farbe und Bild. </figcaption>
-</figure>
-<p> Wenn Sie versuchen, eine Umgebung zu starten, die noch keine Elemente enthält, wird eine Meldung angezeigt, die Sie zu den Details der Umgebung weiterleitet, um Elemente hinzuzufügen. </p>
-<figure class="shot">
-<img alt="Eine leere Arbeitsbereichsmeldung beim Start mit einem Übergang zu den Umgebungsdetails" height="560" loading="lazy" src="../shots/doc-feat-11-empty-workspace-dialog.png" width="900"/>
-<figcaption> Wenn Sie eine leere Umgebung starten, werden Sie zum Hinzufügen von Elementen weitergeleitet. </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="items">
-<span class="doc-kicker">Ansichten</span>
-<h2>Elemente manuell hinzufügen</h2>
-<p> Fügen Sie im Bildschirm mit den Umgebungsdetails Elemente von vier Typen hinzu: Site, Datei, Ordner und Software. Jeder Artikel kann mit einem eigenen Namen und einer eigenen Beschreibung versehen werden. Lokale Pfade erfordern einen vollständigen Windows-Pfad und keinen kurzen Software-Alias. </p>
-<figure class="shot">
-<img alt="Bildschirm mit Umgebungsdetails ohne Elemente, mit einer Zeile zum Hinzufügen eines Elements und zum Auswählen eines Typs" height="560" loading="lazy" src="../shots/doc-feat-01-details-empty.png" width="900"/>
-<figcaption> Bildschirm mit den Umgebungsdetails: die Hinzufügungszeile und die Auswahl des Artikeltyps. </figcaption>
-</figure>
-<p> Die Elemente werden auf dem Bildschirm nach Typ gruppiert: Websites, Ordner, Dateien und Software. Jede Zeile verfügt über eine Schaltfläche zum Bearbeiten und ein Aktionsmenü. </p>
-<figure class="shot">
-<img alt="Die vier Elementgruppen vollständig: Websites, Ordner, Dateien und Software, mit Bearbeitung für jede Zeile" height="560" loading="lazy" src="../shots/doc-feat-22-four-groups.png" width="900"/>
-<figcaption> Die vier Elementgruppen: Websites, Ordner, Dateien und Software. </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="capture">
-<span class="doc-kicker">Operationen</span>
-<h2>Erfassung: Scannen, Auswählen und Duplizieren</h2>
-<p> Die Erfassung scannt, was gerade geöffnet ist: Programme und den Windows-Datei-Explorer sowie im Browser die Adressleiste. Die Browserquelle kennt Chrome, Edge und Brave; Derzeit gibt es keine vollständige Kompatibilitätsmatrix für jeden Browser und jede Version. Der Scan kann bis zu 10 Sekunden dauern. </p>
-<p> Die Ergebnisse werden vor dem Speichern zur Auswahl angezeigt. Sie können daraus eine neue Umgebung erstellen oder sie zu einer bestehenden Umgebung hinzufügen - mit einer Suche, die sie findet. </p>
-<figure class="shot">
-<img alt="Erfassungsbildschirm: Suchen Sie neben der Liste der als aktuell geöffnet identifizierten Elemente nach einer vorhandenen Umgebung" height="560" loading="lazy" src="../shots/doc-cap-pick-workspace-search.png" width="900"/>
-<figcaption> In der Erfassung ist neben der Liste „Jetzt öffnen“ eine Umgebungsauswahl vorhanden. </figcaption>
-</figure>
-<p> Beim Erstellen einer neuen Umgebung werden die Elemente standardmäßig überprüft. Beim Hinzufügen zu einer bestehenden Umgebung: Ohne Markierungen lautet die Aktion „Alle hinzufügen“ und mit Markierungen „Ausgewählte hinzufügen“. Vervielfältigungen gegenüber dem, was bereits in der Umgebung gespeichert ist, bedürfen einer Genehmigung. Nebeneinander hinzugefügte Bildschirme bleiben temporär, bis Sie auf „Speichern“ klicken. </p>
-<figure class="shot">
-<img alt="Der Side-by-Side-Erfassungsbildschirm vor dem Speichern: hinzugefügte und nicht gespeicherte Elemente im Vergleich zu erkannten Elementen" height="560" loading="lazy" src="../shots/doc-cap-side-by-side-staged.png" width="900"/>
-<figcaption> Nebeneinander vor dem Speichern: Es wird nichts gespeichert, bis auf „Speichern“ geklickt wird. </figcaption>
-</figure>
-<p> Eine erfasste Site speichert auch den Browser, von dem aus sie gefunden wurde, sofern sie identifiziert werden kann. </p>
-<figure class="shot">
-<img alt="Eine erfasste Umgebung mit sechs erfassten Elementen. Websites speichern den Browser, in dem sie gefunden wurden" height="560" loading="lazy" src="../shots/doc-cap-created-from-capture-details.png" width="900"/>
-<figcaption> Eine Umgebung, die durch Erfassen und Speichern des Quellbrowsers jeder Site erstellt wird. </figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="edit">
-<span class="doc-kicker">Operationen</span>
-<h2>Bearbeitungsumgebung und Elemente</h2>
-<p> Das Menü „…“ einer Umgebungskarte bietet Folgendes: Anzeigen, Starten, Element hinzufügen, Karte formatieren und Kategorie bearbeiten. </p>
-<figure class="shot">
-<img alt="Aktionsmenü der Umgebungskarte: Anzeigen, Starten, Element hinzufügen, Karte entwerfen, Kategorie bearbeiten" height="560" loading="lazy" src="../shots/doc-feat-12-card-actions-menu.png" width="900"/>
-<figcaption>Das Aktionsmenü einer Umgebungskarte.</figcaption>
-</figure>
-<p> Wählen Sie beim Gestalten einer Karte eine Farbe und ein Hintergrundbild. Für jedes Element können Sie den Namen, die Beschreibung und die Adresse bearbeiten, eine Adresse kopieren, in der Liste verschieben oder aus der aktuellen Umgebung entfernen. „Öffnen mit“ wird im darin enthaltenen Element gespeichert Start-app nur, ohne die Standardzuordnungen in Windows zu ändern. </p>
-<figure class="shot">
-<img alt="Kartendesign-Panel mit Farbpalette und Hintergrundbildauswahl" height="560" loading="lazy" src="../shots/doc-feat-13-design-popup-open.png" width="900"/>
-<figcaption>Kartendesign: Farbe und Hintergrundbild.</figcaption>
-</figure>
-<p> Wenn Sie die Bearbeitung mit nicht gespeicherten Änderungen beenden, wird eine Warnung angezeigt: Speichern und beenden, ohne Speichern beenden oder zur Bearbeitung zurückkehren. </p>
-<figure class="shot">
-<img alt="Warnung vor nicht gespeicherten Änderungen mit den Optionen „Speichern und Beenden“ oder „Beenden ohne Speichern“." height="560" loading="lazy" src="../shots/doc-feat-07-unsaved-dialog.png" width="900"/>
-<figcaption>Exit-Warnung mit nicht gespeicherten Änderungen.</figcaption>
-</figure>
-</section>
-<section class="doc-section" data-doc="" id="launch">
-<span class="doc-kicker">Operationen</span>
-<h2>Starten Sie die Umgebung und testen Sie sie vor dem Öffnen</h2>
-<p> Der Befehl „Ausführen“ prüft die Elemente vor dem Öffnen und trennt Elemente, die bereit sind, fehlen, nicht unterstützt werden, nicht verfügbar sind oder einer Entscheidung bedürfen. Punkte, die einer Entscheidung bedürfen, erhalten keine allgemeine Umgehung. Links werden nur in http/https geöffnet und die Software erfordert einen vollständigen Pfad. </p>
-<figure class="shot">
-<img alt="Das Entscheidungsfeld vor dem Öffnen mit Warnungen für jedes Element, den Schaltflächen „Trotzdem öffnen“ und „Abbrechen“ sowie der Klarstellung, dass noch nichts geöffnet wurde" height="560" loading="lazy" src="../shots/doc-feat-09-decision-panel.png" width="900"/>
-<figcaption> Vor dem Öffnen: ehrliche Warnungen für jeden Artikel, und nichts wird geöffnet, bis es genehmigt wurde. </figcaption>
-</figure>
-<p> Nach der Bestätigung sendet die Anwendung eine Aufforderung an Windows, jedes Element zu öffnen. Es ist wichtig zu verstehen, was das bedeutet: Eine gesendete Anfrage ist kein Beweis dafür, dass das gewünschte Fenster tatsächlich geöffnet wurde. Die App kann auch nicht zuverlässig erkennen, ob der genaue Artikel bereits geöffnet ist, sodass beim erneuten Öffnen möglicherweise Duplikate entstehen. Ein Element, dessen Datei nicht gefunden wird, schlägt mit der Meldung „Datei nicht gefunden“ fehl. </p>
-</section>
-<section class="doc-section" data-doc="" id="limits">
-<span class="doc-kicker">Zuverlässigkeit</span>
-<h2>Bekannte Einschränkungen</h2>
-<ul>
-<li> Es gibt keine automatische Identifizierung des Dokuments, das innerhalb der Software geöffnet wird; Eine geöffnete Software ist kein Beweis dafür, dass eine bestimmte Datei darin geöffnet ist. Dokumente werden manuell hinzugefügt. </li>
-<li> Es gibt keine Garantie für die Wiederherstellung nicht gespeicherter Inhalte oder der Fensterplatzierung. </li>
-<li> „bereits geöffnet“ ist nicht zuverlässig bekannt; Beim erneuten Öffnen können Duplikate entstehen. </li>
-<li> Die Erfassung kann offen zwischen Registerkarten wechseln, um Adressen zu lesen. </li>
-<li> Ein unvollständiges Erfassungsergebnis oder eine leere Liste bedeuten nicht, dass nichts offen ist. </li>
-<li> In der Schnittstelle gibt es keinen Vorgang zum Löschen der Umgebung. Sie können Elemente aus einer Umgebung entfernen, nicht jedoch eine gesamte Umgebung löschen. </li>
-<li> „Mit einer anderen Umgebung teilen“ wird möglicherweise angezeigt, ist aber inaktiv. </li>
-</ul>
-</section>
-<section class="doc-section" data-doc="" id="storage">
-<span class="doc-kicker">Zuverlässigkeit</span>
-<h2>Speichern und lokaler Speicher</h2>
-<p> Im aktuellen Projektdesign werden die Arbeitsbereiche in einer lokalen Datei auf dem Computer gespeichert: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Änderungen werden nur gespeichert, wenn Sie explizit auf Speichern klicken. </p>
-</section>
-<section class="doc-section" data-doc="" id="privacy">
-<span class="doc-kicker">Zuverlässigkeit</span>
-<h2>Privatsphäre auf den Punkt gebracht</h2>
-<p> Im aktuellen Design werden die Daten der Umgebungen lokal auf dem Computer gespeichert. Durch das Öffnen eines Links oder einer Software entsteht die übliche Kommunikation dieses Ziels - beispielsweise führt das Öffnen einer Website in einem Browser zu dieser Website. </p>
-<p> Diese Website selbst enthält keine Formulare, Analysen, Remote-Schriftarten oder Dienste Dritter. </p>
-</section>
-<section class="doc-section" data-doc="" id="faq">
-<span class="doc-kicker">Zuverlässigkeit</span>
-<h2>häufig gestellte Fragen</h2>
-<h3>Was Start-app tun?</h3>
-<p> Speichert Programme, Ordner, Dateien und Links unter einem Umgebungsnamen und öffnet sie alle zusammen mit dem Befehl „Ausführen“. </p>
-<h3>Wird alles wieder so sein, wie es war?</h3>
-<p> Nicht garantiert. Es gibt keine automatische Erfassung von Dokumenten, die in Programmen geöffnet sind, keine Wiederherstellung nicht gespeicherter Inhalte oder die Zusage einer Fensterplatzierung. Beim Öffnen handelt es sich um eine Anfrage an das Betriebssystem mit vorläufigen Prüfungen und Berichten. </p>
-<h3>Wie fügt man ein Dokument hinzu, das in einer Software geöffnet ist?</h3>
-<p> Manuell: Fügen Sie die Datei selbst als Dateitypelement in den Umgebungsdetails hinzu. Das Capture erkennt es von alleine nicht an der geöffneten Software. </p>
-<h3>Wo werden die Informationen gespeichert?</h3>
-<p> in einer lokalen Datei auf dem Computer. Details im Kapitel <a href="#storage">Speichern und lokaler Speicher</a>.
-            </p>
-</section>
-</div>
-</div>
-</main>
-<div aria-live="polite" class="sr-only" id="route-announcer" role="status"></div>
-<script src="../i18n.js"></script><script src="../download-pointer.js"></script>
+  <body>
+    <a class="skip" href="#main">Zum Inhalt springen</a>
+    <div class="pinned-top">
+    <header>
+      <a class="brand" href="index.html" aria-label="Start-app, Homepage"><i aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 20.1C12.1 16.3 8.1 13.1 8.7 9.6S6.1 5.7 6.5 3.2M19.8 19.9C19.6 16.2 23.5 14.2 22.9 10.8S26.2 5.9 25.5 3"/><path d="M11.3 5.6Q12.8 5.4 14.3 5.7L14.1 8.5Q12.7 8.7 11.4 8.4ZM16.3 11.1Q17.8 10.9 19.4 11.2L19.2 14.1Q17.7 14.3 16.4 14Z"/><path d="M3.2 22.5C2.7 20.7 8.8 18.8 15.2 18.4C21.9 17.8 28.3 19.5 28.8 21.4C29.6 23.3 23.1 25.4 16.7 25.6C9.9 26 4 24.6 3.2 22.5Z"/><path d="M8.3 25.1C10 28.2 12.8 30.2 16.1 30C19.6 30.1 22.1 28.1 23.8 24.9"/><path d="M12.2 20.1C12.4 19.5 14.4 19.1 16 19.1C18 19 19.5 19.4 19.8 19.9C20 20.6 18.2 21.1 16.2 21.2C14.4 21.3 12.4 20.8 12.2 20.1Z"/><path d="m10.1 22 .14 .03m5.7 .9 .14-.02m5.8-1.05 .14 .04" stroke-width="1.7"/></svg></i><span class="wordmark"><span class="s-long">S</span>tart-app</span></a>
+      <nav aria-label="Hauptnavigation">
+        <a href="docs.html" aria-current="page">Benutzerhandbuch</a><a href="index.html?version=v0.1.0-proto.2#download">Herunterladen</a>
+      </nav>
+    <details class="language-switch"><summary>Sprache</summary><nav aria-label="Sprachauswahl"><a dir="ltr" href="../docs.html" hreflang="he" lang="he" translate="no">עברית</a><a dir="ltr" href="../en/docs.html" hreflang="en" lang="en" translate="no">English</a><a dir="ltr" href="../ru/docs.html" hreflang="ru" lang="ru" translate="no">Русский</a><a dir="ltr" href="../zh-Hans/docs.html" hreflang="zh-Hans" lang="zh-Hans" translate="no">简体中文 (预览)</a><a dir="ltr" href="../ja/docs.html" hreflang="ja" lang="ja" translate="no">日本語</a><a dir="ltr" href="../fr/docs.html" hreflang="fr" lang="fr" translate="no">Français</a><a dir="ltr" href="../es/docs.html" hreflang="es" lang="es" translate="no">Español</a><a aria-current="true" dir="ltr" href="../de/docs.html" hreflang="de" lang="de" translate="no">Deutsch</a></nav></details>
+    </header>
+        <div class="docs-jump">
+          <a href="#toc">Die Kapitel des Leitfadens</a><a href="#main">Zurück nach oben ↑</a>
+        </div>
+    </div>
+    <main id="main" class="wrap">
+      <div class="docs-intro">
+        <p class="eyebrow">Benutzerhandbuch</p>
+        <h1 tabindex="-1">Führung Start-app</h1>
+        <p class="lead">Schritt für Schritt in Version 0.1.0-proto.2: Arbeitsbereich erstellen, Elemente hinzufügen, Aufnahme, Start und Speichern - mit echten Screenshots der App und den Einschränkungen, die man kennen sollte.</p>
+        <p class="pill">Ein Evaluierungsprototyp, keine stabile Version</p>
+        <details class="version-switch"><summary>Anleitungsversion: <bdi>0.1.0-proto.2</bdi></summary><nav aria-label="Anleitungsversion wählen"><a dir="ltr" aria-current="true" href="docs.html">0.1.0-proto.2</a><a dir="ltr" href="../proto1/de/docs.html">0.1.0-proto.1</a></nav></details>
+      </div>
+      <div class="doc-layout">
+        <aside class="sidebar" tabindex="0" id="toc" aria-label="Inhaltsverzeichnis">
+          <label for="doc-search">Durchsuchen Sie die Kapitel des Leitfadens</label><input id="doc-search" type="search" placeholder="Zum Beispiel: Speichern oder Erfassen" autocomplete="off" />
+          <p id="search-status" class="search-status" role="status" aria-live="polite"></p>
+          <nav aria-label="Die Kapitel des Leitfadens">
+            <a href="#about">Was ist das Start-app</a><a href="#install">System- und Installationsanforderungen</a><a href="#main-screen">Der Hauptbildschirm: die Umgebungsansicht</a><a href="#create">Eine neue Arbeitsumgebung schaffen</a><a href="#items">Elemente manuell hinzufügen</a><a href="#capture">Erfassung: Scannen, Auswählen und Duplizieren</a><a href="#edit">Bearbeitungsumgebung und Elemente</a><a href="#launch">Starten Sie die Umgebung und testen Sie sie vor dem Öffnen</a><a href="#limits">Bekannte Einschränkungen</a><a href="#storage">Speichern und lokaler Speicher</a><a href="#privacy">Privatsphäre auf den Punkt gebracht</a><a href="#faq">häufig gestellte Fragen</a>
+          </nav>
+          <p class="note">Die Suche erfolgt lokal auf der Seite. ohne die Daten zu senden.</p>
+        </aside>
+        <div>
+          <p class="no-results" id="no-results" hidden>Keine Episoden gefunden. Versuchen Sie es mit einem anderen Wort oder löschen Sie die Suche.</p>
+          <section id="about" class="doc-section" data-doc>
+            <span class="doc-kicker">Start</span>
+            <h2>Was ist das Start-app</h2>
+            <p>Start-app Speichert Programme, Ordner, Dateien und Links unter einem Umgebungsnamen. Wenn Sie den Computer das nächste Mal öffnen, öffnet der Befehl „Ausführen“ alle Elemente zusammen, ohne jedes einzelne erneut auszuwählen.</p>
+            <p>Diese Anleitung beschreibt Version 0.1.0-proto.2 und begleitet den gesamten Ablauf: der Hauptbildschirm, Arbeitsbereich erstellen, Elemente manuell oder per Aufnahme hinzufügen, Bearbeiten, Starten und Speichern. Kapitel <a href="#limits">Bekannte Einschränkungen</a> Zentralisieren Sie an einem Ort alles, was die Anwendung nicht tut.</p>
+          </section>
+          <section id="install" class="doc-section" data-doc>
+            <span class="doc-kicker">Start</span>
+            <h2>System- und Installationsanforderungen</h2>
+            <p>Das Verpackungsziel ist Windows x64. Es gibt keine verifizierte Mac- oder Linux-Version.</p>
+            <p class="doc-version-download">Der Download der Version, die diese Anleitung beschreibt, 0.1.0-proto.2, befindet sich <a href="index.html?version=v0.1.0-proto.2#download">in der Versionsliste auf der Startseite</a>, mit Versionsnummer, Dateigröße und deren sha256 zur Prüfung vor der Installation. Der Download erfolgt nur dort, nicht auf der Anleitungsseite.</p>
+            <h3>Aktivierung nach Download</h3>
+            <p>Der Download ist eine ZIP-Datei, kein Installationsprogramm. Nach dem Herunterladen:</p>
+            <ol class="steps-list">
+              <li>Extrahieren Sie alle Dateien aus der ZIP-Datei in einen Ordner.</li>
+              <li>Führen Sie <bdi><code>Start-app.exe</code></bdi> im Hauptordner aus.</li>
+              <li>Belassen Sie den Ordner <bdi><code>App</code></bdi> neben der Datei, und verschieben Sie immer den gesamten Ordner zusammen.</li>
+            </ol>
+            <p>Die Anwendung beinhaltet ihre Laufzeitumgebung, sodass .NET nicht separat installiert werden muss. Keine Registrierung, kein Konto oder Login. Die Daten werden in einer lokalen Datei gespeichert<bdi><code>%LOCALAPPDATA%\StartApp\store.json</code></bdi>.</p>
+            <p>Was wurde getestet: Dieser Prototyp wurde als eigenständige Windows x64-Anwendung erstellt und erfolgreich auf einem gehosteten Windows Server 2025-Server gestartet und heruntergefahren. Nicht unabhängig getestet unter Windows 11 zu Hause, und es gibt keine Verpflichtung zur Mindestversion von Windows. Es gibt keine Garantie dafür, dass keine Sicherheitswarnungen oder Antivirensoftware-Warnungen angezeigt werden.</p>
+            <h3>Versionsaktualisierung</h3>
+            <p>Die Updateprüfung erfolgt über den Einstellungsbildschirm der App, und dort werden nur freigegebene Versionen angeboten. Der Download erfolgt von der offiziellen Website, die Installation manuell: Es gibt keine automatische Aktualisierung.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-06-update-settings.png" alt="Der Einstellungsbildschirm von Version 0.1.0-proto.2: installierte Version 0.1.0-proto.2, Prüfung freigegebener Versionen, Download von der offiziellen Website und manuelle Installation" width="706" height="393" loading="lazy" />
+              <figcaption>Der Einstellungsbildschirm: Versionen und Updates. Download von der offiziellen Website und manuelle Installation.</figcaption>
+            </figure>
+          </section>
+          <section id="main-screen" class="doc-section" data-doc>
+            <span class="doc-kicker">Ansichten</span>
+            <h2>Der Hauptbildschirm: die Umgebungsansicht</h2>
+            <p>Oben auf dem Bildschirm befindet sich die Liste der Umgebungen. Jede Umgebungskarte zeigt den Namen, die Beschreibung, die Kategorie, die gewählte Farbe und das Kartenbild sowie den Erstellungszeitpunkt und den Zeitpunkt des letzten Öffnens. Der Zeitpunkt des letzten Öffnens wird beim Starten einer Umgebung aktualisiert, nicht beim Öffnen eines einzelnen Elements.</p>
+            <p>Jede Karte hat eine angrenzende Schaltfläche "Starten". Ein Rechtsklick auf die Karte oder Shift+F10 auf der Tastatur öffnet ein Aktionsmenü: Anzeigen, Starten, Element hinzufügen, Karte gestalten und Kategorie bearbeiten. Unter der Liste befindet sich ein Formular zum Erstellen eines neuen Arbeitsbereichs, und in der Ecke ein Einstieg zum Aufnahmebildschirm.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-01-home-create.png" alt="Der Hauptbildschirm von Version 0.1.0-proto.2: zwei Arbeitsbereichskarten mit angrenzender Starten-Schaltfläche und ein Erstellungsformular mit Name, Beschreibung, Kategorie, Farbe und Bild" width="926" height="643" loading="lazy" />
+              <figcaption>Der Hauptbildschirm: Arbeitsbereichskarten und Erstellungsformular, in Version 0.1.0-proto.2.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="../shots/doc-p2-09-workspace-context-menu.png" alt="Rechtsklickmenü der Arbeitsbereichskarte: Anzeigen, Starten, Element hinzufügen, Karte gestalten und Kategorie bearbeiten" width="926" height="643" loading="lazy" />
+              <figcaption>Das Aktionsmenü öffnet sich per Rechtsklick auf die Karte oder mit Shift+F10.</figcaption>
+            </figure>
+          </section>
+          <section id="create" class="doc-section" data-doc>
+            <span class="doc-kicker">Ansichten</span>
+            <h2>Eine neue Arbeitsumgebung schaffen</h2>
+            <p>Im Erstellungsformular ist der Name ein Pflichtfeld. Die Standardkategorie ist "Allgemein", und Farbe sowie Kartenbild können gewählt werden. Die Beschreibung ist optional.</p>
+          </section>
+          <section id="items" class="doc-section" data-doc>
+            <span class="doc-kicker">Ansichten</span>
+            <h2>Elemente manuell hinzufügen</h2>
+            <p>Fügen Sie im Bildschirm mit den Umgebungsdetails Elemente von vier Typen hinzu: Site, Datei, Ordner und Software. Jeder Artikel kann mit einem eigenen Namen und einer eigenen Beschreibung versehen werden. Lokale Pfade erfordern einen vollständigen Windows-Pfad und keinen kurzen Software-Alias.</p>
+            <p>Elemente werden auf dem Bildschirm nach Typ gruppiert: Websites, Ordner, Dateien und Programme. Jede Zeile hat eine angrenzende Schaltfläche "Bearbeiten".</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-02-workspace-details.png" alt="Detailbildschirm eines Arbeitsbereichs in Version 0.1.0-proto.2: Name, Kategorie, Beschreibung, Zeile zum Hinzufügen von Elementen, Schaltflächen für vorhandene Arbeitsbereiche und Aufnahme sowie gespeicherte Elemente in den Gruppen Websites, Ordner und Dateien" width="926" height="643" loading="lazy" />
+              <figcaption>Arbeitsbereichsdetails mit gespeicherten Elementen und der Hinzufügen-Zeile.</figcaption>
+            </figure>
+            <p>Die Schaltfläche "Vorhandene Arbeitsbereiche wählen" fügt dem Arbeitsbereich ein Element hinzu, das bereits in einem anderen Arbeitsbereich gespeichert ist: Typ wählen, suchen und auswählen.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-04-existing-resource-picker.png" alt="Das Fenster &quot;Vorhandene Arbeitsbereiche wählen&quot; mit Typauswahl, Suchfeld und einem Ergebnis mit Wählen-Schaltfläche" width="926" height="643" loading="lazy" />
+              <figcaption>Hinzufügen eines Elements, das bereits in einem anderen Arbeitsbereich gespeichert ist.</figcaption>
+            </figure>
+          </section>
+          <section id="capture" class="doc-section" data-doc>
+            <span class="doc-kicker">Operationen</span>
+            <h2>Erfassung: Scannen, Auswählen und Duplizieren</h2>
+            <p>Die Erfassung scannt, was gerade geöffnet ist: Programme und den Windows-Datei-Explorer sowie im Browser die Adressleiste. Die Browserquelle kennt Chrome, Edge und Brave; Derzeit gibt es keine vollständige Kompatibilitätsmatrix für jeden Browser und jede Version. Der Scan kann bis zu 10 Sekunden dauern.</p>
+            <p>Beim Erstellen eines neuen Arbeitsbereichs aus einer Aufnahme sind die gefundenen Elemente standardmäßig markiert, und nur die markierten werden dem Arbeitsbereich hinzugefügt.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-07-capture-new.png" alt="Der Aufnahmebildschirm in einen neuen Arbeitsbereich in Version 0.1.0-proto.2: Erstellungsformular und Liste &quot;Derzeit geöffnet&quot; mit einem markierten Element" width="926" height="643" loading="lazy" />
+              <figcaption>Aufnahme in einen neuen Arbeitsbereich: Nur die markierten Elemente werden hinzugefügt.</figcaption>
+            </figure>
+            <p>Beim Hinzufügen zu einem vorhandenen Arbeitsbereich werden die Neuzugänge nebeneinander mit den gespeicherten Elementen angezeigt, markiert als Added, not saved yet. Nichts wird gespeichert, bis Sie auf Speichern klicken.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-08-capture-draft.png" alt="Nebeneinander-Aufnahme in einem vorhandenen Arbeitsbereich in Version 0.1.0-proto.2: die gespeicherten Elemente, die Liste &quot;Derzeit geöffnet&quot; und ein leerer Bereich Added, not saved yet" width="926" height="643" loading="lazy" />
+              <figcaption>Nebeneinander vor dem Speichern: Es wird nichts gespeichert, bis auf „Speichern“ geklickt wird.</figcaption>
+            </figure>
+            <p>Beim Ziehen eines einzelnen Elements, das sich bereits im Arbeitsbereich befindet, wird für diesen Vorgang eine separate Bestätigung angezeigt: Erneut als separate Instanz hinzufügen? Bei der Stapelaufnahme ("Alle hinzufügen" oder "Auswahl hinzufügen") werden nur die ausgewählten Elemente hinzugefügt - ist nichts ausgewählt, werden alle hinzugefügt. Nicht doppelte Elemente werden sofort auf dem Bildschirm bereitgestellt, und alle Duplikate werden in einem einzigen gruppierten Auswahldialog gesammelt, in dem Sie markieren, was hinzugefügt werden soll.</p>
+            <p>Es gibt keinen vollständigen Duplikatschutz: Dasselbe Element kann mehr als einmal hinzugefügt werden, auch wenn es bereits im Arbeitsbereich gespeichert ist. Es lohnt sich, die Liste vor dem Speichern zu prüfen.</p>
+          </section>
+          <section id="edit" class="doc-section" data-doc>
+            <span class="doc-kicker">Operationen</span>
+            <h2>Bearbeitungsumgebung und Elemente</h2>
+            <p>Das Rechtsklickmenü der Arbeitsbereichskarte bietet: Anzeigen, Starten, Element hinzufügen, Karte gestalten und Kategorie bearbeiten.</p>
+            <p>Bei der Kartengestaltung wählen Sie Farbe und Hintergrundbild.</p>
+            <p>Ein Klick auf "Bearbeiten" neben einem Element öffnet einen Inline-Editor mit Name, Beschreibung und Adresse. "Abbrechen" schließt den Editor ohne Änderungen.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-03-item-editor.png" alt="Inline-Elementeditor in Version 0.1.0-proto.2: Felder für Name, Beschreibung und Adresse sowie eine Abbrechen-Schaltfläche" width="926" height="643" loading="lazy" />
+              <figcaption>Inline-Bearbeitung eines Elements: Name, Beschreibung und Adresse.</figcaption>
+            </figure>
+            <p>Änderungen werden erst nach explizitem Speichern gespeichert; Details in Kapitel <a href="#storage">Speichern und lokaler Speicher</a>.</p>
+          </section>
+          <section id="launch" class="doc-section" data-doc>
+            <span class="doc-kicker">Operationen</span>
+            <h2>Starten Sie die Umgebung und testen Sie sie vor dem Öffnen</h2>
+            <p>Der Befehl "Starten" öffnet zuerst das Auswahlfenster "Was im Arbeitsbereich öffnen?": Alle Elemente sind standardmäßig markiert, und Sie können die Markierung bei dem entfernen, was Sie nicht öffnen möchten. "Abbrechen" schließt das Fenster, ohne etwas zu öffnen.</p>
+            <figure class="shot">
+              <img src="../shots/doc-p2-05-opening-selection.png" alt="Das Auswahlfenster vor dem Öffnen in Version 0.1.0-proto.2: alle Elemente markiert, mit den Schaltflächen Abbrechen und Starten" width="926" height="643" loading="lazy" />
+              <figcaption>Vor dem Öffnen: Auswahl der zu startenden Elemente. Ohne Bestatigung wird nichts geöffnet.</figcaption>
+            </figure>
+            <p>Wenn die Prüfung ein Element sicher als bereits geöffnet erkennt, erscheint eine Auswahl zum erneuten Öffnen: Diese Elemente sind standardmäßig nicht markiert. Markieren Sie nur, was Sie erneut öffnen möchten; Sie können zur Auswahl zurückkehren oder abbrechen. Eine unsichere Erkennung beweist nicht, dass ein Element geschlossen ist. Die Ergebnisse unterscheiden zwischen gesendeter Anfrage, Überspringen, Fehler und der Entscheidung, nicht erneut zu öffnen. Eine gesendete Anfrage bestätigt nicht, dass das Fenster geöffnet wurde.</p>
+            <p>Links werden nur über http/https geöffnet, und Programme benötigen einen vollständigen Pfad.</p>
+            <p>Nach der Bestätigung sendet die App an Windows eine Anfrage zum Öffnen jedes Elements. Eine gesendete Anfrage beweist nicht, dass das gewünschte Fenster tatsächlich geöffnet wurde. Ein Element, das unter seinem gespeicherten Pfad nicht gefunden wird, wird übersprungen, mit der Erklärung, dass es unter dem gespeicherten Pfad nicht gefunden wurde, und dem Hinweis, den Pfad zu prüfen und es erneut zu versuchen. Die Prüfung "bereits geöffnet" ist teilweise: Nur ein sicher als geöffnet erkanntes Element wird als Auswahl zum erneuten Öffnen angeboten, und wenn die Prüfung nicht entscheiden kann, kann ein erneutes Öffnen ein Duplikat erzeugen.</p>
+          </section>
+          <section id="limits" class="doc-section" data-doc>
+            <span class="doc-kicker">Zuverlässigkeit</span>
+            <h2>Bekannte Einschränkungen</h2>
+            <ul>
+              <li>Es gibt keine automatische Identifizierung des Dokuments, das innerhalb der Software geöffnet wird; Eine geöffnete Software ist kein Beweis dafür, dass eine bestimmte Datei darin geöffnet ist. Dokumente werden manuell hinzugefügt.</li>
+              <li>Es gibt keine Garantie für die Wiederherstellung nicht gespeicherter Inhalte oder der Fensterplatzierung.</li>
+              <li>Die Prüfung "bereits geöffnet" ist teilweise: Eine bestätigte Erkennung bietet eine Auswahl zum erneuten Öffnen; ohne Sicherheit kann ein erneutes Öffnen ein Duplikat erzeugen.</li>
+              <li>Ein unvollständiges Erfassungsergebnis oder eine leere Liste bedeuten nicht, dass nichts offen ist.</li>
+              <li>Es gibt keinen vollständigen Duplikatschutz zwischen gespeicherten und neuen Elementen.</li>
+              <li>In der Schnittstelle gibt es keinen Vorgang zum Löschen der Umgebung. Sie können Elemente aus einer Umgebung entfernen, nicht jedoch eine gesamte Umgebung löschen.</li>
+              <li>Keine automatische Aktualisierung; eine Prüfung freigegebener Versionen ist im Einstellungsbildschirm verfügbar, und die Installation erfolgt manuell von der offiziellen Website.</li>
+              <li>Pfade zum Stammverzeichnis eines Laufwerks oder einer Netzwerkfreigabe werden als Ordnerziele nicht unterstützt, weder beim manuellen Hinzufügen noch bei der Aufnahme; normale Unterordnerpfade werden unterstützt.</li>
+            </ul>
+          </section>
+          <section id="storage" class="doc-section" data-doc>
+            <span class="doc-kicker">Zuverlässigkeit</span>
+            <h2>Speichern und lokaler Speicher</h2>
+            <p>Im aktuellen Projektdesign werden die Arbeitsbereiche in einer lokalen Datei auf dem Computer gespeichert: <code>%LOCALAPPDATA%\StartApp\store.json</code>. Änderungen werden nur gespeichert, wenn Sie explizit auf Speichern klicken.</p>
+          </section>
+          <section id="privacy" class="doc-section" data-doc>
+            <span class="doc-kicker">Zuverlässigkeit</span>
+            <h2>Privatsphäre auf den Punkt gebracht</h2>
+            <p>Im aktuellen Design werden die Daten der Umgebungen lokal auf dem Computer gespeichert. Durch das Öffnen eines Links oder einer Software entsteht die übliche Kommunikation dieses Ziels - beispielsweise führt das Öffnen einer Website in einem Browser zu dieser Website.</p>
+            <p>Diese Website selbst enthält keine Formulare, Analysen, Remote-Schriftarten oder Dienste Dritter.</p>
+          </section>
+          <section id="faq" class="doc-section" data-doc>
+            <span class="doc-kicker">Zuverlässigkeit</span>
+            <h2>häufig gestellte Fragen</h2>
+            <h3>Was Start-app tun?</h3>
+            <p>Speichert Programme, Ordner, Dateien und Links unter einem Umgebungsnamen und öffnet sie alle zusammen mit dem Befehl „Ausführen“.</p>
+            <h3>Wird alles wieder so sein, wie es war?</h3>
+            <p>Nicht garantiert. Es gibt keine automatische Erfassung von Dokumenten, die in Programmen geöffnet sind, keine Wiederherstellung nicht gespeicherter Inhalte oder die Zusage einer Fensterplatzierung. Beim Öffnen handelt es sich um eine Anfrage an das Betriebssystem mit vorläufigen Prüfungen und Berichten.</p>
+            <h3>Wie fügt man ein Dokument hinzu, das in einer Software geöffnet ist?</h3>
+            <p>Manuell: Fügen Sie die Datei selbst als Dateitypelement in den Umgebungsdetails hinzu. Das Capture erkennt es von alleine nicht an der geöffneten Software.</p>
+            <h3>Wo werden die Informationen gespeichert?</h3>
+            <p>in einer lokalen Datei auf dem Computer. Details im Kapitel <a href="#storage">Speichern und lokaler Speicher</a>.</p>
+          </section></div>
+      </div>
+    </main>
+      <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+    <script src="../i18n.js"></script>
+    <script src="../download-pointer.js"></script>
 <script src="../download-catalog.js"></script>
-    <script src="../download-wire.js"></script>
+<script src="../download-wire.js"></script>
+<script src="../version-link.js"></script>
 <script src="../docs.js"></script>
-<script src="../site-nav.js"></script>
-</body>
+    <script src="../site-nav.js"></script>
+  </body>
 </html>

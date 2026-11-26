@@ -4,8 +4,8 @@ This is a local design/development candidate, not a published release.
 
 - Hebrew stays the source language. Added languages: English, Russian, Simplified Chinese, Japanese, French, Spanish and German.
 - Simplified Chinese is a provisional preview variant. It is not a final choice between Simplified and Traditional Chinese.
-- The translations are Google Translate drafts of public website copy with limited editorial terminology corrections. They have not had native-speaker review. This is not a linguistic or accessibility certification.
-- There are 136 source entries per added language, including headings, guide text, alt text, accessible labels, descriptions and dynamic download/search messages.
+- The original translations are Google Translate drafts of public website copy with limited editorial terminology corrections. They have not had native-speaker review. This is not a linguistic or accessibility certification.
+- There are 197 source entries per added language, including headings, guide text, alt text, accessible labels, descriptions and dynamic download/search messages.
 - Start-app stays literal. Platform names, file paths, code examples, release validation and package identity are not translated.
 - Existing app screenshots stay in Hebrew. Only the website is localized; the application/package is not changed.
 - Hebrew is RTL; other pages are LTR. Release metadata stays isolated LTR. Asian languages use locally available system fallback fonts, with no remote font calls. Actual Windows/Android fallback-font rendering still needs device review.
@@ -49,3 +49,11 @@ The three S-route/S-workspace/S-link sketches were rejected by the requester. Th
 The review of local tree e3c999 identified three shared Hebrew translation traps: last-open timestamp (not unlocking), the Launch button (not routine), and an optional description (not permission). The seven added languages now have corrected paragraphs and matching main-screen image alt text in the catalog, bundled runtime and static guide. `tests/meaning-corrections.json` records the exact focused corrections; `node website/tests/test-meaning-corrections.mjs` checks consistency across all three surfaces. This targeted correction is not native-language review or certification of the remaining copy. Simplified Chinese remains provisional.
 
 SPA navigation now replaces the destination's complete hreflang set, including x-default. The offline DOM test compares all nine links against direct-page metadata after home-to-guide, back, forward and guide-to-home navigation in each locale. Source HTML/sitemap checks alone do not cover this behavior. No live search-engine indexing claim follows from these tests.
+
+## Versioned-guide review candidate
+
+Default guides document proto2 in all eight languages. The proto1 archive preserves the current live guide content under `proto1/`, with adjusted asset/navigation paths, an added version selector, and fixed-version download-list links in place of dynamic guide download controls. New proto2 translations are editorial drafts, not native-speaker certification. Original application screenshots are reused unchanged; only captions and alt text are translated. Reopen choices and opening results are text only.
+
+Guide links select the same-language versions list using `?version=v0.1.0-proto.N#download`. Only an exact validated catalog row is highlighted; missing catalog/version shows a truthful note, with no latest-version substitution. The existing home-page primary button is unchanged. Proto1 is not added to the existing 16-entry sitemap. No release/pin/workflow/publication change is included.
+
+`node website/tests/dom-harness/test-versioned-guides.mjs` checks all 16 combinations through a local HTTPS fixture server, including desktop/mobile, version/language navigation, back/forward, resources, highlight, missing version/catalog and blocked external requests. Screenshots are local evidence, not real release availability.

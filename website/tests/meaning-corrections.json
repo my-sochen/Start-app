@@ -1,52 +1,52 @@
 {
   "sources": [
     "בראש המסך נמצאת רשימת הסביבות. בכל כרטיס סביבה רואים שם, תיאור, קטגוריה, צבע ותמונת כרטיס שבחרתם, זמן יצירה ופתיחה אחרונה. חותמת הפתיחה האחרונה מתעדכנת בשיגור סביבה, לא בפתיחת אייטם בודד.",
-    "לכל כרטיס כפתור \"שגר\" ותפריט \"...\" עם פעולות נוספות. מתחת לרשימה נמצא טופס יצירת סביבה חדשה, ובפינה כניסה למסך הלכידה.",
-    "בטופס היצירה שם הוא שדה חובה. קטגוריית ברירת המחדל היא \"כללי\", ואפשר לבחור צבע ותמונת כרטיס. התיאור הוא שדה רשות. אחרי השמירה מופיע אישור שהפרטים נשמרו.",
-    "המסך הראשי עם שלושה כרטיסי סביבה, כרטיס מסומן בצבע עם חותמת פתיחה אחרונה, וטופס יצירת סביבה מתחת"
+    "לכל כרטיס כפתור \"שגר\" צמוד. לחיצה ימנית על הכרטיס, או Shift+F10 במקלדת, פותחת תפריט פעולות: הצג, שגר, הוסף אייטם, עצב כרטיס וערוך קטגוריה. מתחת לרשימה נמצא טופס יצירת סביבה חדשה, ובפינה כניסה למסך הלכידה.",
+    "בטופס היצירה שם הוא שדה חובה. קטגוריית ברירת המחדל היא \"כללי\", ואפשר לבחור צבע ותמונת כרטיס. התיאור הוא שדה רשות.",
+    "המסך הראשי של גרסה 0.1.0-proto.2: שני כרטיסי סביבה עם כפתור שגר צמוד, וטופס יצירת סביבה עם שם, תיאור, קטגוריה, צבע ותמונה"
   ],
   "expected": {
     "en": [
       "At the top of the screen is the list of environments. Each environment card shows its name, description, category, selected color and card image, creation time and last opened time. The last opened timestamp is updated when you launch an environment, not when you open an individual item.",
-      "Each card has a \"Launch\" button and a \"...\" menu with additional actions. Below the list is a form for creating a new environment, and in the corner is an entry to the capture screen.",
-      "In the creation form, the name is required. The default category is \"General\", and you can choose a card color and image. The description is optional. After saving, a confirmation appears that the details have been saved.",
-      "The main screen with three environment cards, a color-coded card showing the last opened timestamp, and an environment creation form below"
+      "Each card has an adjacent \"Launch\" button. Right-clicking the card, or Shift+F10 on the keyboard, opens an actions menu: Show, Launch, Add item, Design card and Edit category. Below the list is a form for creating a new workspace, and in the corner an entry to the capture screen.",
+      "In the creation form, Name is a required field. The default category is \"General\", and you can choose a color and a card image. Description is optional.",
+      "The main screen of version 0.1.0-proto.2: two workspace cards with an adjacent Launch button, and a workspace creation form with name, description, category, color and image"
     ],
     "ru": [
       "В верхней части экрана находится список сред. На каждой карточке среды указаны название, описание, категория, выбранные цвет и изображение карточки, время создания и последнего открытия. Время последнего открытия обновляется при запуске среды, а не при открытии отдельного элемента.",
-      "На каждой карточке есть кнопка «Запустить» и меню «...» с дополнительными действиями. Под списком находится форма создания новой среды, а в углу - переход к экрану захвата.",
-      "В форме создания название обязательно. Категория по умолчанию - «Общие». Можно выбрать цвет и изображение карточки. Описание необязательно. После сохранения появляется подтверждение, что данные сохранены.",
-      "Главный экран с тремя карточками сред, цветной карточкой со временем последнего открытия и формой создания среды внизу"
+      "У каждой карточки есть соседняя кнопка \"Запустить\". Щелчок правой кнопкой мыши по карточке или Shift+F10 на клавиатуре открывает меню действий: Показать, Запустить, Добавить элемент, Оформить карточку и Изменить категорию. Под списком находится форма создания новой среды, а в углу - вход на экран захвата.",
+      "В форме создания поле имени обязательно. Категория по умолчанию - \"Общая\", можно выбрать цвет и изображение карточки. Описание необязательно.",
+      "Главный экран версии 0.1.0-proto.2: две карточки сред с соседней кнопкой \"Запустить\" и форма создания среды с именем, описанием, категорией, цветом и изображением"
     ],
     "zh-CN": [
       "屏幕顶部是环境列表。每张环境卡片显示名称、描述、类别、所选的卡片颜色和图片、创建时间以及上次打开时间。上次打开时间在启动环境时更新，而不是在打开单个项目时更新。",
-      "每张卡片都有一个“启动”按钮和一个包含更多操作的“...”菜单。列表下方是创建新环境的表单，角落里有进入捕获界面的入口。",
-      "在创建表单中，名称为必填项。默认类别为“常规”，您可以选择卡片颜色和图片。描述为选填项。保存后，会显示详细信息已保存的确认消息。",
-      "主界面显示三张环境卡片，其中一张彩色卡片标有上次打开时间，下方是环境创建表单"
+      "每张卡片旁边都有\"启动\"按钮。右键点击卡片或按键盘上的 Shift+F10 会打开操作菜单：显示、启动、添加项目、设计卡片和编辑类别。列表下方是创建新工作区的表单，角落里有进入捕获屏幕的入口。",
+      "在创建表单中，名称为必填项。默认类别为\"常规\"，可以选择颜色和卡片图片。描述为选填项。",
+      "0.1.0-proto.2 版本的主屏幕：两张带有相邻\"启动\"按钮的工作区卡片，以及包含名称、描述、类别、颜色和图片的工作区创建表单"
     ],
     "ja": [
       "画面上部には環境の一覧があります。各環境カードには、名前、説明、カテゴリ、選択したカードの色と画像、作成日時、最終オープン日時が表示されます。最終オープン日時は、個別のアイテムを開いたときではなく、環境を起動したときに更新されます。",
-      "各カードには「起動」ボタンと、その他の操作を含む「...」メニューがあります。一覧の下には新しい環境を作成するフォームがあり、画面の隅からキャプチャ画面に移動できます。",
-      "作成フォームでは名前は必須です。デフォルトのカテゴリは「一般」で、カードの色と画像を選択できます。説明は任意です。保存すると、詳細が保存されたことを示す確認メッセージが表示されます。",
-      "3つの環境カード、最終オープン日時を表示する色付きカード、その下に環境作成フォームがあるメイン画面"
+      "各カードには隣接する「起動」ボタンがあります。カードを右クリックするか、キーボードで Shift+F10 を押すと操作メニューが開きます: 表示、起動、項目を追加、カードをデザイン、カテゴリを編集。リストの下には新しいワークスペースの作成フォームがあり、隅にキャプチャ画面への入口があります。",
+      "作成フォームでは名前が必須項目です。デフォルトのカテゴリは「一般」で、色とカード画像を選択できます。説明は任意項目です。",
+      "バージョン 0.1.0-proto.2 のメイン画面: 隣接する「起動」ボタン付きの 2 つのワークスペースカードと、名前、説明、カテゴリ、色、画像のワークスペース作成フォーム"
     ],
     "fr": [
       "La liste des environnements se trouve en haut de l'écran. Chaque carte affiche le nom, la description, la catégorie, la couleur et l'image choisies, la date de création et la dernière ouverture. La date de dernière ouverture est mise à jour au lancement d'un environnement, et non à l'ouverture d'un élément individuel.",
-      "Chaque carte possède un bouton « Lancer » et un menu « ... » proposant des actions supplémentaires. Sous la liste se trouve un formulaire de création d’un nouvel environnement. Un accès à l’écran de capture se trouve dans le coin.",
-      "Dans le formulaire de création, le nom est obligatoire. La catégorie par défaut est « Général » et vous pouvez choisir une couleur et une image pour la carte. La description est facultative. Après l’enregistrement, un message confirme que les informations ont été enregistrées.",
-      "Écran principal avec trois cartes d’environnement, une carte colorée indiquant la date de dernière ouverture et un formulaire de création d’environnement en dessous"
+      "Chaque carte a un bouton \"Lancer\" adjacent. Un clic droit sur la carte, ou Shift+F10 au clavier, ouvre un menu d'actions : Afficher, Lancer, Ajouter un élément, Personnaliser la carte et Modifier la catégorie. Sous la liste se trouve un formulaire de création d'un nouvel espace de travail, et dans le coin une entrée vers l'écran de capture.",
+      "Dans le formulaire de création, le nom est un champ obligatoire. La catégorie par défaut est \"Général\", et vous pouvez choisir une couleur et une image de carte. La description est facultative.",
+      "L'écran principal de la version 0.1.0-proto.2 : deux cartes d'espace de travail avec un bouton Lancer adjacent, et un formulaire de création d'espace avec nom, description, catégorie, couleur et image"
     ],
     "es": [
       "En la parte superior de la pantalla se encuentra la lista de entornos. Cada tarjeta muestra el nombre, la descripción, la categoría, el color y la imagen elegidos, la fecha de creación y la última apertura. La fecha de última apertura se actualiza al iniciar un entorno, no al abrir un elemento individual.",
-      "Cada tarjeta tiene un botón \"Iniciar\" y un menú \"...\" con acciones adicionales. Debajo de la lista hay un formulario para crear un nuevo entorno y en la esquina hay un acceso a la pantalla de captura.",
-      "En el formulario de creación, el nombre es obligatorio. La categoría predeterminada es \"General\" y puede elegir el color y la imagen de la tarjeta. La descripción es opcional. Después de guardar, aparece una confirmación de que los datos se han guardado.",
-      "Pantalla principal con tres tarjetas de entorno, una tarjeta de color con la fecha de última apertura y un formulario de creación de entorno debajo"
+      "Cada tarjeta tiene un botón \"Lanzar\" adyacente. Un clic derecho en la tarjeta, o Shift+F10 en el teclado, abre un menú de acciones: Mostrar, Lanzar, Agregar elemento, Diseñar tarjeta y Editar categoría. Debajo de la lista hay un formulario para crear un nuevo espacio de trabajo, y en la esquina una entrada a la pantalla de captura.",
+      "En el formulario de creación, el nombre es un campo obligatorio. La categoría predeterminada es \"General\", y puedes elegir un color y una imagen de tarjeta. La descripción es opcional.",
+      "La pantalla principal de la versión 0.1.0-proto.2: dos tarjetas de espacio de trabajo con un botón Lanzar adyacente, y un formulario de creación de espacio con nombre, descripción, categoría, color e imagen"
     ],
     "de": [
       "Oben auf dem Bildschirm befindet sich die Liste der Umgebungen. Jede Umgebungskarte zeigt den Namen, die Beschreibung, die Kategorie, die gewählte Farbe und das Kartenbild sowie den Erstellungszeitpunkt und den Zeitpunkt des letzten Öffnens. Der Zeitpunkt des letzten Öffnens wird beim Starten einer Umgebung aktualisiert, nicht beim Öffnen eines einzelnen Elements.",
-      "Jede Karte hat eine Schaltfläche „Starten“ und ein Menü „...“ mit weiteren Aktionen. Unter der Liste befindet sich ein Formular zum Erstellen einer neuen Umgebung. In der Ecke führt ein Zugang zur Erfassungsansicht.",
-      "Im Erstellungsformular ist der Name erforderlich. Die Standardkategorie ist „Allgemein“. Sie können eine Kartenfarbe und ein Bild auswählen. Die Beschreibung ist optional. Nach dem Speichern erscheint eine Bestätigung, dass die Angaben gespeichert wurden.",
-      "Hauptbildschirm mit drei Umgebungskarten, einer farbigen Karte mit dem Zeitpunkt des letzten Öffnens und einem Formular zum Erstellen einer Umgebung darunter"
+      "Jede Karte hat eine angrenzende Schaltfläche \"Starten\". Ein Rechtsklick auf die Karte oder Shift+F10 auf der Tastatur öffnet ein Aktionsmenü: Anzeigen, Starten, Element hinzufügen, Karte gestalten und Kategorie bearbeiten. Unter der Liste befindet sich ein Formular zum Erstellen eines neuen Arbeitsbereichs, und in der Ecke ein Einstieg zum Aufnahmebildschirm.",
+      "Im Erstellungsformular ist der Name ein Pflichtfeld. Die Standardkategorie ist \"Allgemein\", und Farbe sowie Kartenbild können gewählt werden. Die Beschreibung ist optional.",
+      "Der Hauptbildschirm von Version 0.1.0-proto.2: zwei Arbeitsbereichskarten mit angrenzender Starten-Schaltfläche und ein Erstellungsformular mit Name, Beschreibung, Kategorie, Farbe und Bild"
     ]
   }
 }
