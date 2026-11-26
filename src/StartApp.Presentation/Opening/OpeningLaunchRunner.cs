@@ -30,9 +30,9 @@ public static class OpeningLaunchRunner
         return (results, fault);
     }
 
-    private static bool NeverLaunched(PreflightState s) => s is PreflightState.Missing or PreflightState.Unavailable or PreflightState.Unsupported or PreflightState.NeedsDecision;
+    internal static bool NeverLaunched(PreflightState s) => s is PreflightState.Missing or PreflightState.Unavailable or PreflightState.Unsupported or PreflightState.NeedsDecision;
 
-    private static string SkipExplanation(PreflightFinding f) => f.State switch
+    internal static string SkipExplanation(PreflightFinding f) => f.State switch
     {
         PreflightState.Missing => "לא נמצא בכתובת השמורה. בדקו את הכתובת ונסו שוב.",
         PreflightState.Unavailable => "לא ניתן היה לבדוק את הפריט בגלל גישה או זמן המתנה. לא נפתח; בדקו הרשאות ונסו שוב.",

@@ -1,0 +1,87 @@
+name: ordered-tabs-feasibility
+on:
+  push:
+    branches: [feat/ordered-browser-window]
+permissions:
+  contents: read
+jobs:
+  native-probe:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Targeted opening contracts
+        run: |
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~DedicatedWindowLaunchRunnerTests|FullyQualifiedName~OpeningLaunchRunnerTests|FullyQualifiedName~PreflightTests"
+          dotnet test tests/StartApp.Platform.Windows.Tests -c Release --filter "FullyQualifiedName~BrowserWindowLaunchTests|FullyQualifiedName~BrowserPreflightTests"
+      - name: Actual app opening dialog
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.BrowserWindowCapture -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $exe=Join-Path $PWD 'tests/StartApp.BrowserWindowCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+          $p=Start-Process $exe -ArgumentList ('"'+(Join-Path $PWD 'browser-window-app')+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'App capture timeout'}
+          if($p.ExitCode -ne 0){Get-Content browser-window-app/error.txt;throw 'App capture failed'}
+      - name: Disposable Chrome and Edge window and tab control probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Drawing
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class TabProbe {
+           [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+           [DllImport("user32.dll")] public static extern void keybd_event(byte vk,byte scan,uint flags,UIntPtr extra);
+           public static void MoveLeft(){keybd_event(0x11,0,0,UIntPtr.Zero);keybd_event(0x10,0,0,UIntPtr.Zero);keybd_event(0x21,0,0,UIntPtr.Zero);keybd_event(0x21,0,2,UIntPtr.Zero);keybd_event(0x10,0,2,UIntPtr.Zero);keybd_event(0x11,0,2,UIntPtr.Zero);}
+          }
+          '@
+          $out=Join-Path $PWD 'tabs-feasibility';New-Item $out -ItemType Directory -Force|Out-Null
+          $results=[Collections.Generic.List[object]]::new()
+          function Tabs($w){@($w.FindAll([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::TabItem)))|Where-Object {$_.Current.Name -match '^Probe-'})}
+          function Shot($w,$file){$r=$w.Current.BoundingRectangle;$b=New-Object Drawing.Bitmap([int]$r.Width,[int]$r.Height);$g=[Drawing.Graphics]::FromImage($b);$g.CopyFromScreen([int]$r.X,[int]$r.Y,0,0,$b.Size);$b.Save((Join-Path $out $file));$g.Dispose();$b.Dispose()}
+          foreach($browser in @(@{Name='Chrome';Exe='C:\Program Files\Google\Chrome\Application\chrome.exe'},@{Name='Edge';Exe='C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'})){
+           $profile=Join-Path $env:RUNNER_TEMP ('ordered-tabs-'+[guid]::NewGuid().ToString('N'))
+           $folder=Join-Path $out $browser.Name;New-Item $folder -ItemType Directory -Force|Out-Null
+           try{
+            if(-not(Test-Path $browser.Exe)){throw 'Browser executable unavailable'}
+            $urls=@();foreach($name in @('C','A','B','Unrelated')){$file=Join-Path $folder ($name+'.html');[IO.File]::WriteAllText($file,('<!doctype html><html><head><title>Loading</title></head><body><h1>Disposable tab '+$name+'</h1><input value="keep this unsaved value"><script>document.title="Probe-'+$name+'-"+Math.random().toString(36).slice(2)</script></body></html>'));$urls+=([uri]$file).AbsoluteUri}
+            # Isolated runner profile only. Never a product launch or the user's browser profile.
+            $arguments=@('--no-first-run','--no-default-browser-check','--force-renderer-accessibility',('--user-data-dir='+$profile),'--new-window')+$urls[0..2]
+            Start-Process $browser.Exe -ArgumentList $arguments|Out-Null
+            $until=[DateTime]::UtcNow.AddSeconds(40);$window=$null
+            do{
+             $pids=@(Get-CimInstance Win32_Process|Where-Object {$_.CommandLine -and $_.CommandLine.Contains($profile)}|ForEach-Object {$_.ProcessId})
+             $windows=@([Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,[Windows.Automation.Condition]::TrueCondition)|Where-Object {$pids -contains $_.Current.ProcessId -and -not $_.Current.IsOffscreen})
+             foreach($w in $windows){if((Tabs $w).Count -eq 3){$window=$w;break}}
+             if(-not $window){Start-Sleep -Milliseconds 300}
+            }while(-not $window -and [DateTime]::UtcNow -lt $until)
+            if(-not $window){throw 'No uniquely profile-bound three-tab window'}
+            $before=@((Tabs $window)|ForEach-Object {$_.Current.Name})
+            Shot $window ($browser.Name+'-before.png')
+            # Test documented native shortcut on a selected fixture tab, verifying state tokens.
+            [TabProbe]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle)|Out-Null
+            $a=(Tabs $window)|Where-Object {$_.Current.Name -like 'Probe-A-*'}
+            ([Windows.Automation.SelectionItemPattern]$a.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)).Select()
+            Start-Sleep -Milliseconds 200;[TabProbe]::MoveLeft();Start-Sleep -Milliseconds 500
+            $after=@((Tabs $window)|ForEach-Object {$_.Current.Name})
+            Shot $window ($browser.Name+'-after.png')
+            $results.Add(@{browser=$browser.Name;before=$before;after=$after;orderedBatch=($before[0] -like 'Probe-C-*' -and $before[1] -like 'Probe-A-*' -and $before[2] -like 'Probe-B-*');nativeMove=($after[0] -eq $before[1] -and $after[1] -eq $before[0] -and $after[2] -eq $before[2]);stateTokensPreserved=(@(Compare-Object ($before|Sort-Object) ($after|Sort-Object)).Count -eq 0)})
+           }catch{$results.Add(@{browser=$browser.Name;error=$_.ToString()})}
+           finally{
+            @(Get-CimInstance Win32_Process|Where-Object {$_.CommandLine -and $_.CommandLine.Contains($profile) -and $_.Name -in @('chrome.exe','msedge.exe')})|ForEach-Object {Stop-Process -Id $_.ProcessId -Force -ErrorAction Continue}
+           }
+          }
+          $results|ConvertTo-Json -Depth 8|Set-Content (Join-Path $out 'results.json')
+          $results|ConvertTo-Json -Depth 8|Write-Output
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ordered-tabs-feasibility
+          path: |
+            tabs-feasibility/
+            browser-window-app/

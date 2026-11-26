@@ -69,6 +69,11 @@ public sealed partial class MainViewModel
     public ObservableCollection<OpeningResult> LastOpeningResults { get; } = new();
     public bool SelectionPending { get => _opening.SelectionPending; private set { if (_opening.SelectionPending != value) { _opening.SelectionPending = value; Raise(nameof(SelectionPending)); } RaiseCommands(); } }
     public bool CanBackToOpeningSelection => _opening.CanBackToSelection;
+    private bool _dedicatedBrowserWindows;
+    /// <summary>Explicit, session-only choice. Never changes saved launch preferences or browser profiles.</summary>
+    public bool DedicatedBrowserWindows { get => _dedicatedBrowserWindows; set => Set(ref _dedicatedBrowserWindows, value); }
+    public bool HasOpeningSites => OpeningChoices.Any(x => x.Item?.Type == ItemType.Link);
+
     public bool LastResultsOpen { get => _opening.ResultsOpen; private set { if (_opening.ResultsOpen != value) { _opening.ResultsOpen = value; Raise(nameof(LastResultsOpen)); } RaiseCommands(); } }
     public bool HasLastOpeningResults => LastOpeningResults.Count > 0;
     public ICommand ConfirmSelectionCommand { get; private set; } = null!;

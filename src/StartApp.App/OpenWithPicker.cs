@@ -21,15 +21,8 @@ public static class OpenWithPicker
     public static readonly DependencyProperty WebsiteTargetProperty = DependencyProperty.RegisterAttached("WebsiteTarget", typeof(string), typeof(OpenWithPicker), new PropertyMetadata("", Changed));
     public static string GetWebsiteTarget(DependencyObject o) => (string?)o.GetValue(WebsiteTargetProperty) ?? "";
     public static void SetWebsiteTarget(DependencyObject o, string value) => o.SetValue(WebsiteTargetProperty, value);
-    [System.Runtime.InteropServices.DllImport("Shlwapi.dll", EntryPoint = "AssocQueryStringW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    private static extern int AssocQueryString(uint flags, uint kind, string association, string? extra, System.Text.StringBuilder output, ref uint characters);
     private static bool IsWebsite(ComboBox combo) => GetFileTarget(combo) is null && Uri.TryCreate(GetWebsiteTarget(combo), UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https");
-    private static string AssociationString(uint flags, uint kind, string association)
-    {
-        uint characters = 512;
-        var text = new System.Text.StringBuilder((int)characters);
-        return AssocQueryString(flags, kind, association, null, text, ref characters) == 0 ? text.ToString().Trim() : "";
-    }
+    private static string AssociationString(uint flags, uint kind, string association) => WindowsProtocolAssociations.Query(flags, kind, association);
     private static IReadOnlyList<Choice> RegisteredSitePrograms(string scheme)
     {
         var choices = new List<Choice>();
