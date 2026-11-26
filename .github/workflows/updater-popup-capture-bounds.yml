@@ -1,0 +1,29 @@
+name: updater-popup-capture-bounds
+on:
+  push:
+    branches: [fix/updater-popup-capture-bounds]
+permissions:
+  contents: read
+jobs:
+  focused-capture:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Existing synthetic updater capture only
+        shell: pwsh
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          New-Item -ItemType Directory -Force out-images,diag | Out-Null
+          & ./.github/e2e/synthetic-update-capture.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: updater-popup-capture-evidence
+          path: out-images/
+          if-no-files-found: warn
+          retention-days: 3
