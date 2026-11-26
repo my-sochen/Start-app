@@ -25,7 +25,7 @@ public sealed partial class WindowsLauncher
             return new(LaunchStatus.Unavailable, Detail: "Unsupported browser or invalid website batch");
         // Conservative guard below Windows' 32767-character limit, including quoting and switches.
         // Never split into extra windows or retry individually, which could duplicate already submitted tabs.
-        if (executable.Length + sites.Sum(s => (long)s.Target.Length + 3) + 100 > 30000)
+        if (executable.Length + sites.Sum(s => (long)s.Target.Length + s.Target.Count(c => c == '"') + 3) + 100 > 30000)
             return new(LaunchStatus.Unavailable, Detail: "The website list is too long for one browser request; select fewer sites");
         try
         {
