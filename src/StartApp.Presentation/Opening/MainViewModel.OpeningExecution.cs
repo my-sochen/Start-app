@@ -111,6 +111,14 @@ public sealed partial class MainViewModel
             plan = plan.Select(p => (p.Item, p.Launch, p.Finding, p.Finding.State == PreflightState.Ready ? observed.Detect(p.Item, p.Launch) : OpenState.Unknown)).ToList();
         }
         IsChecking = false;
+        if (_automaticSignInOpening)
+        {
+            if (_startupOffline) plan = plan.Select(p => p.Item.Type == ItemType.Link
+                ? (p.Item, p.Launch, new PreflightFinding(PreflightState.Unavailable, "לא זוהה חיבור לאינטרנט; האתר לא נבדק ולא נפתח."), p.Dup) : p).ToList();
+            // Explicit sign-in opt-in replaces the manual selection only. Already-open items are never reopened silently.
+            var alreadyOpen = plan.Select((p, i) => (p, i)).Where(x => x.p.Dup == OpenState.Open).Select(x => x.i).ToHashSet();
+            await LaunchAsync(plan, alreadyOpen); return;
+        }
         var confirmed = plan.Select((p, i) => (p, i)).Where(x => x.p.Finding.State == PreflightState.Ready && x.p.Dup == OpenState.Open).ToList();
         if (confirmed.Count == 0) { await LaunchAsync(plan); return; }
         _opening.PendingPlan = plan;
