@@ -42,7 +42,7 @@
                                 <Button Content="הוסף ממה שפתוח" Command="{Binding AddFromOpenCommand}" Style="{StaticResource HomeToolbarButton}" MinWidth="147" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Add from open items"/>
                                 <Button Content="סדר לשוניות (בקרוב)" IsEnabled="False" Style="{StaticResource HomeToolbarButton}" Height="38" Margin="8,0,0,0" AutomationProperties.Name="Arrange existing tabs unavailable" ToolTip="סידור לשוניות קיימות אינו זמין עדיין. הוא יופעל רק כשאפשר יהיה לעשות זאת בלי לפגוע בעבודה אחרת."/>
                             </StackPanel>
-                            <TextBlock FlowDirection="RightToLeft" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Right"><Run Text="אייטמים בסביבה "/><Run Text="{Binding Items.Count, Mode=OneWay}" FontSize="12" Foreground="#626B79"/></TextBlock>
+                            <TextBlock FlowDirection="RightToLeft" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Right" Text="{Binding Items.Count, StringFormat='אייטמים בסביבה&#160;&#160;{0}'}" AutomationProperties.AutomationId="WorkspaceItemCount"/>
                         </Grid>
                     </Border>
                 </StackPanel>
