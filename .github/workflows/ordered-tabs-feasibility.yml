@@ -1,7 +1,7 @@
 name: ordered-tabs-feasibility
 on:
   push:
-    branches: [feat/ordered-browser-window]
+    branches: [review/browser-window-edge-cases]
 permissions:
   contents: read
 jobs:
@@ -26,6 +26,12 @@ jobs:
           $p=Start-Process $exe -ArgumentList ('"'+(Join-Path $PWD 'browser-window-app')+'"') -PassThru
           if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'App capture timeout'}
           if($p.ExitCode -ne 0){Get-Content browser-window-app/error.txt;throw 'App capture failed'}
+      - name: Production adapter with existing browser windows
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.BrowserWindowProbe -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          ./.github/e2e/browser-window-edge-cases.ps1
       - name: Disposable Chrome and Edge window and tab control probe
         shell: pwsh
         run: |
@@ -85,3 +91,4 @@ jobs:
           path: |
             tabs-feasibility/
             browser-window-app/
+            browser-edge-cases/
