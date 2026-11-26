@@ -17,7 +17,7 @@ internal static class Program
 {
     sealed class Readiness(bool online) : ISignInReadiness { public SignInSchedule Start(CancellationToken token)=>new(Task.CompletedTask,Task.FromResult(online)); }
     sealed class Waiting : ISignInReadiness {public TaskCompletionSource<bool> Gate=new();public SignInSchedule Start(CancellationToken token)=>new(Gate.Task.WaitAsync(token),Gate.Task.WaitAsync(token));}
-    sealed class Launcher : IItemLauncher {public List<string> Sent=new();public LaunchResult Launch(Item i,LaunchConfig? c){Sent.Add(i.Name);return new(LaunchStatus.Started);}}
+    sealed class Launcher : IItemLauncher {public System.Collections.Concurrent.ConcurrentQueue<string> Sent=new();public LaunchResult Launch(Item i,LaunchConfig? c){Sent.Enqueue(i.Name);return new(LaunchStatus.Started);}}
     sealed class Ready : IItemPreflight {public PreflightFinding Check(Item i,LaunchConfig? c)=>new(PreflightState.Ready);}
     [STAThread] static int Main(string[] args)
     {
