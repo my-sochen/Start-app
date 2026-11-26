@@ -233,7 +233,7 @@ internal static class Program
     }
     private static void CapturePopup(Window owner, UpdateViewModel updates, string output, string name, int width)
     {
-        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460, Height = 300 };
+        var popup = new UpdateAvailableWindow(updates) { Owner = owner, Width = width == 900 ? 560 : 460 };
         popup.Show(); popup.UpdateLayout();
         var buttons = Descendants(popup).OfType<Button>().ToArray();
         if (!buttons.Any(b => ReferenceEquals(b.Command, updates.DownloadCommand) && b.IsEnabled))
@@ -273,7 +273,22 @@ internal static class Program
         // inherited RTL transforms, avoiding clipped/mirrored child-only renders.
         var width = checked((int)Math.Ceiling(window.ActualWidth)); var height = checked((int)Math.Ceiling(window.ActualHeight));
         var popup = window is UpdateAvailableWindow;
-        if (width < (popup ? 460 : 720) || height < (popup ? 260 : 400))
+        // The popup sizes to content, unlike the main window. Its content is the
+        // lower bound, not a stale screenshot height from the former fixed layout.
+        if (popup)
+        {
+            if (window.Content is not FrameworkElement content) throw new Exception("Popup content missing");
+            content.Measure(new Size(Math.Max(0, width), double.PositiveInfinity));
+            if (height + 1 < content.DesiredSize.Height || content.ActualHeight + 1 < content.DesiredSize.Height)
+                throw new Exception("Popup content is clipped vertically");
+            foreach (var element in Descendants(content).OfType<FrameworkElement>().Where(e => e.IsVisible && (e is Button || e is TextBlock)))
+            {
+                var bounds = element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
+                if (bounds.Left < -1 || bounds.Top < -1 || bounds.Right > width + 1 || bounds.Bottom > height + 1)
+                    throw new Exception("Popup visible text or control is outside the capture");
+            }
+        }
+        if (width < (popup ? 460 : 720) || height < (popup ? 1 : 400))
             throw new Exception($"Invalid window render bounds: {width}x{height}");
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(window);
