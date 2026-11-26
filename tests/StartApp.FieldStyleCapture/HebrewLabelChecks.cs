@@ -13,7 +13,7 @@ internal static partial class Program
         vm.Reload();vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());await Idle(shell);await Task.Delay(1500);await Take(shell,output,"hebrew-real-row");
         check("Real row uses Hebrew",Descendants(shell).OfType<TextBlock>().Any(x=>x.Text=="נפתח באמצעות: Notepad"));
         var panel=new StackPanel{FlowDirection=System.Windows.FlowDirection.RightToLeft,Margin=new Thickness(24)};
-        shell.Content=panel;
+        var probe=new Window{Owner=shell,Width=700,Height=320,Content=panel};probe.Show();await Idle(probe);
         foreach(var path in new string?[]{null,"","   ",@"C:\Legacy\missing.exe",Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")}){
             var view=new ProgramIconView{Program=path};panel.Children.Add(view);await Idle(shell);
             var label=view.Children.OfType<TextBlock>().Single();
@@ -27,6 +27,6 @@ internal static partial class Program
         }
         var stale=new ProgramIconView{Program=Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")};panel.Children.Add(stale);stale.Program=@"C:\Late\missing.exe";await Task.Delay(1000);await Idle(shell);
         check("Late icon cannot overwrite new path",stale.Children.OfType<TextBlock>().Single().Text==@"נפתח באמצעות: C:\Late\missing.exe");
-        await Take(shell,output,"hebrew-opener-labels");
+        await Take(probe,output,"hebrew-opener-labels");probe.Close();
     }
 }
