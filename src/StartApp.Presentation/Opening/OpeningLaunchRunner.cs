@@ -35,6 +35,7 @@ public static class OpeningLaunchRunner
     internal static string SkipExplanation(PreflightFinding f) => f.State switch
     {
         PreflightState.Missing => "לא נמצא בכתובת השמורה. בדקו את הכתובת ונסו שוב.",
+        PreflightState.Unavailable when f.Detail == "לא זוהה חיבור לאינטרנט; האתר לא נבדק ולא נפתח." => f.Detail,
         PreflightState.Unavailable => "לא ניתן היה לבדוק את הפריט בגלל גישה או זמן המתנה. לא נפתח; בדקו הרשאות ונסו שוב.",
         PreflightState.NeedsDecision => "הפריט דורש בדיקה נוספת לפני פתיחה. בדקו את הכתובת והתוכנה שנבחרה.",
         _ => "הפריט או צורת הפתיחה אינם נתמכים. עדכנו את הכתובת או את התוכנה שנבחרה."
