@@ -22,19 +22,10 @@ public sealed partial class MainViewModel
     {
         try
         {
-            var online = await readiness.WaitAsync(token);
+            var schedule = readiness.Start(token);
+            _ = schedule.SitesReady.ContinueWith(t => ReportLate(t.Exception!.GetBaseException()), TaskContinuationOptions.OnlyOnFaulted);
+            // Check saved items during the initial delay, not after it. Launch waits are independent of internet.
             token.ThrowIfCancellationRequested();
-            // A sign-in opt-out made during the wait takes effect immediately for this launch too.
-            if (_startup is not null)
-            {
-                RefreshWindowsStartup();
-                if (!_startsWithWindows || _startupError.Length > 0) return;
-            }
-            // Never reset a draft or another opening started during the settle/network wait.
-            if (ReadOnly || CreateDirty || DetailsDirty || CaptureOpen || ItemEditOpen || AddressEditOpen || DesignEditOpen || IsChecking || IsLaunching || SelectionPending || OpenDecisionPending)
-            {
-                ShowToast("הפתיחה האוטומטית לא בוצעה כי כבר מתבצעת עבודה. אפשר לשגר את הסביבה ידנית.", true); return;
-            }
             var workspace = _current.Workspaces.FirstOrDefault(w => w.Id == DefaultWorkspaceId);
             var missing = DefaultWorkspaceId is { Length: > 0 } && workspace is null;
             var snapshot = new List<(Membership M, Item? Item)>();
@@ -47,13 +38,31 @@ public sealed partial class MainViewModel
                     _current.Items.TryGetValue(membership.ItemId, out var item);
                     snapshot.Add((membership, item is null ? null : item with { Name = membership.Name ?? item.Name }));
                 }
-            if (!online)
-                ShowToast("לא זוהה חיבור לאינטרנט בזמן ההמתנה. פריטים מקומיים ייפתחו; אתרים לא נבדקו וידולגו הפעם.", true);
             if (missing) ShowToast("סביבת ברירת המחדל לא נמצאה. לא נפתחה סביבה אחרת במקומה.", true);
             if (snapshot.Count == 0) return;
             _opening.WorkspaceId = workspace?.Id ?? ""; _opening.SingleItem = workspace is null; DedicatedBrowserWindows = false;
             _automaticSignInOpening = true;
-            StartSelectedCheck(snapshot, automaticSignIn: true, offline: !online);
+            async Task BeforeLaunch(Item item, CancellationToken launchToken)
+            {
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, launchToken);
+                if (item.Type == ItemType.Link) await schedule.SitesReady.WaitAsync(linked.Token);
+                else await schedule.LocalReady.WaitAsync(linked.Token);
+                linked.Token.ThrowIfCancellationRequested();
+                if (_startup is not null)
+                {
+                    RefreshWindowsStartup();
+                    if (!_startsWithWindows || _startupError.Length > 0) throw new OperationCanceledException(launchToken);
+                }
+                if (!_current.GlobalItems.Any(e=>e.Id==item.Id && e.Target==item.Target && e.Type==item.Type) &&
+                    (workspace is null || DefaultWorkspaceId != workspace.Id || !_current.Workspaces.Any(w=>w.Id==workspace.Id && w.Items.Any(m=>m.ItemId==item.Id)) || !_current.Items.TryGetValue(item.Id,out var currentItem) || currentItem.Target!=item.Target || currentItem.Type!=item.Type))
+                    throw new OperationCanceledException(launchToken);
+                if (ReadOnly || CreateDirty || DetailsDirty || CaptureOpen || ItemEditOpen || AddressEditOpen || DesignEditOpen || UnsavedOpen)
+                    throw new OperationCanceledException(launchToken);
+            }
+            // Deleted or changed selections must never open a stale environment after the wait.
+            // Local targets first, so a slow internet indication never holds them behind sites.
+            snapshot = snapshot.OrderBy(x => x.Item?.Type == ItemType.Link ? 1 : 0).ToList();
+            StartSelectedCheck(snapshot, automaticSignIn: true, beforeLaunch: BeforeLaunch);
             await OpenTask;
             if (missing) ShowToast("סביבת ברירת המחדל לא נמצאה. נבדקו רק הפריטים הגלובליים; לא נפתחה סביבה אחרת במקומה.", true);
         }
