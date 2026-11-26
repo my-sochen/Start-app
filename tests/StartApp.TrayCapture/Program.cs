@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -37,6 +38,10 @@ internal static class Program
                 window.Close();Check("Close hides without exit",!window.IsVisible && window.Tray is not null);window.Tray!.Restore();Check("Tray restores",window.IsVisible);
                 // The screenshot contains the actual shared WPF menu, not a reconstructed mock.
                 var menu=window.Tray.BuildMenu();menu.IsOpen=true;await Settle(window);await Take(menu,output,"04-tray-menu");
+                using (var bitmap=new System.Drawing.Bitmap(System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Width,System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Height))
+                {
+                    using var graphics=System.Drawing.Graphics.FromImage(bitmap);graphics.CopyFromScreen(0,0,0,0,bitmap.Size);bitmap.Save(Path.Combine(output,"04-desktop-tray.png"));
+                }
                 var environments=(MenuItem)menu.Items[1];Check("Saved menu includes both workspaces",environments.Items.Count==2);
                 Check("Empty workspace disabled",!((MenuItem)environments.Items[1]).IsEnabled);
                 Invoke((MenuItem)environments.Items[0]);menu.IsOpen=false;Check("Tray uses production selection dialog",vm.SelectionPending);await Take(window,output,"05-launch-selection");vm.CancelOpenCommand.Execute(null);
@@ -45,6 +50,11 @@ internal static class Program
                 window.RequestTrayExit();Check("Explicit exit guards draft",window.IsVisible && vm.UnsavedOpen);await Take(window,output,"06-exit-guard");vm.CloseUnsavedCommand.Execute(null);
                 window.Close();Check("Cancelled explicit exit resets policy",!window.IsVisible && vm.CreateDirty);window.Tray.Restore();
                 window.RequestTrayExit();vm.ExitWithoutSavingCommand.Execute(null);Check("Approved full exit disposes icon",window.Tray is null);
+                var updateVm=new MainViewModel(repo,new NotImplementedLauncher());
+                var updating=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>{})) { DataContext=updateVm };updating.Show();await Settle(updating);
+                // This is the same approved-close continuation used by update apply, without running an updater.
+                typeof(MainWindow).GetMethod("OnAppCloseApproved",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.Invoke(updating,null);
+                Check("Approved update close bypasses tray",updating.Tray is null);
                 var reopened=new MainViewModel(repo,new NotImplementedLauncher());Check("Preference survives new session",reopened.KeepRunningInTray);
                 var second=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>{})) { DataContext=reopened };second.Show();await Settle(second);reopened.KeepRunningInTray=false;second.Close();Check("Off closes normally",second.Tray is null);
                 var restores=0;using var first=new SingleInstanceSession(()=>Interlocked.Increment(ref restores));using var duplicate=new SingleInstanceSession(()=>{});
