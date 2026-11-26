@@ -131,4 +131,17 @@ try{
  Check 'uninstall preserves complete store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
  $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
  Check 'uninstall removes logon route' (-not $run)
+ # Explicit startup opt-in with no shortcuts, at an install location containing spaces.
+ $spaceTarget=Join-Path $env:LOCALAPPDATA 'Programs\Start App Edge Case'
+ $p=Start-Process $exe -ArgumentList '/VERYSILENT','/NORESTART','/TASKS="startup,!launchafter,!desktopicon"',('/DIR="'+$spaceTarget+'"') -PassThru -Wait
+ Check 'silent startup opt-in install with spaces succeeds' ($p.ExitCode -eq 0)
+ Check 'desktop opt-out on clean install creates no shortcut' (-not(Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Start App.lnk')))
+ $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App'
+ Check 'startup executable with spaces is quoted exactly' ($run.'Start App' -eq ('"'+(Join-Path $spaceTarget 'StartApp.App.exe')+'" --autostart'))
+ $p=Start-Process (Join-Path $spaceTarget 'unins000.exe') -ArgumentList '/VERYSILENT','/NORESTART' -PassThru -Wait
+ Check 'silent uninstall after startup opt-in succeeds' ($p.ExitCode -eq 0)
+ $run=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Start App' -ErrorAction SilentlyContinue
+ Check 'silent uninstall removes opted-in startup' (-not $run)
+ Check 'alternate-path lifecycle preserves store' ((Get-FileHash $store -Algorithm SHA256).Hash -eq $storeHash)
+
 }catch{Shot 'failure';$_.ToString()|Set-Content (Join-Path $out 'error.txt');throw}finally{$checks|ConvertTo-Json|Set-Content (Join-Path $out 'checks.json')}
