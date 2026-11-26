@@ -240,7 +240,7 @@ public sealed partial class MainViewModel
         _openWith.SavedTarget = null; _openWith.StagedTarget = row;
         OpenWithProgram = row.OpenWith;
         OpenWithSetDefault = row.OpenWith.Trim().Length > 0;
-        OpenWithOpen = true; Raise(nameof(OpenWithLabel));
+        OpenWithOpen = true; RaiseOpenWithTarget();
     }
     private void CloseOpenWith() { OpenWithOpen = false; _openWith.ClearTargets(); }
     private bool SaveStaged()
