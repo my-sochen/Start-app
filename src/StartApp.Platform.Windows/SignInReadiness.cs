@@ -9,10 +9,21 @@ public sealed class SignInReadiness : ISignInReadiness
     public async Task<bool> WaitAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
-        for (var elapsed = 0; elapsed <= 60; elapsed += 2)
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        Task<bool>? probe = null;
+        while (deadline.Elapsed < TimeSpan.FromSeconds(60))
         {
-            if (await Task.Run(HasInternet, cancellationToken)) return true;
-            if (elapsed < 60) await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            // At most one native probe, even if Windows' connectivity service stalls.
+            probe ??= Task.Run(HasInternet, cancellationToken);
+            var remaining = TimeSpan.FromSeconds(60) - deadline.Elapsed;
+            var pause = Task.Delay(remaining < TimeSpan.FromSeconds(2) ? remaining : TimeSpan.FromSeconds(2), cancellationToken);
+            if (await Task.WhenAny(probe, pause) == probe)
+            {
+                if (await probe) return true;
+                probe = null;
+                await pause;
+            }
         }
         return false;
     }
