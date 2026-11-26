@@ -22,9 +22,9 @@ public sealed class JsonStore : IStoreRepository
     private readonly object _gate = new();
     /// <summary>Newest schema this build reads and writes. Schema 2 = schema 1 plus the optional item description; schema 3 = schema 2 plus
     /// per-instance membership fields (id, local name, local description) and the optional workspace category; schema 4 = schema 3 plus
-    /// custom categories and per-workspace card design; schema 5 adds global lists; schema 6 adds advanced-color history. Older builds refuse a newer
-    /// file as "too new" and leave it untouched; this build still reads schemas 1-5 and upgrades them on the next save, after keeping a one-time copy.</summary>
-    public const int SupportedSchema = 6;
+    /// custom categories and per-workspace card design; schema 5 adds global lists; schema 6 adds advanced-color history; schema 7 adds the opt-in tray preference. Older builds refuse a newer
+    /// file as "too new" and leave it untouched; this build still reads schemas 1-6 and upgrades them on the next save, after keeping a one-time copy.</summary>
+    public const int SupportedSchema = 7;
     private const int OldestReadableSchema = 1;
     /// <summary>Moves the invalid file aside, then the next load starts empty. Code only: nothing in the app calls it, and a real reset needs the user's own explicit approval. Needs the writer lock like any other write.</summary>
     public string? DiscardInvalidFile()
