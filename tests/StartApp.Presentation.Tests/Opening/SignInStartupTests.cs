@@ -29,6 +29,16 @@ public class SignInStartupTests
     {
         using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.NewWorkspaceDescription="draft";vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Empty(launcher.Sent);Assert.True(vm.CreateDirty);
     }
+
+    sealed class Waiting : ISignInReadiness {public TaskCompletionSource<bool> Gate=new();public async Task<bool> WaitAsync(CancellationToken token)=>await Gate.Task.WaitAsync(token);}
+    [Fact] public async Task Closing_during_network_wait_cancels_all_launches()
+    {
+        using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());var wait=new Waiting();vm.StartSignInStartup(wait);vm.CancelSignInStartup();await vm.SignInTask;Assert.Empty(launcher.Sent);
+    }
+    [Fact] public async Task Global_items_and_chosen_environment_share_report_without_fallback()
+    {
+        using var repo=Repo();Fill(repo);repo.Mutate(c=>c.AddGlobalEntry(GlobalListKind.GlobalItems,ItemType.File,"global",@"C:\global.txt"));var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Equal(new[]{"global","site","local"},launcher.Sent);Assert.Equal(4,vm.LastOpeningResults.Count);
+    }
     sealed class Registration : IWindowsStartupRegistration {public bool Enabled;public bool Fail; public bool IsEnabled()=>Enabled;public void SetEnabled(bool value){if(Fail)throw new UnauthorizedAccessException();Enabled=value;} }
     [Fact] public void Windows_toggle_reads_actual_state_and_failed_change_stays_visible()
     {
