@@ -57,7 +57,7 @@ class WebsiteLifecycleTests(unittest.TestCase):
         # comes only from the repository protection settings documented in
         # WEBSITE-LIFECYCLE.md, never from this test.
         pin = json.loads((ROOT / '.github/release/website-live.json').read_text())
-        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': 'f94789e0f94c6f8a30c544bc4d6beb61a8409d4b'})
+        self.assertEqual(pin, {'schema': 1, 'branch': 'website/main', 'commit': '70bf99c7e71413e45affb7bb76934879226b6037'})
 
     def test_ci_guard_rejects_app_and_unrelated_infrastructure(self):
         doc = yaml.safe_load((ROOT / '.github/workflows/website-pr-tests.yml').read_text())
