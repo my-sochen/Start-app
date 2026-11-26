@@ -101,8 +101,9 @@ Section 'capture-new-palette-dirty-guard' {
   Assert 'persistent limitation note exposed for requested screenshot' ($note.Count -eq 1) ''
   $rect=$note[0].Current.BoundingRectangle
   [void][W]::SetCursorPos([int]($rect.Left+$rect.Width/2),[int]($rect.Top+$rect.Height/2));Start-Sleep -Milliseconds 1600
-  $tip=$A::RootElement.FindFirst($TS::Descendants,(New-Object $PC($A::ControlTypeProperty,$CT::ToolTip)))
+  $tips=@($A::RootElement.FindAll($TS::Descendants,(New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty,$CT::ToolTip)),(New-Object $PC($A::ProcessIdProperty,$p.Id))))) | Where-Object {-not $_.Current.IsOffscreen -and $_.Current.Name -like '*הלכידה קוראת חלונות ולשוניות נגישים*'});$tip=if($tips.Count -eq 1){$tips[0]}else{$null}
   Assert 'real hover tooltip visible' ($null -ne $tip -and -not $tip.Current.IsOffscreen) ''
+  if($tip){$tr=$tip.Current.BoundingRectangle;$wr=(CurWin).Current.BoundingRectangle;Assert 'wrapped tooltip fits app bounds' ($tr.Left -ge $wr.Left -and $tr.Right -le $wr.Right -and $tr.Top -ge $wr.Top -and $tr.Bottom -le $wr.Bottom) ("tooltip=$tr window=$wr")}
   $bounds=(CurWin).Current.BoundingRectangle
   $bitmap=New-Object System.Drawing.Bitmap ([int]$bounds.Width),([int]$bounds.Height)
   $graphics=[Drawing.Graphics]::FromImage($bitmap);$graphics.CopyFromScreen([int]$bounds.Left,[int]$bounds.Top,0,0,$bitmap.Size)

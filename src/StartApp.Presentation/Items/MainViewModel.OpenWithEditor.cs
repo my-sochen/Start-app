@@ -21,8 +21,11 @@ public sealed partial class MainViewModel
     // ---- open-with popup (פופאפ פתח באמצעות): browser for a site, program for a file; per-instance הגדר כברירת מחדל ----
     private readonly OpenWithSession<ItemRow, StagedRow> _openWith = new();
     public bool OpenWithOpen { get => _openWith.IsOpen; private set { if (_openWith.IsOpen != value) { _openWith.IsOpen = value; Raise(nameof(OpenWithOpen)); } RaiseCommands(); } }
-    /// <summary>A site asks for a browser; files and folders ask for a program.</summary>
-    public string OpenWithLabel => _openWith.SavedTarget?.Type == nameof(ItemType.Link) || _openWith.StagedTarget?.Type == ItemType.Link ? "דפדפן (נתיב מלא לקובץ ההפעלה). השאירו ריק לשימוש בברירת המחדל של Windows." : "תוכנה (נתיב מלא לקובץ ההפעלה). השאירו ריק לשימוש בברירת המחדל של Windows.";
+    private bool OpenWithIsSite => _openWith.SavedTarget?.Type == nameof(ItemType.Link) || _openWith.StagedTarget?.Type == ItemType.Link;
+    public string OpenWithTarget => _openWith.SavedTarget?.Target ?? _openWith.StagedTarget?.Target ?? "";
+    public string? OpenWithFileTarget => OpenWithIsSite ? null : OpenWithTarget;
+    public string OpenWithLabel => OpenWithIsSite ? "בחרו דפדפן לפתיחת האתר, או את ברירת המחדל של Windows." : "בחרו תוכנה לפתיחת הקובץ, או את ברירת המחדל של Windows.";
+    private void RaiseOpenWithTarget() { Raise(nameof(OpenWithLabel)); Raise(nameof(OpenWithTarget)); Raise(nameof(OpenWithFileTarget)); }
     public string OpenWithProgram { get => _openWith.Program; set { var program = value ?? ""; if (_openWith.Program != program) { _openWith.Program = program; Raise(nameof(OpenWithProgram)); } RaiseCommands(); } }
     /// <summary>Save the choice for this instance only, never a Windows default or other workspaces.</summary>
     public bool OpenWithSetDefault { get => _openWith.SetDefault; set { if (_openWith.SetDefault != value) { _openWith.SetDefault = value; Raise(nameof(OpenWithSetDefault)); } } }
@@ -34,7 +37,7 @@ public sealed partial class MainViewModel
         _openWith.SavedTarget = row; _openWith.StagedTarget = null;
         OpenWithProgram = m?.Launch?.Browser ?? m?.Launch?.OpenWith ?? "";
         OpenWithSetDefault = m?.Launch is not null;
-        OpenWithOpen = true; Raise(nameof(OpenWithLabel));
+        OpenWithOpen = true; RaiseOpenWithTarget();
     }
     private void OpenWithGo()
     {

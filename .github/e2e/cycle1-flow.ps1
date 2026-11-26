@@ -326,54 +326,14 @@ try {
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for open-with' ($c -eq 'ok') $c
   $mi = AnyByName 'פתח באמצעות'; Assert 'open-with entry exists' ($null -ne $mi) ''
   [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
-  $prog = NamedEdit 'Program path'; Assert 'open-with popup opened' ($null -ne $prog) ''
-  SetText $prog 'C:\Windows\notepad.exe'
-  $cb = AnyByName 'Set as default'; Assert 'set-as-default checkbox exists' ($null -ne $cb) ''
-  [void](ToggleEl $cb 'set-as-default checkbox'); Start-Sleep -Milliseconds 300
-  $c = ClickBtn 'Open with chosen program' 900; Assert 'open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
-  Assert 'store.json: browser choice saved on the instance' ((StoreJson) -match 'notepad\.exe') (StoreJson)
-  # kill the launched notepad BEFORE the row evidence: the harness launch hands it the link target as a file
-  # argument, and notepad's own "filename syntax is incorrect" modal would obscure the row in the screenshots
-  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 500
-  try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
-  Start-Sleep -Milliseconds 300
-  # icon + name display (settled Nov 14): the row shows the program icon and a short name; the full path stays in the
-  # tooltip. A plain StackPanel has no UIA peer, so the accessible contract is the exposed TextBlock: content = UIA
-  # name, AutomationProperties.HelpText = full path; the icon is the Image sibling under the same parent panel.
-  Assert 'opens-with shows the short name, not the path' (WaitText 'נפתח באמצעות: Notepad' 10) ((Texts) -join ' | ')
-  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'נפתח באמצעות: Notepad')))
-  Assert 'opens-with tooltip keeps the full path' ($null -ne $owTb -and $owTb.Current.HelpText -like '*notepad.exe*') ("help=$(if ($owTb) { $owTb.Current.HelpText } else { 'no-element' })")
-  $owImg = $null; if ($owTb) { $owP = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($owTb); if ($owP) { $owImg = $owP.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) } }
-  Assert 'opens-with icon element present next to the name' ($null -ne $owImg) ''
-  Assert 'full path no longer shown as row text' (@(@(Texts) | Where-Object { $_ -eq 'נפתח באמצעות: C:\Windows\notepad.exe' }).Count -eq 0) ((Texts) -join ' | ')
-  Shot 'open-with-saved'
-  # fallback (settled Nov 14): an exe whose icon cannot be read keeps the full-path text; then restore notepad.exe
-  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the fallback case' ($c -eq 'ok') $c
-  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
-  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the fallback case' ($null -ne $prog) ''
-  SetText $prog 'C:\Windows\notepad2.exe'
-  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
-  $c = ClickBtn 'Open with chosen program' 1500; Assert 'fallback open-with go clicked' ($c -eq 'ok') $c
-  Assert 'store.json: missing-exe choice saved' ((StoreJson) -match 'notepad2\.exe') (StoreJson)
-  Assert 'missing exe falls back to the full-path text' (WaitText 'נפתח באמצעות: C:\Windows\notepad2.exe' 10) ((Texts) -join ' | ')
-  Assert 'no icon + name panel for the missing exe' ($null -eq $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'נפתח באמצעות: notepad2')))) ''
-  Shot 'open-with-fallback'
-  $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the restore' ($c -eq 'ok') $c
-  $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
-  $prog = NamedEdit 'Program path'; Assert 'open-with popup reopened for the restore' ($null -ne $prog) ''
-  SetText $prog 'C:\Windows\notepad.exe'
-  $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
-  $c = ClickBtn 'Open with chosen program' 900; Assert 'restore open-with go clicked' ($c -eq 'ok') $c
-  Assert 'open-with sent the request after restore' (WaitText 'בקשות פתיחה' 15) ((Texts) -join ' | ')
-  Assert 'store.json restored to notepad.exe' (-not ((StoreJson) -match 'notepad2')) (StoreJson)
-  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue  # same modal hygiene before the row evidence
-  Start-Sleep -Milliseconds 500
-  try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
-  Start-Sleep -Milliseconds 300
-  Assert 'icon + name back after the restore' (WaitText 'נפתח באמצעות: Notepad' 10) ((Texts) -join ' | ')
-  Shot 'open-with-restored'
+  $prog = NamedCombo 'Open with program'; Assert 'open-with popup uses shared dropdown' ($null -ne $prog) ''
+  Assert 'free program-path entry removed' ($null -eq (NamedEdit 'Program path')) ''
+  $prog.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 300
+  Assert 'shared dropdown offers deferred Other action' ($null -ne (AnyByName 'אחר...')) ''
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}');Start-Sleep -Milliseconds 200
+  Shot 'open-with-dropdown'
+  $beforeCancel=StoreJson
+  $c = ClickBtn 'Close open with' 500;Assert 'cancel closes dropdown editor without saving' ($c -eq 'ok' -and (StoreJson) -eq $beforeCancel) ''
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'
   SetText $wsNameBox2 'E2E ws renamed'

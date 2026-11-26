@@ -549,7 +549,16 @@ try {
   ShotRaw 'post-scan-before-raise'
   Assert 'folder address shown under its name' (WaitText $capdir 5) ((Texts) -join ' | ')
   Assert 'new-workspace mode: every row ticked by default' (@(Checks | Where-Object { -not (IsOn $_) }).Count -eq 0 -and (Checks).Count -gt 0) ($names -join ' | ')
-  Assert 'routine capabilities are behind help rather than warning toast' ($null -ne (AnyByName 'מה ניתן ללכוד?')) ((Texts) -join ' | ')
+  $notes=@(UiaAll $CT::Text | Where-Object {$_.Current.Name -like 'לא נמצא קובץ?*' -and -not $_.Current.IsOffscreen})
+  Assert 'persistent capture limitation note is visible' ($notes.Count -eq 1) ((Texts) -join ' | ')
+  if($notes.Count -ne 1){throw 'Missing or ambiguous capture limitation note'}
+  $nr=$notes[0].Current.BoundingRectangle
+  [void][W]::SetWindowPos($p.MainWindowHandle,[IntPtr](-1),0,0,0,0,3)
+  [void][W]::SetCursorPos([int]($nr.Left+$nr.Width/2),[int]($nr.Top+$nr.Height/2));Start-Sleep -Milliseconds 1600
+  $tips=@($A::RootElement.FindAll($TS::Descendants,(New-Object System.Windows.Automation.AndCondition((New-Object $PC($A::ControlTypeProperty,$CT::ToolTip)),(New-Object $PC($A::ProcessIdProperty,$p.Id))))) | Where-Object {-not $_.Current.IsOffscreen -and $_.Current.Name -like '*הלכידה קוראת חלונות ולשוניות נגישים*'});$tip=if($tips.Count -eq 1){$tips[0]}else{$null}
+  Assert 'capture limitations available by hover without a separate help button' ($null -ne $tip -and -not $tip.Current.IsOffscreen) ''
+  if($tip){$tr=$tip.Current.BoundingRectangle;$wr=(CurWin).Current.BoundingRectangle;Assert 'wrapped limitation tooltip fits inside app window' ($tr.Left -ge $wr.Left -and $tr.Right -le $wr.Right -and $tr.Top -ge $wr.Top -and $tr.Bottom -le $wr.Bottom) ("tooltip=$tr window=$wr")}
+  [void][W]::SetCursorPos(5,5);[void][W]::SetWindowPos($p.MainWindowHandle,[IntPtr](-2),0,0,0,0,3)
 
   Assert 'capture rows have no action menu or edit button (read-only)' ($null -eq (BtnLike 'Item actions')) ''
   Shot 'new-form-with-scan'

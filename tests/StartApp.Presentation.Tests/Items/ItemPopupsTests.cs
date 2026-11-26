@@ -25,6 +25,21 @@ public class ItemPopupsTests
     private static void AddLink(MainViewModel vm, string url, string name)
     { vm.NewItemType = ItemType.Link; vm.NewTarget = url; vm.NewItemName = name; vm.AddItemCommand.Execute(null); }
 
+    [Fact] public void Context_picker_follows_saved_target_type_and_never_changes_store_on_cancel()
+    {
+        using var repo=new JsonStore(Tmp());
+        repo.Mutate(c=>{var id=c.CreateWorkspace("picker","","כללי").Id;foreach(var type in new[]{ItemType.File,ItemType.Link})c.AddToWorkspace(id,c.GetOrAddItem(type,type.ToString(),type==ItemType.Link?"https://example.com/":@"C:\fixture.pdf").Id);});
+        var vm=new MainViewModel(repo,new RecordingLauncher());vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());
+        foreach(var type in new[]{"File","Link"}){
+            var changes=new List<string?>();vm.PropertyChanged+=(_,e)=>changes.Add(e.PropertyName);
+            var row=vm.Items.Single(r=>r.Type==type);vm.OpenWithCommand.Execute(row);
+            Assert.Equal(row.Target,vm.OpenWithTarget);Assert.Equal(type=="File"?row.Target:null,vm.OpenWithFileTarget);
+            Assert.Contains(nameof(vm.OpenWithTarget),changes);Assert.Contains(nameof(vm.OpenWithFileTarget),changes);
+            vm.OpenWithProgram=@"C:\draft.exe";vm.OpenWithSetDefault=true;vm.CloseOpenWithCommand.Execute(null);
+            Assert.Null(repo.Load().Workspaces.Single().Items.Single(m=>m.Id==row.InstanceId).Launch);
+        }
+    }
+
     [Fact] public void File_picker_context_updates_and_folder_field_is_disabled_without_hiding()
     {
         using var repo = new JsonStore(Tmp());

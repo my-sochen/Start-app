@@ -18,6 +18,15 @@ public class SharedFieldStyleTests
         throw new FileNotFoundException(file);
     }
     private static XElement Style(string file, string key) => Read(file).Descendants(P + "Style").Single(x => (string?)x.Attribute(X + "Key") == key);
+    [Fact] public void Context_open_with_reuses_the_same_noneditable_dropdown()
+    {
+        var doc=Read("OpenWithEditorView.xaml");var combo=doc.Descendants(P+"ComboBox").Single();
+        Assert.Equal("{StaticResource OpenWithDropdown}",(string?)combo.Attribute("Style"));
+        Assert.Null(combo.Attribute("IsEditable"));Assert.Empty(doc.Descendants(P+"TextBox"));
+        XNamespace local="clr-namespace:StartApp.App";
+        Assert.Equal("{Binding OpenWithFileTarget}",(string?)combo.Attribute(local+"OpenWithPicker.FileTarget"));
+        Assert.Equal("{Binding OpenWithTarget}",(string?)combo.Attribute(local+"OpenWithPicker.WebsiteTarget"));
+    }
     [Theory]
     [InlineData("FieldInput", "DetailsInput")]
     [InlineData("FieldCombo", "DetailsCombo")]
