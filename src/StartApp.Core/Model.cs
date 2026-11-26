@@ -60,7 +60,9 @@ public sealed class GlobalListEntry
 
 public sealed class Store
 {
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = 7;
+    /// <summary>Opt-in only: hiding the main window on close keeps the app available in the notification area.</summary>
+    public bool KeepRunningInTray { get; set; }
     public Dictionary<string, Item> Items { get; set; } = new();
     public List<Workspace> Workspaces { get; set; } = new();
     /// <summary>פריטי הסביבה הגלובלית: opened automatically with the computer start, always (schema 5+). Missing on older files = none.</summary>

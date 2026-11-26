@@ -32,7 +32,7 @@ public partial class MainWindow
         // Design-only until the results screen exists (designer note 21.11 19:14: the new-feature rows are placeholders).
         menu.Items.Add(new MenuItem { Header = "תוצאות פתיחה אחרונה", IsEnabled = false });
         menu.Items.Add(new Separator());
-        menu.Items.Add(ActionItem("יציאה", Close));
+        menu.Items.Add(ActionItem("יציאה", RequestTrayExit));
 
         menu.IsOpen = true;
     }

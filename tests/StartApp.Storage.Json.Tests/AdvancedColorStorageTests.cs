@@ -21,7 +21,7 @@ public class AdvancedColorStorageTests
         var old = "{\"schemaVersion\":5,\"items\":{},\"workspaces\":[]}"; File.WriteAllText(path, old);
         using var repo = new JsonStore(path); Assert.Empty(repo.Load().AdvancedColorHistory); Assert.Equal(old, File.ReadAllText(path));
         repo.Mutate(c => WorkspaceColors.Remember(c.Store, "#123456"));
-        Assert.Equal(old, File.ReadAllText(path + ".schema5.bak")); Assert.Equal(6, repo.Load().SchemaVersion);
+        Assert.Equal(old, File.ReadAllText(path + ".schema5.bak")); Assert.Equal(JsonStore.SupportedSchema, repo.Load().SchemaVersion);
     }
     [Theory] [InlineData("null")] [InlineData("[null]")] [InlineData("[\"#xyzxyz\"]")] [InlineData("[\"#aabbcc\",\"#AABBCC\"]")]
     public void Invalid_history_is_refused_without_overwriting_original(string history)

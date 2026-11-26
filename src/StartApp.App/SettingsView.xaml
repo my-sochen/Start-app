@@ -45,7 +45,7 @@
                 <StackPanel>
                     <TextBlock Text="הגדרות" FontSize="22" FontWeight="SemiBold" Foreground="#222833" HorizontalAlignment="Right"
                                AutomationProperties.Name="Settings title"/>
-                    <TextBlock Text="ניהול עדכונים זמין כעת. שפה, מצב יום/לילה וערכת נושא יצטרפו בהמשך." FontSize="13" Foreground="#626b79"
+                    <TextBlock Text="ניהול עדכונים והתנהגות החלון. שפה, מצב יום/לילה וערכת נושא יצטרפו בהמשך." FontSize="13" Foreground="#626b79"
                                HorizontalAlignment="Right" Margin="0,2,0,0"/>
                 </StackPanel>
             </DockPanel>
@@ -54,6 +54,17 @@
         <!-- body -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="40,24,32,12">
+
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0"><TextBlock Text="מגש המערכת" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833"/></Border>
+                        <CheckBox Content="להמשיך לרוץ במגש בסגירת החלון" FlowDirection="RightToLeft" Margin="14,12" HorizontalAlignment="Right"
+                                  IsChecked="{Binding DataContext.KeepRunningInTray, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                  IsEnabled="{Binding DataContext.CanChangeTrayPreference, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Keep running in tray"/>
+                        <TextBlock Text="כבוי כברירת מחדל. כשהאפשרות פעילה, סגירת החלון מסתירה אותו ללא אובדן הטיוטה. האייקון ליד השעון פותח את החלון, משגר סביבה או מאפשר יציאה מלאה. הגדרה זו אינה משנה הפעלה עם Windows." Style="{StaticResource HintText}" Margin="14,0,14,12"/>
+                        <TextBlock Text="{Binding DataContext.TrayPreferenceError, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#9B3030" FlowDirection="RightToLeft" TextWrapping="Wrap" Margin="14,0,14,8" AutomationProperties.Name="Tray preference error"/>
+                    </StackPanel>
+                </Border>
 
                 <!-- group 1: עדכונים -->
                 <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4">

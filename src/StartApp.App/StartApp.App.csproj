@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" /></ItemGroup>
   <!-- Release identity is explicit; default/debug builds never become update identities. -->
   <PropertyGroup Condition="'$(StartAppReleaseVersion)' != '' And '$(StartAppSourceCommit)' != ''">
     <InformationalVersion>$(StartAppReleaseVersion)+sha.$(StartAppSourceCommit)</InformationalVersion>

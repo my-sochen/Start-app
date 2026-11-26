@@ -27,6 +27,8 @@ public sealed class Catalog
             if (_s.Items.TryGetValue(id, out var it) && it.Description is not null)
                 _s.Items[id] = it with { Description = null };
     }
+    public void SetKeepRunningInTray(bool enabled) => _s.KeepRunningInTray = enabled;
+
     // Stable id for a legacy membership: SHA-256 of workspace id + item id, truncated like the random ids.
     // The no-duplicate-membership invariant keeps (workspace, item) pairs unique, so only a collision with a
     // persisted id can reach the deterministic suffix. Never random: randomness here is what broke identity.
