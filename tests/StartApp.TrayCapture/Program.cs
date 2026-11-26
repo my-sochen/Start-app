@@ -29,6 +29,9 @@ internal static class Program
         window.ContentRendered+=async(_,_)=> {
             if(started)return;started=true;
             try {
+                Check("Compiled icon is not WPF associated content",!typeof(MainWindow).Assembly.GetCustomAttributes(typeof(System.Windows.Resources.AssemblyAssociatedContentFileAttribute),false).Cast<System.Windows.Resources.AssemblyAssociatedContentFileAttribute>().Any(a=>a.RelativeContentFilePath.EndsWith("start-app-ufo.ico",StringComparison.OrdinalIgnoreCase)));
+                var missingHandled=false;try { using var missing=SystemTraySession.LoadIcon(null); } catch(IOException) { missingHandled=true; }
+                Check("Missing tray resource becomes handled IO failure",missingHandled);
                 Check("Default preference off",!vm.KeepRunningInTray);Check("Native icon initialized",window.Tray is not null);
                 vm.OpenSettingsCommand.Execute(null);await Settle(window);await Take(window,output,"01-settings-default");
                 var toggle=Descendants(window).OfType<CheckBox>().Single(c=>c.IsVisible && System.Windows.Automation.AutomationProperties.GetName(c)=="Keep running in tray");

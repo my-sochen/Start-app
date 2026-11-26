@@ -12,6 +12,11 @@ class IconSourceTests(unittest.TestCase):
  def test_apphost_and_wpf_same_icon(self):
   p=ET.parse(ROOT/'src/StartApp.App/StartApp.App.csproj').getroot();self.assertEqual(p.findtext('./PropertyGroup/ApplicationIcon'),'Assets/start-app-ufo.ico');self.assertIsNotNone(p.find("./ItemGroup/Resource[@Include='Assets/start-app-ufo.ico']"))
   w=ET.parse(ROOT/'src/StartApp.App/MainWindow.xaml').getroot();self.assertEqual(w.attrib['Icon'],'Assets/start-app-ufo.ico')
+ def test_tray_icon_not_classified_as_wpf_content(self):
+  p=ET.parse(ROOT/'src/StartApp.App/StartApp.App.csproj').getroot()
+  self.assertIsNone(p.find("./ItemGroup/Content[@Include='Assets/start-app-ufo.ico']"))
+  n=p.find("./ItemGroup/None[@Include='Assets/start-app-ufo.ico']");self.assertIsNotNone(n)
+  self.assertEqual(n.attrib.get('CopyToOutputDirectory'),'PreserveNewest');self.assertEqual(n.attrib.get('CopyToPublishDirectory'),'PreserveNewest')
  def test_launcher_resource_same_icon(self):
   self.assertEqual((ROOT/'tools/portable-entry/launcher.rc').read_text(),'1 ICON "src/StartApp.App/Assets/start-app-ufo.ico"\n')
   s=(ROOT/'tools/portable-entry/build.cmd').read_text();self.assertIn('rc /nologo /fo portable-build\\launcher.res',s);self.assertIn('launcher.c portable-build\\launcher.res',s)
