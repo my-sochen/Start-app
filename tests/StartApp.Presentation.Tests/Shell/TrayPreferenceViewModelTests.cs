@@ -8,7 +8,8 @@ public class TrayPreferenceViewModelTests
     {
         var path = Path.Combine(Path.GetTempPath(), "tray-vm-" + Guid.NewGuid().ToString("N"), "store.json");
         using var repo = new JsonStore(path); var vm = new MainViewModel(repo, new NotImplementedLauncher());
-        Assert.False(vm.KeepRunningInTray); vm.KeepRunningInTray = true;
+        Assert.False(vm.KeepRunningInTray); vm.NewWorkspaceDescription = "unsaved draft"; vm.KeepRunningInTray = true;
+        Assert.True(vm.CreateDirty); Assert.Equal("unsaved draft",vm.NewWorkspaceDescription);
         Assert.True(repo.Load().KeepRunningInTray); Assert.Empty(vm.TrayPreferenceError);
         using var other = new JsonStore(path); var blocked = new MainViewModel(other, new NotImplementedLauncher());
         blocked.KeepRunningInTray = false; Assert.True(blocked.KeepRunningInTray); Assert.NotEmpty(blocked.TrayPreferenceError);
