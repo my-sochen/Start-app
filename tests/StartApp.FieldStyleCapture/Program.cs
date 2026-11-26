@@ -40,9 +40,12 @@ internal static partial class Program
         var shell=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>throw new Exception("Unexpected browser"))) {DataContext=vm,Width=960,Height=650,Left=12,Top=12};
         var code=0;
         void Check(string name,bool ok){Checks.Add(new{name,ok});if(!ok)throw new Exception(name);}
+        var started=false;
         shell.ContentRendered += async (_,_) => {
+            if(started)return;started=true;
             try {
                 if(args.Length==2 && args[1]=="context") { await ContextPicker(shell,repo,vm,output,Check); File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));return; }
+                if(args.Length==2 && args[1]=="counts") { await Counts(shell,repo,vm,output,Check);File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));return; }
                 vm.ShowCreateScreen(); await Idle(shell);
                 var create=Descendants(shell).OfType<CreateWorkspaceView>().Single();
                 var input=Descendants(create).OfType<TextBox>().First(x=>x.IsVisible);
