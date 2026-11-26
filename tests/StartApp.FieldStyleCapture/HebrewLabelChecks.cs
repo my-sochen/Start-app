@@ -12,7 +12,7 @@ internal static partial class Program
         var saved=store.Load().Workspaces.Single();store.Mutate(c=>c.SetLaunch(saved.Id,saved.Items.Single().Id!,new LaunchConfig(Browser:Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe"))));
         vm.Reload();vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());await Idle(shell);await Task.Delay(1500);await Take(shell,output,"hebrew-real-row");
         check("Real row uses Hebrew",Descendants(shell).OfType<TextBlock>().Any(x=>x.Text=="נפתח באמצעות: Notepad"));
-        var panel=new StackPanel{FlowDirection=FlowDirection.RightToLeft,Margin=new Thickness(24)};
+        var panel=new StackPanel{FlowDirection=System.Windows.FlowDirection.RightToLeft,Margin=new Thickness(24)};
         shell.Content=panel;
         foreach(var path in new string?[]{null,"","   ",@"C:\Legacy\missing.exe",Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")}){
             var view=new ProgramIconView{Program=path};panel.Children.Add(view);await Idle(shell);
