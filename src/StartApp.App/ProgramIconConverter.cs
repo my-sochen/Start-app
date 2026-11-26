@@ -12,7 +12,7 @@ public sealed class ProgramIconView : StackPanel
     public static readonly DependencyProperty ProgramProperty = DependencyProperty.Register(nameof(Program), typeof(string), typeof(ProgramIconView), new PropertyMetadata(null, Changed));
     public string? Program { get => (string?)GetValue(ProgramProperty); set => SetValue(ProgramProperty, value); }
     private const string Prefix = "נפתח באמצעות: ";
-    private readonly Image _icon = new() { Width = 14, Height = 14, Margin = new Thickness(0,0,4,1) };
+    private readonly Image _icon = new() { Width = 14, Height = 14, Margin = new Thickness(4,0,0,1) };
     private readonly TextBlock _label = new() { FontSize = 11, Foreground = Brushes.DarkSlateGray };
     private readonly TextBlock _prefix = new() { Text = Prefix, FontSize = 11, Foreground = Brushes.DarkSlateGray, Margin = new Thickness(4,0,0,0) };
     private int _generation;
@@ -20,7 +20,7 @@ public sealed class ProgramIconView : StackPanel
     {
         Orientation = Orientation.Horizontal; FlowDirection = FlowDirection.RightToLeft; Margin = new Thickness(0,0,8,2);
         var identity = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.RightToLeft };
-        identity.Children.Add(_icon); identity.Children.Add(_label);
+        identity.Children.Add(_label); identity.Children.Add(_icon);
         Children.Add(_prefix); Children.Add(identity);
         Loaded += (_,_) => Refresh(); Unloaded += (_,_) => _generation++;
     }
