@@ -18,7 +18,7 @@ internal static partial class Program
         await Idle(window);await Take(window,output,"capture-count-12-selected-3");
         var labels=Descendants(window).OfType<TextBlock>().Where(x=>x.IsVisible).ToArray();
         var found=labels.Single(x=>x.Text=="נמצאו 12 פריטים");var selected=labels.Single(x=>x.Text=="3 נבחרו");
-        var f=found.TransformToAncestor(window).TransformBounds(new Rect(0,0,found.ActualWidth,found.ActualHeight));var s=selected.TransformToAncestor(window).TransformBounds(new Rect(0,0,selected.ActualWidth,selected.ActualHeight));
+        var f=found.TransformToAncestor(window).TransformBounds(new System.Windows.Rect(0,0,found.ActualWidth,found.ActualHeight));var s=selected.TransformToAncestor(window).TransformBounds(new System.Windows.Rect(0,0,selected.ActualWidth,selected.ActualHeight));
         // Baseline records the overlap; candidate explicitly asserts disjoint bounds.
         var fixedLayout=AutomationProperties.GetAutomationId(found)=="CaptureFoundCount";
         if(fixedLayout)check("Found and selected counts do not overlap",!f.IntersectsWith(s));
