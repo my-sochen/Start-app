@@ -28,7 +28,7 @@ function TrayButton {
   return $null
  }
  $icon=FindIcon;if($null -ne $icon){return $icon}
- $overflow=$A::RootElement.FindFirst($T::Descendants,$PC::new($A::NameProperty,'Show hidden icons'))
+ $overflow=$A::RootElement.FindFirst($T::Descendants,$PC::new($A::NameProperty,'Show Hidden Icons'))
  if($null -ne $overflow){$overflow.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 350}
  $icon=FindIcon
  if($null -eq $icon){$A::RootElement.FindAll($T::Descendants,$PC::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))|ForEach-Object {$_.Current.Name}|Set-Content "$Output/tray-buttons.txt";Shot 'tray-not-found'}
