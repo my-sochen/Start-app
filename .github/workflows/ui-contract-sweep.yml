@@ -1,0 +1,109 @@
+name: ui-contract-sweep
+on:
+  push:
+    branches: [fix/ui-test-contracts]
+    paths: ['.github/e2e/**', '.github/workflows/ui-contract-sweep.yml']
+permissions:
+  contents: write
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Normalize staged upload filenames on this work branch only
+        shell: pwsh
+        run: |
+          if($env:GITHUB_REF -ne 'refs/heads/fix/ui-test-contracts'){throw 'Wrong branch'}
+          $mapping=@{'4-cycle1-flow.ps1'='cycle1-flow.ps1';'5-capture-flow.ps1'='capture-flow.ps1';'6-build-contract-sweep.py'='build-contract-sweep.py'}
+          $changed=$false
+          foreach($source in $mapping.Keys){
+            $path=".github/e2e/$source"
+            if(Test-Path $path){Move-Item $path ".github/e2e/$($mapping[$source])" -Force;$changed=$true}
+          }
+          if($changed){
+            git config user.name 'my-sochen'
+            git config user.email 'my-sochen@users.noreply.github.com'
+            $workflow='.github/workflows/ui-contract-sweep.yml'
+            $text=Get-Content $workflow -Raw
+            $begin=$text.IndexOf('      - name: Normalize staged upload filenames')
+            $end=$text.IndexOf('      - uses: actions/setup-dotnet@v6.1.0',$begin)
+            $text=$text.Remove($begin,$end-$begin).Replace('contents: write','contents: read')
+            Set-Content $workflow $text -Encoding utf8
+            git add .github/e2e .github/workflows/ui-contract-sweep.yml
+            git commit -m 'Normalize UI contract scripts after browser upload'
+            if($LASTEXITCODE -ne 0){throw 'Commit failed'}
+            git push origin HEAD:refs/heads/fix/ui-test-contracts
+            if($LASTEXITCODE -ne 0){throw 'Work-branch push failed'}
+          }
+          $head=git rev-parse HEAD
+          "GITHUB_SHA=$head"|Out-File -Append $env:GITHUB_ENV
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Prepare exact candidate contract slices
+        shell: pwsh
+        run: |
+          if($env:RUNNER_ENVIRONMENT -ne 'github-hosted'){throw 'Disposable hosted runner required'}
+          New-Item -ItemType Directory -Force diag,out-images | Out-Null
+          python .github/e2e/build-contract-sweep.py
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          foreach($file in '.github/e2e/cycle1-flow.ps1','.github/e2e/capture-flow.ps1','.github/e2e/contract-cycle.generated.ps1','.github/e2e/contract-capture.generated.ps1'){
+            $tokens=$null;$errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file),[ref]$tokens,[ref]$errors)
+            if($errors.Count){$errors;throw "Parse failed: $file"}
+          }
+      - name: Build unchanged app
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Readiness discrimination checks
+        id: readiness
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/capture-policy/test_capture_readiness.ps1
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Cycle contract sections (independent resets)
+        id: cycle
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .github/e2e/contract-cycle.generated.ps1
+          $code=$LASTEXITCODE
+          if(Test-Path diag/assertions.json){Move-Item diag/assertions.json diag/contracts-cycle.json}
+          exit $code
+      - name: Capture contract sections (independent resets)
+        id: capture
+        if: always() && steps.cycle.outcome != 'skipped'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File .github/e2e/contract-capture.generated.ps1
+          $code=$LASTEXITCODE
+          if(Test-Path diag/assertions.json){Move-Item diag/assertions.json diag/contracts-capture.json}
+          exit $code
+      - name: Consolidated verdict (never FLOW-COMPLETE)
+        if: always()
+        shell: pwsh
+        run: |
+          $bad=$false
+          foreach($part in 'cycle','capture'){
+            $file="diag/contracts-$part.json"
+            if(-not(Test-Path $file)){Write-Host "$part NOT CHECKED";$bad=$true;continue}
+            $results=@(Get-Content $file -Raw|ConvertFrom-Json)
+            $results|Where-Object {$_.name -like 'SECTION *'}|Format-Table name,ok,detail -Wrap
+            if(@($results|Where-Object {-not $_.ok}).Count){$bad=$true}
+          }
+          if('${{ steps.readiness.outcome }}' -ne 'success'){$bad=$true}
+          if($bad){throw 'One or more independent sections failed or were not checked'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: ui-contract-sweep
+          retention-days: 5
+          path: |
+            diag/
+            out-images/
+            .github/e2e/contract-*.generated.ps1
