@@ -94,7 +94,7 @@ public partial class MainWindow : Window
     }
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_updateWindow.CloseApproved && !_trayExitRequested && _tray is not null && DataContext is MainViewModel { KeepRunningInTray: true })
+        if (!_updateWindow.CloseApproved && !_trayExitRequested && _tray is { CanHide: true } && DataContext is MainViewModel { KeepRunningInTray: true })
         {
             e.Cancel = true; Hide(); // Preserve all drafts and running work. Explicit tray Exit still uses the normal guard.
         }
