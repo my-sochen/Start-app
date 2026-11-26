@@ -1,31 +1,35 @@
 using StartApp.Core;
 namespace StartApp.Platform.Windows;
 
-/// <summary>15 seconds to settle, then at most 60 seconds for Windows' internet-connectivity indication.
-/// This is not a per-site reachability guarantee. No external URL probes or private data leave the device.</summary>
+/// <summary>Local readiness at 10 seconds. Sites join at 10 when online, otherwise when online is detected,
+/// or at 25 seconds even offline. No external URL probes. The OS can still delay actual opening.</summary>
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class SignInReadiness : ISignInReadiness
 {
-    public async Task<bool> WaitAsync(CancellationToken cancellationToken)
+    public SignInSchedule Start(CancellationToken token)
     {
-        await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
-        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var local = Task.Delay(TimeSpan.FromSeconds(10), token);
+        return new(local, WaitForSites(local, clock, token));
+    }
+    private static async Task<bool> WaitForSites(Task local, System.Diagnostics.Stopwatch clock, CancellationToken token)
+    {
         Task<bool>? probe = null;
-        while (deadline.Elapsed < TimeSpan.FromSeconds(60))
+        while (clock.Elapsed < TimeSpan.FromSeconds(25))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            // At most one native probe, even if Windows' connectivity service stalls.
-            probe ??= Task.Run(HasInternet, cancellationToken);
-            var remaining = TimeSpan.FromSeconds(60) - deadline.Elapsed;
+            token.ThrowIfCancellationRequested();
+            probe ??= Task.Run(HasInternet, token);
+            var remaining = TimeSpan.FromSeconds(25) - clock.Elapsed;
             if (remaining <= TimeSpan.Zero) break;
-            var pause = Task.Delay(remaining < TimeSpan.FromSeconds(2) ? remaining : TimeSpan.FromSeconds(2), cancellationToken);
+            var pause = Task.Delay(remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250), token);
             if (await Task.WhenAny(probe, pause) == probe)
             {
-                if (await probe) return true;
+                if (await probe) { await local; return true; }
                 probe = null;
                 await pause;
             }
         }
+        token.ThrowIfCancellationRequested();
         return false;
     }
     private static bool HasInternet()
