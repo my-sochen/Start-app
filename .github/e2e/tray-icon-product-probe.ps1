@@ -22,11 +22,17 @@ $env:STARTAPP_CRASHLOG='1';$checks=[Collections.Generic.List[object]]::new()
 function Check($name,$ok){$checks.Add(@{name=$name;ok=[bool]$ok});if(-not $ok){throw "Check failed: $name"}}
 function Shot($name){$b=[Drawing.Bitmap]::new([Windows.Forms.Screen]::PrimaryScreen.Bounds.Width,[Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);$g=[Drawing.Graphics]::FromImage($b);try{$g.CopyFromScreen(0,0,0,0,$b.Size);$b.Save("$Output/$name.png")}finally{$g.Dispose();$b.Dispose()}}
 function TrayButton {
- $shell=$A::RootElement.FindFirst($T::Children,$PC::new($A::ClassNameProperty,'Shell_TrayWnd'))
- if($null -eq $shell){return $null}
- $all=$shell.FindAll($T::Descendants,$PC::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
- foreach($el in $all){if($el.Current.Name -like '*Start App*'){return $el}}
- return $null
+ function FindIcon {
+  $all=$A::RootElement.FindAll($T::Descendants,$PC::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+  foreach($el in $all){if($el.Current.Name -like '*Start App*' -and -not $el.Current.IsOffscreen){return $el}}
+  return $null
+ }
+ $icon=FindIcon;if($null -ne $icon){return $icon}
+ $overflow=$A::RootElement.FindFirst($T::Descendants,$PC::new($A::NameProperty,'Show hidden icons'))
+ if($null -ne $overflow){$overflow.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 350}
+ $icon=FindIcon
+ if($null -eq $icon){$A::RootElement.FindAll($T::Descendants,$PC::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))|ForEach-Object {$_.Current.Name}|Set-Content "$Output/tray-buttons.txt";Shot 'tray-not-found'}
+ return $icon
 }
 function ClickElement($el,$right){$r=$el.Current.BoundingRectangle;Check 'tray target has screen bounds' ($r.Width -gt 0 -and $r.Height -gt 0);[void][TrayProbeNative]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));if($right){[TrayProbeNative]::mouse_event(8,0,0,0,[UIntPtr]::Zero);[TrayProbeNative]::mouse_event(16,0,0,0,[UIntPtr]::Zero)}else{[TrayProbeNative]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[TrayProbeNative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}}
 $p=Start-Process $Exe -PassThru -RedirectStandardError "$Output/stderr.txt" -RedirectStandardOutput "$Output/stdout.txt"
