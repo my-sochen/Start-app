@@ -15,6 +15,7 @@ public partial class MainWindow
         {
             // Fail visible: never hide the only window when the icon could not be created.
             _tray = null;
+            MessageBox.Show(this, "לא ניתן להפעיל את מגש המערכת. סגירת החלון תסגור את התוכנה כרגיל.", "Start App", MessageBoxButton.OK, MessageBoxImage.Warning, MessageBoxResult.OK, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
         }
     }
     internal void RequestTrayExit()
