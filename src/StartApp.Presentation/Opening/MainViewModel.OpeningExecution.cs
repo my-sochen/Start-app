@@ -71,17 +71,17 @@ public sealed partial class MainViewModel
         Raise(nameof(HasOpeningSites)); SelectionPending = true; RaiseCommands();
     }
 
-    private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
+    private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot, bool automaticSignIn = false, bool offline = false)
     {
         SelectionPending = false; _opening.PendingPlan = null; ReopenChoices.Clear();
         var (gen, token) = _openOperation.BeginCheck();
         IsChecking = true;
-        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token));
+        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token, automaticSignIn, offline));
     }
 
     /// <summary>Checks run on at most four background workers, never on the caller's thread, with one overall deadline. A newer Open, a
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
-    private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
+    private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token, bool automaticSignIn, bool offline)
     {
         var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, OpenCheckTimeout, token, ReportLate).ConfigureAwait(true);
         if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
@@ -111,9 +111,9 @@ public sealed partial class MainViewModel
             plan = plan.Select(p => (p.Item, p.Launch, p.Finding, p.Finding.State == PreflightState.Ready ? observed.Detect(p.Item, p.Launch) : OpenState.Unknown)).ToList();
         }
         IsChecking = false;
-        if (_automaticSignInOpening)
+        if (automaticSignIn)
         {
-            if (_startupOffline) plan = plan.Select(p => p.Item.Type == ItemType.Link
+            if (offline) plan = plan.Select(p => p.Item.Type == ItemType.Link
                 ? (p.Item, p.Launch, new PreflightFinding(PreflightState.Unavailable, "לא זוהה חיבור לאינטרנט; האתר לא נבדק ולא נפתח."), p.Dup) : p).ToList();
             // Explicit sign-in opt-in replaces the manual selection only. Already-open items are never reopened silently.
             var alreadyOpen = plan.Select((p, i) => (p, i)).Where(x => x.p.Dup == OpenState.Open).Select(x => x.i).ToHashSet();
