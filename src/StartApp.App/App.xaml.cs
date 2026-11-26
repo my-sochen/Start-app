@@ -28,11 +28,14 @@ public partial class App : Application
         _store = new JsonStore(Path.Combine(dir, "store.json"));
         var (launcher, preflight) = WindowsComposition.Create(); // real adapters; the preflight is required, it is what keeps blocked items from reaching the launcher
         var vm = new MainViewModel(_store, launcher, preflight, detector: new LiveOpenSnapshot(), capturer: new CompositeCapturer(new WindowsOpenItemCapturer(), new BrowserAddressBarCapturer()), fileRevealer: new WindowsFileRevealer());
+        vm.ConfigureWindowsStartup(new WindowsStartupRegistration(Environment.ProcessPath ?? throw new InvalidOperationException("Missing process path")));
         // An unexpected error in an open operation is rethrown on the UI dispatcher (loud, not a silently faulted task); the view model already reset its state and the report.
         vm.UnexpectedError += ex => Dispatcher.BeginInvoke(() => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw());
-        new MainWindow { DataContext = vm }.Show();
+        var window = new MainWindow { DataContext = vm };
+        window.Closed += (_, _) => vm.CancelSignInStartup();
+        window.Show();
         // Logon autostart (installer Run key): open the סביבה גלובלית items after the window is up.
-        if (Array.IndexOf(e.Args, "--autostart") >= 0) vm.OpenGlobalItemsOnStart();
+        if (Array.IndexOf(e.Args, "--autostart") >= 0) vm.StartSignInStartup(new SignInReadiness());
     }
     protected override void OnExit(ExitEventArgs e) { _instance?.Dispose(); _store?.Dispose(); base.OnExit(e); }
 }
