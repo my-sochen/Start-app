@@ -44,4 +44,14 @@ public class SignInStartupTests
     {
         using var repo=Repo();var vm=new MainViewModel(repo,new Launcher());var r=new Registration {Enabled=true};vm.ConfigureWindowsStartup(r);Assert.True(vm.StartsWithWindows);vm.StartsWithWindows=false;Assert.False(r.Enabled);r.Fail=true;vm.StartsWithWindows=true;Assert.False(vm.StartsWithWindows);Assert.NotEmpty(vm.StartupError);
     }
+    sealed class BrokenReadiness : ISignInReadiness { public Task<bool> WaitAsync(CancellationToken token)=>Task.FromException<bool>(new InvalidOperationException("test")); }
+    [Fact] public async Task Unexpected_readiness_failure_is_reported_to_host_without_launch()
+    {
+        using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());Exception? got=null;vm.UnexpectedError+=e=>got=e;vm.StartSignInStartup(new BrokenReadiness());await vm.SignInTask;Assert.IsType<InvalidOperationException>(got);Assert.Empty(launcher.Sent);
+    }
+    sealed class OpenDetector : IOpenStateDetector {public OpenState Detect(Item i,LaunchConfig? c)=>OpenState.Open;}
+    [Fact] public async Task Confirmed_already_open_items_are_skipped_without_selection_or_claiming_user_declined()
+    {
+        using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight(),new OpenDetector());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Empty(launcher.Sent);Assert.False(vm.SelectionPending);Assert.False(vm.OpenDecisionPending);Assert.All(vm.LastOpeningResults,x=>Assert.DoesNotContain("בחרת",x.Message));
+    }
 }
