@@ -54,4 +54,21 @@ public class SignInStartupTests
     {
         using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight(),new OpenDetector());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Empty(launcher.Sent);Assert.False(vm.SelectionPending);Assert.False(vm.OpenDecisionPending);Assert.All(vm.LastOpeningResults,x=>Assert.DoesNotContain("בחרת",x.Message));
     }
+    [Fact] public async Task Turning_off_startup_during_wait_prevents_pending_automatic_launch()
+    {
+        using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());var r=new Registration{Enabled=true};vm.ConfigureWindowsStartup(r);var wait=new Waiting();vm.StartSignInStartup(wait);vm.StartsWithWindows=false;wait.Gate.SetResult(true);await vm.SignInTask;Assert.Empty(launcher.Sent);
+    }
+    [Fact] public async Task Deleted_default_during_wait_keeps_only_global_items_and_never_uses_another_workspace()
+    {
+        using var repo=Repo();Fill(repo);repo.Mutate(c=>{c.CreateWorkspace("other");c.AddGlobalEntry(GlobalListKind.GlobalItems,ItemType.File,"global",@"C:\global.txt");});var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());var wait=new Waiting();vm.StartSignInStartup(wait);repo.Mutate(c=>c.DeleteWorkspace(vm.DefaultWorkspaceId!));vm.Reload();wait.Gate.SetResult(true);await vm.SignInTask;Assert.Equal(new[]{"global"},launcher.Sent);
+    }
+    sealed class PartialRegistration : IWindowsStartupRegistration {public bool Enabled;public bool IsEnabled()=>Enabled;public void SetEnabled(bool enabled){Enabled=enabled;throw new IOException("verification failed");}}
+    [Fact] public void Partial_registration_failure_refreshes_the_actual_state()
+    {
+        using var repo=Repo();var vm=new MainViewModel(repo,new Launcher());vm.ConfigureWindowsStartup(new PartialRegistration());vm.StartsWithWindows=true;Assert.True(vm.StartsWithWindows);Assert.NotEmpty(vm.StartupError);
+    }
+    [Fact] public async Task Empty_chosen_workspace_does_not_fall_back_or_open_a_selection_dialog()
+    {
+        using var repo=Repo();repo.Mutate(c=>{var empty=c.CreateWorkspace("empty");c.Store.DefaultWorkspaceId=empty.Id;var other=c.CreateWorkspace("other");c.AddToWorkspace(other.Id,c.GetOrAddItem(ItemType.File,"wrong",@"C:\wrong.txt").Id);});var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Empty(launcher.Sent);Assert.False(vm.SelectionPending);
+    }
 }
