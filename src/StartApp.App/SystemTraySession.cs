@@ -24,7 +24,8 @@ internal sealed class SystemTraySession : IDisposable
     public SystemTraySession(MainWindow window)
     {
         _window = window;
-        using var stream = Application.GetResourceStream(new Uri("pack://application:,,,/StartApp.App;component/Assets/start-app-ufo.ico")).Stream;
+        using var stream = (Application.GetResourceStream(new Uri("pack://application:,,,/StartApp.App;component/Assets/start-app-ufo.ico"))
+            ?? throw new System.IO.IOException("Tray icon resource is missing")).Stream;
         _art = new System.Drawing.Icon(stream);
         _icon = new() { Icon = _art, Text = "Start App", Visible = true };
         _icon.MouseUp += MouseUp;
