@@ -55,7 +55,7 @@ jobs:
         run: |
           pwsh -NoProfile -File .github/e2e/contract-capture.generated.ps1
           $code=$LASTEXITCODE
-          if(Test-Path diag/assertions.json){Move-Item diag/assertions.json diag/contracts-capture.json}
+          if(Test-Path diag/capture-assertions.json){Move-Item diag/capture-assertions.json diag/contracts-capture.json}
           exit $code
       - name: Consolidated verdict (never FLOW-COMPLETE)
         if: always()
