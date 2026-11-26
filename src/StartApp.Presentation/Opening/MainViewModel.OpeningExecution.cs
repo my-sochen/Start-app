@@ -83,7 +83,9 @@ public sealed partial class MainViewModel
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
     private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token, bool automaticSignIn, Func<Item, CancellationToken, Task>? beforeLaunch)
     {
-        var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, OpenCheckTimeout, token, ReportLate).ConfigureAwait(true);
+        // Reserve the initial ten seconds for checks. A stalled check is skipped, not allowed to delay all ready local items.
+        var checkTimeout = automaticSignIn && OpenCheckTimeout > TimeSpan.FromSeconds(4) ? TimeSpan.FromSeconds(4) : OpenCheckTimeout;
+        var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, checkTimeout, token, ReportLate).ConfigureAwait(true);
         if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
         stop();
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
@@ -100,7 +102,7 @@ public sealed partial class MainViewModel
             using var observationStop = CancellationTokenSource.CreateLinkedTokenSource(token);
             var observation = source.ObserveAsync(plan.Where(p => p.Finding.State == PreflightState.Ready).Select(p => p.Item).ToArray(), observationStop.Token);
             IOpenStateDetector observed;
-            if (await Task.WhenAny(observation, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true) == observation)
+            if (await Task.WhenAny(observation, Task.Delay(checkTimeout, token)).ConfigureAwait(true) == observation)
                 observed = await observation.ConfigureAwait(true);
             else
             {
