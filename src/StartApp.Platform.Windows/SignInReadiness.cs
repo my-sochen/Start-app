@@ -17,6 +17,7 @@ public sealed class SignInReadiness : ISignInReadiness
             // At most one native probe, even if Windows' connectivity service stalls.
             probe ??= Task.Run(HasInternet, cancellationToken);
             var remaining = TimeSpan.FromSeconds(60) - deadline.Elapsed;
+            if (remaining <= TimeSpan.Zero) break;
             var pause = Task.Delay(remaining < TimeSpan.FromSeconds(2) ? remaining : TimeSpan.FromSeconds(2), cancellationToken);
             if (await Task.WhenAny(probe, pause) == probe)
             {
