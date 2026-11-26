@@ -20,8 +20,8 @@ public partial class MainWindow
     internal void RequestTrayExit()
     {
         _trayExitRequested = true;
-        Close();
+        try { Close(); }
+        finally { _trayExitRequested = false; }
         // A cancelled unsaved-change prompt must not turn the next normal close into a full exit.
-        _trayExitRequested = false;
     }
 }
