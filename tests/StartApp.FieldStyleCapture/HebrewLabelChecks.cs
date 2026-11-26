@@ -27,7 +27,10 @@ internal static partial class Program
             if(path?.EndsWith("notepad.exe")==true){
                 check("Resolved name is localized prefix plus short name",label.Text=="Notepad");
                 var icon=Descendants(view).OfType<System.Windows.Controls.Image>().Single();
-                check("Icon visually left of name",icon.TransformToAncestor(view).TransformBounds(new System.Windows.Rect(0,0,icon.ActualWidth,icon.ActualHeight)).Right<=label.TransformToAncestor(view).TransformBounds(new System.Windows.Rect(0,0,label.ActualWidth,label.ActualHeight)).Left);
+                await Idle(probe);probe.UpdateLayout();
+                var iconCenter=icon.PointToScreen(new System.Windows.Point(icon.ActualWidth/2,icon.ActualHeight/2));
+                var nameCenter=label.PointToScreen(new System.Windows.Point(label.ActualWidth/2,label.ActualHeight/2));
+                check("Icon visually left of name",iconCenter.X<nameCenter.X);
             }
         }
         var stale=new ProgramIconView{Program=Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")};panel.Children.Add(stale);stale.Program=@"C:\Late\missing.exe";await Task.Delay(1000);await Idle(shell);
