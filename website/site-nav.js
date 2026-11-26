@@ -18,7 +18,7 @@ function tr(text) { return typeof window !== "undefined" && window.StartAppI18n 
  * to a real navigation. No inline script, no eval, same-origin fetch only.
  */
 (function () {
-  var PAGES = { "index.html": "index.html", "docs.html": "docs.html", "": "index.html" };
+  var PAGES = { "index.html": "index.html", "docs.html": "docs.html", "docs": "docs.html", "index": "index.html", "": "index.html" };
   var cache = {};
   var token = 0;
   var saveTimer = null;

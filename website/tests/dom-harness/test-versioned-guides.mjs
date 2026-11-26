@@ -28,6 +28,7 @@ async function mark(p){await p.evaluate(()=>{const b=document.createElement('p')
 try{
  for(const n of [1,2])for(const lang of langs){
   const folder=lang==='he'?'':lang+'/';const url=(n===1?'proto1/':'')+folder+'docs.html';const p=await pageFor(url);
+  check(await p.$$eval('.doc-download a.button',a=>a.length===1&&a[0].getAttribute('href')===document.querySelector('.doc-version-download a').getAttribute('href')&&a[0].textContent.trim().length>0),`${n}/${lang} prominent existing-style button retains exact version and locale target`);
   const state=await p.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,lang:document.documentElement.lang,version:document.querySelector('.version-switch summary')?.textContent,ctas:document.querySelectorAll('[data-download-cta]').length,download:document.querySelector('.doc-version-download a')?.href,images:[...document.querySelectorAll('img')].map(i=>({src:i.src,alt:i.alt,ok:i.complete&&i.naturalWidth>0})),switches:[...document.querySelectorAll('.language-switch a')].map(a=>a.href)}));
   check(state.lang===lang&&!state.overflow,`${n}/${lang} layout and language`);check(state.ctas===0&&state.version.includes('0.1.0-proto.'+n),`${n}/${lang} fixed guide version and no download control`);
   check(new URL(state.download).pathname==='/Start-app/'+folder+'index.html'&&new URL(state.download).search==='?version=v0.1.0-proto.'+n,`${n}/${lang} correct locale version link`);
@@ -37,7 +38,7 @@ try{
   await p.setViewport({width:390,height:844});check(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${n}/${lang} mobile no overflow`);await p.screenshot({path:out+`/proto${n}-${lang}-mobile.png`,fullPage:true});
   // Version dropdown uses real navigation. Back restores the original version.
   await p.$eval('.version-switch',e=>e.open=true);await Promise.all([p.waitForNavigation({waitUntil:'networkidle0'}),p.click('.version-switch a:not([aria-current])')]);check((await p.url()).includes('/proto1/')===(n===2),`${n}/${lang} version navigation`);await p.goBack({waitUntil:'networkidle0'});check(p.url().endsWith('/'+url),`${n}/${lang} history back`);await p.goForward({waitUntil:'networkidle0'});check((await p.url()).includes('/proto1/')===(n===2),`${n}/${lang} history forward`);await p.goBack({waitUntil:'networkidle0'});
-  await Promise.all([p.waitForNavigation({waitUntil:'networkidle0'}),p.click('.doc-version-download a')]);await p.waitForSelector('.version-target');
+  await Promise.all([p.waitForNavigation({waitUntil:'networkidle0'}),p.click('.doc-download a.button')]);await p.waitForSelector('.version-target');
   check(await p.$eval('.version-target',(e,n)=>e.dataset.tag==='v0.1.0-proto.'+n,n),`${n}/${lang} requested row highlighted`);check(await p.$eval('.version-target',e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}),`${n}/${lang} target visible after scroll`);
   await mark(p);await p.screenshot({path:out+`/proto${n}-${lang}-highlight.png`});await p.close();
  }
