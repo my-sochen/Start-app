@@ -20,6 +20,7 @@ internal sealed class SystemTraySession : IDisposable
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Drawing.Icon _art;
     private ContextMenu? _menu;
+    private bool _disposed;
     public SystemTraySession(MainWindow window)
     {
         _window = window;
@@ -37,13 +38,14 @@ internal sealed class SystemTraySession : IDisposable
     }
     internal void Restore()
     {
+        if (_disposed) return; // Native callbacks already queued before a full exit must not reopen a closed Window.
         _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
     }
     internal ContextMenu BuildMenu()
     {
-        var menu = new ContextMenu { FlowDirection = FlowDirection.RightToLeft, Placement = PlacementMode.MousePoint };
+        var menu = new ContextMenu { FlowDirection = FlowDirection.RightToLeft, Placement = PlacementMode.MousePoint, MaxHeight = SystemParameters.WorkArea.Height - 16 };
         menu.Items.Add(ActionMenu.Action("פתח את Start App", Restore));
         var environments = new MenuItem { Header = "שגר סביבה" };
         if (_window.DataContext is MainViewModel vm)
@@ -71,6 +73,7 @@ internal sealed class SystemTraySession : IDisposable
         !vm.AddressEditOpen && !vm.DesignEditOpen && !vm.UnsavedOpen && vm.OpenWorkspaceForCommand.CanExecute(workspace);
     internal void ShowMenu()
     {
+        if (_disposed) return;
         if (_menu is not null) _menu.IsOpen = false;
         // Give a notification-area popup the foreground so an outside click dismisses it, even while hidden.
         var handle = new WindowInteropHelper(_window).Handle;
@@ -81,6 +84,8 @@ internal sealed class SystemTraySession : IDisposable
     }
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         if (_menu is not null) _menu.IsOpen = false;
         _icon.MouseUp -= MouseUp; _icon.DoubleClick -= DoubleClick; _icon.Visible = false; _icon.Dispose(); _art.Dispose();
     }
