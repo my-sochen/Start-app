@@ -46,7 +46,8 @@ Section 'home-create-four-types' {
   AddManual 'Program' 'C:\Windows\notepad.exe' 'Contract program'
   $o=StoreObj;$w=@($o.workspaces|Where-Object name -eq 'Contract workspace')[0]
   Assert 'all four exact types persisted' (@($w.items).Count -eq 4 -and @($o.items.PSObject.Properties.Value|Select-Object -ExpandProperty type -Unique).Count -eq 4) (StoreJson)
-  foreach($label in @('אתרים','תוכנות','קבצים','תיקיות')){Assert "Hebrew group $label rendered" (WaitText $label 2) ((Texts)-join '|')}
+  $groups=@(UiaAll $CT::Group|ForEach-Object {$_.Current.Name});Info 'observed four-group identities' ($groups -join '|')
+  foreach($label in @('Sites','Programs','Files','Folders')){Assert "type group $label exposed" ($groups -contains $label) ($groups -join '|')}
   $c=ClickBtn 'Back' 300;Assert 'current back route reaches home' ($c -eq 'ok' -and (HomeShown)) $c
 }
 Section 'manual-duplicates' {
@@ -93,6 +94,8 @@ function UntickSource {foreach($cb in @(Checks)){[void](EnsureToggle $cb 'source
 Section 'capture-new-palette-dirty-guard' {
   ResetContractApp;$c=OpenCaptureMenu 'סביבה חדשה';Assert 'capture new visible' ($c -eq 'ok' -and (CaptureShown 10)) $c
   Assert 'capture new scan complete' (WaitGone 'סורק' 30) ''
+  [void][ContractWindow]::SetForegroundWindow($p.MainWindowHandle)
+  [void][W]::SetWindowPos($p.MainWindowHandle,[IntPtr](-1),0,0,0,0,3);Start-Sleep -Milliseconds 500
   ShotRaw 'current-capture-note-20261126'
   $note=@(UiaAll $CT::Text | Where-Object { $_.Current.Name -like 'לא נמצא קובץ?*' -and -not $_.Current.IsOffscreen })
   Assert 'persistent limitation note exposed for requested screenshot' ($note.Count -eq 1) ''
@@ -104,6 +107,7 @@ Section 'capture-new-palette-dirty-guard' {
   $bitmap=New-Object System.Drawing.Bitmap ([int]$bounds.Width),([int]$bounds.Height)
   $graphics=[Drawing.Graphics]::FromImage($bitmap);$graphics.CopyFromScreen([int]$bounds.Left,[int]$bounds.Top,0,0,$bitmap.Size)
   $bitmap.Save("$PWD/out-images/current-capture-tooltip-20261126.png");$graphics.Dispose();$bitmap.Dispose()
+  [void][W]::SetWindowPos($p.MainWindowHandle,[IntPtr](-2),0,0,0,0,3)
   [void][W]::SetCursorPos(5,5)
   $palette=CapPalette;Assert 'unique scoped current palette exposed' ($null -ne $palette) ''
   Info 'observed palette UIA type' $palette.Current.ControlType.ProgrammaticName
