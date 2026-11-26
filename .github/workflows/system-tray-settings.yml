@@ -16,7 +16,7 @@ jobs:
       - name: Tray storage and close guard contracts only
         shell: pwsh
         run: |
-          dotnet test tests/StartApp.Storage.Json.Tests -c Release --filter "FullyQualifiedName~TrayPreferenceTests|FullyQualifiedName~AdvancedColorStorageTests|FullyQualifiedName~Schema4Tests"
+          dotnet test tests/StartApp.Storage.Json.Tests -c Release --filter "FullyQualifiedName~TrayPreferenceTests|FullyQualifiedName~AdvancedColorStorageTests|FullyQualifiedName~Schema4Tests|FullyQualifiedName~DescriptionStorageTests|FullyQualifiedName~CategoryUpgradeTests"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~TrayPreferenceViewModelTests|FullyQualifiedName~CreateFormGuardTests|FullyQualifiedName~UnsavedExitSessionTests"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
