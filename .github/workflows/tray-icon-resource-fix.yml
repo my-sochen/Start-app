@@ -3,6 +3,8 @@ on:
   push:
     branches: [fix/tray-icon-resource]
     paths: [.github/workflows/tray-icon-resource-fix.yml]
+env:
+  PYTHONUTF8: 1
 permissions:
   contents: read
 jobs:
@@ -48,7 +50,7 @@ jobs:
           $data=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'StartApp'
           if(Test-Path $data){Move-Item $data ($data+'-saved-'+[guid]::NewGuid().ToString('N'))}
           & ./tools/portable-entry/smoke-candidate.ps1 -Extracted extracted -EvidenceDirectory evidence/launcher -OwnershipHelper tests/portable-entry/OwnedTree.cs
-      - name: Existing focused tray binding and close guard harness
+      - name: Existing focused tray binding, missing resource and close guard harness
         shell: pwsh
         run: |
           dotnet build tests/StartApp.TrayCapture -c Release
