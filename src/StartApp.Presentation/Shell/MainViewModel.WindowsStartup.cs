@@ -17,7 +17,7 @@ public sealed partial class MainViewModel
             _startupError = "";
             try { _startup.SetEnabled(value); _startsWithWindows = _startup.IsEnabled(); }
             catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException)
-            { _startupError = "לא ניתן לשנות הפעלה עם Windows. בדקו הרשאות ונסו שוב. המצב הקודם נשמר."; }
+            { _startupError = "לא ניתן לשנות הפעלה עם Windows. בדקו הרשאות ונסו שוב. בדקו שוב את המצב לפני ניסיון נוסף."; }
             Raise(nameof(StartsWithWindows)); Raise(nameof(StartupError));
         }
     }
