@@ -24,6 +24,12 @@ public sealed partial class MainViewModel
         {
             var online = await readiness.WaitAsync(token);
             token.ThrowIfCancellationRequested();
+            // A sign-in opt-out made during the wait takes effect immediately for this launch too.
+            if (_startup is not null)
+            {
+                RefreshWindowsStartup();
+                if (!_startsWithWindows || _startupError.Length > 0) return;
+            }
             // Never reset a draft or another opening started during the settle/network wait.
             if (ReadOnly || CreateDirty || DetailsDirty || CaptureOpen || ItemEditOpen || AddressEditOpen || DesignEditOpen || IsChecking || IsLaunching || SelectionPending || OpenDecisionPending)
             {
