@@ -9,7 +9,7 @@ internal static partial class Program
 {
     private static async Task HebrewLabels(Window shell,JsonStore store,MainViewModel vm,string output,Action<string,bool> check)
     {
-        var saved=store.Load().Workspaces.Single();store.Mutate(c=>c.SetLaunch(saved.Id,saved.Items.Single().Id!,new LaunchConfig(Browser:Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe"))));
+        var saved=store.Load().Workspaces.Single();store.Mutate(c=>{var file=c.GetOrAddItem(ItemType.File,"Text file",@"C:\fixture.txt");c.AddToWorkspace(saved.Id,file.Id,new LaunchConfig(OpenWith:Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")));});
         vm.Reload();vm.OpenDetailsCommand.Execute(vm.Workspaces.Single());await Idle(shell);await Task.Delay(1500);await Take(shell,output,"hebrew-real-row");
         check("Real row uses Hebrew",Descendants(shell).OfType<TextBlock>().Any(x=>x.Text=="Notepad" && AutomationProperties.GetName(x)=="נפתח באמצעות: Notepad"));
         var panel=new StackPanel{FlowDirection=System.Windows.FlowDirection.RightToLeft,Margin=new Thickness(24)};
@@ -24,7 +24,11 @@ internal static partial class Program
             for(var i=0;i<30 && !string.IsNullOrWhiteSpace(path) && label.Text==path;i++){await Task.Delay(100);await Idle(shell);}
             check("Settled prefix "+path,AutomationProperties.GetName(label).StartsWith("נפתח באמצעות: ") && !label.Text.Contains("Opens with:"));
             if(path?.Contains("missing.exe")==true)check("Missing program keeps full path",label.Text==path);
-            if(path?.EndsWith("notepad.exe")==true)check("Resolved name is localized prefix plus short name",label.Text=="Notepad");
+            if(path?.EndsWith("notepad.exe")==true){
+                check("Resolved name is localized prefix plus short name",label.Text=="Notepad");
+                var icon=Descendants(view).OfType<System.Windows.Controls.Image>().Single();
+                check("Icon visually left of name",icon.TranslatePoint(new System.Windows.Point(0,0),view).X+icon.ActualWidth<=label.TranslatePoint(new System.Windows.Point(0,0),view).X);
+            }
         }
         var stale=new ProgramIconView{Program=Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")};panel.Children.Add(stale);stale.Program=@"C:\Late\missing.exe";await Task.Delay(1000);await Idle(shell);
         check("Late icon cannot overwrite new path",Descendants(stale).OfType<TextBlock>().Any(x=>x.Text==@"C:\Late\missing.exe"));
