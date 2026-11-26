@@ -34,7 +34,7 @@ public partial class App : Application
         var window = new MainWindow { DataContext = vm };
         window.Closed += (_, _) => vm.CancelSignInStartup();
         window.Show();
-        // Logon autostart (installer Run key): open the סביבה גלובלית items after the window is up.
+        // Sign-in only: settle/network wait, then shared global/default opening with normal checks and results.
         if (Array.IndexOf(e.Args, "--autostart") >= 0) vm.StartSignInStartup(new SignInReadiness());
     }
     protected override void OnExit(ExitEventArgs e) { _instance?.Dispose(); _store?.Dispose(); base.OnExit(e); }
