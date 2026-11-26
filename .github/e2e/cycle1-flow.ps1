@@ -234,7 +234,7 @@ try {
   Start-Sleep -Milliseconds 600
   Assert 'three rows listed (targets visible)' ((@(Texts) | Where-Object { $_ -eq 'https://example.com/' -or $_ -like '*ok.txt' -or $_ -like '*missing.txt' }).Count -ge 3) ((Texts) -join ' | ')
   $groups = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-  Assert 'items grouped: current Hebrew sites and files headers shown' ((WaitText 'אתרים' 2) -and (WaitText 'קבצים' 2)) ("groups: $($groups -join ', ')")
+  Assert 'sites and files groups exposed by current UIA identity' (($groups -contains 'Sites') -and ($groups -contains 'Files')) ("groups: $($groups -join ', ')")
   Assert 'details category combo still shows כללי after adds' ((ComboValue (NamedCombo 'Workspace category')) -eq 'כללי') (ComboValue (NamedCombo 'Workspace category'))
   Shot 'details-items-added'
   # 3. duplicate add: warn, cancel keeps one instance, confirm adds an independent second instance
@@ -2773,7 +2773,7 @@ public static class WinCap {
   [void](SetType 'Program'); SetText $targetBox4 'C:\Windows\notepad.exe'; SetText $itemNameBox4 'Four program'; $c = ClickBtn 'Add item' 600; Assert 'add four program' ($c -eq 'ok') $c
   Start-Sleep -Milliseconds 800
   $groups4 = @($win.FindAll($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Group))) | ForEach-Object { $_.Current.Name })
-  Assert 'four visible Hebrew group headers shown' ((@(@('אתרים','תוכנות','קבצים','תיקיות') | Where-Object { -not (WaitText $_ 2) }).Count -eq 0)) ("groups: $($groups4 -join ', ')")
+  Assert 'four type groups exposed by current UIA identity' ((@(@('Sites','Programs','Files','Folders') | Where-Object { $groups4 -notcontains $_ }).Count -eq 0)) ("groups: $($groups4 -join ', ')")
   Assert 'four rows listed, one per type' ((@(Texts) | Where-Object { $_ -eq 'https://four.example/' -or $_ -like '*ok.txt' -or $_ -like '*notepad.exe' -or $_ -eq "$root" }).Count -ge 4) ((Texts) -join ' | ')
   Shot 'four-groups'
   # 13. saved-item delete (מחיקה): removes exactly one membership by id; canonical full-field snapshots prove the rest untouched
