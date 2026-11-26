@@ -342,12 +342,12 @@ try {
   # icon + name display (settled Nov 14): the row shows the program icon and a short name; the full path stays in the
   # tooltip. A plain StackPanel has no UIA peer, so the accessible contract is the exposed TextBlock: content = UIA
   # name, AutomationProperties.HelpText = full path; the icon is the Image sibling under the same parent panel.
-  Assert 'opens-with shows the short name, not the path' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
-  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: Notepad')))
+  Assert 'opens-with shows the short name, not the path' (WaitText 'נפתח באמצעות: Notepad' 10) ((Texts) -join ' | ')
+  $owTb = $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'נפתח באמצעות: Notepad')))
   Assert 'opens-with tooltip keeps the full path' ($null -ne $owTb -and $owTb.Current.HelpText -like '*notepad.exe*') ("help=$(if ($owTb) { $owTb.Current.HelpText } else { 'no-element' })")
   $owImg = $null; if ($owTb) { $owP = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($owTb); if ($owP) { $owImg = $owP.FindFirst($TS::Descendants, (New-Object $PC($A::ControlTypeProperty, $CT::Image))) } }
   Assert 'opens-with icon element present next to the name' ($null -ne $owImg) ''
-  Assert 'full path no longer shown as row text' (@(@(Texts) | Where-Object { $_ -eq 'Opens with: C:\Windows\notepad.exe' }).Count -eq 0) ((Texts) -join ' | ')
+  Assert 'full path no longer shown as row text' (@(@(Texts) | Where-Object { $_ -eq 'נפתח באמצעות: C:\Windows\notepad.exe' }).Count -eq 0) ((Texts) -join ' | ')
   Shot 'open-with-saved'
   # fallback (settled Nov 14): an exe whose icon cannot be read keeps the full-path text; then restore notepad.exe
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the fallback case' ($c -eq 'ok') $c
@@ -357,8 +357,8 @@ try {
   $cb = AnyByName 'Set as default'; [void](EnsureToggle $cb 'set-as-default checkbox' $true)
   $c = ClickBtn 'Open with chosen program' 1500; Assert 'fallback open-with go clicked' ($c -eq 'ok') $c
   Assert 'store.json: missing-exe choice saved' ((StoreJson) -match 'notepad2\.exe') (StoreJson)
-  Assert 'missing exe falls back to the full-path text' (WaitText 'Opens with: C:\Windows\notepad2.exe' 10) ((Texts) -join ' | ')
-  Assert 'no icon + name panel for the missing exe' ($null -eq $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'Opens with: notepad2')))) ''
+  Assert 'missing exe falls back to the full-path text' (WaitText 'נפתח באמצעות: C:\Windows\notepad2.exe' 10) ((Texts) -join ' | ')
+  Assert 'no icon + name panel for the missing exe' ($null -eq $win.FindFirst($TS::Descendants, (New-Object $PC($A::NameProperty, 'נפתח באמצעות: notepad2')))) ''
   Shot 'open-with-fallback'
   $c = ClickBtn 'Item actions' 900; Assert 'item actions menu opened for the restore' ($c -eq 'ok') $c
   $mi = AnyByName 'פתח באמצעות'; [void](InvokeEl $mi 'open-with entry'); Start-Sleep -Milliseconds 800
@@ -372,7 +372,7 @@ try {
   Start-Sleep -Milliseconds 500
   try { $win.SetFocus() } catch { }  # raise the app window back over anything the external process left behind
   Start-Sleep -Milliseconds 300
-  Assert 'icon + name back after the restore' (WaitText 'Opens with: Notepad' 10) ((Texts) -join ' | ')
+  Assert 'icon + name back after the restore' (WaitText 'נפתח באמצעות: Notepad' 10) ((Texts) -join ' | ')
   Shot 'open-with-restored'
   # 4. details editing: change shows Save; save persists
   $wsNameBox2 = NamedEdit 'Workspace name'

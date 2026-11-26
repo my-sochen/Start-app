@@ -21,11 +21,11 @@ public sealed class ProgramIconView : StackPanel
         var gen = ++_generation; var path = Program;
         Visibility = string.IsNullOrWhiteSpace(path) ? Visibility.Collapsed : Visibility.Visible;
         _icon.Source = null; _icon.Visibility = Visibility.Collapsed;
-        _label.Text = "Opens with: " + path; _label.ToolTip = path; AutomationProperties.SetHelpText(_label, path ?? "");
+        _label.Text = "נפתח באמצעות: " + path; _label.ToolTip = path; AutomationProperties.SetHelpText(_label, path ?? "");
         if (!IsLoaded || string.IsNullOrWhiteSpace(path)) return;
         var icon = await TargetIconLoader.Get(path, "Program");
         if (gen != _generation || !IsLoaded || icon is null) return;
         _icon.Source = icon; _icon.Visibility = Visibility.Visible;
-        _label.Text = "Opens with: " + ProgramDisplayNames.Resolve(path);
+        _label.Text = "נפתח באמצעות: " + ProgramDisplayNames.Resolve(path);
     }
 }

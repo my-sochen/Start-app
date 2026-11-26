@@ -42,6 +42,7 @@ internal static partial class Program
         void Check(string name,bool ok){Checks.Add(new{name,ok});if(!ok)throw new Exception(name);}
         shell.ContentRendered += async (_,_) => {
             try {
+                if(args.Length==2 && args[1]=="hebrew") { await HebrewLabels(shell,repo,vm,output,Check);File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));return; }
                 vm.ShowCreateScreen(); await Idle(shell);
                 var create=Descendants(shell).OfType<CreateWorkspaceView>().Single();
                 var input=Descendants(create).OfType<TextBox>().First(x=>x.IsVisible);
