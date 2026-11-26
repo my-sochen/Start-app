@@ -22,9 +22,9 @@ $env:STARTAPP_CRASHLOG='1';$checks=[Collections.Generic.List[object]]::new()
 function Check($name,$ok){$checks.Add(@{name=$name;ok=[bool]$ok});if(-not $ok){throw "Check failed: $name"}}
 function Shot($name){$b=[Drawing.Bitmap]::new([Windows.Forms.Screen]::PrimaryScreen.Bounds.Width,[Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);$g=[Drawing.Graphics]::FromImage($b);try{$g.CopyFromScreen(0,0,0,0,$b.Size);$b.Save("$Output/$name.png")}finally{$g.Dispose();$b.Dispose()}}
 function TrayButton {
- $shell=$A::RootElement.FindFirst($T::Children,[PC]::new($A::ClassNameProperty,'Shell_TrayWnd'))
+ $shell=$A::RootElement.FindFirst($T::Children,$PC::new($A::ClassNameProperty,'Shell_TrayWnd'))
  if($null -eq $shell){return $null}
- $all=$shell.FindAll($T::Descendants,[PC]::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+ $all=$shell.FindAll($T::Descendants,$PC::new($A::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
  foreach($el in $all){if($el.Current.Name -like '*Start App*'){return $el}}
  return $null
 }
@@ -36,7 +36,7 @@ try{
  [void]$p.CloseMainWindow();Start-Sleep -Milliseconds 800;$p.Refresh();Check 'close hides and keeps actual process alive' (-not $p.HasExited -and -not [TrayProbeNative]::IsWindowVisible($h));Shot '02-hidden'
  ClickElement (TrayButton) $false;Start-Sleep -Milliseconds 700;Check 'native tray click restores window' ([TrayProbeNative]::IsWindowVisible($h));Shot '03-restored'
  ClickElement (TrayButton) $true;Start-Sleep -Milliseconds 500;Shot '04-tray-menu'
- $exit=$A::RootElement.FindFirst($T::Descendants,[PC]::new($A::NameProperty,'יציאה מלאה'));Check 'native tray full-exit action present' ($null -ne $exit);$exit.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Check 'native full exit ends actual process' ($p.WaitForExit(10000));Check 'actual process exits cleanly' ($p.ExitCode -eq 0)
+ $exit=$A::RootElement.FindFirst($T::Descendants,$PC::new($A::NameProperty,'יציאה מלאה'));Check 'native tray full-exit action present' ($null -ne $exit);$exit.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Check 'native full exit ends actual process' ($p.WaitForExit(10000));Check 'actual process exits cleanly' ($p.ExitCode -eq 0)
 }finally{
  $checks|ConvertTo-Json -Depth 5|Set-Content "$Output/checks.json";if(Test-Path "$data/crash.log"){Copy-Item "$data/crash.log" "$Output/crash.log"};if(-not $p.HasExited){$p.Kill($true);$p.WaitForExit()};$p.Dispose()
 }
