@@ -1,0 +1,55 @@
+name: cycle1-theme-blue-targeted
+# Targeted run after the one-line assertion repair.
+on:
+  push:
+    branches: [fix/cycle1-theme-blue]
+    paths: [.github/workflows/cycle1-theme-blue-targeted.yml]
+permissions:
+  contents: read
+jobs:
+  create-default:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build unchanged product
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj -c Release
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Run exact Cycle-1 creation assertions only
+        shell: pwsh
+        run: |
+          if($env:RUNNER_ENVIRONMENT -ne 'github-hosted'){throw 'Disposable hosted runner required'}
+          New-Item -ItemType Directory -Force diag,out-images | Out-Null
+          $source=Get-Content .github/e2e/cycle1-flow.ps1 -Raw
+          $end=$source.IndexOf('  # 2. manual adds in the details screen:')
+          $cleanup=$source.LastIndexOf('catch { $il = $_.InvocationInfo; "script error:')
+          if($end -lt 0 -or $cleanup -le $end){throw 'Cannot isolate creation section safely'}
+          # Keep the real script setup, UI actions, assertions, screenshot and cleanup.
+          # Stop before unrelated item-adding/capture/launch flows, without changing their source.
+          $target=$source.Substring(0,$end)+"`n}`n"+$source.Substring($cleanup)
+          $path='.github/e2e/cycle1-create-targeted.generated.ps1'
+          Set-Content $path $target -Encoding utf8
+          $tokens=$null;$errors=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
+          if($errors.Count -gt 0){$errors;throw 'Targeted script parse failure'}
+          pwsh -NoProfile -File $path
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          $results=@(Get-Content diag/assertions.json -Raw|ConvertFrom-Json)
+          $default=@($results|Where-Object name -eq 'create uses its displayed default blue and no image')
+          if($default.Count -ne 1 -or -not $default[0].ok){throw 'Expected default assertion did not run and pass'}
+          if(@($results|Where-Object {-not $_.ok}).Count -gt 0){throw 'A targeted assertion failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: cycle1-theme-blue-targeted
+# Targeted run after the one-line assertion repair.
+          path: |
+            diag/
+            out-images/
+            .github/e2e/cycle1-create-targeted.generated.ps1
+          retention-days: 5
