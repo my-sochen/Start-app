@@ -31,8 +31,8 @@ public partial class MainWindow : Window
         Updates.StartupUpdateAvailable += ShowStartupUpdate;
         Updates.StagedUpdateReady += OnStagedUpdateReady;
         DataContextChanged += (_, _) => Hook();
-        Loaded += async (_, _) => { Hook(); await Updates.CheckOnStartupOnceAsync(); };
-        Closed += (_, _) => { Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.StagedUpdateReady -= OnStagedUpdateReady; Updates.Dispose(); };
+        Loaded += async (_, _) => { Hook(); InitializeTray(); await Updates.CheckOnStartupOnceAsync(); };
+        Closed += (_, _) => { _tray?.Dispose(); _tray = null; Detach(); Updates.StartupUpdateAvailable -= ShowStartupUpdate; Updates.StagedUpdateReady -= OnStagedUpdateReady; Updates.Dispose(); };
     }
     // Phase 2: the verified package is staged - launch the apply helper and close for the swap.
     private void OnStagedUpdateReady(StagedUpdate staged)
@@ -94,7 +94,11 @@ public partial class MainWindow : Window
     }
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_updateWindow.CloseApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
+        if (!_updateWindow.CloseApproved && !_trayExitRequested && _tray is not null && DataContext is MainViewModel { KeepRunningInTray: true })
+        {
+            e.Cancel = true; Hide(); // Preserve all drafts and running work. Explicit tray Exit still uses the normal guard.
+        }
+        else if (!_updateWindow.CloseApproved && DataContext is MainViewModel vm && !vm.RequestAppClose()) e.Cancel = true;
         base.OnClosing(e);
     }
     // Capture dropdown (לכידה): anchored under its button at the window's left edge, so it opens downward and stays inside the window.
