@@ -49,7 +49,8 @@ internal static class Program
                 var dirtyMenu=window.Tray.BuildMenu();Check("Dirty editor disables workspace switch",!((MenuItem)((MenuItem)dirtyMenu.Items[1]).Items[0]).IsEnabled);
                 window.RequestTrayExit();Check("Explicit exit guards draft",window.IsVisible && vm.UnsavedOpen);await Take(window,output,"06-exit-guard");vm.CloseUnsavedCommand.Execute(null);
                 window.Close();Check("Cancelled explicit exit resets policy",!window.IsVisible && vm.CreateDirty);window.Tray.Restore();
-                window.RequestTrayExit();vm.ExitWithoutSavingCommand.Execute(null);Check("Approved full exit disposes icon",window.Tray is null);
+                var closedTray=window.Tray;window.RequestTrayExit();vm.ExitWithoutSavingCommand.Execute(null);Check("Approved full exit disposes icon",window.Tray is null);
+                closedTray!.Restore();closedTray.ShowMenu();closedTray.Dispose();Check("Late native callbacks after exit are safe",window.Tray is null);
                 var updateVm=new MainViewModel(repo,new NotImplementedLauncher());
                 var updating=new MainWindow(new UpdateViewModel(new InactiveUpdateSource(),null,_=>{})) { DataContext=updateVm };updating.Show();await Settle(updating);
                 // This is the same approved-close continuation used by update apply, without running an updater.
