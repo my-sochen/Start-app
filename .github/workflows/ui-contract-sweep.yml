@@ -24,20 +24,14 @@ jobs:
           if($changed){
             git config user.name 'my-sochen'
             git config user.email 'my-sochen@users.noreply.github.com'
-            $workflow='.github/workflows/ui-contract-sweep.yml'
-            $text=Get-Content $workflow -Raw
-            $begin=$text.IndexOf('      - name: Normalize staged upload filenames')
-            $end=$text.IndexOf('      - uses: actions/setup-dotnet@v6.1.0',$begin)
-            $text=$text.Remove($begin,$end-$begin).Replace('contents: write','contents: read')
-            Set-Content $workflow $text -Encoding utf8
-            git add .github/e2e .github/workflows/ui-contract-sweep.yml
+            git add .github/e2e
             git commit -m 'Normalize UI contract scripts after browser upload'
             if($LASTEXITCODE -ne 0){throw 'Commit failed'}
             git push origin HEAD:refs/heads/fix/ui-test-contracts
             if($LASTEXITCODE -ne 0){throw 'Work-branch push failed'}
           }
           $head=git rev-parse HEAD
-          "GITHUB_SHA=$head"|Out-File -Append $env:GITHUB_ENV
+          "CONTRACT_SHA=$head"|Out-File -Append $env:GITHUB_ENV
       - uses: actions/setup-dotnet@v6.1.0
         with:
           dotnet-version: '10.0.404'
