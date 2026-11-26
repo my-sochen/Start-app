@@ -4,34 +4,13 @@ on:
     branches: [fix/ui-test-contracts]
     paths: ['.github/e2e/**', '.github/workflows/ui-contract-sweep.yml']
 permissions:
-  contents: write
+  contents: read
 jobs:
   contracts:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Normalize staged upload filenames on this work branch only
-        shell: pwsh
-        run: |
-          if($env:GITHUB_REF -ne 'refs/heads/fix/ui-test-contracts'){throw 'Wrong branch'}
-          $mapping=@{'4-cycle1-flow.ps1'='cycle1-flow.ps1';'5-capture-flow.ps1'='capture-flow.ps1';'6-build-contract-sweep.py'='build-contract-sweep.py'}
-          $changed=$false
-          foreach($source in $mapping.Keys){
-            $path=".github/e2e/$source"
-            if(Test-Path $path){Move-Item $path ".github/e2e/$($mapping[$source])" -Force;$changed=$true}
-          }
-          if($changed){
-            git config user.name 'my-sochen'
-            git config user.email 'my-sochen@users.noreply.github.com'
-            git add .github/e2e
-            git commit -m 'Normalize UI contract scripts after browser upload'
-            if($LASTEXITCODE -ne 0){throw 'Commit failed'}
-            git push origin HEAD:refs/heads/fix/ui-test-contracts
-            if($LASTEXITCODE -ne 0){throw 'Work-branch push failed'}
-          }
-          $head=git rev-parse HEAD
-          "CONTRACT_SHA=$head"|Out-File -Append $env:GITHUB_ENV
       - uses: actions/setup-dotnet@v6.1.0
         with:
           dotnet-version: '10.0.404'
