@@ -52,6 +52,13 @@ public sealed partial class MainViewModel
             if (missing) ShowToast("סביבת ברירת המחדל לא נמצאה. נבדקו רק הפריטים הגלובליים; לא נפתחה סביבה אחרת במקומה.", true);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception e)
+        {
+            ShowToast("הפתיחה האוטומטית נעצרה בגלל תקלה. אפשר לנסות פתיחה ידנית.", true);
+            var handler = UnexpectedError;
+            if (handler is null) throw;
+            handler(e);
+        }
         finally { _automaticSignInOpening = false; }
     }
 }
