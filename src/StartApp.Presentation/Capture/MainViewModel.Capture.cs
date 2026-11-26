@@ -96,7 +96,7 @@ public sealed partial class MainViewModel
     {
         CaptureNewCommand = Cmd(_ => StartCapture(CaptureStage.NewForm, true), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CaptureExistingCommand = Cmd(_ => StartCapture(CaptureStage.PickWorkspace, false), _ => !ReadOnly && !CaptureOpen && InOverview && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
-        OpenSettingsCommand = Cmd(_ => { InAllItems = false; InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
+        OpenSettingsCommand = Cmd(_ => { RefreshWindowsStartup(); InAllItems = false; InGlobalEnv = false; InSettings = true; }, _ => !_inSettings);
         CloseSettingsCommand = Cmd(_ => InSettings = false, _ => _inSettings);
         AddFromOpenCommand = Cmd(_ => StartCapture(CaptureStage.SideBySide, false, Selected!.Id), _ => !ReadOnly && !CaptureOpen && InDetails && Selected != null && !IsChecking && !IsLaunching && !SelectionPending && !OpenDecisionPending);
         CapturePickWorkspaceCommand = Cmd(p => EnterSideBySide(((Workspace)p!).Id), p => p is Workspace && _captureSession.Stage == CaptureStage.PickWorkspace);
