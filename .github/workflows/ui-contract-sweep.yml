@@ -1,7 +1,7 @@
 name: ui-contract-sweep
 on:
   push:
-    branches: [fix/ui-test-contracts]
+    branches: [fix/capture-tooltip-wrap]
     paths: ['.github/e2e/**', '.github/workflows/ui-contract-sweep.yml']
 permissions:
   contents: read
@@ -26,7 +26,9 @@ jobs:
             [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file),[ref]$tokens,[ref]$errors)
             if($errors.Count){$errors;throw "Parse failed: $file"}
           }
-      - name: Build unchanged app
+      - name: Tooltip source contracts
+        run: dotnet test tests/StartApp.Presentation.Tests -c Release --filter FullyQualifiedName~CaptureTooltipSourceTests
+      - name: Build app
         shell: pwsh
         run: |
           dotnet build src/StartApp.App/StartApp.App.csproj -c Release
@@ -66,6 +68,11 @@ jobs:
             $file="diag/contracts-$part.json"
             if(-not(Test-Path $file)){Write-Host "$part NOT CHECKED";$bad=$true;continue}
             $results=@(Get-Content $file -Raw|ConvertFrom-Json)
+            $expected=if($part -eq 'cycle'){@('home-create-four-types','manual-duplicates','saved-menu-and-picker','category-and-unsaved')}else{@('capture-new-palette-dirty-guard','capture-stage-arrow-dropdown-delete','capture-site-default-save-duplicate','capture-program-and-below-viewport-removal')}
+            $sections=@($results|Where-Object {$_.name -like 'SECTION *'})
+            $names=@($sections|ForEach-Object {$_.name})
+            if($sections.Count -ne 4){$bad=$true;Write-Host "$part requires exactly four section results"}
+            foreach($name in $expected){if(@($names|Where-Object {$_ -eq "SECTION $name complete"}).Count -ne 1){$bad=$true;Write-Host "Missing, repeated, or failed section: $name"}}
             $results|Where-Object {$_.name -like 'SECTION *'}|Format-Table name,ok,detail -Wrap
             if(@($results|Where-Object {-not $_.ok}).Count){$bad=$true}
           }
