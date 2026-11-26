@@ -1,0 +1,64 @@
+name: tray-icon-resource-fix
+on:
+  push:
+    branches: [fix/tray-icon-resource]
+    paths: [.github/workflows/tray-icon-resource-fix.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Icon sources and tray guard contracts
+        shell: pwsh
+        run: |
+          python tests/app-icon/test_icon_sources.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~TrayPreferenceViewModelTests|FullyQualifiedName~UnsavedExitSessionTests"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exact product startup and native notification area
+        shell: pwsh
+        run: |
+          dotnet build src/StartApp.App/StartApp.App.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./.github/e2e/tray-icon-product-probe.ps1 -Exe (Join-Path $PWD 'src/StartApp.App/bin/Release/net10.0-windows/StartApp.App.exe') -Output evidence/direct
+      - name: Publish and extract actual portable ZIP
+        shell: pwsh
+        run: |
+          dotnet publish src/StartApp.App/StartApp.App.csproj -c Release -r win-x64 --self-contained true -p:StartAppReleaseVersion=0.1.0-proto.2 -p:StartAppSourceCommit=${{ github.sha }} -o payload
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - shell: cmd
+        run: tools\portable-entry\build.cmd
+      - name: Verify extracted product tray lifecycle
+        shell: pwsh
+        run: |
+          & ./tools/portable-entry/package.ps1 -Payload payload -Launcher portable-build/Start-app.exe -Destination portable
+          Compress-Archive portable/* product.zip
+          Expand-Archive product.zip extracted
+          # Execute the actual payload from the extracted ZIP, not the UI harness.
+          & ./.github/e2e/tray-icon-product-probe.ps1 -Exe (Join-Path $PWD 'extracted/App/StartApp.App.exe') -Output evidence/extracted
+      - name: Exact extracted launcher smoke
+        shell: pwsh
+        run: |
+          $data=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'StartApp'
+          if(Test-Path $data){Move-Item $data ($data+'-saved-'+[guid]::NewGuid().ToString('N'))}
+          & ./tools/portable-entry/smoke-candidate.ps1 -Extracted extracted -EvidenceDirectory evidence/launcher -OwnershipHelper tests/portable-entry/OwnedTree.cs
+      - name: Existing focused tray binding and close guard harness
+        shell: pwsh
+        run: |
+          dotnet build tests/StartApp.TrayCapture -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $p=Start-Process 'tests/StartApp.TrayCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe' -ArgumentList ('"'+(Join-Path $PWD 'evidence/focused')+'"') -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Focused tray timeout'}
+          if($p.ExitCode -ne 0){Get-Content evidence/focused/error.txt;throw 'Focused tray failed'}
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: tray-icon-resource-evidence
+          path: evidence/
+          retention-days: 5
