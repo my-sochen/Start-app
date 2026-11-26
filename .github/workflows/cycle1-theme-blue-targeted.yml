@@ -1,4 +1,5 @@
 name: cycle1-theme-blue-targeted
+# Targeted run after the one-line assertion repair.
 on:
   push:
     branches: [fix/cycle1-theme-blue]
@@ -46,6 +47,7 @@ jobs:
         if: always()
         with:
           name: cycle1-theme-blue-targeted
+# Targeted run after the one-line assertion repair.
           path: |
             diag/
             out-images/
