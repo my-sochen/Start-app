@@ -160,7 +160,7 @@ public sealed partial class MainViewModel : ObservableBase
     // workspace+instance captured when the form opened, and dirty forms block workspace switches and row
     // deletion, so a preserved form can neither crash nor silently retarget.
     public string Status { get => _status; private set { Set(ref _status, value); PresentLegacyStatus(value); } }
-    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); Raise(nameof(CanChooseWorkspaceColor)); RaiseCommands(); } }
+    public bool ReadOnly { get => _readOnly; private set { Set(ref _readOnly, value); Raise(nameof(SaveBlocked)); Raise(nameof(CanChangeTrayPreference)); Raise(nameof(CanChooseWorkspaceColor)); RaiseCommands(); } }
     public ItemType NewItemType { get => _manualAdd.Type; set { if (_manualAdd.Type != value) { _manualAdd.Type = value; Raise(nameof(NewItemType)); } Raise(nameof(NewItemTypeIndex)); ClearDup(); } }
     public string NewTarget { get => _manualAdd.Target; set { if (_manualAdd.Target != value) { _manualAdd.Target = value; Raise(nameof(NewTarget)); }
         if (Uri.TryCreate(value, UriKind.Absolute, out var pasted) && (pasted.Scheme == Uri.UriSchemeHttp || pasted.Scheme == Uri.UriSchemeHttps)) NewItemType = ItemType.Link;
@@ -298,7 +298,7 @@ public sealed partial class MainViewModel : ObservableBase
     private Store _current = new();
     private void Show(Store s)
     {
-        _current = s; var keep = Selected?.Id;
+        _current = s; Raise(nameof(KeepRunningInTray)); var keep = Selected?.Id;
         RefreshCategories();
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
         ApplyView();
