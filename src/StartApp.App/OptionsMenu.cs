@@ -38,6 +38,8 @@ public partial class MainWindow
     }
 
     /// <summary>The picker chooses on row activation. The view model confirms replacement or removal.</summary>
+    internal void ChooseStartupWorkspace(MainViewModel vm) => OpenDefaultEnvPicker(vm);
+
     private void OpenDefaultEnvPicker(MainViewModel vm)
     {
         var picker = new DefaultEnvPickerWindow(vm) { Owner = this };

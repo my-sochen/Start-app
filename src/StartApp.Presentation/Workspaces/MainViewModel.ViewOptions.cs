@@ -134,7 +134,7 @@ public sealed partial class MainViewModel
     private void ApplyDefaultWorkspace(string? workspaceId)
     {
         if (!Apply(c => c.Store.DefaultWorkspaceId = workspaceId)) return;
-        Raise(nameof(DefaultWorkspaceId)); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel));
+        Raise(nameof(DefaultWorkspaceId)); Raise(nameof(StartupWorkspaceDisplay)); Raise(nameof(SelectedIsDefault)); Raise(nameof(DefaultToggleLabel));
         if (workspaceId is { Length: > 0 } && _current.Workspaces.FirstOrDefault(w => w.Id == workspaceId) is { } w)
             ShowToast($"הסביבה '{w.Name}' הוגדרה כברירת מחדל · תיפתח עם הפעלת המחשב", false);
         else

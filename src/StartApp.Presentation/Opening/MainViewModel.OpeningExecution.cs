@@ -71,19 +71,21 @@ public sealed partial class MainViewModel
         Raise(nameof(HasOpeningSites)); SelectionPending = true; RaiseCommands();
     }
 
-    private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot)
+    private void StartSelectedCheck(List<(Membership M, Item? Item)> snapshot, bool automaticSignIn = false, Func<Item, CancellationToken, Task>? beforeLaunch = null)
     {
         SelectionPending = false; _opening.PendingPlan = null; ReopenChoices.Clear();
         var (gen, token) = _openOperation.BeginCheck();
         IsChecking = true;
-        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token));
+        OpenTask = Guard(gen, CheckThenOpenAsync(snapshot, gen, token, automaticSignIn, beforeLaunch));
     }
 
     /// <summary>Checks run on at most four background workers, never on the caller's thread, with one overall deadline. A newer Open, a
     /// selection change or Cancel makes this run stale: its result is dropped. Probes already blocked in the OS cannot be cancelled but are bounded (see FileSystemProbe).</summary>
-    private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token)
+    private async Task CheckThenOpenAsync(List<(Membership M, Item? Item)> snapshot, int gen, CancellationToken token, bool automaticSignIn, Func<Item, CancellationToken, Task>? beforeLaunch)
     {
-        var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, OpenCheckTimeout, token, ReportLate).ConfigureAwait(true);
+        // Reserve the initial ten seconds for checks. A stalled check is skipped, not allowed to delay all ready local items.
+        var checkTimeout = automaticSignIn && OpenCheckTimeout > TimeSpan.FromSeconds(4) ? TimeSpan.FromSeconds(4) : OpenCheckTimeout;
+        var (done, stop) = await _checkRunner.RunAsync(snapshot, _preflight, _detector, checkTimeout, token, ReportLate).ConfigureAwait(true);
         if (!_openOperation.IsCurrent(gen) || token.IsCancellationRequested) return;
         stop();
         var plan = new List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)>();
@@ -100,7 +102,7 @@ public sealed partial class MainViewModel
             using var observationStop = CancellationTokenSource.CreateLinkedTokenSource(token);
             var observation = source.ObserveAsync(plan.Where(p => p.Finding.State == PreflightState.Ready).Select(p => p.Item).ToArray(), observationStop.Token);
             IOpenStateDetector observed;
-            if (await Task.WhenAny(observation, Task.Delay(OpenCheckTimeout, token)).ConfigureAwait(true) == observation)
+            if (await Task.WhenAny(observation, Task.Delay(checkTimeout, token)).ConfigureAwait(true) == observation)
                 observed = await observation.ConfigureAwait(true);
             else
             {
@@ -111,6 +113,12 @@ public sealed partial class MainViewModel
             plan = plan.Select(p => (p.Item, p.Launch, p.Finding, p.Finding.State == PreflightState.Ready ? observed.Detect(p.Item, p.Launch) : OpenState.Unknown)).ToList();
         }
         IsChecking = false;
+        if (automaticSignIn)
+        {
+            // Explicit sign-in opt-in replaces the manual selection only. Already-open items are never reopened silently.
+            var alreadyOpen = plan.Select((p, i) => (p, i)).Where(x => x.p.Dup == OpenState.Open).Select(x => x.i).ToHashSet();
+            await LaunchAsync(plan, alreadyOpen, beforeLaunch); return;
+        }
         var confirmed = plan.Select((p, i) => (p, i)).Where(x => x.p.Finding.State == PreflightState.Ready && x.p.Dup == OpenState.Open).ToList();
         if (confirmed.Count == 0) { await LaunchAsync(plan); return; }
         _opening.PendingPlan = plan;
@@ -171,12 +179,12 @@ public sealed partial class MainViewModel
 
     /// <summary>Starts items one after another on a background worker (Process.Start can block). Cancel stops FURTHER items only: requests already sent cannot be undone
     /// and are reported. A start call that is blocked in the OS cannot be interrupted; only the single launch worker is ever held by it.</summary>
-    private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null)
+    private async Task LaunchAsync(List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan, HashSet<int>? declined = null, Func<Item, CancellationToken, Task>? beforeLaunch = null)
     {
         var cts = _openOperation.BeginLaunch(); IsLaunching = true;
         var (results, fault) = DedicatedBrowserWindows
             ? await DedicatedWindowLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true)
-            : await OpeningLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined).ConfigureAwait(true);
+            : await OpeningLaunchRunner.RunAsync(plan, _launcher, cts.Token, declined, beforeLaunch).ConfigureAwait(true);
         OpenReport.Clear(); LastOpeningResults.Clear();
         foreach (var r in results.OrderBy(r => r.IsProblem ? 0 : 1)) { LastOpeningResults.Add(r); OpenReport.Add(r.Name + ": " + r.Message); }
         var sent = results.Count(r => r.Outcome == OpeningOutcome.RequestSent);

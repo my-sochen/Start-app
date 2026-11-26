@@ -298,7 +298,7 @@ public sealed partial class MainViewModel : ObservableBase
     private Store _current = new();
     private void Show(Store s)
     {
-        _current = s; Raise(nameof(KeepRunningInTray)); var keep = Selected?.Id;
+        _current = s; Raise(nameof(KeepRunningInTray)); Raise(nameof(StartupWorkspaceDisplay)); var keep = Selected?.Id;
         RefreshCategories();
         Workspaces.Clear(); foreach (var w in s.Workspaces) Workspaces.Add(w);
         ApplyView();

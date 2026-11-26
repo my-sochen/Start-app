@@ -66,6 +66,23 @@
                     </StackPanel>
                 </Border>
 
+                <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Border Background="#f0f3f8" Padding="12,7" CornerRadius="4,4,0,0"><TextBlock Text="הפעלה עם Windows" FontSize="12" HorizontalAlignment="Right" FontWeight="SemiBold" Foreground="#222833"/></Border>
+                        <CheckBox Content="להפעיל את Start App בכניסה ל-Windows" FlowDirection="RightToLeft" Margin="14,12" HorizontalAlignment="Right"
+                                  IsChecked="{Binding DataContext.StartsWithWindows, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                  IsEnabled="{Binding DataContext.CanChangeWindowsStartup, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Start with Windows"/>
+                        <TextBlock Text="כבוי כברירת מחדל, אלא אם נבחר בהתקנה. המתג מציג ומשנה את אותה הגדרה של המתקין. בהפעלה ידנית לא תיפתח הסביבה אוטומטית." Style="{StaticResource HintText}" Margin="14,0,14,10"/>
+                        <TextBlock Text="סביבה לפתיחה בכניסה:" FontSize="12" HorizontalAlignment="Right" Margin="14,0,14,4"/>
+                        <DockPanel Margin="14,0,14,10">
+                            <Button Content="בחירת סביבה" Click="ChooseStartupWorkspace_Click" Style="{StaticResource SettingsSecondaryButton}" DockPanel.Dock="Left" AutomationProperties.Name="Choose startup workspace"/>
+                            <TextBlock Text="{Binding DataContext.StartupWorkspaceDisplay, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                        <TextBlock Text="בכניסה בלבד: תוכנות, קבצים ותיקיות נפתחים אחרי 10 שניות. אתרים נפתחים יחד איתם אם זוהה אינטרנט, אחרת עם זיהוי החיבור ועד 25 שניות לכל היותר, גם בלי אינטרנט. הסביבה תיפתח אוטומטית ללא דיאלוג הבחירה. פריטים חסומים או לא זמינים ידולגו ויופיעו בדוח. הזמנים קובעים מתי נשלחות בקשות הפתיחה; בדיקות הפריטים ו-Windows עלולים לעכב בפועל. פריטי הסביבה הגלובלית ימשיכו להיפתח בכניסה. בחירת הסביבה משותפת להגדרת ברירת המחדל בתפריט ובכרטיסים. בגרסה ניידת, העברת התוכנה למיקום אחר מחייבת להפעיל מחדש את המתג." Style="{StaticResource HintText}" Margin="14,0,14,10"/>
+                        <TextBlock Text="{Binding DataContext.StartupError, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#9B3030" FlowDirection="RightToLeft" TextWrapping="Wrap" Margin="14,0,14,8" AutomationProperties.Name="Windows startup error"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- group 1: עדכונים -->
                 <Border Background="White" BorderBrush="#dfe4ec" BorderThickness="1" CornerRadius="4">
                     <StackPanel>

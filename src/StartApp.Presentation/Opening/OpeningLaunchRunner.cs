@@ -2,32 +2,41 @@ using StartApp.Core;
 
 namespace StartApp.Presentation;
 
-/// <summary>Runs launch requests sequentially off the caller thread and records exact outcomes.
+/// <summary>Runs launch requests off the caller thread and records exact outcomes. Manual runs use one sequential queue;
+/// sign-in uses independent sequential local/site queues so network readiness or a blocked local start cannot hold sites.
 /// Cancel only stops later requests. No store, UI state, timestamp, toast or exception display access.</summary>
 public static class OpeningLaunchRunner
 {
     public static async Task<(List<OpeningResult> Results, Exception? Fault)> RunAsync(
         List<(Item Item, LaunchConfig? Launch, PreflightFinding Finding, OpenState Dup)> plan,
-        IItemLauncher launcher, CancellationToken token, HashSet<int>? declined = null)
+        IItemLauncher launcher, CancellationToken token, HashSet<int>? declined = null, Func<Item, CancellationToken, Task>? beforeLaunch = null)
     {
-        var results = new List<OpeningResult>(); Exception? fault = null;
-        await Task.Run(() =>
+        var results = new OpeningResult?[plan.Count]; Exception? fault = null;
+        async Task RunIndices(IEnumerable<int> indices)
         {
-            try { for (int i = 0; i < plan.Count; i++)
+            foreach (var i in indices)
             {
                 var p = plan[i];
-                if (token.IsCancellationRequested) { results.Add(new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה.")); continue; }
-                if (declined?.Contains(i) == true) { results.Add(new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. בחרת שלא לפתוח שוב.")); continue; }
-                if (NeverLaunched(p.Finding.State)) { results.Add(new(p.Item, OpeningOutcome.Skipped, SkipExplanation(p.Finding), p.Finding.Detail)); continue; }
-                var r = launcher.Launch(p.Item, p.Launch);
-                results.Add(r.Status == LaunchStatus.Started
-                    ? new(p.Item, OpeningOutcome.RequestSent, "בקשת הפתיחה נשלחה. אין בכך אישור שהפריט נטען.")
-                    : new(p.Item, OpeningOutcome.Failed, "בקשת הפתיחה נכשלה. בדקו את הכתובת, ההרשאות והתוכנה שנבחרה ונסו שוב.", r.Detail ?? r.Status.ToString()));
-            } }
-            catch (Exception e) { fault = e; }
-        }).ConfigureAwait(true);
-        if (fault != null) foreach (var p in plan.Skip(results.Count)) results.Add(new(p.Item, OpeningOutcome.Failed, "לא נפתח: הפעולה נעצרה בגלל תקלה.", fault.GetType().Name));
-        return (results, fault);
+                try
+                {
+                    if (token.IsCancellationRequested) { results[i] = new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה."); continue; }
+                    if (declined?.Contains(i) == true) { results[i] = new(p.Item, OpeningOutcome.DeclinedReopen, "כבר פתוח. לא נשלחה בקשת פתיחה נוספת."); continue; }
+                    if (NeverLaunched(p.Finding.State)) { results[i] = new(p.Item, OpeningOutcome.Skipped, SkipExplanation(p.Finding), p.Finding.Detail); continue; }
+                    if (beforeLaunch is not null) await beforeLaunch(p.Item, token);
+                    var r = await Task.Run(() => launcher.Launch(p.Item, p.Launch));
+                    results[i] = r.Status == LaunchStatus.Started
+                        ? new(p.Item, OpeningOutcome.RequestSent, "בקשת הפתיחה נשלחה. אין בכך אישור שהפריט נטען.")
+                        : new(p.Item, OpeningOutcome.Failed, "בקשת הפתיחה נכשלה. בדקו את הכתובת, ההרשאות והתוכנה שנבחרה ונסו שוב.", r.Detail ?? r.Status.ToString());
+                }
+                catch (OperationCanceledException) when (beforeLaunch is not null || token.IsCancellationRequested)
+                { results[i] = new(p.Item, OpeningOutcome.Cancelled, "לא נשלחה בקשת פתיחה כי הפעולה בוטלה."); }
+                catch (Exception e) { fault ??= e; break; }
+            }
+        }
+        if (beforeLaunch is null) await RunIndices(Enumerable.Range(0, plan.Count));
+        else await Task.WhenAll(RunIndices(Enumerable.Range(0, plan.Count).Where(i=>plan[i].Item.Type!=ItemType.Link)), RunIndices(Enumerable.Range(0, plan.Count).Where(i=>plan[i].Item.Type==ItemType.Link)));
+        for (var i=0;i<results.Length;i++) results[i] ??= new(plan[i].Item, OpeningOutcome.Failed, "לא נפתח: הפעולה נעצרה בגלל תקלה.", fault?.GetType().Name);
+        return (results.Select(x=>x!).ToList(), fault);
     }
 
     internal static bool NeverLaunched(PreflightState s) => s is PreflightState.Missing or PreflightState.Unavailable or PreflightState.Unsupported or PreflightState.NeedsDecision;

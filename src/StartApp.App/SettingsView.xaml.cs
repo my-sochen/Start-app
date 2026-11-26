@@ -5,6 +5,10 @@ using StartApp.Presentation;
 namespace StartApp.App;
 public partial class SettingsView : UserControl
 {
+    private void ChooseStartupWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is MainWindow window && window.DataContext is MainViewModel vm) window.ChooseStartupWorkspace(vm);
+    }
     private UpdateViewModel? _hooked;
     public SettingsView()
     {
