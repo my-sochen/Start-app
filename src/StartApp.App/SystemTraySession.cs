@@ -24,11 +24,15 @@ internal sealed class SystemTraySession : IDisposable
     public SystemTraySession(MainWindow window)
     {
         _window = window;
-        using var stream = Application.GetResourceStream(new Uri("pack://application:,,,/StartApp.App;component/Assets/start-app-ufo.ico")).Stream;
-        _art = new System.Drawing.Icon(stream);
+        _art = LoadIcon(Application.GetResourceStream(new Uri("pack://application:,,,/StartApp.App;component/Assets/start-app-ufo.ico")));
         _icon = new() { Icon = _art, Text = "Start App", Visible = true };
         _icon.MouseUp += MouseUp;
         _icon.DoubleClick += DoubleClick;
+    }
+    internal static System.Drawing.Icon LoadIcon(System.Windows.Resources.StreamResourceInfo? resource)
+    {
+        using var stream = (resource ?? throw new System.IO.IOException("Tray icon resource is missing")).Stream;
+        return new System.Drawing.Icon(stream);
     }
     private void DoubleClick(object? sender, EventArgs e) => _window.Dispatcher.BeginInvoke(Restore);
     private void MouseUp(object? sender, System.Windows.Forms.MouseEventArgs e)
