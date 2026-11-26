@@ -1,0 +1,42 @@
+name: count-label-spacing
+on:
+  push:
+    branches: [fix/rtl-item-count-spacing]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Real baseline and candidate count screens
+        shell: pwsh
+        run: |
+          $root=$PWD.Path
+          git worktree add ../count-baseline 94c3686
+          Copy-Item tests/StartApp.FieldStyleCapture/Program.cs ../count-baseline/tests/StartApp.FieldStyleCapture/Program.cs -Force
+          Copy-Item tests/StartApp.FieldStyleCapture/CountLabelChecks.cs ../count-baseline/tests/StartApp.FieldStyleCapture/CountLabelChecks.cs -Force
+          foreach($case in 'baseline','candidate'){
+            $dir=if($case -eq 'baseline'){Join-Path (Split-Path $root) 'count-baseline'}else{$root}
+            Push-Location $dir
+            dotnet build tests/StartApp.FieldStyleCapture -c Release
+            if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+            $binary=Join-Path $dir 'tests/StartApp.FieldStyleCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe'
+            $output=Join-Path $root "count-evidence/$case"
+            $p=Start-Process $binary -ArgumentList ('"'+$output+'" counts') -PassThru
+            if(-not $p.WaitForExit(120000)){$p.Kill($true);throw 'Count fixture timeout'}
+            if($p.ExitCode -ne 0){Get-Content "$output/error.txt";throw 'Count fixture failed'}
+            Pop-Location
+          }
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: count-label-evidence
+          path: count-evidence/
+          retention-days: 5
