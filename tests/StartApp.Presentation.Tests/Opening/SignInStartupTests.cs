@@ -5,14 +5,14 @@ using Xunit;
 public class SignInStartupTests
 {
     sealed class Ready(bool online=true) : ISignInReadiness { public SignInSchedule Start(CancellationToken token)=>new(Task.CompletedTask,Task.FromResult(online)); }
-    sealed class Launcher : IItemLauncher { public List<string> Sent=new();public LaunchResult Launch(Item item,LaunchConfig? config){Sent.Add(item.Name);return new(LaunchStatus.Started);} }
+    sealed class Launcher : IItemLauncher { public System.Collections.Concurrent.ConcurrentQueue<string> Sent=new();public LaunchResult Launch(Item item,LaunchConfig? config){Sent.Enqueue(item.Name);return new(LaunchStatus.Started);} }
     sealed class Preflight : IItemPreflight { public PreflightFinding Check(Item i,LaunchConfig? c)=>new(i.Name=="missing"?PreflightState.Missing:PreflightState.Ready); }
     static JsonStore Repo()=>new(Path.Combine(Path.GetTempPath(),"startup-"+Guid.NewGuid().ToString("N"),"store.json"));
     static void Fill(JsonStore repo) => repo.Mutate(c=>{var w=c.CreateWorkspace("chosen");c.Store.DefaultWorkspaceId=w.Id;c.AddToWorkspace(w.Id,c.GetOrAddItem(ItemType.Link,"site","https://example.org/").Id);c.AddToWorkspace(w.Id,c.GetOrAddItem(ItemType.File,"local",@"C:\test.txt").Id);c.AddToWorkspace(w.Id,c.GetOrAddItem(ItemType.File,"missing",@"C:\missing.txt").Id);});
     [Fact] public async Task Signin_automatically_checks_opens_ready_reports_missing_and_runs_once()
     {
         using var repo=Repo();Fill(repo);var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());
-        vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.False(vm.SelectionPending);Assert.Equal(new[]{"local","site"},launcher.Sent);Assert.Equal(3,vm.LastOpeningResults.Count);Assert.Contains(vm.LastOpeningResults,x=>x.Name=="missing"&&x.Outcome==OpeningOutcome.Skipped);
+        vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.False(vm.SelectionPending);Assert.Equal(new[]{"local","site"},launcher.Sent.OrderBy(x=>x));Assert.Equal(3,vm.LastOpeningResults.Count);Assert.Contains(vm.LastOpeningResults,x=>x.Name=="missing"&&x.Outcome==OpeningOutcome.Skipped);
         vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Equal(2,launcher.Sent.Count);
     }
     [Fact] public async Task Offline_deadline_still_opens_ready_sites()
@@ -37,7 +37,7 @@ public class SignInStartupTests
     }
     [Fact] public async Task Global_items_and_chosen_environment_share_report_without_fallback()
     {
-        using var repo=Repo();Fill(repo);repo.Mutate(c=>c.AddGlobalEntry(GlobalListKind.GlobalItems,ItemType.File,"global",@"C:\global.txt"));var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Equal(new[]{"global","local","site"},launcher.Sent);Assert.Equal(4,vm.LastOpeningResults.Count);
+        using var repo=Repo();Fill(repo);repo.Mutate(c=>c.AddGlobalEntry(GlobalListKind.GlobalItems,ItemType.File,"global",@"C:\global.txt"));var launcher=new Launcher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.StartSignInStartup(new Ready());await vm.SignInTask;Assert.Equal(new[]{"global","local","site"},launcher.Sent.OrderBy(x=>x));Assert.Equal(4,vm.LastOpeningResults.Count);
     }
     sealed class Registration : IWindowsStartupRegistration {public bool Enabled;public bool Fail; public bool IsEnabled()=>Enabled;public void SetEnabled(bool value){if(Fail)throw new UnauthorizedAccessException();Enabled=value;} }
     [Fact] public void Windows_toggle_reads_actual_state_and_failed_change_stays_visible()
@@ -88,5 +88,14 @@ public class SignInStartupTests
     [Fact] public async Task Internet_arriving_between_gates_releases_sites_before_deadline()
     {
         using var repo=Repo();Fill(repo);var launcher=new SignalLauncher();var vm=new MainViewModel(repo,launcher,new Preflight());var gates=new SplitReadiness();vm.StartSignInStartup(gates);gates.Local.SetResult();await launcher.LocalSent.Task.WaitAsync(TimeSpan.FromSeconds(3));gates.Sites.SetResult(true);await vm.SignInTask;Assert.Contains("site",launcher.Sent);
+    }
+    sealed class BlockingLocalLauncher : IItemLauncher
+    {
+        public ManualResetEventSlim Release=new();public TaskCompletionSource SiteSent=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public LaunchResult Launch(Item i,LaunchConfig? c){if(i.Type==ItemType.Link)SiteSent.TrySetResult();else Release.Wait(TimeSpan.FromSeconds(5));return new(LaunchStatus.Started);}
+    }
+    [Fact] public async Task Blocked_local_launch_cannot_hold_sites_behind_it()
+    {
+        using var repo=Repo();Fill(repo);var launcher=new BlockingLocalLauncher();var vm=new MainViewModel(repo,launcher,new Preflight());vm.StartSignInStartup(new Ready(false));try{await launcher.SiteSent.Task.WaitAsync(TimeSpan.FromSeconds(3));}finally{launcher.Release.Set();}await vm.SignInTask;Assert.Contains(vm.LastOpeningResults,x=>x.Name=="site"&&x.Outcome==OpeningOutcome.RequestSent);
     }
 }
