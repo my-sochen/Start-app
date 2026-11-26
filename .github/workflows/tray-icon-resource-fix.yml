@@ -24,6 +24,8 @@ jobs:
           dotnet test tests/StartApp.Presentation.Tests -c Release --filter "FullyQualifiedName~TrayPreferenceViewModelTests|FullyQualifiedName~UnsavedExitSessionTests"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exact product startup and native notification area
+        id: direct
+        continue-on-error: true
         shell: pwsh
         run: |
           dotnet build src/StartApp.App/StartApp.App.csproj -c Release
@@ -37,6 +39,8 @@ jobs:
       - shell: cmd
         run: tools\portable-entry\build.cmd
       - name: Verify extracted product tray lifecycle
+        id: extracted
+        continue-on-error: true
         shell: pwsh
         run: |
           & ./tools/portable-entry/package.ps1 -Payload payload -Launcher portable-build/Start-app.exe -Destination portable
@@ -58,6 +62,11 @@ jobs:
           $p=Start-Process 'tests/StartApp.TrayCapture/bin/Release/net10.0-windows/StartApp.UpdateUiCapture.exe' -ArgumentList ('"'+(Join-Path $PWD 'evidence/focused')+'"') -PassThru
           if(-not $p.WaitForExit(90000)){$p.Kill($true);throw 'Focused tray timeout'}
           if($p.ExitCode -ne 0){Get-Content evidence/focused/error.txt;throw 'Focused tray failed'}
+      - name: Require both real tray probes
+        if: always()
+        shell: pwsh
+        run: |
+          if('${{ steps.direct.outcome }}' -ne 'success' -or '${{ steps.extracted.outcome }}' -ne 'success'){throw 'Real executable tray lifecycle remains unverified'}
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
