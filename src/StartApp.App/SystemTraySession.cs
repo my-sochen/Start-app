@@ -1,4 +1,5 @@
-using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -11,6 +12,10 @@ namespace StartApp.App;
 /// TaskbarCreated message. Workspace entries are rebuilt on demand, never retain deleted/renamed model objects.</summary>
 internal sealed class SystemTraySession : IDisposable
 {
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string? windowName);
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+    internal bool CanHide => FindWindow("Shell_TrayWnd", null) != IntPtr.Zero;
     private readonly MainWindow _window;
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Drawing.Icon _art;
@@ -67,7 +72,12 @@ internal sealed class SystemTraySession : IDisposable
     internal void ShowMenu()
     {
         if (_menu is not null) _menu.IsOpen = false;
-        _menu = BuildMenu(); _menu.IsOpen = true;
+        // Give a notification-area popup the foreground so an outside click dismisses it, even while hidden.
+        var handle = new WindowInteropHelper(_window).Handle;
+        SetForegroundWindow(handle);
+        _menu = BuildMenu();
+        _menu.Closed += (_, _) => PostMessage(handle, 0, IntPtr.Zero, IntPtr.Zero);
+        _menu.IsOpen = true;
     }
     public void Dispose()
     {
