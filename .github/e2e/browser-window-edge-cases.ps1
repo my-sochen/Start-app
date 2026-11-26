@@ -9,21 +9,21 @@ function Windows($profile){$ids=@(Get-CimInstance Win32_Process|Where-Object {$_
 function WaitWindows($profile,$count){$until=[DateTime]::UtcNow.AddSeconds(30);do{$ws=@(Windows $profile);if($ws.Count -eq $count){return $ws};Start-Sleep -Milliseconds 150}while([DateTime]::UtcNow -lt $until);throw "Expected $count windows, got $($ws.Count)"}
 $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$listener.Start();$port=$listener.LocalEndpoint.Port;$listener.Stop()
 $pages=Join-Path $out 'pages';New-Item $pages -ItemType Directory -Force|Out-Null
-foreach($name in @('Unrelated','C','A','B')){[IO.File]::WriteAllText((Join-Path $pages $name),("<html><head><title>Loading</title></head><body><h1>$name</h1><script>document.title='Probe-$name-'+Math.random().toString(36).slice(2)</script><input value='preserve unsaved state'></body></html>"))}
+foreach($name in @('Unrelated','C','A','B')){[IO.File]::WriteAllText((Join-Path $pages ($name+'.html')),("<html><head><title>Loading</title></head><body><h1>$name</h1><script>document.title='Probe-$name-'+Math.random().toString(36).slice(2)</script><input value='preserve unsaved state'></body></html>"))}
 $server=Start-Process python -ArgumentList @('-m','http.server',"$port",'--bind','127.0.0.1','--directory',('"'+$pages+'"')) -PassThru -RedirectStandardOutput (Join-Path $out 'http-out.txt') -RedirectStandardError (Join-Path $out 'http-error.txt')
 $until=[DateTime]::UtcNow.AddSeconds(10)
-do{try{Invoke-WebRequest "http://127.0.0.1:$port/Unrelated" -UseBasicParsing|Out-Null;break}catch{if([DateTime]::UtcNow -gt $until){throw};Start-Sleep -Milliseconds 100}}while($true)
+do{try{Invoke-WebRequest "http://127.0.0.1:$port/Unrelated.html" -UseBasicParsing|Out-Null;break}catch{if([DateTime]::UtcNow -gt $until){throw};Start-Sleep -Milliseconds 100}}while($true)
 
 try{
  foreach($browser in @(@{Name='Chrome';Exe='C:\Program Files\Google\Chrome\Application\chrome.exe'},@{Name='Edge';Exe='C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'})){
   $profile=Join-Path $env:RUNNER_TEMP ('browser-edge-'+[guid]::NewGuid().ToString('N'))
   try{
    $helper=Join-Path $PWD 'tests/StartApp.BrowserWindowProbe/bin/Release/net10.0-windows/StartApp.BrowserWindowProbe.exe'
-   & $helper $browser.Exe $profile "http://127.0.0.1:$port/Unrelated"
+   & $helper $browser.Exe $profile "http://127.0.0.1:$port/Unrelated.html"
    Check "$($browser.Name) unrelated fixture started" ($LASTEXITCODE -eq 0)
    $first=@(WaitWindows $profile 1);$original=$first[0];$originalToken=(Tabs $original)[0].Current.Name
    foreach($iteration in 1..2){
-    & $helper $browser.Exe $profile "http://127.0.0.1:$port/C?x=1&y=2" "http://127.0.0.1:$port/A#fragment" "http://127.0.0.1:$port/B"
+    & $helper $browser.Exe $profile "http://127.0.0.1:$port/C.html?x=1&y=2" "http://127.0.0.1:$port/A.html#fragment" "http://127.0.0.1:$port/B.html"
     Check "$($browser.Name) product batch $iteration submitted" ($LASTEXITCODE -eq 0)
     $ws=@(WaitWindows $profile ($iteration+1))
     Check "$($browser.Name) unrelated tab state preserved $iteration" ((Tabs $original)[0].Current.Name -eq $originalToken)
