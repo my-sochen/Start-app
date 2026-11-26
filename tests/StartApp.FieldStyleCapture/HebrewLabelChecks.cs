@@ -14,7 +14,7 @@ internal static partial class Program
         check("Real row uses Hebrew",Descendants(shell).OfType<TextBlock>().Any(x=>x.Text=="Notepad" && AutomationProperties.GetName(x)=="Notepad"));
         var panel=new StackPanel{FlowDirection=System.Windows.FlowDirection.RightToLeft,Margin=new Thickness(24)};
         var probe=new Window{Owner=shell,Width=700,Height=320,Content=panel};probe.Show();await Idle(probe);
-        foreach(var path in new string?[]{null,"","   ",@"C:\Legacy\missing.exe",@"C:\Legacy\tool-v2.1 (64)_123!.exe",Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")}){
+        foreach(var path in new string?[]{null,"","   ",@"C:\Legacy\missing.exe",@"C:\Legacy\tool-v2.1 (64)_123!.exe",@"C:\Legacy\tool.123",@"C:\Legacy\tool.!!!",Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")}){
             var view=new ProgramIconView{Program=path};panel.Children.Add(view);await Idle(shell);
             var label=Descendants(view).OfType<TextBlock>().Single(x=>x.Text!="נפתח באמצעות: ");
             check("Prefix is separate "+path,view.Children.OfType<TextBlock>().Single().Text=="נפתח באמצעות: ");
@@ -31,6 +31,9 @@ internal static partial class Program
                 var iconCenter=icon.PointToScreen(new System.Windows.Point(icon.ActualWidth/2,icon.ActualHeight/2));
                 var nameCenter=label.PointToScreen(new System.Windows.Point(label.ActualWidth/2,label.ActualHeight/2));
                 check("Icon visually left of name",iconCenter.X<nameCenter.X);
+                var iconRight=icon.PointToScreen(new System.Windows.Point(icon.ActualWidth,0)).X;
+                var nameLeft=label.PointToScreen(new System.Windows.Point(0,0)).X;
+                check("Icon and name bounds do not overlap",iconRight<=nameLeft);
             }
         }
         var stale=new ProgramIconView{Program=Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\notepad.exe")};panel.Children.Add(stale);stale.Program=@"C:\Late\missing.exe";await Task.Delay(1000);await Idle(shell);
