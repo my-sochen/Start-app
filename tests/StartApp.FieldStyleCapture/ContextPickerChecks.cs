@@ -23,6 +23,13 @@ internal static partial class Program
             check(type+" selected value binding",OpenWithPicker.GetPath(combo)==vm.OpenWithProgram);
             if(type=="File")check("Missing saved path preserved",OpenWithPicker.SelectedPath(combo)==@"C:\Legacy\missing.exe");
             await Take(window,output,type.ToLowerInvariant()+"-context");await Popup(window,combo,output,type.ToLowerInvariant()+"-context-dropdown",check);
+            combo.IsDropDownOpen=true;await Idle(window);await Task.Delay(200);
+            var screen=window.PointToScreen(new System.Windows.Point(0,0));
+            using(var image=new System.Drawing.Bitmap((int)window.ActualWidth,(int)window.ActualHeight)){
+                using(var graphics=System.Drawing.Graphics.FromImage(image))graphics.CopyFromScreen((int)screen.X,(int)screen.Y,0,0,image.Size);
+                image.Save(Path.Combine(output,type.ToLowerInvariant()+"-context-desktop-dropdown.png"));
+            }
+            combo.IsDropDownOpen=false;await Idle(window);
             Other(window,combo,output,type.ToLowerInvariant()+"-context",check);
             combo.SelectedItem=combo.Items.Cast<OpenWithPicker.Choice>().First();await Idle(window);
             check(type+" Windows default clears draft path",vm.OpenWithProgram=="");
