@@ -27,8 +27,8 @@ public sealed class ProgramIconView : StackPanel
     private void SetIdentity(string value)
     {
         _label.Text = value;
-        // Keep the full accessible phrase although the visible prefix and identity are separate.
-        AutomationProperties.SetName(_label, Prefix + value);
+        // Prefix and identity are separate peers; do not announce the prefix twice.
+        AutomationProperties.SetName(_label, value);
     }
     private static void Changed(DependencyObject obj, DependencyPropertyChangedEventArgs args) => ((ProgramIconView)obj).Refresh();
     private async void Refresh()

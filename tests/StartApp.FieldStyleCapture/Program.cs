@@ -45,6 +45,7 @@ internal static partial class Program
             if(started)return;started=true;
             try {
                 if(args.Length==2 && args[1]=="context") { await ContextPicker(shell,repo,vm,output,Check); File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));return; }
+                if(args.Length==2 && args[1]=="hebrew") { await HebrewLabels(shell,repo,vm,output,Check);File.WriteAllText(Path.Combine(output,"checks.json"),JsonSerializer.Serialize(Checks));return; }
                 vm.ShowCreateScreen(); await Idle(shell);
                 var create=Descendants(shell).OfType<CreateWorkspaceView>().Single();
                 var input=Descendants(create).OfType<TextBox>().First(x=>x.IsVisible);
