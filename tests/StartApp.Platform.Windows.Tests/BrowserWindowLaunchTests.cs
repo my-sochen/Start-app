@@ -30,4 +30,9 @@ public class BrowserWindowLaunchTests
         var starter=new Starter();var result=new WindowsLauncher(starter).LaunchWindow(@"C:\chrome.exe",new[]{new Item("a",ItemType.Link,"A","https://example.org/"+new string('a',30000))});
         Assert.Equal(LaunchStatus.Unavailable,result.Status);Assert.Empty(starter.Requests);
     }
+    [Fact]public void QuoteExpansionCountsTowardWindowsCommandLimit()
+    {
+        var starter=new Starter();var result=new WindowsLauncher(starter).LaunchWindow(@"C:\chrome.exe",new[]{new Item("a",ItemType.Link,"A","https://example.org/"+new string('"',17000))});
+        Assert.Equal(LaunchStatus.Unavailable,result.Status);Assert.Empty(starter.Requests);
+    }
 }
