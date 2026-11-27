@@ -1,0 +1,25 @@
+name: real-software-menu
+on:
+  push:
+    branches: [check/real-software-menu-20261127]
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.1.0
+        with:
+          dotnet-version: '10.0.404'
+      - name: Build actual app
+        run: dotnet build src/StartApp.App/StartApp.App.csproj --configuration Release
+      - name: Open actual menus and capture desktop
+        shell: pwsh
+        run: ./.github/e2e/real-software-menu.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: real-software-menu-20261127
+          path: design-captures/
